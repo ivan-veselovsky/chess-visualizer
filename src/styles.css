@@ -1,0 +1,84 @@
+:root {
+  --square-light: #f0d9b5;
+  --square-dark: #b58863;
+  --board-frame: #4a3728;
+  --piece-white: #ffffff;
+  --piece-black: #1a1a1a;
+  --piece-outline: #1a1a1a;
+
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem 1rem;
+}
+
+.app h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.board {
+  width: min(90vmin, 640px);
+  height: auto;
+  display: block;
+}
+
+.square-light {
+  fill: var(--square-light);
+}
+
+.square-dark {
+  fill: var(--square-dark);
+}
+
+.board-frame {
+  fill: none;
+  stroke: var(--board-frame);
+  stroke-width: 2;
+}
+
+.coordinate-label {
+  font-size: 14px;
+  fill: currentColor;
+  text-anchor: middle;
+  dominant-baseline: central;
+  user-select: none;
+}
+
+.piece {
+  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
+  font-size: 48px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  user-select: none;
+  pointer-events: none;
+}
+
+.piece-white {
+  fill: var(--piece-white);
+  stroke: var(--piece-outline);
+  stroke-width: 1.2;
+}
+
+.piece-black {
+  fill: var(--piece-black);
+  stroke: var(--piece-outline);
+  stroke-width: 1.2;
+}
+
+.fen {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
