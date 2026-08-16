@@ -1,10 +1,13 @@
 :root {
-  --square-light: #f0d9b5;
-  --square-dark: #b58863;
+  /* --square-light / --square-dark are supplied per-board by <Board>. */
   --board-frame: #4a3728;
+  --grid-line: #000000;
   --piece-white: #ffffff;
   --piece-black: #1a1a1a;
   --piece-outline: #1a1a1a;
+  --panel-border: color-mix(in srgb, currentColor 25%, transparent);
+  --panel-bg: color-mix(in srgb, currentColor 5%, transparent);
+  --invalid: #c62828;
 
   color-scheme: light dark;
   font-family: system-ui, sans-serif;
@@ -15,23 +18,75 @@ body {
 }
 
 .app {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 2rem 1rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2rem;
 }
 
-.app h1 {
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.app-header h1 {
   margin: 0;
   font-size: 1.5rem;
 }
 
+.gear-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  font-size: 1rem;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.gear-button:hover,
+.gear-button[aria-expanded="true"] {
+  background: var(--panel-bg);
+}
+
+/* Board on the left, options panel on the right; stacks when narrow. */
+.app-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.board-pane {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .board {
-  width: min(90vmin, 640px);
+  width: 100%;
+  max-width: 640px;
   height: auto;
   display: block;
 }
+
+.fen {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
+
+/* --- Board layers ------------------------------------------------------- */
 
 .square-light {
   fill: var(--square-light);
@@ -39,6 +94,11 @@ body {
 
 .square-dark {
   fill: var(--square-dark);
+}
+
+.grid-line {
+  stroke: var(--grid-line);
+  stroke-width: 1;
 }
 
 .board-frame {
@@ -76,9 +136,124 @@ body {
   stroke-width: 1.2;
 }
 
-.fen {
+/* --- Options panel ------------------------------------------------------ */
+
+.options-panel {
+  flex: 0 1 280px;
+  padding: 1rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-bg);
+}
+
+.options-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.options-panel-header h2 {
   margin: 0;
-  font-family: ui-monospace, monospace;
+  font-size: 1.1rem;
+}
+
+.options-panel-header button {
+  padding: 0 0.4rem;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.options-group {
+  margin-top: 1rem;
+}
+
+.options-group h3 {
+  margin: 0 0 0.75rem;
   font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   opacity: 0.7;
+}
+
+.color-field {
+  margin-bottom: 0.85rem;
+}
+
+.color-field > label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.color-field-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.color-field-inputs input[type="color"] {
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.hex-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.9rem;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.hex-input-invalid {
+  border-color: var(--invalid);
+  color: var(--invalid);
+}
+
+.toggle-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.toggle-field input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: currentColor;
+  cursor: pointer;
+}
+
+.toggle-field label {
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.reset-button {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.reset-button:hover {
+  background: var(--panel-bg);
 }
