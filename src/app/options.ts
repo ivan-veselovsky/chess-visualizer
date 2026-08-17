@@ -5,8 +5,20 @@ import {
   type BoardColors,
 } from "../visualization/options";
 
-export type { AttackOptions, BoardColors, KnightRingOptions } from "../visualization/options";
-export { DEFAULT_KNIGHT_RING } from "../visualization/options";
+export type {
+  AttackOptions,
+  BoardColors,
+  KnightRingOptions,
+  StripeStyle,
+} from "../visualization/options";
+export {
+  DEFAULT_BISHOP_STRIPE,
+  DEFAULT_DECAY_PER_BLOCKER,
+  DEFAULT_KING_STRIPE_WIDTH,
+  DEFAULT_KNIGHT_RING,
+  DEFAULT_QUEEN_STRIPE,
+  DEFAULT_ROOK_STRIPE,
+} from "../visualization/options";
 
 /**
  * Central description of everything the user can tweak. New option groups are
@@ -47,10 +59,18 @@ export function normalizeHexColor(input: string): string | null {
   return null;
 }
 
-/** Parses a positive number, or null when the input is not usable. */
-export function parsePositiveNumber(input: string): number | null {
-  const value = Number(input.trim());
-  if (input.trim() === "" || !Number.isFinite(value) || value <= 0) {
+/**
+ * Parses a number, or null when the input is not usable. Zero is rejected
+ * unless `allowZero` is set — a zero radius is degenerate, but a zero inner
+ * stripe width is meaningful.
+ */
+export function parseNumber(input: string, allowZero = false): number | null {
+  const trimmed = input.trim();
+  const value = Number(trimmed);
+  if (trimmed === "" || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  if (value === 0 && !allowZero) {
     return null;
   }
   return value;

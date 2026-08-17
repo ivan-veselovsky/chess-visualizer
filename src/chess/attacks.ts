@@ -28,16 +28,19 @@ const KNIGHT_STEPS: readonly Direction[] = [
   [2, 1],
 ];
 
-/** The four axes a queen radiates along, one entry per stripe. */
-export const QUEEN_AXES: readonly Direction[] = [
+/** Axes the sliding pieces radiate along, one entry per stripe. */
+export const ROOK_AXES: readonly Direction[] = [
   [1, 0], // rank
   [0, 1], // file
+];
+
+export const BISHOP_AXES: readonly Direction[] = [
   [1, 1], // a1-h8 diagonal
   [1, -1], // h1-a8 diagonal
 ];
 
-/** Intensity is divided by this for every piece the stripe has passed through. */
-const DECAY_PER_BLOCKER = 1 / 3;
+export const QUEEN_AXES: readonly Direction[] = [...ROOK_AXES, ...BISHOP_AXES];
+
 
 /**
  * Squares a king on `square` attacks: the eight neighbours, minus the ones that
@@ -71,7 +74,7 @@ export interface RaySquare {
   square: Square;
   /** Distance from the origin square, in steps (1 = adjacent). */
   distance: number;
-  /** 1 before any blocker, divided by 3 after each piece the ray has passed. */
+  /** 1 before any blocker, scaled by the decay factor per piece passed. */
   intensity: number;
 }
 
@@ -80,15 +83,21 @@ export interface RaySquare {
  * its intensity.
  *
  * Unlike normal move generation the ray does not stop at the first piece: it
- * keeps going with the intensity reduced, so a long line stays visible behind
- * whatever stands on it. A blocker's own square is still reported at the
- * intensity the ray had on arrival — the drop applies to what lies beyond it.
+ * keeps going with the intensity scaled by `decay`, so a long line stays
+ * visible behind whatever stands on it. A blocker's own square is still
+ * reported at the intensity the ray had on arrival — the drop applies to what
+ * lies beyond it.
+ *
+ * `decay` is clamped to 0..1. At 0 the ray stops at the first piece, which is
+ * the no-x-ray case; at 1 it never dims.
  */
 export function attackRay(
   chess: Chess,
   origin: Square,
-  [df, dr]: Direction
+  [df, dr]: Direction,
+  decay: number
 ): RaySquare[] {
+  const factor = Math.min(Math.max(decay, 0), 1);
   const file = fileIndex(origin);
   const rank = rankIndex(origin);
   const squares: RaySquare[] = [];
@@ -103,7 +112,11 @@ export function attackRay(
     squares.push({ square: target, distance, intensity });
 
     if (chess.get(target) !== undefined) {
-      intensity *= DECAY_PER_BLOCKER;
+      intensity *= factor;
+      // Nothing further would be visible; stop rather than emit dead squares.
+      if (intensity === 0) {
+        return squares;
+      }
     }
   }
 }
@@ -118,11 +131,40 @@ export interface AttackAxis {
   negative: RaySquare[];
 }
 
-/** The four stripes radiating from a queen, each decaying independently. */
-export function queenAttackAxes(chess: Chess, origin: Square): AttackAxis[] {
-  return QUEEN_AXES.map(([df, dr]) => ({
+/** The stripes radiating from a sliding piece, each decaying independently. */
+export function slidingAttackAxes(
+  chess: Chess,
+  origin: Square,
+  axes: readonly Direction[],
+  decay: number
+): AttackAxis[] {
+  return axes.map(([df, dr]) => ({
     direction: [df, dr] as Direction,
-    positive: attackRay(chess, origin, [df, dr]),
-    negative: attackRay(chess, origin, [-df, -dr]),
+    positive: attackRay(chess, origin, [df, dr], decay),
+    negative: attackRay(chess, origin, [-df, -dr], decay),
   }));
+}
+
+export function queenAttackAxes(
+  chess: Chess,
+  origin: Square,
+  decay: number
+): AttackAxis[] {
+  return slidingAttackAxes(chess, origin, QUEEN_AXES, decay);
+}
+
+export function rookAttackAxes(
+  chess: Chess,
+  origin: Square,
+  decay: number
+): AttackAxis[] {
+  return slidingAttackAxes(chess, origin, ROOK_AXES, decay);
+}
+
+export function bishopAttackAxes(
+  chess: Chess,
+  origin: Square,
+  decay: number
+): AttackAxis[] {
+  return slidingAttackAxes(chess, origin, BISHOP_AXES, decay);
 }

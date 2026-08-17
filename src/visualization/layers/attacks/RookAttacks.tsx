@@ -1,9 +1,9 @@
-import { queenAttackAxes } from "../../../chess/attacks";
+import { rookAttackAxes } from "../../../chess/attacks";
 import RayStripes from "./RayStripes";
 import type { PieceAttackProps } from "./types";
 
-/** Four stripes crossing at the queen — two along the grid, two diagonal. */
-export default function QueenAttacks({
+/** Two stripes along the grid, drawn as a double stripe by default. */
+export default function RookAttacks({
   position,
   piece,
   idPrefix,
@@ -13,13 +13,13 @@ export default function QueenAttacks({
   return (
     <RayStripes
       origin={piece.square}
-      axes={queenAttackAxes(
+      axes={rookAttackAxes(
         position,
         piece.square,
         attackOptions.decayPerBlocker
       )}
-      stripeClass="attack-stripe attack-queen"
-      stripe={attackOptions.queenStripe}
+      stripeClass="attack-stripe attack-rook"
+      stripe={attackOptions.rookStripe}
       idPrefix={idPrefix}
       orientation={orientation}
     />

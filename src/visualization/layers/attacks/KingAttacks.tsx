@@ -1,7 +1,7 @@
 import { kingAttackedSquares } from "../../../chess/attacks";
 import {
   ATTACK_BASE_OPACITY,
-  KING_STRIPE_WIDTH,
+  SQUARE_SIZE,
   kingAttackRingPath,
   squareBox,
 } from "../../geometry";
@@ -16,8 +16,13 @@ export default function KingAttacks({
   piece,
   idPrefix,
   orientation,
+  attackOptions,
 }: PieceAttackProps) {
   const clipId = `${idPrefix}-ring`;
+  const width = Math.max(attackOptions.kingStripeWidth, 0) * SQUARE_SIZE;
+  if (width === 0) {
+    return null;
+  }
 
   return (
     <g>
@@ -29,7 +34,7 @@ export default function KingAttacks({
       <path
         d={kingAttackRingPath(piece.square, orientation)}
         className="attack-stripe attack-king"
-        strokeWidth={KING_STRIPE_WIDTH}
+        strokeWidth={width}
         strokeOpacity={ATTACK_BASE_OPACITY}
         clipPath={`url(#${clipId})`}
       />

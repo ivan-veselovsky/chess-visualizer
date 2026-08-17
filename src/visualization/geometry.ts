@@ -14,10 +14,6 @@ export const BOARD_SIZE = FILES.length * SQUARE_SIZE;
 export const BORDER_SIZE = 24;
 export const CANVAS_SIZE = BOARD_SIZE + 2 * BORDER_SIZE;
 
-/** Stripe thicknesses, per piece kind. */
-export const KING_STRIPE_WIDTH = SQUARE_SIZE / 3;
-export const QUEEN_STRIPE_WIDTH = SQUARE_SIZE / 5;
-
 /** Opacity of an undimmed attack stripe. */
 export const ATTACK_BASE_OPACITY = 0.55;
 
@@ -79,6 +75,16 @@ export function stepVector(
 ): Point {
   const sign = orientation === "black" ? -1 : 1;
   return { x: sign * df * SQUARE_SIZE, y: -sign * dr * SQUARE_SIZE };
+}
+
+/** Unit vector at right angles to `direction`, in screen space. */
+export function perpendicular(
+  direction: readonly [number, number],
+  orientation: Orientation = "white"
+): Point {
+  const { x, y } = stepVector(direction, orientation);
+  const length = Math.hypot(x, y);
+  return { x: -y / length, y: x / length };
 }
 
 /**

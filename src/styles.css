@@ -6,6 +6,8 @@
   --attack-king: #ffd600;
   --attack-queen: #e53935;
   --attack-knight: #00bcd4;
+  --attack-bishop: #43a047;
+  --attack-rook: #fb8c00;
   --piece-white: #ffffff;
   --piece-black: #1a1a1a;
   --piece-outline: #1a1a1a;
@@ -123,6 +125,14 @@ body {
 
 .attack-knight {
   stroke: var(--attack-knight);
+}
+
+.attack-bishop {
+  stroke: var(--attack-bishop);
+}
+
+.attack-rook {
+  stroke: var(--attack-rook);
 }
 
 .board-frame {

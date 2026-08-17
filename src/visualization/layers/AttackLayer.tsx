@@ -3,9 +3,11 @@ import type { Chess, PieceSymbol } from "chess.js";
 import type { PlacedPiece } from "../../chess/model";
 import type { Orientation } from "../geometry";
 import type { AttackOptions } from "../options";
+import BishopAttacks from "./attacks/BishopAttacks";
 import KingAttacks from "./attacks/KingAttacks";
 import KnightAttacks from "./attacks/KnightAttacks";
 import QueenAttacks from "./attacks/QueenAttacks";
+import RookAttacks from "./attacks/RookAttacks";
 import type { PieceAttackProps } from "./attacks/types";
 
 /**
@@ -18,6 +20,8 @@ const ATTACK_RENDERERS: Partial<
   k: KingAttacks,
   q: QueenAttacks,
   n: KnightAttacks,
+  b: BishopAttacks,
+  r: RookAttacks,
 };
 
 interface AttackLayerProps {
