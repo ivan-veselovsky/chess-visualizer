@@ -12,7 +12,7 @@ export interface BoardColors {
 export const DEFAULT_BOARD_COLORS: BoardColors = {
   // lightSquare: "#f0d9b5",
   // darkSquare: "#b58863",
-  lightSquare: "#cccccc",
+  lightSquare:"#ccdccc", //"#cccccc",
   darkSquare: "#cccccc",
 };
 
