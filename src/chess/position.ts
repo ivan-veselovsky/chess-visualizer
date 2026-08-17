@@ -1,7 +1,37 @@
-import { Chess } from "chess.js";
+import { Chess, validateFen } from "chess.js";
 
 /** Sample position: Italian/Ruy-Lopez style opening after 1.e4 e5 2.Nf3 Nc6. */
 export const SAMPLE_FEN =
   "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
 
-export const chess = new Chess(SAMPLE_FEN);
+export interface ParsedFen {
+  position: Chess | null;
+  /** Why the FEN was rejected, when it was. */
+  error: string | null;
+}
+
+/**
+ * Reads a FEN into a position. Invalid input is reported rather than thrown, so
+ * a half-typed FEN can leave the board showing the last one that parsed.
+ */
+export function parseFen(fen: string): ParsedFen {
+  const trimmed = fen.trim();
+  if (trimmed === "") {
+    return { position: null, error: "Enter a FEN" };
+  }
+
+  const validation = validateFen(trimmed);
+  if (!validation.ok) {
+    return { position: null, error: validation.error ?? "Invalid FEN" };
+  }
+
+  try {
+    return { position: new Chess(trimmed), error: null };
+  } catch (cause) {
+    // validateFen and the constructor disagree on a few edge cases.
+    return {
+      position: null,
+      error: cause instanceof Error ? cause.message : "Invalid FEN",
+    };
+  }
+}

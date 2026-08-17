@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { chess } from "../chess/position";
+import { useMemo, useRef, useState } from "react";
+import { SAMPLE_FEN, parseFen } from "../chess/position";
 import Board from "../visualization/Board";
+import FenField from "./FenField";
 import GearIcon from "./GearIcon";
 import OptionsPanel from "./OptionsPanel";
 import { DEFAULT_OPTIONS, type Options } from "./options";
@@ -8,6 +9,17 @@ import { DEFAULT_OPTIONS, type Options } from "./options";
 export default function App() {
   const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [fen, setFen] = useState(SAMPLE_FEN);
+
+  const { position, error } = useMemo(() => parseFen(fen), [fen]);
+
+  // A FEN is unparseable for most of the time it takes to type one, so the
+  // board keeps showing the last position that did parse rather than blanking.
+  const lastValid = useRef(position);
+  if (position !== null) {
+    lastValid.current = position;
+  }
+  const shown = position ?? lastValid.current;
 
   return (
     <main className="app">
@@ -27,13 +39,20 @@ export default function App() {
 
       <div className="app-body">
         <section className="board-pane">
-          <Board
-            position={chess}
-            colors={options.boardColors}
-            attacks={options.attacks}
-            showGrid={options.showGrid}
+          {shown !== null && (
+            <Board
+              position={shown}
+              colors={options.boardColors}
+              attacks={options.attacks}
+              showGrid={options.showGrid}
+            />
+          )}
+          <FenField
+            value={fen}
+            error={error}
+            onChange={setFen}
+            onReset={() => setFen(SAMPLE_FEN)}
           />
-          <p className="fen">{chess.fen()}</p>
         </section>
 
         {optionsOpen && (

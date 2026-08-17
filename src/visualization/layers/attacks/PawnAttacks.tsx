@@ -1,6 +1,5 @@
 import { pawnAttacks, type PawnAttack } from "../../../chess/attacks";
 import {
-  ATTACK_BASE_OPACITY,
   BOARD_SIZE,
   SQUARE_SIZE,
   rayPoint,
@@ -84,11 +83,11 @@ export default function PawnAttacks({
     );
   };
 
-  // Transparency applied once to the pair: the two marks leave the pawn's inner
-  // square close together and overlap there, and compositing them opaque first
-  // keeps that junction the same shade as the rest.
+  // The two marks leave the pawn's inner square close together and overlap
+  // there. They are stroked opaque and AttackLayer applies the transparency to
+  // the composited pair, which keeps that junction the same shade as the rest.
   return (
-    <g opacity={ATTACK_BASE_OPACITY}>
+    <g>
       <clipPath id={startClipId}>
         <path d={startClipPath} clipRule="evenodd" />
       </clipPath>

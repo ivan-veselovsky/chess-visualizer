@@ -110,6 +110,25 @@ export const DEFAULT_PAWN_MARK_WIDTH = 0.35;
  * properties on the board's root <svg>, which is also where the piece glyphs
  * pick up their tint — so a piece and its attacks can never disagree.
  */
+/**
+ * Widths of the outline traced around each side's attack marks — the one thing
+ * that tells the two sides' marks apart, since a piece and its attacks share a
+ * colour whatever side it is on. Zero draws none for that side.
+ *
+ * In milli-squares, not square sides: a hairline is a few thousandths of a
+ * square, and the rest of this file's lengths would need three decimals to say
+ * so. The only lengths here measured that way.
+ */
+export interface OutlineWidths {
+  white: number;
+  black: number;
+}
+
+export const DEFAULT_OUTLINE_WIDTHS: OutlineWidths = {
+  white: 10,
+  black: 10,
+};
+
 export interface AttackColors {
   king: string;
   queen: string;
@@ -130,6 +149,8 @@ export const DEFAULT_ATTACK_COLORS: AttackColors = {
 
 export interface AttackOptions {
   colors: AttackColors;
+  /** In milli-squares — see DEFAULT_OUTLINE_WIDTHS. */
+  outlineWidths: OutlineWidths;
   decayPerBlocker: number;
   rayInnerSquare: number;
   rayStartCornerRadius: number;
@@ -144,6 +165,7 @@ export interface AttackOptions {
 
 export const DEFAULT_ATTACK_OPTIONS: AttackOptions = {
   colors: DEFAULT_ATTACK_COLORS,
+  outlineWidths: DEFAULT_OUTLINE_WIDTHS,
   decayPerBlocker: DEFAULT_DECAY_PER_BLOCKER,
   rayInnerSquare: DEFAULT_RAY_INNER_SQUARE,
   rayStartCornerRadius: DEFAULT_RAY_START_CORNER_RADIUS,

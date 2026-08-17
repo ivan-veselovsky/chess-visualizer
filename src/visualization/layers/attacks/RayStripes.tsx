@@ -1,7 +1,6 @@
 import type { Square } from "chess.js";
 import type { AttackAxis, RaySquare } from "../../../chess/attacks";
 import {
-  ATTACK_BASE_OPACITY,
   BOARD_SIZE,
   SQUARE_SIZE,
   perpendicular,
@@ -191,13 +190,13 @@ export default function RayStripes({
   const upTo = (square: Square, direction: readonly [number, number]): string =>
     rayStopWedgePath(square, direction, innerHalfSide, orientation);
 
-  // Transparency is applied once, to the whole piece. Its stripes are stroked
-  // opaque and composited together first, so where they overlap — which they do
-  // wherever several rays leave the same square — the colour stays flat instead
-  // of doubling up. Only the per-blocker dimming varies stroke by stroke, and
-  // stripes at different intensities never cover each other.
+  // Stripes are stroked opaque; AttackLayer composites the piece and applies the
+  // transparency once, so where they overlap — which they do wherever several
+  // rays leave the same square — the colour stays flat instead of doubling up.
+  // Only the per-blocker dimming varies stroke by stroke, and stripes at
+  // different intensities never cover each other.
   return (
-    <g opacity={ATTACK_BASE_OPACITY}>
+    <g>
       <clipPath id={startHoleId}>
         <path d={startHolePath} clipRule="evenodd" />
       </clipPath>

@@ -6,11 +6,13 @@ import {
   DEFAULT_DECAY_PER_BLOCKER,
   DEFAULT_FULL_WIDTH_RAYS,
   DEFAULT_OPTIONS,
+  DEFAULT_OUTLINE_WIDTHS,
   DEFAULT_RAY_INNER_SQUARE,
   DEFAULT_RAY_START_CORNER_RADIUS,
   type AttackOptions,
   type BoardColors,
   type Options,
+  type OutlineWidths,
 } from "./options";
 
 interface OptionsPanelProps {
@@ -33,6 +35,12 @@ export default function OptionsPanel({
 
   function updateAttacks(patch: Partial<AttackOptions>) {
     onChange({ ...options, attacks: { ...options.attacks, ...patch } });
+  }
+
+  function updateOutlines(patch: Partial<OutlineWidths>) {
+    updateAttacks({
+      outlineWidths: { ...options.attacks.outlineWidths, ...patch },
+    });
   }
 
   return (
@@ -129,6 +137,38 @@ export default function OptionsPanel({
           }
         >
           Reset rays
+        </button>
+      </section>
+
+      <section className="options-group">
+        <h3>Sides</h3>
+        <NumberField
+          id="white-outline-width"
+          label="White outline width"
+          suffix="milli-squares"
+          value={options.attacks.outlineWidths.white}
+          step={1}
+          allowZero
+          onChange={(white) => updateOutlines({ white })}
+        />
+        <NumberField
+          id="black-outline-width"
+          label="Black outline width"
+          suffix="milli-squares"
+          value={options.attacks.outlineWidths.black}
+          step={1}
+          allowZero
+          onChange={(black) => updateOutlines({ black })}
+        />
+        <p className="options-hint">
+          Traced around each side's marks, which otherwise share a colour.
+        </p>
+        <button
+          type="button"
+          className="reset-button"
+          onClick={() => updateAttacks({ outlineWidths: DEFAULT_OUTLINE_WIDTHS })}
+        >
+          Reset outlines
         </button>
       </section>
 

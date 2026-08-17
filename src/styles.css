@@ -5,6 +5,9 @@
   /* --attack-* are supplied per-board by <Board>, opaque; the alpha comes from
      ATTACK_BASE_OPACITY and the decay per blocker. */
   --piece-outline: #1a1a1a;
+  /* Traced around each side's attack marks to tell the two apart. */
+  --attack-outline-white: #ffffff;
+  --attack-outline-black: #000000;
   /* How much of a piece's own colour survives when its side is black. */
   --piece-dark-mix: 45%;
   --panel-border: color-mix(in srgb, currentColor 25%, transparent);
@@ -80,12 +83,45 @@ body {
   display: block;
 }
 
-.fen {
-  margin: 0;
-  font-family: ui-monospace, monospace;
+.fen-field {
+  width: 100%;
+  max-width: 640px;
+}
+
+.fen-field > label {
+  display: block;
+  margin-bottom: 0.3rem;
   font-size: 0.8rem;
   opacity: 0.7;
-  overflow-wrap: anywhere;
+}
+
+.fen-field-inputs {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.fen-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.fen-input-invalid {
+  border-color: var(--invalid);
+  color: var(--invalid);
+}
+
+.fen-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--invalid);
 }
 
 /* --- Board layers ------------------------------------------------------- */
@@ -101,6 +137,14 @@ body {
 .grid-line {
   stroke: var(--grid-line);
   stroke-width: 1;
+}
+
+.attack-outline-ink-white {
+  flood-color: var(--attack-outline-white);
+}
+
+.attack-outline-ink-black {
+  flood-color: var(--attack-outline-black);
 }
 
 .attack-stripe {

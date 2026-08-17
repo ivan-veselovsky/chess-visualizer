@@ -14,6 +14,13 @@ export const BOARD_SIZE = FILES.length * SQUARE_SIZE;
 export const BORDER_SIZE = 24;
 export const CANVAS_SIZE = BOARD_SIZE + 2 * BORDER_SIZE;
 
+/**
+ * A thousandth of a square side. Lengths are given in square sides throughout,
+ * but a hairline is a couple of thousandths of one, and "0.01" is harder to set
+ * by eye than "10".
+ */
+export const MILLI_SQUARE = SQUARE_SIZE / 1000;
+
 /** Opacity of an undimmed attack stripe. */
 export const ATTACK_BASE_OPACITY = 0.55;
 

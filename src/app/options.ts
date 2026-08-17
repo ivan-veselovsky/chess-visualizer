@@ -10,11 +10,13 @@ export type {
   AttackOptions,
   BoardColors,
   KnightRingOptions,
+  OutlineWidths,
   StripeStyle,
 } from "../visualization/options";
 export {
   DEFAULT_ATTACK_COLORS,
   DEFAULT_BISHOP_STRIPE,
+  DEFAULT_OUTLINE_WIDTHS,
   DEFAULT_FULL_WIDTH_RAYS,
   DEFAULT_DECAY_PER_BLOCKER,
   DEFAULT_KING_STRIPE,

@@ -1,6 +1,5 @@
 import { knightAttackedSquares } from "../../../chess/attacks";
 import {
-  ATTACK_BASE_OPACITY,
   SQUARE_SIZE,
   squareBox,
   squareCenter,
@@ -42,7 +41,6 @@ export default function KnightAttacks({
         r={(inner + outer) / 2}
         className="attack-stripe attack-knight"
         strokeWidth={outer - inner}
-        strokeOpacity={ATTACK_BASE_OPACITY}
         clipPath={`url(#${clipId})`}
       />
     </g>
