@@ -70,9 +70,16 @@ export const DEFAULT_DECAY_PER_BLOCKER = 0;
 /** Thickness of the king's ring, in square sides. */
 export const DEFAULT_KING_STRIPE_WIDTH = 0.45;
 
+/**
+ * Width of a pawn's mark, in square sides. It doubles as the diameter of the
+ * circle the mark ends in, so the stripe and its rounded end always match.
+ */
+export const DEFAULT_PAWN_MARK_WIDTH = 0.45;
+
 export interface AttackOptions {
   decayPerBlocker: number;
   kingStripeWidth: number;
+  pawnMarkWidth: number;
   knightRing: KnightRingOptions;
   queenStripe: StripeStyle;
   bishopStripe: StripeStyle;
@@ -82,6 +89,7 @@ export interface AttackOptions {
 export const DEFAULT_ATTACK_OPTIONS: AttackOptions = {
   decayPerBlocker: DEFAULT_DECAY_PER_BLOCKER,
   kingStripeWidth: DEFAULT_KING_STRIPE_WIDTH,
+  pawnMarkWidth: DEFAULT_PAWN_MARK_WIDTH,
   knightRing: DEFAULT_KNIGHT_RING,
   queenStripe: DEFAULT_QUEEN_STRIPE,
   bishopStripe: DEFAULT_BISHOP_STRIPE,

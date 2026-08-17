@@ -1,4 +1,4 @@
-import type { Chess, Square } from "chess.js";
+import type { Chess, Color, Square } from "chess.js";
 import { fileIndex, rankIndex, squareAt } from "./model";
 
 /** A (file, rank) offset. */
@@ -67,6 +67,39 @@ export function knightAttackedSquares(square: Square): Square[] {
   return KNIGHT_STEPS.map(([df, dr]) => squareAt(file + df, rank + dr)).filter(
     (target): target is Square => target !== null
   );
+}
+
+/** The two forward diagonals, by the colour of the pawn taking them. */
+const PAWN_STEPS: Record<Color, readonly Direction[]> = {
+  w: [
+    [-1, 1],
+    [1, 1],
+  ],
+  b: [
+    [-1, -1],
+    [1, -1],
+  ],
+};
+
+/** An attacked square together with the direction the attack came from. */
+export interface PawnAttack {
+  square: Square;
+  direction: Direction;
+}
+
+/**
+ * Squares a pawn attacks: the two squares diagonally ahead of it. The direction
+ * is reported alongside, since the mark drawn on the square points back at the
+ * pawn.
+ */
+export function pawnAttacks(square: Square, color: Color): PawnAttack[] {
+  const file = fileIndex(square);
+  const rank = rankIndex(square);
+
+  return PAWN_STEPS[color].flatMap((direction) => {
+    const target = squareAt(file + direction[0], rank + direction[1]);
+    return target === null ? [] : [{ square: target, direction }];
+  });
 }
 
 /** One square along a ray, with the intensity the stripe has when it gets there. */

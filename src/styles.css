@@ -8,6 +8,7 @@
   --attack-knight: #00bcd4;
   --attack-bishop: #43a047;
   --attack-rook: #fb8c00;
+  --attack-pawn: #616161;
   --piece-white: #ffffff;
   --piece-black: #1a1a1a;
   --piece-outline: #1a1a1a;
@@ -133,6 +134,12 @@ body {
 
 .attack-rook {
   stroke: var(--attack-rook);
+}
+
+.attack-pawn {
+  stroke: var(--attack-pawn);
+  /* The cap is what draws the circle at the centre of the attacked square. */
+  stroke-linecap: round;
 }
 
 .board-frame {

@@ -6,6 +6,7 @@ import type { AttackOptions } from "../options";
 import BishopAttacks from "./attacks/BishopAttacks";
 import KingAttacks from "./attacks/KingAttacks";
 import KnightAttacks from "./attacks/KnightAttacks";
+import PawnAttacks from "./attacks/PawnAttacks";
 import QueenAttacks from "./attacks/QueenAttacks";
 import RookAttacks from "./attacks/RookAttacks";
 import type { PieceAttackProps } from "./attacks/types";
@@ -22,6 +23,7 @@ const ATTACK_RENDERERS: Partial<
   n: KnightAttacks,
   b: BishopAttacks,
   r: RookAttacks,
+  p: PawnAttacks,
 };
 
 interface AttackLayerProps {

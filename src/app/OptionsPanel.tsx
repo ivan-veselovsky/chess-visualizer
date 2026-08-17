@@ -8,6 +8,7 @@ import {
   DEFAULT_KING_STRIPE_WIDTH,
   DEFAULT_KNIGHT_RING,
   DEFAULT_OPTIONS,
+  DEFAULT_PAWN_MARK_WIDTH,
   DEFAULT_QUEEN_STRIPE,
   DEFAULT_ROOK_STRIPE,
   type AttackOptions,
@@ -158,6 +159,26 @@ export default function OptionsPanel({
           onClick={() => updateKnightRing(DEFAULT_KNIGHT_RING)}
         >
           Reset radii
+        </button>
+      </section>
+
+      <section className="options-group">
+        <h3>Pawn mark</h3>
+        <NumberField
+          id="pawn-mark-width"
+          label="Mark width"
+          suffix="squares"
+          value={options.attacks.pawnMarkWidth}
+          onChange={(pawnMarkWidth) => updateAttacks({ pawnMarkWidth })}
+        />
+        <button
+          type="button"
+          className="reset-button"
+          onClick={() =>
+            updateAttacks({ pawnMarkWidth: DEFAULT_PAWN_MARK_WIDTH })
+          }
+        >
+          Reset width
         </button>
       </section>
 
