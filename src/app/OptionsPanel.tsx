@@ -1,6 +1,13 @@
 import ColorField from "./ColorField";
+import NumberField from "./NumberField";
 import ToggleField from "./ToggleField";
-import { DEFAULT_OPTIONS, type BoardColors, type Options } from "./options";
+import {
+  DEFAULT_KNIGHT_RING,
+  DEFAULT_OPTIONS,
+  type BoardColors,
+  type KnightRingOptions,
+  type Options,
+} from "./options";
 
 interface OptionsPanelProps {
   options: Options;
@@ -17,6 +24,16 @@ export default function OptionsPanel({
     onChange({
       ...options,
       boardColors: { ...options.boardColors, ...patch },
+    });
+  }
+
+  function updateKnightRing(patch: Partial<KnightRingOptions>) {
+    onChange({
+      ...options,
+      attacks: {
+        ...options.attacks,
+        knightRing: { ...options.attacks.knightRing, ...patch },
+      },
     });
   }
 
@@ -60,6 +77,31 @@ export default function OptionsPanel({
           checked={options.showGrid}
           onChange={(showGrid) => onChange({ ...options, showGrid })}
         />
+      </section>
+
+      <section className="options-group">
+        <h3>Knight ring</h3>
+        <NumberField
+          id="knight-inner-radius"
+          label="Inner radius"
+          suffix="squares"
+          value={options.attacks.knightRing.innerRadius}
+          onChange={(innerRadius) => updateKnightRing({ innerRadius })}
+        />
+        <NumberField
+          id="knight-outer-radius"
+          label="Outer radius"
+          suffix="squares"
+          value={options.attacks.knightRing.outerRadius}
+          onChange={(outerRadius) => updateKnightRing({ outerRadius })}
+        />
+        <button
+          type="button"
+          className="reset-button"
+          onClick={() => updateKnightRing(DEFAULT_KNIGHT_RING)}
+        >
+          Reset radii
+        </button>
       </section>
     </aside>
   );

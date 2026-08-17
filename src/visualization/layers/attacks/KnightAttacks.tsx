@@ -1,0 +1,50 @@
+import { knightAttackedSquares } from "../../../chess/attacks";
+import {
+  ATTACK_BASE_OPACITY,
+  SQUARE_SIZE,
+  squareBox,
+  squareCenter,
+} from "../../geometry";
+import type { PieceAttackProps } from "./types";
+
+/**
+ * A ring bounded by two circles centred on the knight, clipped to the eight
+ * squares it attacks so nothing shows on the squares in between or off board.
+ *
+ * The annulus is drawn as a single stroked circle: the stroke runs along the
+ * mid-radius and its width spans the gap between the two bounding circles,
+ * which avoids an even-odd two-subpath fill.
+ */
+export default function KnightAttacks({
+  piece,
+  idPrefix,
+  orientation,
+  attackOptions,
+}: PieceAttackProps) {
+  const clipId = `${idPrefix}-ring`;
+  const { innerRadius, outerRadius } = attackOptions.knightRing;
+
+  // Tolerate the two radii being given the wrong way round.
+  const inner = Math.min(innerRadius, outerRadius) * SQUARE_SIZE;
+  const outer = Math.max(innerRadius, outerRadius) * SQUARE_SIZE;
+  const { x, y } = squareCenter(piece.square, orientation);
+
+  return (
+    <g>
+      <clipPath id={clipId}>
+        {knightAttackedSquares(piece.square).map((target) => (
+          <rect key={target} {...squareBox(target, orientation)} />
+        ))}
+      </clipPath>
+      <circle
+        cx={x}
+        cy={y}
+        r={(inner + outer) / 2}
+        className="attack-stripe attack-knight"
+        strokeWidth={outer - inner}
+        strokeOpacity={ATTACK_BASE_OPACITY}
+        clipPath={`url(#${clipId})`}
+      />
+    </g>
+  );
+}

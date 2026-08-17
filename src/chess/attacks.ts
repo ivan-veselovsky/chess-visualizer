@@ -16,6 +16,18 @@ const KING_STEPS: readonly Direction[] = [
   [1, 1],
 ];
 
+/** The eight knight leaps. */
+const KNIGHT_STEPS: readonly Direction[] = [
+  [-2, -1],
+  [-2, 1],
+  [-1, -2],
+  [-1, 2],
+  [1, -2],
+  [1, 2],
+  [2, -1],
+  [2, 1],
+];
+
 /** The four axes a queen radiates along, one entry per stripe. */
 export const QUEEN_AXES: readonly Direction[] = [
   [1, 0], // rank
@@ -37,6 +49,19 @@ export function kingAttackedSquares(square: Square): Square[] {
   const rank = rankIndex(square);
 
   return KING_STEPS.map(([df, dr]) => squareAt(file + df, rank + dr)).filter(
+    (target): target is Square => target !== null
+  );
+}
+
+/**
+ * Squares a knight on `square` attacks. Like the king, it leaps, so nothing
+ * blocks it and occupancy is irrelevant.
+ */
+export function knightAttackedSquares(square: Square): Square[] {
+  const file = fileIndex(square);
+  const rank = rankIndex(square);
+
+  return KNIGHT_STEPS.map(([df, dr]) => squareAt(file + df, rank + dr)).filter(
     (target): target is Square => target !== null
   );
 }

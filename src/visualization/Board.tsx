@@ -1,8 +1,8 @@
 import type { CSSProperties } from "react";
 import type { Chess } from "chess.js";
 import { readPieces } from "../chess/model";
-import type { BoardColors } from "../app/options";
 import { BORDER_SIZE, CANVAS_SIZE, type Orientation } from "./geometry";
+import type { AttackOptions, BoardColors } from "./options";
 import AttackLayer from "./layers/AttackLayer";
 import BorderLayer from "./layers/BorderLayer";
 import GridLayer from "./layers/GridLayer";
@@ -12,6 +12,7 @@ import SquareLayer from "./layers/SquareLayer";
 interface BoardProps {
   position: Chess;
   colors: BoardColors;
+  attacks: AttackOptions;
   showGrid?: boolean;
   orientation?: Orientation;
 }
@@ -26,6 +27,7 @@ interface BoardProps {
 export default function Board({
   position,
   colors,
+  attacks,
   showGrid = true,
   orientation = "white",
 }: BoardProps) {
@@ -50,6 +52,7 @@ export default function Board({
         <AttackLayer
           position={position}
           pieces={pieces}
+          attackOptions={attacks}
           orientation={orientation}
         />
         <BorderLayer orientation={orientation} />

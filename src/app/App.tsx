@@ -30,6 +30,7 @@ export default function App() {
           <Board
             position={chess}
             colors={options.boardColors}
+            attacks={options.attacks}
             showGrid={options.showGrid}
           />
           <p className="fen">{chess.fen()}</p>
