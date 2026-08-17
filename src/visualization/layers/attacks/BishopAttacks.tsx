@@ -20,8 +20,9 @@ export default function BishopAttacks({
       )}
       stripeClass="attack-stripe attack-bishop"
       stripe={attackOptions.bishopStripe}
-      innerRadius={attackOptions.rayInnerRadius}
       innerSquare={attackOptions.rayInnerSquare}
+      startCornerRadius={attackOptions.rayStartCornerRadius}
+      fullWidth={attackOptions.fullWidthRays}
       idPrefix={idPrefix}
       orientation={orientation}
     />

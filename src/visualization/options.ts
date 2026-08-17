@@ -68,25 +68,31 @@ export const DEFAULT_ROOK_STRIPE: StripeStyle = {
 export const DEFAULT_DECAY_PER_BLOCKER = 0;
 
 /**
- * Radius of the circle around a sliding piece, in square sides, inside which
- * its own outgoing rays are not drawn. The rays are visible on the piece's own
- * square only outside this circle.
+ * Side of the inner square, in square sides: concentric with its square and
+ * parallel to it. It is the one boundary every ray is measured against — where
+ * a ray starts, where it ends, and where it dims behind a piece it passes.
  *
- * Note the square's corners lie 1/sqrt(2) ~ 0.7071 from its centre and its
- * edges only 0.5, so a radius at or above 0.5 hides the orthogonal rays on the
- * origin square entirely, and one at or above 0.7071 hides every ray there.
+ * A ray may not pass the sides of that square lying farthest along it. A
+ * diagonal meets two of them at once and so tapers to a point at the corner
+ * where they meet; a rank or file meets one and gets a flat cut.
  */
-export const DEFAULT_RAY_INNER_RADIUS = 0.45; //0.36;
+export const DEFAULT_RAY_INNER_SQUARE = 0.75;
 
 /**
- * Side of the inner square, in square sides: concentric with its square and
- * parallel to it, sized independently of the inner circle.
- *
- * A diagonal ray that ends on a square may not pass the two sides of that
- * square's inner square farthest along the ray, so it tapers to a point at the
- * corner where they meet — an arrow-shaped end rather than a flat cut.
+ * Corner radius, in square sides, of the inner square where a ray *starts*.
+ * Rounding it blunts the point a diagonal is otherwise notched to as it leaves
+ * its piece. Ray endings, and the boundaries where a ray dims behind a piece it
+ * passes, keep the square's sharp corners — so a start never looks like an end.
  */
-export const DEFAULT_RAY_INNER_SQUARE = 0.5;
+export const DEFAULT_RAY_START_CORNER_RADIUS = 0.15;
+
+/**
+ * Whether rays keep their full width along their whole length. Off, a ray shows
+ * only on the squares it attacks, so a diagonal one narrows to a point at every
+ * square corner; on, it stays the same width throughout. Either way it starts
+ * and ends in the same place — only its width in the corners changes.
+ */
+export const DEFAULT_FULL_WIDTH_RAYS = true;
 
 export const DEFAULT_KING_STRIPE: StripeStyle = {
   outerWidth: 0.45,
@@ -97,7 +103,7 @@ export const DEFAULT_KING_STRIPE: StripeStyle = {
  * Width of a pawn's mark, in square sides. It doubles as the diameter of the
  * circle the mark ends in, so the stripe and its rounded end always match.
  */
-export const DEFAULT_PAWN_MARK_WIDTH = 0.45;
+export const DEFAULT_PAWN_MARK_WIDTH = 0.35;
 
 /**
  * Colour each piece's attacks are drawn in. Board publishes these as CSS custom
@@ -125,8 +131,9 @@ export const DEFAULT_ATTACK_COLORS: AttackColors = {
 export interface AttackOptions {
   colors: AttackColors;
   decayPerBlocker: number;
-  rayInnerRadius: number;
   rayInnerSquare: number;
+  rayStartCornerRadius: number;
+  fullWidthRays: boolean;
   pawnMarkWidth: number;
   kingStripe: StripeStyle;
   knightRing: KnightRingOptions;
@@ -138,8 +145,9 @@ export interface AttackOptions {
 export const DEFAULT_ATTACK_OPTIONS: AttackOptions = {
   colors: DEFAULT_ATTACK_COLORS,
   decayPerBlocker: DEFAULT_DECAY_PER_BLOCKER,
-  rayInnerRadius: DEFAULT_RAY_INNER_RADIUS,
   rayInnerSquare: DEFAULT_RAY_INNER_SQUARE,
+  rayStartCornerRadius: DEFAULT_RAY_START_CORNER_RADIUS,
+  fullWidthRays: DEFAULT_FULL_WIDTH_RAYS,
   pawnMarkWidth: DEFAULT_PAWN_MARK_WIDTH,
   kingStripe: DEFAULT_KING_STRIPE,
   knightRing: DEFAULT_KNIGHT_RING,

@@ -22,6 +22,11 @@ export interface Point {
   y: number;
 }
 
+export interface Rect extends Point {
+  width: number;
+  height: number;
+}
+
 /** Light squares are the ones where file and rank indices have different parity. */
 export function isLightSquare(file: number, rank: number): boolean {
   return (file + rank) % 2 === 1;
@@ -88,40 +93,90 @@ export function perpendicular(
 }
 
 /**
- * The part of a square a ray may reach when it ends there: everything not past
- * the sides of the inner square that lie farthest along the ray.
+ * Angle, in degrees, of the point a ray is cut to where it stops — at its end
+ * and wherever it dims behind a piece.
  *
- * Those sides are axis-aligned, so the result is simply a smaller rectangle. A
- * diagonal ray is bounded by two of them at once and comes to a point at the
- * corner where they meet, which is what turns its end into an arrow; an
- * orthogonal ray meets only one and keeps a flat end.
- *
- * `halfSide` is half the inner square's side, in pixels.
+ * A diagonal is cut by the two sides of the inner square meeting at the corner
+ * it reaches, which are at right angles, so 90 is not a choice but a
+ * description. An orthogonal ray reaches the middle of a side and has no corner
+ * to inherit, so it is given a blunter point of its own.
  */
-export function rayEndBox(
+const DIAGONAL_TIP_ANGLE = 90;
+const ORTHOGONAL_TIP_ANGLE = 120;
+
+/**
+ * The region a ray may occupy up to where it stops on `square`: a wedge with
+ * its point on the inner square, opening backwards along the ray.
+ *
+ * The point sits at the farthest reach of the inner square along the ray — its
+ * corner for a diagonal, the middle of a side for a rank or file — so every
+ * ray stops at the same depth however it is angled. Only the sharpness differs.
+ *
+ * At 90 degrees the wedge is precisely the quadrant cut by the two sides of the
+ * inner square, which is where the shape came from; the orthogonal case simply
+ * opens that angle out, having no corner of its own to follow.
+ */
+export function rayStopWedgePath(
   square: Square,
   direction: readonly [number, number],
   halfSide: number,
   orientation: Orientation = "white"
-): Point & { width: number; height: number } {
-  const box = squareBox(square, orientation);
-  const center = squareCenter(square, orientation);
+): string {
   const step = stepVector(direction, orientation);
+  const length = Math.hypot(step.x, step.y);
+  const along = { x: step.x / length, y: step.y / length };
 
-  let { x, y, width, height } = box;
-  if (step.x > 0) {
-    width = Math.min(box.x + box.width, center.x + halfSide) - x;
-  } else if (step.x < 0) {
-    x = Math.max(box.x, center.x - halfSide);
-    width = box.x + box.width - x;
+  // How far the inner square reaches along the ray: to a corner on a diagonal,
+  // to the middle of a side otherwise.
+  const reach = halfSide * (Math.abs(along.x) + Math.abs(along.y));
+  const center = squareCenter(square, orientation);
+  const tip = {
+    x: center.x + along.x * reach,
+    y: center.y + along.y * reach,
+  };
+
+  const diagonal = direction[0] !== 0 && direction[1] !== 0;
+  const halfAngle =
+    (((diagonal ? DIAGONAL_TIP_ANGLE : ORTHOGONAL_TIP_ANGLE) / 2) * Math.PI) /
+    180;
+  const cos = Math.cos(halfAngle);
+  const sin = Math.sin(halfAngle);
+  const back = { x: -along.x, y: -along.y };
+
+  // Long enough that the wedge leaves the board before it closes.
+  const far = 4 * BOARD_SIZE;
+  const edges = [
+    { x: back.x * cos - back.y * sin, y: back.x * sin + back.y * cos },
+    { x: back.x * cos + back.y * sin, y: -back.x * sin + back.y * cos },
+  ].map((edge) => `${tip.x + edge.x * far} ${tip.y + edge.y * far}`);
+
+  return `M ${tip.x} ${tip.y} L ${edges[0]} L ${edges[1]} Z`;
+}
+
+/**
+ * A rectangle as a closed subpath, with its corners rounded by `radius`. The
+ * radius is clamped to half the shorter side, and zero gives plain corners.
+ */
+export function roundedRectPath(box: Rect, radius: number): string {
+  const r = Math.min(Math.max(radius, 0), box.width / 2, box.height / 2);
+  const { x, y, width: w, height: h } = box;
+
+  if (r === 0) {
+    return `M ${x} ${y} h ${w} v ${h} h ${-w} Z`;
   }
-  if (step.y > 0) {
-    height = Math.min(box.y + box.height, center.y + halfSide) - y;
-  } else if (step.y < 0) {
-    y = Math.max(box.y, center.y - halfSide);
-    height = box.y + box.height - y;
-  }
-  return { x, y, width, height };
+  const arc = `a ${r} ${r} 0 0 1`;
+  return [
+    `M ${x + r} ${y}`,
+    `H ${x + w - r}`,
+    `${arc} ${r} ${r}`,
+    `V ${y + h - r}`,
+    `${arc} ${-r} ${r}`,
+    `H ${x + r}`,
+    `${arc} ${-r} ${-r}`,
+    `V ${y + r}`,
+    `${arc} ${r} ${-r}`,
+    "Z",
+  ].join(" ");
 }
 
 /**

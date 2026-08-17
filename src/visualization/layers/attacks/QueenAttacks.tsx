@@ -20,8 +20,9 @@ export default function QueenAttacks({
       )}
       stripeClass="attack-stripe attack-queen"
       stripe={attackOptions.queenStripe}
-      innerRadius={attackOptions.rayInnerRadius}
       innerSquare={attackOptions.rayInnerSquare}
+      startCornerRadius={attackOptions.rayStartCornerRadius}
+      fullWidth={attackOptions.fullWidthRays}
       idPrefix={idPrefix}
       orientation={orientation}
     />

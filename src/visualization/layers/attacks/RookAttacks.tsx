@@ -20,8 +20,9 @@ export default function RookAttacks({
       )}
       stripeClass="attack-stripe attack-rook"
       stripe={attackOptions.rookStripe}
-      innerRadius={attackOptions.rayInnerRadius}
       innerSquare={attackOptions.rayInnerSquare}
+      startCornerRadius={attackOptions.rayStartCornerRadius}
+      fullWidth={attackOptions.fullWidthRays}
       idPrefix={idPrefix}
       orientation={orientation}
     />

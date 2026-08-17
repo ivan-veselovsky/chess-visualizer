@@ -1,39 +1,35 @@
-import { pawnAttacks } from "../../../chess/attacks";
+import { pawnAttacks, type PawnAttack } from "../../../chess/attacks";
 import {
   ATTACK_BASE_OPACITY,
+  BOARD_SIZE,
   SQUARE_SIZE,
-  rayEndBox,
   rayPoint,
+  rayStopWedgePath,
+  roundedRectPath,
   squareBox,
   squareCenter,
-  type Orientation,
-  type Point,
+  type Rect,
 } from "../../geometry";
 import type { PieceAttackProps } from "./types";
 
-function rectPath(box: Point & { width: number; height: number }): string {
+function rectPath(box: Rect): string {
   return `M ${box.x} ${box.y} h ${box.width} v ${box.height} h ${-box.width} Z`;
 }
 
-function circlePath({ x, y }: Point, r: number): string {
-  return (
-    `M ${x - r} ${y}` +
-    ` a ${r} ${r} 0 1 0 ${r * 2} 0` +
-    ` a ${r} ${r} 0 1 0 ${-r * 2} 0 Z`
-  );
-}
+const BOARD_BOX: Rect = { x: 0, y: 0, width: BOARD_SIZE, height: BOARD_SIZE };
 
 /**
  * A mark on each of the two squares diagonally ahead of the pawn: a stripe
  * running from the pawn itself, across the shared corner, past the centre of
- * the attacked square, and ending in an arrow point.
+ * the attacked square, and stopping in a point.
  *
- * The clip does all the shaping. It admits the pawn's own square minus its
- * inner circle, so the stripe emerges from behind the pawn; and the part of
- * each attacked square within its inner square, so the stroke — drawn all the
- * way out to the far corner — is cut by two perpendicular sides at once and
- * comes to a point. In between it pinches at the corner it crosses and never
- * touches the squares to either side of it.
+ * The clips do all the shaping, exactly as they do for a sliding piece's rays:
+ * the stroke simply runs out to the far corner, and three nested regions decide
+ * what shows. It must lie beyond the pawn's own inner square, whose rounded
+ * corners blunt the notch it leaves through; within the wedge that stops it on
+ * the target's inner square, which brings it to a point; and, unless rays are
+ * drawn at full width, within the two squares it belongs to, which pinches it
+ * at the corner they share and keeps it off their neighbours.
  */
 export default function PawnAttacks({
   piece,
@@ -51,44 +47,83 @@ export default function PawnAttacks({
     return null;
   }
 
-  const radius = Math.max(attackOptions.rayInnerRadius, 0) * SQUARE_SIZE;
-  const innerHalfSide = (Math.max(attackOptions.rayInnerSquare, 0) * SQUARE_SIZE) / 2;
+  const fullWidth = attackOptions.fullWidthRays;
+  const innerHalfSide =
+    (Math.max(attackOptions.rayInnerSquare, 0) * SQUARE_SIZE) / 2;
   const center = squareCenter(piece.square, orientation);
-  const clipId = `${idPrefix}-marks`;
+  const startClipId = `${idPrefix}-start`;
 
-  // Subpaths resolved by the even-odd rule: the circle sits inside the pawn's
-  // own square rect and so punches a hole in it.
-  const clipPathData = [
-    ...attacks.map((attack) =>
-      rectPath(
-        rayEndBox(attack.square, attack.direction, innerHalfSide, orientation)
-      )
-    ),
-    rectPath(squareBox(piece.square, orientation)),
-    radius > 0 ? circlePath(center, radius) : "",
+  // The board with the pawn's inner square punched out by the even-odd rule.
+  const startClipPath = [
+    rectPath(BOARD_BOX),
+    innerHalfSide > 0
+      ? roundedRectPath(
+          {
+            x: center.x - innerHalfSide,
+            y: center.y - innerHalfSide,
+            width: innerHalfSide * 2,
+            height: innerHalfSide * 2,
+          },
+          Math.max(attackOptions.rayStartCornerRadius, 0) * SQUARE_SIZE
+        )
+      : "",
   ].join(" ");
 
-  // Transparency applied once to the pair: the two marks leave the pawn's
-  // circle close together and overlap there, and compositing them opaque first
+  /** The mark runs out to the far corner; the clips decide where it stops. */
+  const mark = (attack: PawnAttack) => {
+    const to = rayPoint(piece.square, attack.direction, 1.5, orientation);
+    return (
+      <line
+        x1={center.x}
+        y1={center.y}
+        x2={to.x}
+        y2={to.y}
+        className="attack-stripe attack-pawn"
+        strokeWidth={width}
+      />
+    );
+  };
+
+  // Transparency applied once to the pair: the two marks leave the pawn's inner
+  // square close together and overlap there, and compositing them opaque first
   // keeps that junction the same shade as the rest.
   return (
     <g opacity={ATTACK_BASE_OPACITY}>
-      <clipPath id={clipId}>
-        <path d={clipPathData} clipRule="evenodd" />
+      <clipPath id={startClipId}>
+        <path d={startClipPath} clipRule="evenodd" />
       </clipPath>
-      <g clipPath={`url(#${clipId})`}>
+      <g clipPath={`url(#${startClipId})`}>
         {attacks.map((attack) => {
-          const to = rayPoint(piece.square, attack.direction, 1.5, orientation);
+          const stopId = `${idPrefix}-${attack.square}-stop`;
+          const squaresId = `${idPrefix}-${attack.square}-squares`;
+          const stopped = (
+            <g clipPath={`url(#${stopId})`}>{mark(attack)}</g>
+          );
+
           return (
-            <line
-              key={attack.square}
-              x1={center.x}
-              y1={center.y}
-              x2={to.x}
-              y2={to.y}
-              className="attack-stripe attack-pawn"
-              strokeWidth={width}
-            />
+            <g key={attack.square}>
+              <clipPath id={stopId}>
+                <path
+                  d={rayStopWedgePath(
+                    attack.square,
+                    attack.direction,
+                    innerHalfSide,
+                    orientation
+                  )}
+                />
+              </clipPath>
+              {fullWidth ? (
+                stopped
+              ) : (
+                <>
+                  <clipPath id={squaresId}>
+                    <rect {...squareBox(piece.square, orientation)} />
+                    <rect {...squareBox(attack.square, orientation)} />
+                  </clipPath>
+                  <g clipPath={`url(#${squaresId})`}>{stopped}</g>
+                </>
+              )}
+            </g>
           );
         })}
       </g>

@@ -23,8 +23,9 @@ export default function KingAttacks({
       )}
       stripeClass="attack-stripe attack-king"
       stripe={attackOptions.kingStripe}
-      innerRadius={attackOptions.rayInnerRadius}
       innerSquare={attackOptions.rayInnerSquare}
+      startCornerRadius={attackOptions.rayStartCornerRadius}
+      fullWidth={attackOptions.fullWidthRays}
       idPrefix={idPrefix}
       orientation={orientation}
     />

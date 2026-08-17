@@ -4,9 +4,10 @@ import NumberField from "./NumberField";
 import ToggleField from "./ToggleField";
 import {
   DEFAULT_DECAY_PER_BLOCKER,
+  DEFAULT_FULL_WIDTH_RAYS,
   DEFAULT_OPTIONS,
-  DEFAULT_RAY_INNER_RADIUS,
   DEFAULT_RAY_INNER_SQUARE,
+  DEFAULT_RAY_START_CORNER_RADIUS,
   type AttackOptions,
   type BoardColors,
   type Options,
@@ -88,14 +89,6 @@ export default function OptionsPanel({
           onChange={(decayPerBlocker) => updateAttacks({ decayPerBlocker })}
         />
         <NumberField
-          id="ray-inner-radius"
-          label="Inner circle radius"
-          suffix="squares"
-          value={options.attacks.rayInnerRadius}
-          allowZero
-          onChange={(rayInnerRadius) => updateAttacks({ rayInnerRadius })}
-        />
-        <NumberField
           id="ray-inner-square"
           label="Inner square side"
           suffix="squares"
@@ -103,14 +96,35 @@ export default function OptionsPanel({
           allowZero
           onChange={(rayInnerSquare) => updateAttacks({ rayInnerSquare })}
         />
+        <NumberField
+          id="ray-start-corner-radius"
+          label="Start corner rounding"
+          suffix="squares"
+          value={options.attacks.rayStartCornerRadius}
+          allowZero
+          onChange={(rayStartCornerRadius) =>
+            updateAttacks({ rayStartCornerRadius })
+          }
+        />
+        <ToggleField
+          id="full-rays"
+          label="Full-width rays"
+          checked={options.attacks.fullWidthRays}
+          onChange={(fullWidthRays) => updateAttacks({ fullWidthRays })}
+        />
+        <p className="options-hint">
+          Keep diagonal rays at full width through the corners where their
+          squares meet, spilling onto the squares to either side.
+        </p>
         <button
           type="button"
           className="reset-button"
           onClick={() =>
             updateAttacks({
+              fullWidthRays: DEFAULT_FULL_WIDTH_RAYS,
               decayPerBlocker: DEFAULT_DECAY_PER_BLOCKER,
-              rayInnerRadius: DEFAULT_RAY_INNER_RADIUS,
               rayInnerSquare: DEFAULT_RAY_INNER_SQUARE,
+              rayStartCornerRadius: DEFAULT_RAY_START_CORNER_RADIUS,
             })
           }
         >
