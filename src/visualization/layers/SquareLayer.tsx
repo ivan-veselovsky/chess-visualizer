@@ -3,7 +3,6 @@ import {
   RANKS,
   SQUARE_SIZE,
   isLightSquare,
-  squareName,
   squareTopLeft,
   type Orientation,
 } from "../geometry";
@@ -23,7 +22,7 @@ export default function SquareLayer({
           const { x, y } = squareTopLeft(file, rank, orientation);
           return (
             <rect
-              key={squareName(file, rank)}
+              key={`${file}-${rank}`}
               x={x}
               y={y}
               width={SQUARE_SIZE}

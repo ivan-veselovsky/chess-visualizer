@@ -2,6 +2,9 @@
   /* --square-light / --square-dark are supplied per-board by <Board>. */
   --board-frame: #4a3728;
   --grid-line: #000000;
+  /* Opaque; the alpha comes from ATTACK_BASE_OPACITY and the decay per blocker. */
+  --attack-king: #ffd600;
+  --attack-queen: #e53935;
   --piece-white: #ffffff;
   --piece-black: #1a1a1a;
   --piece-outline: #1a1a1a;
@@ -99,6 +102,22 @@ body {
 .grid-line {
   stroke: var(--grid-line);
   stroke-width: 1;
+}
+
+.attack-stripe {
+  fill: none;
+  /* Flat ends: clipped stripes stop on the board edge, and consecutive ray
+     segments butt together without a seam. */
+  stroke-linecap: butt;
+  /* stroke-width and stroke-opacity are set per stripe, from geometry.ts. */
+}
+
+.attack-king {
+  stroke: var(--attack-king);
+}
+
+.attack-queen {
+  stroke: var(--attack-queen);
 }
 
 .board-frame {

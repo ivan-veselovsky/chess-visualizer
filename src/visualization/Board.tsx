@@ -3,6 +3,7 @@ import type { Chess } from "chess.js";
 import { readPieces } from "../chess/model";
 import type { BoardColors } from "../app/options";
 import { BORDER_SIZE, CANVAS_SIZE, type Orientation } from "./geometry";
+import AttackLayer from "./layers/AttackLayer";
 import BorderLayer from "./layers/BorderLayer";
 import GridLayer from "./layers/GridLayer";
 import PieceLayer from "./layers/PieceLayer";
@@ -46,6 +47,11 @@ export default function Board({
       <g transform={`translate(${BORDER_SIZE}, ${BORDER_SIZE})`}>
         <SquareLayer orientation={orientation} />
         {showGrid && <GridLayer />}
+        <AttackLayer
+          position={position}
+          pieces={pieces}
+          orientation={orientation}
+        />
         <BorderLayer orientation={orientation} />
         <PieceLayer pieces={pieces} orientation={orientation} />
       </g>
