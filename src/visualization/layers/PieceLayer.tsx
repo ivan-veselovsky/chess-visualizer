@@ -6,7 +6,12 @@ interface PieceLayerProps {
   orientation?: Orientation;
 }
 
-/** Draws every piece as a Unicode glyph centred on its square. */
+/**
+ * Draws every piece as a Unicode glyph centred on its square.
+ *
+ * The glyph carries a class per piece kind as well as per side, so the
+ * stylesheet can tint each piece with the colour its attacks are drawn in.
+ */
 export default function PieceLayer({
   pieces,
   orientation = "white",
@@ -20,7 +25,11 @@ export default function PieceLayer({
             key={piece.square}
             x={x}
             y={y}
-            className={piece.color === "w" ? "piece piece-white" : "piece piece-black"}
+            className={[
+              "piece",
+              `piece-${piece.type}`,
+              piece.color === "w" ? "piece-white" : "piece-black",
+            ].join(" ")}
           >
             {PIECE_GLYPHS[piece.type]}
           </text>

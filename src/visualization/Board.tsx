@@ -36,6 +36,12 @@ export default function Board({
   const themeVars = {
     "--square-light": colors.lightSquare,
     "--square-dark": colors.darkSquare,
+    "--attack-king": attacks.colors.king,
+    "--attack-queen": attacks.colors.queen,
+    "--attack-rook": attacks.colors.rook,
+    "--attack-bishop": attacks.colors.bishop,
+    "--attack-knight": attacks.colors.knight,
+    "--attack-pawn": attacks.colors.pawn,
   } as CSSProperties;
 
   return (

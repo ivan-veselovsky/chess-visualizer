@@ -4,18 +4,6 @@ import { fileIndex, rankIndex, squareAt } from "./model";
 /** A (file, rank) offset. */
 export type Direction = readonly [number, number];
 
-/** The eight king steps. */
-const KING_STEPS: readonly Direction[] = [
-  [-1, -1],
-  [-1, 0],
-  [-1, 1],
-  [0, -1],
-  [0, 1],
-  [1, -1],
-  [1, 0],
-  [1, 1],
-];
-
 /** The eight knight leaps. */
 const KNIGHT_STEPS: readonly Direction[] = [
   [-2, -1],
@@ -41,20 +29,6 @@ export const BISHOP_AXES: readonly Direction[] = [
 
 export const QUEEN_AXES: readonly Direction[] = [...ROOK_AXES, ...BISHOP_AXES];
 
-
-/**
- * Squares a king on `square` attacks: the eight neighbours, minus the ones that
- * fall off the board. Occupancy is deliberately ignored — a king attacks a
- * square whether or not something stands on it.
- */
-export function kingAttackedSquares(square: Square): Square[] {
-  const file = fileIndex(square);
-  const rank = rankIndex(square);
-
-  return KING_STEPS.map(([df, dr]) => squareAt(file + df, rank + dr)).filter(
-    (target): target is Square => target !== null
-  );
-}
 
 /**
  * Squares a knight on `square` attacks. Like the king, it leaps, so nothing
@@ -107,8 +81,13 @@ export interface RaySquare {
   square: Square;
   /** Distance from the origin square, in steps (1 = adjacent). */
   distance: number;
-  /** 1 before any blocker, scaled by the decay factor per piece passed. */
+  /** Intensity the ray arrives with, before any piece standing here. */
   intensity: number;
+  /**
+   * Intensity once past a piece standing here; equal to `intensity` on an empty
+   * square. Where the drop is placed within the square is the renderer's call.
+   */
+  intensityAfter: number;
 }
 
 /**
@@ -142,15 +121,15 @@ export function attackRay(
       return squares;
     }
 
-    squares.push({ square: target, distance, intensity });
+    const occupied = chess.get(target) !== undefined;
+    const intensityAfter = occupied ? intensity * factor : intensity;
+    squares.push({ square: target, distance, intensity, intensityAfter });
 
-    if (chess.get(target) !== undefined) {
-      intensity *= factor;
-      // Nothing further would be visible; stop rather than emit dead squares.
-      if (intensity === 0) {
-        return squares;
-      }
+    // Nothing further would be visible; stop rather than emit dead squares.
+    if (intensityAfter === 0) {
+      return squares;
     }
+    intensity = intensityAfter;
   }
 }
 
@@ -184,6 +163,23 @@ export function queenAttackAxes(
   decay: number
 ): AttackAxis[] {
   return slidingAttackAxes(chess, origin, QUEEN_AXES, decay);
+}
+
+/**
+ * The king radiates along the same four axes as the queen, but every ray stops
+ * after one square. The cut is unconditional: a king's reach is one square
+ * whatever stands there, so nothing beyond it is ever drawn.
+ */
+export function kingAttackAxes(
+  chess: Chess,
+  origin: Square,
+  decay: number
+): AttackAxis[] {
+  return slidingAttackAxes(chess, origin, QUEEN_AXES, decay).map((axis) => ({
+    direction: axis.direction,
+    positive: axis.positive.slice(0, 1),
+    negative: axis.negative.slice(0, 1),
+  }));
 }
 
 export function rookAttackAxes(

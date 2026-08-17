@@ -1,43 +1,32 @@
-import { kingAttackedSquares } from "../../../chess/attacks";
-import {
-  ATTACK_BASE_OPACITY,
-  SQUARE_SIZE,
-  kingAttackRingPath,
-  squareBox,
-} from "../../geometry";
+import { kingAttackAxes } from "../../../chess/attacks";
+import RayStripes from "./RayStripes";
 import type { PieceAttackProps } from "./types";
 
 /**
- * The eight neighbouring squares as one rounded-square stripe, clipped to the
- * squares actually attacked so a king on an edge gets the ring trimmed at the
- * board boundary instead of hanging over squares that do not exist.
+ * Four stripes crossing at the king, drawn exactly like the queen's — the rays
+ * simply stop one square out.
  */
 export default function KingAttacks({
+  position,
   piece,
   idPrefix,
   orientation,
   attackOptions,
 }: PieceAttackProps) {
-  const clipId = `${idPrefix}-ring`;
-  const width = Math.max(attackOptions.kingStripeWidth, 0) * SQUARE_SIZE;
-  if (width === 0) {
-    return null;
-  }
-
   return (
-    <g>
-      <clipPath id={clipId}>
-        {kingAttackedSquares(piece.square).map((target) => (
-          <rect key={target} {...squareBox(target, orientation)} />
-        ))}
-      </clipPath>
-      <path
-        d={kingAttackRingPath(piece.square, orientation)}
-        className="attack-stripe attack-king"
-        strokeWidth={width}
-        strokeOpacity={ATTACK_BASE_OPACITY}
-        clipPath={`url(#${clipId})`}
-      />
-    </g>
+    <RayStripes
+      origin={piece.square}
+      axes={kingAttackAxes(
+        position,
+        piece.square,
+        attackOptions.decayPerBlocker
+      )}
+      stripeClass="attack-stripe attack-king"
+      stripe={attackOptions.kingStripe}
+      innerRadius={attackOptions.rayInnerRadius}
+      innerSquare={attackOptions.rayInnerSquare}
+      idPrefix={idPrefix}
+      orientation={orientation}
+    />
   );
 }

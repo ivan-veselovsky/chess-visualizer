@@ -88,6 +88,43 @@ export function perpendicular(
 }
 
 /**
+ * The part of a square a ray may reach when it ends there: everything not past
+ * the sides of the inner square that lie farthest along the ray.
+ *
+ * Those sides are axis-aligned, so the result is simply a smaller rectangle. A
+ * diagonal ray is bounded by two of them at once and comes to a point at the
+ * corner where they meet, which is what turns its end into an arrow; an
+ * orthogonal ray meets only one and keeps a flat end.
+ *
+ * `halfSide` is half the inner square's side, in pixels.
+ */
+export function rayEndBox(
+  square: Square,
+  direction: readonly [number, number],
+  halfSide: number,
+  orientation: Orientation = "white"
+): Point & { width: number; height: number } {
+  const box = squareBox(square, orientation);
+  const center = squareCenter(square, orientation);
+  const step = stepVector(direction, orientation);
+
+  let { x, y, width, height } = box;
+  if (step.x > 0) {
+    width = Math.min(box.x + box.width, center.x + halfSide) - x;
+  } else if (step.x < 0) {
+    x = Math.max(box.x, center.x - halfSide);
+    width = box.x + box.width - x;
+  }
+  if (step.y > 0) {
+    height = Math.min(box.y + box.height, center.y + halfSide) - y;
+  } else if (step.y < 0) {
+    y = Math.max(box.y, center.y - halfSide);
+    height = box.y + box.height - y;
+  }
+  return { x, y, width, height };
+}
+
+/**
  * A point `t` steps away from a square's centre along `direction`, where one
  * step is the distance to the neighbouring square along that direction.
  */
@@ -100,43 +137,4 @@ export function rayPoint(
   const center = squareCenter(origin, orientation);
   const step = stepVector(direction, orientation);
   return { x: center.x + step.x * t, y: center.y + step.y * t };
-}
-
-/**
- * Path for the ring of squares a king attacks: a rounded square centred on the
- * king, whose straight sides run through the centres of the four orthogonal
- * neighbours and whose corner arcs are quarter circles inscribed in the four
- * diagonal neighbours.
- *
- * The half-side is one square, so the sides land exactly on the neighbouring
- * centres; the corner radius is half a square, so each arc starts and ends on
- * the edges of its diagonal square.
- */
-export function kingAttackRingPath(
-  square: Square,
-  orientation: Orientation = "white"
-): string {
-  const { x: cx, y: cy } = squareCenter(square, orientation);
-  const half = SQUARE_SIZE;
-  const radius = SQUARE_SIZE / 2;
-
-  const left = cx - half;
-  const right = cx + half;
-  const top = cy - half;
-  const bottom = cy + half;
-
-  // Clockwise from the top-left arc end; every arc sweeps in the same direction.
-  const arc = `a ${radius} ${radius} 0 0 1`;
-  return [
-    `M ${left + radius} ${top}`,
-    `H ${right - radius}`,
-    `${arc} ${radius} ${radius}`,
-    `V ${bottom - radius}`,
-    `${arc} ${-radius} ${radius}`,
-    `H ${left + radius}`,
-    `${arc} ${-radius} ${-radius}`,
-    `V ${top + radius}`,
-    `${arc} ${radius} ${-radius}`,
-    "Z",
-  ].join(" ");
 }

@@ -6,18 +6,22 @@ import {
 } from "../visualization/options";
 
 export type {
+  AttackColors,
   AttackOptions,
   BoardColors,
   KnightRingOptions,
   StripeStyle,
 } from "../visualization/options";
 export {
+  DEFAULT_ATTACK_COLORS,
   DEFAULT_BISHOP_STRIPE,
   DEFAULT_DECAY_PER_BLOCKER,
-  DEFAULT_KING_STRIPE_WIDTH,
+  DEFAULT_KING_STRIPE,
   DEFAULT_KNIGHT_RING,
   DEFAULT_PAWN_MARK_WIDTH,
   DEFAULT_QUEEN_STRIPE,
+  DEFAULT_RAY_INNER_RADIUS,
+  DEFAULT_RAY_INNER_SQUARE,
   DEFAULT_ROOK_STRIPE,
 } from "../visualization/options";
 

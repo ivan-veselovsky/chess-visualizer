@@ -1,21 +1,15 @@
+import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
 import NumberField from "./NumberField";
-import StripeFields from "./StripeFields";
 import ToggleField from "./ToggleField";
 import {
-  DEFAULT_BISHOP_STRIPE,
   DEFAULT_DECAY_PER_BLOCKER,
-  DEFAULT_KING_STRIPE_WIDTH,
-  DEFAULT_KNIGHT_RING,
   DEFAULT_OPTIONS,
-  DEFAULT_PAWN_MARK_WIDTH,
-  DEFAULT_QUEEN_STRIPE,
-  DEFAULT_ROOK_STRIPE,
+  DEFAULT_RAY_INNER_RADIUS,
+  DEFAULT_RAY_INNER_SQUARE,
   type AttackOptions,
   type BoardColors,
-  type KnightRingOptions,
   type Options,
-  type StripeStyle,
 } from "./options";
 
 interface OptionsPanelProps {
@@ -38,19 +32,6 @@ export default function OptionsPanel({
 
   function updateAttacks(patch: Partial<AttackOptions>) {
     onChange({ ...options, attacks: { ...options.attacks, ...patch } });
-  }
-
-  function updateKnightRing(patch: Partial<KnightRingOptions>) {
-    updateAttacks({
-      knightRing: { ...options.attacks.knightRing, ...patch },
-    });
-  }
-
-  function updateStripe(
-    key: "queenStripe" | "bishopStripe" | "rookStripe",
-    patch: Partial<StripeStyle>
-  ) {
-    updateAttacks({ [key]: { ...options.attacks[key], ...patch } });
   }
 
   return (
@@ -96,7 +77,7 @@ export default function OptionsPanel({
       </section>
 
       <section className="options-group">
-        <h3>Ray decay</h3>
+        <h3>Rays</h3>
         <NumberField
           id="decay-per-blocker"
           label="Intensity per blocker"
@@ -106,105 +87,38 @@ export default function OptionsPanel({
           max={1}
           onChange={(decayPerBlocker) => updateAttacks({ decayPerBlocker })}
         />
-        <button
-          type="button"
-          className="reset-button"
-          onClick={() =>
-            updateAttacks({ decayPerBlocker: DEFAULT_DECAY_PER_BLOCKER })
-          }
-        >
-          Reset decay
-        </button>
-      </section>
-
-      <section className="options-group">
-        <h3>King ring</h3>
         <NumberField
-          id="king-stripe-width"
-          label="Stripe width"
+          id="ray-inner-radius"
+          label="Inner circle radius"
           suffix="squares"
-          value={options.attacks.kingStripeWidth}
-          onChange={(kingStripeWidth) => updateAttacks({ kingStripeWidth })}
+          value={options.attacks.rayInnerRadius}
+          allowZero
+          onChange={(rayInnerRadius) => updateAttacks({ rayInnerRadius })}
+        />
+        <NumberField
+          id="ray-inner-square"
+          label="Inner square side"
+          suffix="squares"
+          value={options.attacks.rayInnerSquare}
+          allowZero
+          onChange={(rayInnerSquare) => updateAttacks({ rayInnerSquare })}
         />
         <button
           type="button"
           className="reset-button"
           onClick={() =>
-            updateAttacks({ kingStripeWidth: DEFAULT_KING_STRIPE_WIDTH })
+            updateAttacks({
+              decayPerBlocker: DEFAULT_DECAY_PER_BLOCKER,
+              rayInnerRadius: DEFAULT_RAY_INNER_RADIUS,
+              rayInnerSquare: DEFAULT_RAY_INNER_SQUARE,
+            })
           }
         >
-          Reset width
+          Reset rays
         </button>
       </section>
 
-      <section className="options-group">
-        <h3>Knight ring</h3>
-        <NumberField
-          id="knight-inner-radius"
-          label="Inner radius"
-          suffix="squares"
-          value={options.attacks.knightRing.innerRadius}
-          onChange={(innerRadius) => updateKnightRing({ innerRadius })}
-        />
-        <NumberField
-          id="knight-outer-radius"
-          label="Outer radius"
-          suffix="squares"
-          value={options.attacks.knightRing.outerRadius}
-          onChange={(outerRadius) => updateKnightRing({ outerRadius })}
-        />
-        <button
-          type="button"
-          className="reset-button"
-          onClick={() => updateKnightRing(DEFAULT_KNIGHT_RING)}
-        >
-          Reset radii
-        </button>
-      </section>
-
-      <section className="options-group">
-        <h3>Pawn mark</h3>
-        <NumberField
-          id="pawn-mark-width"
-          label="Mark width"
-          suffix="squares"
-          value={options.attacks.pawnMarkWidth}
-          onChange={(pawnMarkWidth) => updateAttacks({ pawnMarkWidth })}
-        />
-        <button
-          type="button"
-          className="reset-button"
-          onClick={() =>
-            updateAttacks({ pawnMarkWidth: DEFAULT_PAWN_MARK_WIDTH })
-          }
-        >
-          Reset width
-        </button>
-      </section>
-
-      <StripeFields
-        id="queen"
-        title="Queen stripes"
-        value={options.attacks.queenStripe}
-        defaults={DEFAULT_QUEEN_STRIPE}
-        onChange={(patch) => updateStripe("queenStripe", patch)}
-      />
-
-      <StripeFields
-        id="bishop"
-        title="Bishop stripes"
-        value={options.attacks.bishopStripe}
-        defaults={DEFAULT_BISHOP_STRIPE}
-        onChange={(patch) => updateStripe("bishopStripe", patch)}
-      />
-
-      <StripeFields
-        id="rook"
-        title="Rook stripes"
-        value={options.attacks.rookStripe}
-        defaults={DEFAULT_ROOK_STRIPE}
-        onChange={(patch) => updateStripe("rookStripe", patch)}
-      />
+      <AttackTable attacks={options.attacks} onChange={updateAttacks} />
     </aside>
   );
 }
