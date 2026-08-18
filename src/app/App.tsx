@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Square } from "chess.js";
 import { applyMove } from "../chess/moves";
+import { STARTUP_POSITION } from "../chess/famousPositions";
 import { DEFAULT_FEN, parseFen } from "../chess/position";
 import Board from "../visualization/Board";
+import FamousPositions from "./FamousPositions";
 import FenField from "./FenField";
 import GearIcon from "./GearIcon";
 import OptionsPanel from "./OptionsPanel";
@@ -13,7 +15,7 @@ import { DEFAULT_OPTIONS } from "./presets";
 export default function App() {
   const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [fen, setFen] = useState(DEFAULT_FEN);
+  const [fen, setFen] = useState(STARTUP_POSITION.fen);
 
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
 
@@ -60,6 +62,7 @@ export default function App() {
       </header>
 
       <div className="app-body">
+        {/* Left: the board alone, as tall as the window allows. */}
         <section className="board-pane">
           {shown !== null && (
             <Board
@@ -72,6 +75,10 @@ export default function App() {
               orientation={options.orientation}
             />
           )}
+        </section>
+
+        {/* Right: everything else, stacked, in the order it is reached for. */}
+        <div className="side-column">
           <div className="board-controls">
             <ToggleField
               id="flip-board"
@@ -93,22 +100,26 @@ export default function App() {
               }
             />
           </div>
+
           <FenField
             value={fen}
             error={error}
             onChange={setFen}
             onReset={() => setFen(DEFAULT_FEN)}
           />
-        </section>
 
-        {optionsOpen && (
-          <OptionsPanel
-            options={options}
-            defaults={DEFAULT_OPTIONS}
-            onChange={setOptions}
-          />
-        )}
+          <FamousPositions value={fen} onSelect={setFen} />
+
+          {optionsOpen && (
+            <OptionsPanel
+              options={options}
+              defaults={DEFAULT_OPTIONS}
+              onChange={setOptions}
+            />
+          )}
+        </div>
       </div>
+
     </main>
   );
 }

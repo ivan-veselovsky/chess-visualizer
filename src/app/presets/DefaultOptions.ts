@@ -69,7 +69,7 @@ export const DEFAULT_OPTIONS: Options = {
       rook: "#fb8c00",
       bishop: "#43a047",
       knight: "#00a7bd",
-      pawn: "#9c9c9c",
+      pawn: "#6f7076", //"#9c9c9c",
     },
     outlineWidths: { 
       white: 0, 

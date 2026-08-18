@@ -39,16 +39,18 @@
 
   /*
     How large the board may get. A square board runs out of window height long
-    before width, so the height is what bounds it; the reserve covers the
-    heading above and the controls and FEN below, and is in rem so it tracks the
-    text rather than a pixel count. Whichever of the two is smaller wins, so a
-    narrow window still fits.
+    before width, so the height is what bounds it; the reserve covers whatever
+    shares its column, in rem so it tracks the text rather than a pixel count.
+    Whichever of the two is smaller wins, so a narrow window still fits.
 
     --board-zoom is the multiplier a "board size" setting would drive, if one is
     ever wanted. Nothing sets it today.
   */
   --board-zoom: 1;
-  --board-reserve: 12rem;
+  /* Only the heading and the page's own padding share the board's column now;
+     everything else moved to the right. Measured, not guessed: too small and
+     the page scrolls. */
+  --board-reserve: 6.5rem;
   /* The height-derived limit on its own, so the board's column can be sized to
      it directly instead of growing past it and centring the board in the slack. */
   --board-cap: calc((100vh - var(--board-reserve)) * var(--board-zoom));
@@ -107,7 +109,7 @@ body {
   background: var(--panel-bg);
 }
 
-/* Board on the left, options panel on the right; stacks when narrow. */
+/* Board on the left, everything else stacked on the right. */
 .app-body {
   display: flex;
   flex-wrap: wrap;
@@ -115,21 +117,25 @@ body {
   gap: 1rem;
 }
 
-/*
-  Sized to the board rather than grown to fill: the board is capped by window
-  height, so a growing column would only pad it with blank space and push the
-  panel away. The surplus goes to the panel instead, which has a table to fit.
-  With the panel closed there is no other claim on the surplus, and the auto
-  margins centre the board in it.
-*/
+/* Holds the board and nothing else, so its width is the board's height. */
 .board-pane {
   flex: 0 1 var(--board-cap);
   min-width: 0;
-  margin-inline: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
+}
+
+/*
+  The right-hand stack: the two toggles, the FEN, the examples, and the panel
+  when it is open. Takes whatever the board leaves, down to a floor wide enough
+  for the attack table — below that the whole column wraps under the board.
+*/
+.side-column {
+  flex: 1 1 30rem;
+  min-width: 27rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
 }
 
 .board {
@@ -164,10 +170,8 @@ body {
   pointer-events: none;
 }
 
-/* Sits between the board and the FEN, lined up with both. */
+/* First row of the side column: the two board toggles, side by side. */
 .board-controls {
-  width: 100%;
-  max-width: var(--board-max);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -178,15 +182,48 @@ body {
   margin-bottom: 0;
 }
 
+.famous-positions {
+  width: 100%;
+}
+
+.famous-positions > label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+/*
+  Unlike a text input, a select needs its colours stated outright. A transparent
+  background leaves the popup list transparent too, and its text then falls to
+  whatever the platform picks — on a dark page, unreadable or invisible. The
+  options are set as well: they are drawn by the platform, not inherited from
+  the control.
+*/
+.famous-select {
+  width: 100%;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+  color: var(--app-fg);
+  background: var(--app-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.famous-select option {
+  color: var(--app-fg);
+  background: var(--app-bg);
+}
+
+/* Fills the side column, so its width no longer follows the board's height. */
 .fen-field {
   width: 100%;
-  max-width: var(--board-max);
 }
 
 .fen-field > label {
   display: block;
-  margin-bottom: 0.3rem;
-  font-size: 0.8rem;
+  margin-bottom: 0.15rem;
+  font-size: 0.7rem;
   opacity: 0.7;
 }
 
@@ -199,9 +236,9 @@ body {
 .fen-input {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0.4rem 0.5rem;
+  padding: 0.2rem 0.4rem;
   font-family: ui-monospace, monospace;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: inherit;
   background: none;
   border: 1px solid var(--panel-border);
@@ -211,6 +248,12 @@ body {
 .fen-input-invalid {
   border-color: var(--invalid);
   color: var(--invalid);
+}
+
+.fen-field .reset-button {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 
 .fen-error {
@@ -341,11 +384,8 @@ body {
 /* --- Options panel ------------------------------------------------------ */
 
 .options-panel {
-  flex: 1 1 500px;
-  /* Wide enough for six columns; below this the panel wraps under the board
-     rather than crushing the table. */
-  min-width: 27rem;
-  max-width: 46rem;
+  /* A block in the side column now: `flex` here would size its height. */
+  width: 100%;
   padding: 1rem;
   border: 1px solid var(--panel-border);
   border-radius: 10px;

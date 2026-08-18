@@ -33,7 +33,7 @@ export default function FenField({
           onChange={(event) => onChange(event.target.value)}
         />
         <button type="button" className="reset-button" onClick={onReset}>
-          Reset
+          Reset to initial
         </button>
       </div>
       {error !== null && (
