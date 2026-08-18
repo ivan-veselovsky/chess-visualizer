@@ -169,6 +169,7 @@ export default function Board({
           position={position}
           pieces={pieces}
           attackOptions={attacks}
+          lifted={drag?.from ?? null}
           orientation={orientation}
         />
         <BorderLayer orientation={orientation} />

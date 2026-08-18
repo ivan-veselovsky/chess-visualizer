@@ -1,5 +1,5 @@
 import { useId, type ComponentType } from "react";
-import type { Chess, PieceSymbol } from "chess.js";
+import type { Chess, PieceSymbol, Square } from "chess.js";
 import type { PlacedPiece } from "../../chess/model";
 import { MILLI_SQUARE, type Orientation } from "../geometry";
 import type { AttackOptions } from "../options";
@@ -30,6 +30,12 @@ interface AttackLayerProps {
   position: Chess;
   pieces: PlacedPiece[];
   attackOptions: AttackOptions;
+  /**
+   * Square whose piece is being dragged. Its marks are left out: the board is
+   * being read to choose a move, and the moving piece's own reach only clutters
+   * what it is about to be judged against.
+   */
+  lifted?: Square | null;
   orientation?: Orientation;
 }
 
@@ -38,6 +44,7 @@ export default function AttackLayer({
   position,
   pieces,
   attackOptions,
+  lifted = null,
   orientation = "white",
 }: AttackLayerProps) {
   // useId() yields ids like ":r0:"; the colons are awkward inside url(#...).
@@ -106,7 +113,7 @@ export default function AttackLayer({
 
       {pieces.map((piece) => {
         const Renderer = ATTACK_RENDERERS[piece.type];
-        if (Renderer === undefined) {
+        if (Renderer === undefined || piece.square === lifted) {
           return null;
         }
         const outline = outlineFor(piece.color);
