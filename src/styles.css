@@ -62,7 +62,7 @@
 /* Set by App from the theme option. */
 :root[data-theme="dark"] {
   --app-bg: #17181b;
-  --app-fg: #d0d2d5;
+  --app-fg: #b0b0b0;
   color-scheme: dark;
 }
 
