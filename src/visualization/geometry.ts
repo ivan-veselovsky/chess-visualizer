@@ -1,5 +1,5 @@
 import type { Square } from "chess.js";
-import { FILES, RANKS, fileIndex, rankIndex } from "../chess/model";
+import { FILES, RANKS, fileIndex, rankIndex, squareAt } from "../chess/model";
 
 // Re-exported so the layers have a single import for everything layout-related.
 export { FILES, RANKS };
@@ -75,6 +75,31 @@ export function squareBox(
     orientation
   );
   return { x, y, width: SQUARE_SIZE, height: SQUARE_SIZE };
+}
+
+/**
+ * The square containing a point in board coordinates, or null when the point
+ * falls outside the board. The inverse of squareTopLeft.
+ */
+export function squareAtPoint(
+  point: Point,
+  orientation: Orientation = "white"
+): Square | null {
+  const column = Math.floor(point.x / SQUARE_SIZE);
+  const row = Math.floor(point.y / SQUARE_SIZE);
+  if (
+    column < 0 ||
+    column >= FILES.length ||
+    row < 0 ||
+    row >= RANKS.length
+  ) {
+    return null;
+  }
+  const flipped = orientation === "black";
+  return squareAt(
+    flipped ? FILES.length - 1 - column : column,
+    flipped ? row : RANKS.length - 1 - row
+  );
 }
 
 /**

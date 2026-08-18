@@ -1,8 +1,13 @@
+import type { Orientation } from "../visualization/geometry";
 import {
   DEFAULT_ATTACK_OPTIONS,
   DEFAULT_BOARD_COLORS,
+  DEFAULT_PIECE_GEOMETRY,
+  DEFAULT_PIECE_TINT,
+  DEFAULT_SIDE_GEOMETRY,
   type AttackOptions,
   type BoardColors,
+  type PieceTint,
 } from "../visualization/options";
 
 export type {
@@ -10,6 +15,9 @@ export type {
   AttackOptions,
   BoardColors,
   KnightRingOptions,
+  PieceGeometry,
+  PieceTint,
+  SideGeometry,
   OutlineWidths,
   StripeStyle,
 } from "../visualization/options";
@@ -17,11 +25,14 @@ export {
   DEFAULT_ATTACK_COLORS,
   DEFAULT_BISHOP_STRIPE,
   DEFAULT_OUTLINE_WIDTHS,
+  DEFAULT_PIECE_TINT,
   DEFAULT_FULL_WIDTH_RAYS,
   DEFAULT_DECAY_PER_BLOCKER,
   DEFAULT_KING_STRIPE,
   DEFAULT_KNIGHT_RING,
-  DEFAULT_PAWN_MARK_WIDTH,
+  DEFAULT_PAWN_STRIPE,
+  DEFAULT_PIECE_GEOMETRY,
+  DEFAULT_SIDE_GEOMETRY,
   DEFAULT_QUEEN_STRIPE,
   DEFAULT_RAY_INNER_SQUARE,
   DEFAULT_RAY_START_CORNER_RADIUS,
@@ -34,6 +45,9 @@ export {
  */
 export interface Options {
   boardColors: BoardColors;
+  /** Which side is at the bottom of the board. */
+  orientation: Orientation;
+  pieceTint: PieceTint;
   /** Thin lines on the square edges, readable even with identical colours. */
   showGrid: boolean;
   attacks: AttackOptions;
@@ -41,6 +55,8 @@ export interface Options {
 
 export const DEFAULT_OPTIONS: Options = {
   boardColors: DEFAULT_BOARD_COLORS,
+  orientation: "white",
+  pieceTint: DEFAULT_PIECE_TINT,
   showGrid: true,
   attacks: DEFAULT_ATTACK_OPTIONS,
 };

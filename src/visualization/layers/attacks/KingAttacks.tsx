@@ -12,6 +12,7 @@ export default function KingAttacks({
   idPrefix,
   orientation,
   attackOptions,
+  geometry,
 }: PieceAttackProps) {
   return (
     <RayStripes
@@ -22,7 +23,7 @@ export default function KingAttacks({
         attackOptions.decayPerBlocker
       )}
       stripeClass="attack-stripe attack-king"
-      stripe={attackOptions.kingStripe}
+      stripe={geometry.kingStripe}
       innerSquare={attackOptions.rayInnerSquare}
       startCornerRadius={attackOptions.rayStartCornerRadius}
       fullWidth={attackOptions.fullWidthRays}

@@ -1,4 +1,5 @@
-import AttackTable from "./AttackTable";
+import { useState } from "react";
+import AttackTable, { type Side } from "./AttackTable";
 import ColorField from "./ColorField";
 import NumberField from "./NumberField";
 import ToggleField from "./ToggleField";
@@ -7,12 +8,14 @@ import {
   DEFAULT_FULL_WIDTH_RAYS,
   DEFAULT_OPTIONS,
   DEFAULT_OUTLINE_WIDTHS,
+  DEFAULT_PIECE_TINT,
   DEFAULT_RAY_INNER_SQUARE,
   DEFAULT_RAY_START_CORNER_RADIUS,
   type AttackOptions,
   type BoardColors,
   type Options,
   type OutlineWidths,
+  type PieceTint,
 } from "./options";
 
 interface OptionsPanelProps {
@@ -26,11 +29,18 @@ export default function OptionsPanel({
   onChange,
   onClose,
 }: OptionsPanelProps) {
+  // Which side the geometry table edits. Panel state, not a setting.
+  const [side, setSide] = useState<Side>("white");
+
   function updateBoardColors(patch: Partial<BoardColors>) {
     onChange({
       ...options,
       boardColors: { ...options.boardColors, ...patch },
     });
+  }
+
+  function updatePieceTint(patch: Partial<PieceTint>) {
+    onChange({ ...options, pieceTint: { ...options.pieceTint, ...patch } });
   }
 
   function updateAttacks(patch: Partial<AttackOptions>) {
@@ -76,7 +86,48 @@ export default function OptionsPanel({
       </section>
 
       <section className="options-group">
-        <h3>Grid</h3>
+        <h3>Pieces</h3>
+        <p className="options-hint">
+          How far each side is pulled from its attack colour: 0 keeps the colour
+          exactly, 1 bleaches it to white or black.
+        </p>
+        <NumberField
+          id="piece-lighten"
+          label="Lighten White"
+          value={options.pieceTint.lighten}
+          step={0.05}
+          max={1}
+          allowZero
+          onChange={(lighten) => updatePieceTint({ lighten })}
+        />
+        <NumberField
+          id="piece-darken"
+          label="Darken Black"
+          value={options.pieceTint.darken}
+          step={0.05}
+          max={1}
+          allowZero
+          onChange={(darken) => updatePieceTint({ darken })}
+        />
+        <button
+          type="button"
+          className="reset-button"
+          onClick={() => onChange({ ...options, pieceTint: DEFAULT_PIECE_TINT })}
+        >
+          Reset tint
+        </button>
+      </section>
+
+      <section className="options-group">
+        <h3>Board</h3>
+        <ToggleField
+          id="flip-board"
+          label="Black at bottom"
+          checked={options.orientation === "black"}
+          onChange={(flipped) =>
+            onChange({ ...options, orientation: flipped ? "black" : "white" })
+          }
+        />
         <ToggleField
           id="show-grid"
           label="Show grid"
@@ -172,7 +223,12 @@ export default function OptionsPanel({
         </button>
       </section>
 
-      <AttackTable attacks={options.attacks} onChange={updateAttacks} />
+      <AttackTable
+        attacks={options.attacks}
+        side={side}
+        onSideChange={setSide}
+        onChange={updateAttacks}
+      />
     </aside>
   );
 }

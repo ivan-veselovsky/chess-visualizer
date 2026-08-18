@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import { SAMPLE_FEN, parseFen } from "../chess/position";
+import type { Square } from "chess.js";
+import { applyMove } from "../chess/moves";
+import { DEFAULT_FEN, parseFen } from "../chess/position";
 import Board from "../visualization/Board";
 import FenField from "./FenField";
 import GearIcon from "./GearIcon";
@@ -9,7 +11,7 @@ import { DEFAULT_OPTIONS, type Options } from "./options";
 export default function App() {
   const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [fen, setFen] = useState(SAMPLE_FEN);
+  const [fen, setFen] = useState(DEFAULT_FEN);
 
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
 
@@ -20,6 +22,18 @@ export default function App() {
     lastValid.current = position;
   }
   const shown = position ?? lastValid.current;
+
+  /** Moves come back from the board as squares; the position that follows is
+   *  a new FEN, so editing by hand and playing by hand feed the same state. */
+  function handleMove(from: Square, to: Square) {
+    if (shown === null) {
+      return;
+    }
+    const next = applyMove(shown, from, to);
+    if (next !== null) {
+      setFen(next);
+    }
+  }
 
   return (
     <main className="app">
@@ -43,15 +57,18 @@ export default function App() {
             <Board
               position={shown}
               colors={options.boardColors}
+              pieceTint={options.pieceTint}
               attacks={options.attacks}
+              onMove={handleMove}
               showGrid={options.showGrid}
+              orientation={options.orientation}
             />
           )}
           <FenField
             value={fen}
             error={error}
             onChange={setFen}
-            onReset={() => setFen(SAMPLE_FEN)}
+            onReset={() => setFen(DEFAULT_FEN)}
           />
         </section>
 

@@ -4,6 +4,7 @@ import {
   squareBox,
   squareCenter,
 } from "../../geometry";
+import { stripeBands } from "./bands";
 import type { PieceAttackProps } from "./types";
 
 /**
@@ -18,14 +19,23 @@ export default function KnightAttacks({
   piece,
   idPrefix,
   orientation,
-  attackOptions,
+  geometry,
 }: PieceAttackProps) {
   const clipId = `${idPrefix}-ring`;
-  const { innerRadius, outerRadius } = attackOptions.knightRing;
+  const { innerRadius, outerRadius, gap } = geometry.knightRing;
 
   // Tolerate the two radii being given the wrong way round.
-  const inner = Math.min(innerRadius, outerRadius) * SQUARE_SIZE;
-  const outer = Math.max(innerRadius, outerRadius) * SQUARE_SIZE;
+  const inner = Math.min(innerRadius, outerRadius);
+  const outer = Math.max(innerRadius, outerRadius);
+
+  // The ring is a stripe bent into a circle: its thickness is the outer width
+  // and the gap down its middle the inner one, so the same rule that doubles a
+  // ray's stripe doubles this ring. Each band's offset is then radial.
+  const bands = stripeBands({ outerWidth: outer - inner, innerWidth: gap });
+  if (bands.length === 0) {
+    return null;
+  }
+  const midRadius = ((inner + outer) / 2) * SQUARE_SIZE;
   const { x, y } = squareCenter(piece.square, orientation);
 
   return (
@@ -35,14 +45,21 @@ export default function KnightAttacks({
           <rect key={target} {...squareBox(target, orientation)} />
         ))}
       </clipPath>
-      <circle
-        cx={x}
-        cy={y}
-        r={(inner + outer) / 2}
-        className="attack-stripe attack-knight"
-        strokeWidth={outer - inner}
-        clipPath={`url(#${clipId})`}
-      />
+      {bands.map((band, index) => {
+        const radius = midRadius + band.offset;
+        // A gap wider than the ring would push a band through the centre.
+        return radius <= 0 ? null : (
+          <circle
+            key={index}
+            cx={x}
+            cy={y}
+            r={radius}
+            className="attack-stripe attack-knight"
+            strokeWidth={band.width}
+            clipPath={`url(#${clipId})`}
+          />
+        );
+      })}
     </g>
   );
 }

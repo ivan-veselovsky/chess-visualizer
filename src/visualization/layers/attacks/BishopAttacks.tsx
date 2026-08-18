@@ -9,6 +9,7 @@ export default function BishopAttacks({
   idPrefix,
   orientation,
   attackOptions,
+  geometry,
 }: PieceAttackProps) {
   return (
     <RayStripes
@@ -19,7 +20,7 @@ export default function BishopAttacks({
         attackOptions.decayPerBlocker
       )}
       stripeClass="attack-stripe attack-bishop"
-      stripe={attackOptions.bishopStripe}
+      stripe={geometry.bishopStripe}
       innerSquare={attackOptions.rayInnerSquare}
       startCornerRadius={attackOptions.rayStartCornerRadius}
       fullWidth={attackOptions.fullWidthRays}

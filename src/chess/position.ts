@@ -1,8 +1,10 @@
-import { Chess, validateFen } from "chess.js";
+import { Chess, DEFAULT_POSITION, validateFen } from "chess.js";
 
-/** Sample position: Italian/Ruy-Lopez style opening after 1.e4 e5 2.Nf3 Nc6. */
-export const SAMPLE_FEN =
-  "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+/**
+ * The position the board opens on, and what Reset returns to: the standard
+ * initial setup, taken from chess.js rather than written out again here.
+ */
+export const DEFAULT_FEN = DEFAULT_POSITION;
 
 export interface ParsedFen {
   position: Chess | null;

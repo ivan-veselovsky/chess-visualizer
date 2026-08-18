@@ -83,6 +83,31 @@ body {
   display: block;
 }
 
+/* --- Dragging ----------------------------------------------------------- */
+
+.board {
+  touch-action: none;
+}
+
+.board-dragging {
+  cursor: grabbing;
+}
+
+.drag-origin {
+  fill: currentColor;
+  opacity: 0.12;
+}
+
+.drag-target {
+  fill: currentColor;
+  opacity: 0.3;
+}
+
+/* The dragged glyph follows the pointer and must not swallow its own events. */
+.drag-layer {
+  pointer-events: none;
+}
+
 .fen-field {
   width: 100%;
   max-width: 640px;
@@ -233,13 +258,14 @@ body {
   stroke-width: 1.2;
 }
 
+/* Both sides keep the hue their attacks are drawn in; only its lightness says
+   which side a piece is on. */
 .piece-white {
-  fill: var(--piece-color);
+  fill: color-mix(in srgb, var(--piece-color), white var(--piece-lighten));
 }
 
-/* Black keeps the same hue, darkened, so the side is still readable at a glance. */
 .piece-black {
-  fill: color-mix(in srgb, var(--piece-color) var(--piece-dark-mix), black);
+  fill: color-mix(in srgb, var(--piece-color), black var(--piece-darken));
 }
 
 /* --- Options panel ------------------------------------------------------ */
@@ -334,6 +360,31 @@ body {
   margin: -0.4rem 0 0.6rem;
   font-size: 0.75rem;
   opacity: 0.7;
+}
+
+.side-picker {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.side-button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.side-button-on {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  font-weight: 600;
+}
+
+.side-button-match {
+  margin-left: auto;
 }
 
 /* Piece per row, stripe widths per column, so the pieces compare at a glance. */

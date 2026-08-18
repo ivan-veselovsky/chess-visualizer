@@ -13,7 +13,28 @@ export const DEFAULT_BOARD_COLORS: BoardColors = {
   // lightSquare: "#f0d9b5",
   // darkSquare: "#b58863",
   lightSquare:"#ccdccc", //"#cccccc",
-  darkSquare: "#cccccc",
+  darkSquare: "#bdbdbd",
+};
+
+/**
+ * How far each side's pieces are pulled from the colour their attacks are drawn
+ * in, as a fraction from 0 to 1: 0 leaves a piece exactly its attack colour, 1
+ * bleaches it to pure white or pure black.
+ *
+ * Both sides share one hue per piece kind — that is what ties a piece to its
+ * marks — so the only thing left to tell the sides apart is how light or dark
+ * that hue is rendered.
+ */
+export interface PieceTint {
+  /** Toward white, for White's pieces. */
+  lighten: number;
+  /** Toward black, for Black's. */
+  darken: number;
+}
+
+export const DEFAULT_PIECE_TINT: PieceTint = {
+  lighten: 0.7,
+  darken: 0.7,
 };
 
 /**
@@ -24,11 +45,18 @@ export const DEFAULT_BOARD_COLORS: BoardColors = {
 export interface KnightRingOptions {
   innerRadius: number;
   outerRadius: number;
+  /**
+   * A gap of this width, in square sides, down the middle of the ring, leaving
+   * two concentric rings either side of it. Zero leaves the ring solid — the
+   * same thing an inner width of zero does to a stripe.
+   */
+  gap: number;
 }
 
 export const DEFAULT_KNIGHT_RING: KnightRingOptions = {
   innerRadius: 3 / Math.SQRT2, // ~2.1213
   outerRadius: Math.sqrt(13 / 2), // ~2.5495
+  gap: 0,
 };
 
 /**
@@ -99,11 +127,11 @@ export const DEFAULT_KING_STRIPE: StripeStyle = {
   innerWidth: 0,
 };
 
-/**
- * Width of a pawn's mark, in square sides. It doubles as the diameter of the
- * circle the mark ends in, so the stripe and its rounded end always match.
- */
-export const DEFAULT_PAWN_MARK_WIDTH = 0.35;
+/** The pawn's mark is a stripe like any other, and can be doubled the same way. */
+export const DEFAULT_PAWN_STRIPE: StripeStyle = {
+  outerWidth: 0.35,
+  innerWidth: 0,
+};
 
 /**
  * Colour each piece's attacks are drawn in. Board publishes these as CSS custom
@@ -147,6 +175,40 @@ export const DEFAULT_ATTACK_COLORS: AttackColors = {
   pawn: "#9c9c9c", //"#616161",
 };
 
+/**
+ * The per-piece shapes, kept separately for each side so the two can be told
+ * apart by stripe width as well as by outline. Colours stay shared: a piece and
+ * its marks agree on hue whatever side it is on, and only lightness and these
+ * widths distinguish the sides.
+ */
+export interface PieceGeometry {
+  kingStripe: StripeStyle;
+  queenStripe: StripeStyle;
+  rookStripe: StripeStyle;
+  bishopStripe: StripeStyle;
+  knightRing: KnightRingOptions;
+  pawnStripe: StripeStyle;
+}
+
+export const DEFAULT_PIECE_GEOMETRY: PieceGeometry = {
+  kingStripe: DEFAULT_KING_STRIPE,
+  queenStripe: DEFAULT_QUEEN_STRIPE,
+  rookStripe: DEFAULT_ROOK_STRIPE,
+  bishopStripe: DEFAULT_BISHOP_STRIPE,
+  knightRing: DEFAULT_KNIGHT_RING,
+  pawnStripe: DEFAULT_PAWN_STRIPE,
+};
+
+export interface SideGeometry {
+  white: PieceGeometry;
+  black: PieceGeometry;
+}
+
+export const DEFAULT_SIDE_GEOMETRY: SideGeometry = {
+  white: DEFAULT_PIECE_GEOMETRY,
+  black: DEFAULT_PIECE_GEOMETRY,
+};
+
 export interface AttackOptions {
   colors: AttackColors;
   /** In milli-squares — see DEFAULT_OUTLINE_WIDTHS. */
@@ -155,12 +217,7 @@ export interface AttackOptions {
   rayInnerSquare: number;
   rayStartCornerRadius: number;
   fullWidthRays: boolean;
-  pawnMarkWidth: number;
-  kingStripe: StripeStyle;
-  knightRing: KnightRingOptions;
-  queenStripe: StripeStyle;
-  bishopStripe: StripeStyle;
-  rookStripe: StripeStyle;
+  geometry: SideGeometry;
 }
 
 export const DEFAULT_ATTACK_OPTIONS: AttackOptions = {
@@ -170,10 +227,5 @@ export const DEFAULT_ATTACK_OPTIONS: AttackOptions = {
   rayInnerSquare: DEFAULT_RAY_INNER_SQUARE,
   rayStartCornerRadius: DEFAULT_RAY_START_CORNER_RADIUS,
   fullWidthRays: DEFAULT_FULL_WIDTH_RAYS,
-  pawnMarkWidth: DEFAULT_PAWN_MARK_WIDTH,
-  kingStripe: DEFAULT_KING_STRIPE,
-  knightRing: DEFAULT_KNIGHT_RING,
-  queenStripe: DEFAULT_QUEEN_STRIPE,
-  bishopStripe: DEFAULT_BISHOP_STRIPE,
-  rookStripe: DEFAULT_ROOK_STRIPE,
+  geometry: DEFAULT_SIDE_GEOMETRY,
 };

@@ -121,6 +121,11 @@ export default function AttackLayer({
                 idPrefix={`${idPrefix}-${piece.square}`}
                 orientation={orientation}
                 attackOptions={attackOptions}
+                geometry={
+                  attackOptions.geometry[
+                    piece.color === "w" ? "white" : "black"
+                  ]
+                }
               />
             </g>
           </g>

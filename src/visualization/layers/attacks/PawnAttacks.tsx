@@ -2,6 +2,7 @@ import { pawnAttacks, type PawnAttack } from "../../../chess/attacks";
 import {
   BOARD_SIZE,
   SQUARE_SIZE,
+  perpendicular,
   rayPoint,
   rayStopWedgePath,
   roundedRectPath,
@@ -9,6 +10,7 @@ import {
   squareCenter,
   type Rect,
 } from "../../geometry";
+import { stripeBands } from "./bands";
 import type { PieceAttackProps } from "./types";
 
 function rectPath(box: Rect): string {
@@ -35,9 +37,10 @@ export default function PawnAttacks({
   idPrefix,
   orientation,
   attackOptions,
+  geometry,
 }: PieceAttackProps) {
-  const width = Math.max(attackOptions.pawnMarkWidth, 0) * SQUARE_SIZE;
-  if (width === 0) {
+  const bands = stripeBands(geometry.pawnStripe);
+  if (bands.length === 0) {
     return null;
   }
 
@@ -68,19 +71,31 @@ export default function PawnAttacks({
       : "",
   ].join(" ");
 
-  /** The mark runs out to the far corner; the clips decide where it stops. */
+  /**
+   * The mark runs out to the far corner; the clips decide where it stops. A
+   * doubled stripe is two bands set either side of that line, offset across it
+   * — the same construction the sliding pieces' rays use.
+   */
   const mark = (attack: PawnAttack) => {
     const to = rayPoint(piece.square, attack.direction, 1.5, orientation);
-    return (
-      <line
-        x1={center.x}
-        y1={center.y}
-        x2={to.x}
-        y2={to.y}
-        className="attack-stripe attack-pawn"
-        strokeWidth={width}
-      />
-    );
+    const normal = perpendicular(attack.direction, orientation);
+    return bands.map((band, index) => {
+      const shift = {
+        x: normal.x * band.offset,
+        y: normal.y * band.offset,
+      };
+      return (
+        <line
+          key={index}
+          x1={center.x + shift.x}
+          y1={center.y + shift.y}
+          x2={to.x + shift.x}
+          y2={to.y + shift.y}
+          className="attack-stripe attack-pawn"
+          strokeWidth={band.width}
+        />
+      );
+    });
   };
 
   // The two marks leave the pawn's inner square close together and overlap

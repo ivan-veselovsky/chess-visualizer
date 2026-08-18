@@ -9,6 +9,7 @@ export default function QueenAttacks({
   idPrefix,
   orientation,
   attackOptions,
+  geometry,
 }: PieceAttackProps) {
   return (
     <RayStripes
@@ -19,7 +20,7 @@ export default function QueenAttacks({
         attackOptions.decayPerBlocker
       )}
       stripeClass="attack-stripe attack-queen"
-      stripe={attackOptions.queenStripe}
+      stripe={geometry.queenStripe}
       innerSquare={attackOptions.rayInnerSquare}
       startCornerRadius={attackOptions.rayStartCornerRadius}
       fullWidth={attackOptions.fullWidthRays}

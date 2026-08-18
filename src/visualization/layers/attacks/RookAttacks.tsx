@@ -9,6 +9,7 @@ export default function RookAttacks({
   idPrefix,
   orientation,
   attackOptions,
+  geometry,
 }: PieceAttackProps) {
   return (
     <RayStripes
@@ -19,7 +20,7 @@ export default function RookAttacks({
         attackOptions.decayPerBlocker
       )}
       stripeClass="attack-stripe attack-rook"
-      stripe={attackOptions.rookStripe}
+      stripe={geometry.rookStripe}
       innerSquare={attackOptions.rayInnerSquare}
       startCornerRadius={attackOptions.rayStartCornerRadius}
       fullWidth={attackOptions.fullWidthRays}
