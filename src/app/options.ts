@@ -1,13 +1,8 @@
 import type { Orientation } from "../visualization/geometry";
-import {
-  DEFAULT_ATTACK_OPTIONS,
-  DEFAULT_BOARD_COLORS,
-  DEFAULT_PIECE_GEOMETRY,
-  DEFAULT_PIECE_TINT,
-  DEFAULT_SIDE_GEOMETRY,
-  type AttackOptions,
-  type BoardColors,
-  type PieceTint,
+import type {
+  AttackOptions,
+  BoardColors,
+  PieceTint,
 } from "../visualization/options";
 
 export type {
@@ -15,35 +10,47 @@ export type {
   AttackOptions,
   BoardColors,
   KnightRingOptions,
-  PieceGeometry,
+  AttackGeometry,
   PieceTint,
   SideGeometry,
   OutlineWidths,
   StripeStyle,
 } from "../visualization/options";
-export {
-  DEFAULT_ATTACK_COLORS,
-  DEFAULT_BISHOP_STRIPE,
-  DEFAULT_OUTLINE_WIDTHS,
-  DEFAULT_PIECE_TINT,
-  DEFAULT_FULL_WIDTH_RAYS,
-  DEFAULT_DECAY_PER_BLOCKER,
-  DEFAULT_KING_STRIPE,
-  DEFAULT_KNIGHT_RING,
-  DEFAULT_PAWN_STRIPE,
-  DEFAULT_PIECE_GEOMETRY,
-  DEFAULT_SIDE_GEOMETRY,
-  DEFAULT_QUEEN_STRIPE,
-  DEFAULT_RAY_INNER_SQUARE,
-  DEFAULT_RAY_START_CORNER_RADIUS,
-  DEFAULT_ROOK_STRIPE,
-} from "../visualization/options";
 
 /**
- * Central description of everything the user can tweak. New option groups are
- * added here, given a default below, and rendered in OptionsPanel.
+ * Which palette the page itself uses. It reaches the frame behind everything,
+ * the options panel, and the board's coordinate labels — nothing that the board
+ * colour and piece options already decide, so a board looks the same either way.
+ */
+export type Theme = "light" | "dark";
+
+/**
+ * What `Options` currently looks like: a whole number, raised by one whenever
+ * the shape changes in a way an older saved object would not survive — a field
+ * renamed, removed, or given a different meaning.
+ *
+ * That is all a schema version needs to do here. Settings restored from outside
+ * this build can be recognised and migrated rather than silently misread, and a
+ * plain integer both compares and orders correctly, which a dotted string does
+ * not without a parser.
+ *
+ * Carried inside `Options` itself, not just declared here, so it travels with
+ * the settings wherever they are written to.
+ */
+export const OPTIONS_SCHEMA_VERSION = 1;
+
+/**
+ * Central description of everything the user can tweak: one object holding
+ * every setting, with no partial or optional members.
+ *
+ * A new group is added here, given a value in every preset under `presets/`,
+ * and rendered in OptionsPanel. Values themselves live in the presets, never
+ * here — so there is exactly one place a setting can come from.
  */
 export interface Options {
+  /** Which revision of this shape the object was written against. */
+  optionsSchemaVersion: number;
+  theme: Theme;
   boardColors: BoardColors;
   /** Which side is at the bottom of the board. */
   orientation: Orientation;
@@ -52,14 +59,6 @@ export interface Options {
   showGrid: boolean;
   attacks: AttackOptions;
 }
-
-export const DEFAULT_OPTIONS: Options = {
-  boardColors: DEFAULT_BOARD_COLORS,
-  orientation: "white",
-  pieceTint: DEFAULT_PIECE_TINT,
-  showGrid: true,
-  attacks: DEFAULT_ATTACK_OPTIONS,
-};
 
 const SHORT_HEX = /^#[0-9a-f]{3}$/i;
 const FULL_HEX = /^#[0-9a-f]{6}$/i;

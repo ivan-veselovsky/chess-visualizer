@@ -20,11 +20,11 @@ export interface Band {
  * Shared by every mark drawn as a stripe: the sliding pieces' rays, the king's,
  * and the pawn's.
  */
-export function stripeBands({ outerWidth, innerWidth }: StripeStyle): Band[] {
+export function stripeBands({ rayWidth, gapWidth }: StripeStyle): Band[] {
   // Both to pixels before clamping — an inner width above the outer one would
   // otherwise yield negative band widths.
-  const outer = Math.max(outerWidth, 0) * SQUARE_SIZE;
-  const inner = Math.min(Math.max(innerWidth, 0) * SQUARE_SIZE, outer);
+  const outer = Math.max(rayWidth, 0) * SQUARE_SIZE;
+  const inner = Math.min(Math.max(gapWidth, 0) * SQUARE_SIZE, outer);
 
   if (outer === 0) {
     return [];

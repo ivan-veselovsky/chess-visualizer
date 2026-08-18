@@ -22,7 +22,7 @@ export default function KnightAttacks({
   geometry,
 }: PieceAttackProps) {
   const clipId = `${idPrefix}-ring`;
-  const { innerRadius, outerRadius, gap } = geometry.knightRing;
+  const { innerRadius, outerRadius, gapWidth } = geometry.knightRing;
 
   // Tolerate the two radii being given the wrong way round.
   const inner = Math.min(innerRadius, outerRadius);
@@ -31,7 +31,7 @@ export default function KnightAttacks({
   // The ring is a stripe bent into a circle: its thickness is the outer width
   // and the gap down its middle the inner one, so the same rule that doubles a
   // ray's stripe doubles this ring. Each band's offset is then radial.
-  const bands = stripeBands({ outerWidth: outer - inner, innerWidth: gap });
+  const bands = stripeBands({ rayWidth: outer - inner, gapWidth });
   if (bands.length === 0) {
     return null;
   }

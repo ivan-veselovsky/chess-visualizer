@@ -1,20 +1,19 @@
 /**
- * Option types owned by the visualization, and their defaults. They live here
- * rather than next to the UI so the drawing code does not depend on the app
- * layer; `app/options.ts` composes these into the full user-facing settings.
+ * The shape of everything the visualization can be told to draw — types only.
+ *
+ * They live here rather than next to the UI so the drawing code does not depend
+ * on the app layer. `app/options.ts` composes them into the full user-facing
+ * `Options`, and `app/presets/` holds the values.
+ *
+ * No defaults are declared in this file. A value belongs to a preset, and every
+ * preset is a complete `Options`, so there is one place to read a setting from
+ * and no way for a half-filled object to exist.
  */
 
 export interface BoardColors {
   lightSquare: string;
   darkSquare: string;
 }
-
-export const DEFAULT_BOARD_COLORS: BoardColors = {
-  // lightSquare: "#f0d9b5",
-  // darkSquare: "#b58863",
-  lightSquare:"#ccdccc", //"#cccccc",
-  darkSquare: "#bdbdbd",
-};
 
 /**
  * How far each side's pieces are pulled from the colour their attacks are drawn
@@ -27,19 +26,14 @@ export const DEFAULT_BOARD_COLORS: BoardColors = {
  */
 export interface PieceTint {
   /** Toward white, for White's pieces. */
-  lighten: number;
+  lightenWhite: number;
   /** Toward black, for Black's. */
-  darken: number;
+  darkenBlack: number;
 }
-
-export const DEFAULT_PIECE_TINT: PieceTint = {
-  lighten: 0.7,
-  darken: 0.7,
-};
 
 /**
  * Bounding circles of the knight's ring, in square sides. The eight target
- * squares sit at sqrt(5) ~ 2.236 square sides from the knight, so the defaults
+ * squares sit at sqrt(5) ~ 2.236 square sides from the knight, so useful radii
  * straddle that distance.
  */
 export interface KnightRingOptions {
@@ -48,115 +42,43 @@ export interface KnightRingOptions {
   /**
    * A gap of this width, in square sides, down the middle of the ring, leaving
    * two concentric rings either side of it. Zero leaves the ring solid — the
-   * same thing an inner width of zero does to a stripe.
+   * same thing a zero gap does to a stripe, which is what it is.
    */
-  gap: number;
+  gapWidth: number;
 }
 
-export const DEFAULT_KNIGHT_RING: KnightRingOptions = {
-  innerRadius: 3 / Math.SQRT2, // ~2.1213
-  outerRadius: Math.sqrt(13 / 2), // ~2.5495
-  gap: 0,
-};
-
 /**
- * A ray stripe, described as a wide outer stripe with a narrower inner stripe
- * cut out of it, leaving two parallel bands. Both widths are in square sides
- * and measured across the full stripe, so `innerWidth: 0` degenerates to a
- * single solid stripe of `outerWidth`.
+ * A ray's stripe: its full width, with a gap cut down the middle leaving two
+ * parallel bands. Both are in square sides and measured across the stripe, so
+ * `gapWidth: 0` degenerates to a single solid stripe of `rayWidth`.
  *
- * Every sliding piece carries its own pair, so stripes of different pieces can
- * be given different widths and nest inside one another where they overlap.
+ * Every piece carries its own pair, so stripes of different pieces can be given
+ * different widths and nest inside one another where they overlap.
  */
 export interface StripeStyle {
-  outerWidth: number;
-  innerWidth: number;
+  rayWidth: number;
+  gapWidth: number;
 }
 
-export const DEFAULT_QUEEN_STRIPE: StripeStyle = {
-  outerWidth: 0.35,
-  innerWidth: 0,
-};
-
-export const DEFAULT_BISHOP_STRIPE: StripeStyle = {
-  outerWidth: 0.45,
-  innerWidth: 0,
-};
-
-export const DEFAULT_ROOK_STRIPE: StripeStyle = {
-  outerWidth: 0.45,
-  innerWidth: 0,
-};
-
-/**
- * What a ray's intensity is multiplied by for each piece it passes through.
- * 0 hides everything beyond the first piece (no x-ray at all); 1 lets a ray
- * run to the board edge undimmed.
- */
-export const DEFAULT_DECAY_PER_BLOCKER = 0;
-
-/**
- * Side of the inner square, in square sides: concentric with its square and
- * parallel to it. It is the one boundary every ray is measured against — where
- * a ray starts, where it ends, and where it dims behind a piece it passes.
- *
- * A ray may not pass the sides of that square lying farthest along it. A
- * diagonal meets two of them at once and so tapers to a point at the corner
- * where they meet; a rank or file meets one and gets a flat cut.
- */
-export const DEFAULT_RAY_INNER_SQUARE = 0.75;
-
-/**
- * Corner radius, in square sides, of the inner square where a ray *starts*.
- * Rounding it blunts the point a diagonal is otherwise notched to as it leaves
- * its piece. Ray endings, and the boundaries where a ray dims behind a piece it
- * passes, keep the square's sharp corners — so a start never looks like an end.
- */
-export const DEFAULT_RAY_START_CORNER_RADIUS = 0.15;
-
-/**
- * Whether rays keep their full width along their whole length. Off, a ray shows
- * only on the squares it attacks, so a diagonal one narrows to a point at every
- * square corner; on, it stays the same width throughout. Either way it starts
- * and ends in the same place — only its width in the corners changes.
- */
-export const DEFAULT_FULL_WIDTH_RAYS = true;
-
-export const DEFAULT_KING_STRIPE: StripeStyle = {
-  outerWidth: 0.45,
-  innerWidth: 0,
-};
-
-/** The pawn's mark is a stripe like any other, and can be doubled the same way. */
-export const DEFAULT_PAWN_STRIPE: StripeStyle = {
-  outerWidth: 0.35,
-  innerWidth: 0,
-};
-
-/**
- * Colour each piece's attacks are drawn in. Board publishes these as CSS custom
- * properties on the board's root <svg>, which is also where the piece glyphs
- * pick up their tint — so a piece and its attacks can never disagree.
- */
 /**
  * Widths of the outline traced around each side's attack marks — the one thing
  * that tells the two sides' marks apart, since a piece and its attacks share a
  * colour whatever side it is on. Zero draws none for that side.
  *
  * In milli-squares, not square sides: a hairline is a few thousandths of a
- * square, and the rest of this file's lengths would need three decimals to say
- * so. The only lengths here measured that way.
+ * square, and every other length here would need three decimals to say so. The
+ * only lengths in the model measured that way.
  */
 export interface OutlineWidths {
   white: number;
   black: number;
 }
 
-export const DEFAULT_OUTLINE_WIDTHS: OutlineWidths = {
-  white: 10,
-  black: 10,
-};
-
+/**
+ * Colour each piece's attacks are drawn in. Board publishes these as CSS custom
+ * properties on the board's root <svg>, which is also where the piece glyphs
+ * pick up their tint — so a piece and its attacks can never disagree.
+ */
 export interface AttackColors {
   king: string;
   queen: string;
@@ -166,22 +88,13 @@ export interface AttackColors {
   pawn: string;
 }
 
-export const DEFAULT_ATTACK_COLORS: AttackColors = {
-  king: "#ffd600",
-  queen: "#e53935",
-  rook: "#fb8c00",
-  bishop: "#43a047",
-  knight: "#00a7bd", //"#00bcd4",
-  pawn: "#9c9c9c", //"#616161",
-};
-
 /**
- * The per-piece shapes, kept separately for each side so the two can be told
- * apart by stripe width as well as by outline. Colours stay shared: a piece and
- * its marks agree on hue whatever side it is on, and only lightness and these
- * widths distinguish the sides.
+ * The shape of every piece kind's attack marks, kept separately for each side
+ * so the two can be told apart by stripe width as well as by outline. Colours
+ * stay shared: a piece and its marks agree on hue whatever side it is on, and
+ * only lightness and these widths distinguish the sides.
  */
-export interface PieceGeometry {
+export interface AttackGeometry {
   kingStripe: StripeStyle;
   queenStripe: StripeStyle;
   rookStripe: StripeStyle;
@@ -190,42 +103,53 @@ export interface PieceGeometry {
   pawnStripe: StripeStyle;
 }
 
-export const DEFAULT_PIECE_GEOMETRY: PieceGeometry = {
-  kingStripe: DEFAULT_KING_STRIPE,
-  queenStripe: DEFAULT_QUEEN_STRIPE,
-  rookStripe: DEFAULT_ROOK_STRIPE,
-  bishopStripe: DEFAULT_BISHOP_STRIPE,
-  knightRing: DEFAULT_KNIGHT_RING,
-  pawnStripe: DEFAULT_PAWN_STRIPE,
-};
-
 export interface SideGeometry {
-  white: PieceGeometry;
-  black: PieceGeometry;
+  white: AttackGeometry;
+  black: AttackGeometry;
 }
-
-export const DEFAULT_SIDE_GEOMETRY: SideGeometry = {
-  white: DEFAULT_PIECE_GEOMETRY,
-  black: DEFAULT_PIECE_GEOMETRY,
-};
 
 export interface AttackOptions {
   colors: AttackColors;
-  /** In milli-squares — see DEFAULT_OUTLINE_WIDTHS. */
+  /** In milli-squares — see OutlineWidths. */
   outlineWidths: OutlineWidths;
-  decayPerBlocker: number;
+  /**
+   * How opaque an undimmed attack mark is, from 0 to 1. Applied once per piece
+   * to its whole set of marks, so overlapping marks of the same piece stay one
+   * flat shade; marks of different pieces still blend where they cross, which
+   * is the point of the display.
+   */
+  rayOpacity: number;
+  /**
+   * What a ray's intensity is multiplied by for each piece it passes through.
+   * 0 hides everything beyond the first piece (no x-ray at all); 1 lets a ray
+   * run to the board edge undimmed.
+   */
+  xRayDecayFactor: number;
+  /**
+   * Side of the inner square, in square sides: concentric with its square and
+   * parallel to it. It is the one boundary every ray is measured against —
+   * where a ray starts, where it ends, and where it dims behind a piece.
+   *
+   * A ray may not pass the sides of that square lying farthest along it. A
+   * diagonal meets two of them at once and so tapers to a point at the corner
+   * where they meet; a rank or file meets one and gets a blunter point.
+   */
   rayInnerSquare: number;
-  rayStartCornerRadius: number;
-  fullWidthRays: boolean;
+  /**
+   * Corner radius, in square sides, of the inner square where a ray *starts*.
+   * Rounding it blunts the point a diagonal is otherwise notched to as it
+   * leaves its piece. Ray endings, and the boundaries where a ray dims behind a
+   * piece it passes, keep the square's sharp corners — so a start never looks
+   * like an end.
+   */
+  rayInnerSquareCornerRadius: number;
+  /**
+   * Whether rays keep their full width along their whole length. Off, a ray
+   * shows only on the squares it attacks, so a diagonal one narrows to a point
+   * at every square corner; on, it stays the same width throughout. Either way
+   * it starts and ends in the same place — only its width in the corners
+   * changes.
+   */
+  fullWidthDiagonalRays: boolean;
   geometry: SideGeometry;
 }
-
-export const DEFAULT_ATTACK_OPTIONS: AttackOptions = {
-  colors: DEFAULT_ATTACK_COLORS,
-  outlineWidths: DEFAULT_OUTLINE_WIDTHS,
-  decayPerBlocker: DEFAULT_DECAY_PER_BLOCKER,
-  rayInnerSquare: DEFAULT_RAY_INNER_SQUARE,
-  rayStartCornerRadius: DEFAULT_RAY_START_CORNER_RADIUS,
-  fullWidthRays: DEFAULT_FULL_WIDTH_RAYS,
-  geometry: DEFAULT_SIDE_GEOMETRY,
-};

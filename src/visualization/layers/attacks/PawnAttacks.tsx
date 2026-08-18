@@ -49,7 +49,7 @@ export default function PawnAttacks({
     return null;
   }
 
-  const fullWidth = attackOptions.fullWidthRays;
+  const fullWidth = attackOptions.fullWidthDiagonalRays;
   const innerHalfSide =
     (Math.max(attackOptions.rayInnerSquare, 0) * SQUARE_SIZE) / 2;
   const center = squareCenter(piece.square, orientation);
@@ -66,7 +66,7 @@ export default function PawnAttacks({
             width: innerHalfSide * 2,
             height: innerHalfSide * 2,
           },
-          Math.max(attackOptions.rayStartCornerRadius, 0) * SQUARE_SIZE
+          Math.max(attackOptions.rayInnerSquareCornerRadius, 0) * SQUARE_SIZE
         )
       : "",
   ].join(" ");

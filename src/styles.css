@@ -1,9 +1,20 @@
+/*
+  Padding and borders count inside a declared width. Without this an input with
+  `width: 100%` and any padding overflows its container — which is what made the
+  attack table's columns run into one another.
+*/
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   /* --square-light / --square-dark are supplied per-board by <Board>. */
   --board-frame: #4a3728;
   --grid-line: #000000;
   /* --attack-* are supplied per-board by <Board>, opaque; the alpha comes from
-     ATTACK_BASE_OPACITY and the decay per blocker. */
+     the attack opacity option and the decay per blocker. */
   --piece-outline: #1a1a1a;
   /* Traced around each side's attack marks to tell the two apart. */
   --attack-outline-white: #ffffff;
@@ -14,18 +25,55 @@
   --panel-bg: color-mix(in srgb, currentColor 5%, transparent);
   --invalid: #c62828;
 
-  color-scheme: light dark;
+  /*
+    The page's own colours — the frame behind everything, the panel, and the
+    board's coordinate labels, which take currentColor. The board itself and the
+    pieces are set from their own options and are the same under either theme.
+  */
+  --app-bg: #ffffff;
+  --app-fg: #1a1a1a;
+
+  /* Follows the setting, not the OS, so form controls match the chosen theme. */
+  color-scheme: light;
   font-family: system-ui, sans-serif;
+
+  /*
+    How large the board may get. A square board runs out of window height long
+    before width, so the height is what bounds it; the reserve covers the
+    heading above and the controls and FEN below, and is in rem so it tracks the
+    text rather than a pixel count. Whichever of the two is smaller wins, so a
+    narrow window still fits.
+
+    --board-zoom is the multiplier a "board size" setting would drive, if one is
+    ever wanted. Nothing sets it today.
+  */
+  --board-zoom: 1;
+  --board-reserve: 12rem;
+  /* The height-derived limit on its own, so the board's column can be sized to
+     it directly instead of growing past it and centring the board in the slack. */
+  --board-cap: calc((100vh - var(--board-reserve)) * var(--board-zoom));
+  /* Excludes mobile browser chrome; ignored where unsupported. */
+  --board-cap: calc((100dvh - var(--board-reserve)) * var(--board-zoom));
+  --board-max: min(100%, var(--board-cap));
+}
+
+/* Set by App from the theme option. */
+:root[data-theme="dark"] {
+  --app-bg: #17181b;
+  --app-fg: #d0d2d5;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
+  background: var(--app-bg);
+  color: var(--app-fg);
 }
 
 .app {
-  max-width: 1100px;
+  max-width: 1500px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 2rem;
+  padding: 1.5rem 0.75rem 2rem;
 }
 
 .app-header {
@@ -64,12 +112,20 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
+/*
+  Sized to the board rather than grown to fill: the board is capped by window
+  height, so a growing column would only pad it with blank space and push the
+  panel away. The surplus goes to the panel instead, which has a table to fit.
+  With the panel closed there is no other claim on the surplus, and the auto
+  margins centre the board in it.
+*/
 .board-pane {
-  flex: 1 1 320px;
+  flex: 0 1 var(--board-cap);
   min-width: 0;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -78,7 +134,7 @@ body {
 
 .board {
   width: 100%;
-  max-width: 640px;
+  max-width: var(--board-max);
   height: auto;
   display: block;
 }
@@ -108,9 +164,23 @@ body {
   pointer-events: none;
 }
 
+/* Sits between the board and the FEN, lined up with both. */
+.board-controls {
+  width: 100%;
+  max-width: var(--board-max);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.board-controls .toggle-field {
+  margin-bottom: 0;
+}
+
 .fen-field {
   width: 100%;
-  max-width: 640px;
+  max-width: var(--board-max);
 }
 
 .fen-field > label {
@@ -271,46 +341,22 @@ body {
 /* --- Options panel ------------------------------------------------------ */
 
 .options-panel {
-  flex: 0 1 340px;
+  flex: 1 1 500px;
+  /* Wide enough for six columns; below this the panel wraps under the board
+     rather than crushing the table. */
+  min-width: 27rem;
+  max-width: 46rem;
   padding: 1rem;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   background: var(--panel-bg);
 }
 
-.options-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
 
-.options-panel-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.options-panel-header button {
-  padding: 0 0.4rem;
-  font-size: 1.2rem;
-  line-height: 1;
-  color: inherit;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.options-group {
-  margin-top: 1rem;
-}
-
-.options-group h3 {
-  margin: 0 0 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.7;
+/* Unlabelled and unruled, so spacing alone separates one group from the next:
+   noticeably wider than the gap between fields within a group. */
+.options-group + .options-group {
+  margin-top: 1.6rem;
 }
 
 .color-field {
@@ -357,34 +403,23 @@ body {
 }
 
 .options-hint {
-  margin: -0.4rem 0 0.6rem;
+  margin: 0 0 0.6rem;
   font-size: 0.75rem;
   opacity: 0.7;
 }
 
-.side-picker {
+.options-footer {
+  margin-top: 1.9rem;
   display: flex;
-  gap: 0.35rem;
-  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-.side-button {
-  padding: 0.25rem 0.6rem;
+.import-error {
+  flex-basis: 100%;
+  margin: 0.25rem 0 0;
   font-size: 0.8rem;
-  color: inherit;
-  background: none;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.side-button-on {
-  background: color-mix(in srgb, currentColor 18%, transparent);
-  font-weight: 600;
-}
-
-.side-button-match {
-  margin-left: auto;
+  color: var(--invalid);
 }
 
 /* Piece per row, stripe widths per column, so the pieces compare at a glance. */
@@ -416,13 +451,23 @@ body {
   white-space: nowrap;
 }
 
-/* Name and swatch columns stay narrow; the two value columns split the rest. */
+/* Name and swatch columns stay narrow; the value columns split the rest. */
 .stripe-table th:first-child {
-  width: 4.2rem;
+  width: 4.6rem;
 }
 
 .stripe-table-color-head {
   width: 2rem;
+}
+
+/* Separates White's pair of columns from Black's. */
+.stripe-group-start {
+  border-left: 1px solid var(--panel-border);
+  padding-left: 0.4rem;
+}
+
+.stripe-table-wide thead th[scope="colgroup"] {
+  text-align: center;
 }
 
 .attack-swatch {
@@ -455,7 +500,11 @@ body {
 
 .stripe-table .number-input {
   width: 100%;
-  padding: 0.3rem 0.35rem;
+  padding: 0.3rem 0.3rem;
+}
+
+.stripe-table-wide td {
+  padding-right: 0.3rem;
 }
 
 .number-field {

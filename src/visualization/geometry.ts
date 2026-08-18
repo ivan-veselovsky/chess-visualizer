@@ -10,9 +10,24 @@ export type Orientation = "white" | "black";
 /** All sizes are in SVG user units; the board is scaled via the viewBox. */
 export const SQUARE_SIZE = 64;
 export const BOARD_SIZE = FILES.length * SQUARE_SIZE;
-/** Margin around the board that carries the file/rank labels. */
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/** Margin carrying the file/rank labels. */
 export const BORDER_SIZE = 24;
-export const CANVAS_SIZE = BOARD_SIZE + 2 * BORDER_SIZE;
+
+/**
+ * Where the board's own coordinates begin within the canvas.
+ *
+ * Only two margins are wanted: BorderLayer sets the rank labels down the left
+ * and the file labels along the bottom, whichever way round the board is, so
+ * margins above and to the right would only be blank. Dropping one from each
+ * axis leaves the canvas square, which the pointer mapping depends on.
+ */
+export const BOARD_ORIGIN: Point = { x: BORDER_SIZE, y: 0 };
+export const CANVAS_SIZE = BOARD_SIZE + BORDER_SIZE;
 
 /**
  * A thousandth of a square side. Lengths are given in square sides throughout,
@@ -20,14 +35,6 @@ export const CANVAS_SIZE = BOARD_SIZE + 2 * BORDER_SIZE;
  * by eye than "10".
  */
 export const MILLI_SQUARE = SQUARE_SIZE / 1000;
-
-/** Opacity of an undimmed attack stripe. */
-export const ATTACK_BASE_OPACITY = 0.55;
-
-export interface Point {
-  x: number;
-  y: number;
-}
 
 export interface Rect extends Point {
   width: number;

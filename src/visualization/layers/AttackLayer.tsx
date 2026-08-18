@@ -1,11 +1,7 @@
 import { useId, type ComponentType } from "react";
 import type { Chess, PieceSymbol } from "chess.js";
 import type { PlacedPiece } from "../../chess/model";
-import {
-  ATTACK_BASE_OPACITY,
-  MILLI_SQUARE,
-  type Orientation,
-} from "../geometry";
+import { MILLI_SQUARE, type Orientation } from "../geometry";
 import type { AttackOptions } from "../options";
 import BishopAttacks from "./attacks/BishopAttacks";
 import KingAttacks from "./attacks/KingAttacks";
@@ -46,6 +42,8 @@ export default function AttackLayer({
 }: AttackLayerProps) {
   // useId() yields ids like ":r0:"; the colons are awkward inside url(#...).
   const idPrefix = `attack-${useId().replace(/:/g, "")}`;
+  const opacity = Math.min(Math.max(attackOptions.rayOpacity, 0), 1);
+
   // One filter per side, each emitted only if that side's outline is wanted.
   const sides = (["white", "black"] as const).map((side) => ({
     side,
@@ -113,7 +111,7 @@ export default function AttackLayer({
         }
         const outline = outlineFor(piece.color);
         return (
-          <g key={piece.square} opacity={ATTACK_BASE_OPACITY}>
+          <g key={piece.square} opacity={opacity}>
             <g filter={outline ? `url(#${outline.id})` : undefined}>
               <Renderer
                 position={position}

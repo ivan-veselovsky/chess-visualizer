@@ -1,21 +1,17 @@
-import NumberField from "./NumberField";
 import NumberInput from "./NumberInput";
 import {
-  DEFAULT_ATTACK_COLORS,
-  DEFAULT_PIECE_GEOMETRY,
   type AttackColors,
   type AttackOptions,
-  type PieceGeometry,
+  type AttackGeometry,
   type StripeStyle,
 } from "./options";
 
-/** Which side's shapes the table is editing. */
-export type Side = "white" | "black";
+type Side = "white" | "black";
+
+const SIDES: Side[] = ["white", "black"];
 
 interface AttackTableProps {
   attacks: AttackOptions;
-  side: Side;
-  onSideChange: (side: Side) => void;
   onChange: (patch: Partial<AttackOptions>) => void;
 }
 
@@ -27,47 +23,42 @@ interface Cell {
   onChange: (value: number) => void;
 }
 
+/** What one side contributes to a row. Most rows fill both. */
+interface SideCells {
+  gap?: Cell;
+  width?: Cell;
+}
+
 interface Row {
   key: string;
   piece: string;
-  /** Which entry of AttackColors this row tints. */
-  color: keyof AttackColors;
-  /** Absent for the shapes that have no inner boundary. */
-  inner?: Cell;
-  outer: Cell;
+  /** Which entry of AttackColors this row tints; absent for a continuation row. */
+  color?: keyof AttackColors;
+  cells: Record<Side, SideCells>;
 }
 
-const SIDES: { side: Side; label: string }[] = [
-  { side: "white", label: "White" },
-  { side: "black", label: "Black" },
-];
-
 /**
- * Every attack dimension in one table, a row per piece. Lining the pieces up
- * makes it easy to see which shape nests inside which, which is the whole point
- * of tuning them against each other.
+ * Every attack dimension in one table: a row per piece, and the two sides side
+ * by side so a change to one can be judged against the other.
  *
- * The columns mean the same thing throughout — an inner and an outer boundary —
- * even though that is a pair of stripe widths for the sliding pieces and a pair
- * of radii for the knight. The king's ring and the pawn's mark are single
- * strokes, so they have an outer value only.
+ * The columns are a stripe's total width and the width of the gap down its
+ * middle, which is what every mark here is made of — a ray's stripe, the king's,
+ * the pawn's, and the knight's ring, a stripe bent into a circle.
  *
- * Sizes are held separately for each side, so the two can be told apart by
- * stripe width as well as by outline. Rather than double the columns, the table
- * edits one side at a time and the selector above says which. Colours are
- * shared: they identify the piece, not the side.
+ * The knight alone needs something more, since a ring has to be placed as well
+ * as sized. Its radii get a continuation row of their own rather than being
+ * forced into columns that would then describe neither them nor anything else.
+ *
+ * Colours span both sides: they identify the piece, not the side. Only the
+ * sizes and the outlines distinguish White's marks from Black's.
  */
-export default function AttackTable({
-  attacks,
-  side,
-  onSideChange,
-  onChange,
-}: AttackTableProps) {
-  const geometry = attacks.geometry[side];
-
-  function updateGeometry(patch: Partial<PieceGeometry>) {
+export default function AttackTable({ attacks, onChange }: AttackTableProps) {
+  function updateGeometry(side: Side, patch: Partial<AttackGeometry>) {
     onChange({
-      geometry: { ...attacks.geometry, [side]: { ...geometry, ...patch } },
+      geometry: {
+        ...attacks.geometry,
+        [side]: { ...attacks.geometry[side], ...patch },
+      },
     });
   }
 
@@ -76,33 +67,77 @@ export default function AttackTable({
   }
 
   function stripeRow(
-    key:
-      | "kingStripe"
-      | "queenStripe"
-      | "bishopStripe"
-      | "rookStripe"
-      | "pawnStripe",
+    key: "kingStripe" | "queenStripe" | "bishopStripe" | "rookStripe" | "pawnStripe",
     piece: string,
     color: keyof AttackColors
   ): Row {
-    function update(patch: Partial<StripeStyle>) {
-      updateGeometry({ [key]: { ...geometry[key], ...patch } });
-    }
+    const cellsFor = (side: Side): SideCells => {
+      const stripe = attacks.geometry[side][key];
+      const update = (patch: Partial<StripeStyle>) =>
+        updateGeometry(side, { [key]: { ...stripe, ...patch } });
+      return {
+        gap: {
+          value: stripe.gapWidth,
+          label: `${side} ${piece} gap width`,
+          allowZero: true,
+          onChange: (gapWidth) => update({ gapWidth }),
+        },
+        width: {
+          value: stripe.rayWidth,
+          label: `${side} ${piece} stripe width`,
+          onChange: (rayWidth) => update({ rayWidth }),
+        },
+      };
+    };
+    return { key, piece, color, cells: { white: cellsFor("white"), black: cellsFor("black") } };
+  }
+
+  /** The knight's ring, sized like any other stripe: a gap, no total width. */
+  function knightRow(): Row {
+    const cellsFor = (side: Side): SideCells => {
+      const ring = attacks.geometry[side].knightRing;
+      return {
+        gap: {
+          value: ring.gapWidth,
+          label: `${side} knight ring gap width`,
+          allowZero: true,
+          onChange: (gapWidth) =>
+            updateGeometry(side, { knightRing: { ...ring, gapWidth } }),
+        },
+      };
+    };
     return {
-      key,
-      piece,
-      color,
-      inner: {
-        value: geometry[key].innerWidth,
-        label: `${piece} inner width`,
-        allowZero: true,
-        onChange: (innerWidth) => update({ innerWidth }),
-      },
-      outer: {
-        value: geometry[key].outerWidth,
-        label: `${piece} outer width`,
-        onChange: (outerWidth) => update({ outerWidth }),
-      },
+      key: "knight",
+      piece: "Knight",
+      color: "knight",
+      cells: { white: cellsFor("white"), black: cellsFor("black") },
+    };
+  }
+
+  /** Where that ring sits — the one dimension the width columns cannot carry. */
+  function knightRadiiRow(): Row {
+    const cellsFor = (side: Side): SideCells => {
+      const ring = attacks.geometry[side].knightRing;
+      return {
+        gap: {
+          value: ring.innerRadius,
+          label: `${side} knight inner radius`,
+          allowZero: true,
+          onChange: (innerRadius) =>
+            updateGeometry(side, { knightRing: { ...ring, innerRadius } }),
+        },
+        width: {
+          value: ring.outerRadius,
+          label: `${side} knight outer radius`,
+          onChange: (outerRadius) =>
+            updateGeometry(side, { knightRing: { ...ring, outerRadius } }),
+        },
+      };
+    };
+    return {
+      key: "knight-radii",
+      piece: "…radii",
+      cells: { white: cellsFor("white"), black: cellsFor("black") },
     };
   }
 
@@ -111,74 +146,63 @@ export default function AttackTable({
     stripeRow("queenStripe", "Queen", "queen"),
     stripeRow("rookStripe", "Rook", "rook"),
     stripeRow("bishopStripe", "Bishop", "bishop"),
-    {
-      key: "knight",
-      piece: "Knight",
-      color: "knight",
-      inner: {
-        value: geometry.knightRing.innerRadius,
-        label: "Knight inner radius",
-        allowZero: true,
-        onChange: (innerRadius) =>
-          updateGeometry({
-            knightRing: { ...geometry.knightRing, innerRadius },
-          }),
-      },
-      outer: {
-        value: geometry.knightRing.outerRadius,
-        label: "Knight outer radius",
-        onChange: (outerRadius) =>
-          updateGeometry({
-            knightRing: { ...geometry.knightRing, outerRadius },
-          }),
-      },
-    },
+    knightRow(),
+    knightRadiiRow(),
     stripeRow("pawnStripe", "Pawn", "pawn"),
   ];
 
+  function numberCell(cell: Cell | undefined, id: string, groupStart: boolean) {
+    const className = groupStart ? "stripe-group-start" : undefined;
+    if (cell === undefined) {
+      return (
+        <td key={id} className={`stripe-table-blank ${className ?? ""}`}>
+          —
+        </td>
+      );
+    }
+    return (
+      <td key={id} className={className}>
+        <NumberInput
+          id={id}
+          ariaLabel={cell.label}
+          value={cell.value}
+          allowZero={cell.allowZero}
+          onChange={cell.onChange}
+        />
+      </td>
+    );
+  }
+
   return (
     <section className="options-group">
-      <h3>Attack geometry</h3>
       <p className="options-hint">
-        Colors, plus stripe widths and knight radii in square sides. Sizes are
-        per side; colors are shared.
+        Widths in square sides: a stripe, and the gap down its middle. The
+        knight's radii say where its ring sits. Colors are shared by both sides.
       </p>
 
-      <div className="side-picker" role="group" aria-label="Side to edit">
-        {SIDES.map((entry) => (
-          <button
-            key={entry.side}
-            type="button"
-            className={
-              entry.side === side ? "side-button side-button-on" : "side-button"
-            }
-            aria-pressed={entry.side === side}
-            onClick={() => onSideChange(entry.side)}
-          >
-            {entry.label}
-          </button>
-        ))}
-        <button
-          type="button"
-          className="side-button side-button-match"
-          title="Give the other side these same sizes"
-          onClick={() =>
-            onChange({ geometry: { white: geometry, black: geometry } })
-          }
-        >
-          Match
-        </button>
-      </div>
-
-      <table className="stripe-table">
+      <table className="stripe-table stripe-table-wide">
         <thead>
           <tr>
-            <th scope="col">Piece</th>
-            <th scope="col" className="stripe-table-color-head">
+            <th scope="col" rowSpan={2}>
+              Piece
+            </th>
+            <th scope="col" rowSpan={2} className="stripe-table-color-head">
               <span className="visually-hidden">Attack color</span>
             </th>
-            <th scope="col">Inner</th>
-            <th scope="col">Outer</th>
+            <th scope="colgroup" colSpan={2}>
+              White
+            </th>
+            <th scope="colgroup" colSpan={2} className="stripe-group-start">
+              Black
+            </th>
+          </tr>
+          <tr>
+            <th scope="col">Gap</th>
+            <th scope="col">Stripe</th>
+            <th scope="col" className="stripe-group-start">
+              Gap
+            </th>
+            <th scope="col">Stripe</th>
           </tr>
         </thead>
         <tbody>
@@ -186,73 +210,42 @@ export default function AttackTable({
             <tr key={row.key}>
               <th scope="row">{row.piece}</th>
               <td>
-                <input
-                  type="color"
-                  className="attack-swatch"
-                  value={attacks.colors[row.color]}
-                  title={`${row.piece} attack color (${attacks.colors[row.color]})`}
-                  aria-label={`${row.piece} attack color`}
-                  onChange={(event) =>
-                    setColor(row.color, event.target.value.toLowerCase())
-                  }
-                />
-              </td>
-              <td className={row.inner ? undefined : "stripe-table-blank"}>
-                {row.inner ? (
-                  <NumberInput
-                    id={`${side}-${row.key}-inner`}
-                    ariaLabel={`${side} ${row.inner.label}`}
-                    value={row.inner.value}
-                    allowZero={row.inner.allowZero}
-                    onChange={row.inner.onChange}
+                {row.color !== undefined && (
+                  <input
+                    type="color"
+                    className="attack-swatch"
+                    value={attacks.colors[row.color]}
+                    title={`${row.piece} attack color (${
+                      attacks.colors[row.color]
+                    })`}
+                    aria-label={`${row.piece} attack color`}
+                    onChange={(event) =>
+                      setColor(
+                        row.color as keyof AttackColors,
+                        event.target.value.toLowerCase()
+                      )
+                    }
                   />
-                ) : (
-                  "—"
                 )}
               </td>
-              <td>
-                <NumberInput
-                  id={`${side}-${row.key}-outer`}
-                  ariaLabel={`${side} ${row.outer.label}`}
-                  value={row.outer.value}
-                  allowZero={row.outer.allowZero}
-                  onChange={row.outer.onChange}
-                />
-              </td>
+              {SIDES.flatMap((side) => [
+                numberCell(
+                  row.cells[side].gap,
+                  `${side}-${row.key}-gap`,
+                  side === "black"
+                ),
+                numberCell(
+                  row.cells[side].width,
+                  `${side}-${row.key}-width`,
+                  false
+                ),
+              ])}
             </tr>
           ))}
+
         </tbody>
       </table>
 
-      {/*
-        The knight needs a third number the stripe pieces do not: its two radii
-        say where the ring sits, leaving nowhere in the Inner/Outer columns to
-        put the gap. A fifth column for one piece would squeeze the rest, so it
-        sits below the table instead.
-      */}
-      <NumberField
-        id={`${side}-knight-gap`}
-        label="Knight ring gap"
-        suffix="squares"
-        value={geometry.knightRing.gap}
-        allowZero
-        onChange={(gap) =>
-          updateGeometry({ knightRing: { ...geometry.knightRing, gap } })
-        }
-      />
-
-      <button
-        type="button"
-        className="reset-button"
-        onClick={() =>
-          onChange({
-            colors: DEFAULT_ATTACK_COLORS,
-            geometry: { ...attacks.geometry, [side]: DEFAULT_PIECE_GEOMETRY },
-          })
-        }
-      >
-        Reset geometry
-      </button>
     </section>
   );
 }

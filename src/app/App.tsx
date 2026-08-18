@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Square } from "chess.js";
 import { applyMove } from "../chess/moves";
 import { DEFAULT_FEN, parseFen } from "../chess/position";
@@ -6,7 +6,9 @@ import Board from "../visualization/Board";
 import FenField from "./FenField";
 import GearIcon from "./GearIcon";
 import OptionsPanel from "./OptionsPanel";
-import { DEFAULT_OPTIONS, type Options } from "./options";
+import ToggleField from "./ToggleField";
+import type { Options } from "./options";
+import { DEFAULT_OPTIONS } from "./presets";
 
 export default function App() {
   const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
@@ -14,6 +16,12 @@ export default function App() {
   const [fen, setFen] = useState(DEFAULT_FEN);
 
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
+
+  // On the document root rather than a wrapper: the frame colour has to reach
+  // the whole viewport, and this component only owns part of it.
+  useEffect(() => {
+    document.documentElement.dataset.theme = options.theme;
+  }, [options.theme]);
 
   // A FEN is unparseable for most of the time it takes to type one, so the
   // board keeps showing the last position that did parse rather than blanking.
@@ -64,6 +72,27 @@ export default function App() {
               orientation={options.orientation}
             />
           )}
+          <div className="board-controls">
+            <ToggleField
+              id="flip-board"
+              label="Black at bottom"
+              checked={options.orientation === "black"}
+              onChange={(flipped) =>
+                setOptions({
+                  ...options,
+                  orientation: flipped ? "black" : "white",
+                })
+              }
+            />
+            <ToggleField
+              id="dark-theme"
+              label="Dark theme"
+              checked={options.theme === "dark"}
+              onChange={(dark) =>
+                setOptions({ ...options, theme: dark ? "dark" : "light" })
+              }
+            />
+          </div>
           <FenField
             value={fen}
             error={error}
@@ -75,8 +104,8 @@ export default function App() {
         {optionsOpen && (
           <OptionsPanel
             options={options}
+            defaults={DEFAULT_OPTIONS}
             onChange={setOptions}
-            onClose={() => setOptionsOpen(false)}
           />
         )}
       </div>

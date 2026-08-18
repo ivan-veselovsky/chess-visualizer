@@ -3,7 +3,7 @@ import type { Chess, Square } from "chess.js";
 import { PIECE_GLYPHS, readPieces } from "../chess/model";
 import { legalTargets } from "../chess/moves";
 import {
-  BORDER_SIZE,
+  BOARD_ORIGIN,
   CANVAS_SIZE,
   SQUARE_SIZE,
   squareAtPoint,
@@ -79,14 +79,14 @@ export default function Board({
     "--attack-pawn": attacks.colors.pawn,
     // As percentages, which is what color-mix wants. Rounded, since a
     // fraction times 100 lands on things like 55.00000000000001.
-    "--piece-lighten": percent(pieceTint.lighten),
-    "--piece-darken": percent(pieceTint.darken),
+    "--piece-lighten": percent(pieceTint.lightenWhite),
+    "--piece-darken": percent(pieceTint.darkenBlack),
   } as CSSProperties;
 
   /**
    * Pointer position in board coordinates. The viewBox is square and so is the
-   * rendered element, so the two differ by a single scale factor and the border
-   * the layers are shifted by.
+   * rendered element, so the two differ by a single scale factor and the
+   * margins the layers are shifted by.
    */
   function boardPoint(event: PointerEvent): Point | null {
     const svg = svgRef.current;
@@ -99,8 +99,8 @@ export default function Board({
     }
     const scale = CANVAS_SIZE / rect.width;
     return {
-      x: (event.clientX - rect.left) * scale - BORDER_SIZE,
-      y: (event.clientY - rect.top) * scale - BORDER_SIZE,
+      x: (event.clientX - rect.left) * scale - BOARD_ORIGIN.x,
+      y: (event.clientY - rect.top) * scale - BOARD_ORIGIN.y,
     };
   }
 
@@ -162,7 +162,7 @@ export default function Board({
       onPointerUp={handlePointerUp}
       onPointerCancel={() => setDrag(null)}
     >
-      <g transform={`translate(${BORDER_SIZE}, ${BORDER_SIZE})`}>
+      <g transform={`translate(${BOARD_ORIGIN.x}, ${BOARD_ORIGIN.y})`}>
         <SquareLayer orientation={orientation} />
         {showGrid && <GridLayer />}
         <AttackLayer

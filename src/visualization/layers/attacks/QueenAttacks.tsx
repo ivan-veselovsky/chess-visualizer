@@ -17,13 +17,13 @@ export default function QueenAttacks({
       axes={queenAttackAxes(
         position,
         piece.square,
-        attackOptions.decayPerBlocker
+        attackOptions.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-queen"
       stripe={geometry.queenStripe}
       innerSquare={attackOptions.rayInnerSquare}
-      startCornerRadius={attackOptions.rayStartCornerRadius}
-      fullWidth={attackOptions.fullWidthRays}
+      startCornerRadius={attackOptions.rayInnerSquareCornerRadius}
+      fullWidth={attackOptions.fullWidthDiagonalRays}
       idPrefix={idPrefix}
       orientation={orientation}
     />
