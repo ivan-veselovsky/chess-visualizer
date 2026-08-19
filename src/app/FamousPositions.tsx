@@ -23,7 +23,7 @@ export default function FamousPositions({
 
   return (
     <div className="famous-positions">
-      <label htmlFor="famous-position">Famous examples</label>
+      <label htmlFor="famous-position">Saved positions</label>
       <select
         id="famous-position"
         className="famous-select"
@@ -34,7 +34,8 @@ export default function FamousPositions({
           }
         }}
       >
-        <option value="">Position on the board</option>
+        {/* Selected whenever the board is on something not in the list. */}
+        <option value=""></option>
         {FAMOUS_POSITIONS.map((position) => (
           <option key={position.fen} value={position.fen}>
             {position.title}

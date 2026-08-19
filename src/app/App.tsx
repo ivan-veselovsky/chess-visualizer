@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Square } from "chess.js";
+import {
+  canGoNext,
+  canGoPrevious,
+  currentPosition,
+  goNext,
+  goToPosition,
+  indexOfPosition,
+  goPrevious,
+  pushPosition,
+  startHistory,
+  type PositionHistory,
+} from "../chess/history";
 import { applyMove } from "../chess/moves";
 import { STARTUP_POSITION } from "../chess/famousPositions";
 import { DEFAULT_FEN, parseFen } from "../chess/position";
@@ -7,6 +19,7 @@ import Board from "../visualization/Board";
 import FamousPositions from "./FamousPositions";
 import FenField from "./FenField";
 import GearIcon from "./GearIcon";
+import StepIcon from "./StepIcon";
 import OptionsPanel from "./OptionsPanel";
 import ToggleField from "./ToggleField";
 import type { Options } from "./options";
@@ -16,6 +29,58 @@ export default function App() {
   const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [fen, setFen] = useState(STARTUP_POSITION.fen);
+  const [history, setHistory] = useState<PositionHistory>(() =>
+    startHistory(STARTUP_POSITION.fen)
+  );
+
+  /**
+   * A position arrived at by playing: recorded after the current one, with
+   * anything that had followed dropped.
+   */
+  function playPosition(fen: string, move: string) {
+    setFen(fen);
+    setHistory(pushPosition(history, fen, move));
+  }
+
+  /**
+   * A position set outright — typed in, chosen from the examples, or reset.
+   * That starts a fresh line rather than continuing one: there is no move
+   * connecting it to what came before, so nothing to step back through.
+   */
+  function setPosition(next: string) {
+    setFen(next);
+    setHistory(startHistory(next));
+  }
+
+  /**
+   * What the FEN field reports, which is either of two things.
+   *
+   * A position already in the list is one of its own suggestions being picked,
+   * so the pointer moves to it and the list survives. Anything else is a
+   * position typed or pasted in, which starts a fresh line. Deciding by value
+   * rather than by how the field was operated also means pasting a FEN you had
+   * reached earlier returns you to it rather than discarding what followed.
+   */
+  function enterPosition(next: string) {
+    const at = indexOfPosition(history, next);
+    if (at < 0) {
+      setPosition(next);
+      return;
+    }
+    setHistory(goToPosition(history, at));
+    setFen(next);
+  }
+
+  /**
+   * Walks the list without changing it — what Previous and Next will call.
+   * Whether either is available is `canGoPrevious` / `canGoNext`.
+   */
+  function stepHistory(direction: "previous" | "next") {
+    const moved =
+      direction === "previous" ? goPrevious(history) : goNext(history);
+    setHistory(moved);
+    setFen(currentPosition(moved));
+  }
 
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
 
@@ -41,7 +106,7 @@ export default function App() {
     }
     const next = applyMove(shown, from, to);
     if (next !== null) {
-      setFen(next);
+      playPosition(next.fen, next.label);
     }
   }
 
@@ -83,9 +148,29 @@ export default function App() {
             <button
               type="button"
               className="reset-button"
-              onClick={() => setFen(DEFAULT_FEN)}
+              onClick={() => setPosition(DEFAULT_FEN)}
             >
-              Reset to initial
+              Reset to initial position
+            </button>
+            <button
+              type="button"
+              className="reset-button step-button"
+              title="Previous position"
+              aria-label="Previous position"
+              disabled={!canGoPrevious(history)}
+              onClick={() => stepHistory("previous")}
+            >
+              <StepIcon direction="previous" />
+            </button>
+            <button
+              type="button"
+              className="reset-button step-button"
+              title="Next position"
+              aria-label="Next position"
+              disabled={!canGoNext(history)}
+              onClick={() => stepHistory("next")}
+            >
+              <StepIcon direction="next" />
             </button>
             <ToggleField
               id="flip-board"
@@ -108,9 +193,20 @@ export default function App() {
             />
           </div>
 
-          <FenField value={fen} error={error} onChange={setFen} />
+          <FenField
+            value={fen}
+            error={error}
+            onChange={enterPosition}
+            entries={history.entries}
+            current={history.current}
+            onSelectPosition={(index) => {
+              const moved = goToPosition(history, index);
+              setHistory(moved);
+              setFen(currentPosition(moved));
+            }}
+          />
 
-          <FamousPositions value={fen} onSelect={setFen} />
+          <FamousPositions value={fen} onSelect={setPosition} />
 
           {optionsOpen && (
             <OptionsPanel

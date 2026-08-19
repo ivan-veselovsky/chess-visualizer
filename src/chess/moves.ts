@@ -11,6 +11,13 @@ export function legalTargets(position: Chess, square: Square): Square[] {
     .map((move) => move.to as Square);
 }
 
+export interface PlayedMove {
+  /** The position that follows. */
+  fen: string;
+  /** Piece letter and destination, e.g. "Qd3", "Pa8=Q" — what the list shows. */
+  label: string;
+}
+
 /**
  * Plays a move and returns the FEN that follows, or null if it is not legal.
  *
@@ -25,7 +32,7 @@ export function applyMove(
   position: Chess,
   from: Square,
   to: Square
-): string | null {
+): PlayedMove | null {
   const candidates = position
     .moves({ square: from, verbose: true })
     .filter((move) => move.to === to);
@@ -35,10 +42,15 @@ export function applyMove(
   }
 
   const next = new Chess(position.fen());
-  next.move({
+  const played = next.move({
     from,
     to,
     ...(candidates[0].promotion === undefined ? {} : { promotion: "q" }),
   });
-  return next.fen();
+  const promotion =
+    played.promotion === undefined ? "" : `=${played.promotion.toUpperCase()}`;
+  return {
+    fen: next.fen(),
+    label: `${played.piece.toUpperCase()}${played.to}${promotion}`,
+  };
 }

@@ -176,10 +176,9 @@ body {
 }
 
 /*
-  First row of the side column: the reset button, then the board toggle, with
-  the theme toggle pushed to the right edge — directly under the gear that opens
-  the options, the other page-wide control. Pushed by an auto margin rather than
-  by space-between, which would strand the middle item halfway across.
+  First row of the side column: the position controls at the left, the two
+  toggles at the right. Split by an auto margin rather than by space-between,
+  which would spread all five items evenly across the row.
 */
 .board-controls {
   display: flex;
@@ -188,12 +187,37 @@ body {
   gap: 1.25rem;
 }
 
-.board-controls > :last-child {
+/*
+  The gap falls before the toggles rather than between them, so the two travel
+  together at the right edge — the theme one under the gear, the board one
+  beside it — leaving the position controls grouped at the left.
+*/
+.board-controls > .toggle-field:first-of-type {
   margin-left: auto;
 }
 
 .board-controls .reset-button {
   white-space: nowrap;
+}
+
+/* Wide targets rather than icon-sized ones; the arrow stays centred in them. */
+.step-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 7em;
+  padding: 0.35rem 0.55rem;
+  font-size: 1rem;
+}
+
+.step-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* The two arrows belong together; the row's gap would read as separating them. */
+.step-button + .step-button {
+  margin-left: -0.9rem;
 }
 
 .board-controls .toggle-field {
@@ -259,6 +283,23 @@ body {
   background: none;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
+}
+
+/* Sits beside the FEN, sized to its longest label rather than to the input. */
+.history-select {
+  flex: 0 0 auto;
+  max-width: 12rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.9rem;
+  color: var(--app-fg);
+  background: var(--app-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.history-select option {
+  color: var(--app-fg);
+  background: var(--app-bg);
 }
 
 .fen-input-invalid {

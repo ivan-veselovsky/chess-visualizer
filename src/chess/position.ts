@@ -37,3 +37,4 @@ export function parseFen(fen: string): ParsedFen {
     };
   }
 }
+

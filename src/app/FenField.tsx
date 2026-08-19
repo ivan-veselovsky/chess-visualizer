@@ -1,18 +1,29 @@
+import { describeEntry, type HistoryEntry } from "../chess/history";
+
 interface FenFieldProps {
   value: string;
   /** Why the current text was rejected, or null while it parses. */
   error: string | null;
   onChange: (fen: string) => void;
+  /** Every position reached so far, newest first. */
+  entries: HistoryEntry[];
+  /** Which of them is on the board. */
+  current: number;
+  onSelectPosition: (index: number) => void;
 }
 
 /**
- * The position, as an editable FEN. The board follows every keystroke that
- * parses; one that does not is reported here and leaves the board alone.
+ * The position, as an editable FEN, with every position reached so far offered
+ * as a suggestion. The board follows every keystroke that parses; one that does
+ * not is reported here and leaves the board alone.
  */
 export default function FenField({
   value,
   error,
   onChange,
+  entries,
+  current,
+  onSelectPosition,
 }: FenFieldProps) {
   return (
     <div className="fen-field">
@@ -30,6 +41,27 @@ export default function FenField({
           aria-describedby={error === null ? undefined : "fen-error"}
           onChange={(event) => onChange(event.target.value)}
         />
+        {/*
+          A real list rather than a datalist against the input: a datalist
+          filters its options by what the field already holds, and the field
+          holds a whole FEN, so the only one ever offered was the current
+          position. Options carry their index because that is what moving the
+          pointer takes; the FEN would serve as well, its move counter making
+          it unique to the ply even when the pieces stand as they did before.
+        */}
+        <select
+          className="history-select"
+          aria-label="Position history"
+          title="Position history"
+          value={current}
+          onChange={(event) => onSelectPosition(Number(event.target.value))}
+        >
+          {entries.map((entry, index) => (
+            <option key={index} value={index}>
+              {describeEntry(entry)}
+            </option>
+          ))}
+        </select>
       </div>
       {error !== null && (
         <p id="fen-error" className="fen-error" role="alert">
