@@ -288,6 +288,8 @@ body {
   flex: 0 0 auto;
   max-width: 12rem;
   padding: 0.4rem 0.5rem;
+  /* Fixed pitch, so the indent under a move number lines the columns up. */
+  font-family: ui-monospace, monospace;
   font-size: 0.9rem;
   color: var(--app-fg);
   background: var(--app-bg);
@@ -295,13 +297,65 @@ body {
   border-radius: 6px;
 }
 
+/* The popup list is drawn by the platform and does not reliably inherit the
+   control's font, so the options state it themselves. */
 .history-select option {
+  font-family: ui-monospace, monospace;
   color: var(--app-fg);
   background: var(--app-bg);
 }
 
 .fen-input-invalid {
   border-color: var(--invalid);
+  color: var(--invalid);
+}
+
+/*
+  A native <dialog> inherits none of the page's colours, so it states them; the
+  backdrop is its own pseudo-element and has to be dimmed separately.
+*/
+.pgn-dialog {
+  width: min(46rem, 90vw);
+  padding: 1rem;
+  color: var(--app-fg);
+  background: var(--app-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.pgn-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.pgn-dialog > label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.pgn-text {
+  width: 100%;
+  padding: 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.pgn-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.pgn-error {
+  margin: 0;
+  font-size: 0.8rem;
   color: var(--invalid);
 }
 

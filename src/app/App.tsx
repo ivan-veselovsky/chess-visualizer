@@ -6,6 +6,7 @@ import {
   currentPosition,
   goNext,
   goToPosition,
+  historyFromLine,
   indexOfPosition,
   goPrevious,
   pushPosition,
@@ -13,6 +14,7 @@ import {
   type PositionHistory,
 } from "../chess/history";
 import { applyMove } from "../chess/moves";
+import { parsePgn } from "../chess/pgn";
 import { STARTUP_POSITION } from "../chess/famousPositions";
 import { DEFAULT_FEN, parseFen } from "../chess/position";
 import Board from "../visualization/Board";
@@ -21,6 +23,7 @@ import FenField from "./FenField";
 import GearIcon from "./GearIcon";
 import StepIcon from "./StepIcon";
 import OptionsPanel from "./OptionsPanel";
+import PgnDialog from "./PgnDialog";
 import ToggleField from "./ToggleField";
 import type { Options } from "./options";
 import { DEFAULT_OPTIONS } from "./presets";
@@ -32,6 +35,23 @@ export default function App() {
   const [history, setHistory] = useState<PositionHistory>(() =>
     startHistory(STARTUP_POSITION.fen)
   );
+  const [pgnOpen, setPgnOpen] = useState(false);
+
+  /**
+   * Replaces the history with a whole game, positioned at its start so it can
+   * be stepped through from the beginning. Returns why the text was rejected,
+   * for the dialog to show without closing.
+   */
+  function loadPgn(pgn: string): string | null {
+    const { entries, error } = parsePgn(pgn);
+    if (entries === null) {
+      return error;
+    }
+    const loaded = historyFromLine(entries);
+    setHistory(loaded);
+    setFen(currentPosition(loaded));
+    return null;
+  }
 
   /**
    * A position arrived at by playing: recorded after the current one, with
@@ -106,7 +126,7 @@ export default function App() {
     }
     const next = applyMove(shown, from, to);
     if (next !== null) {
-      playPosition(next.fen, next.label);
+      playPosition(next.fen, next.san);
     }
   }
 
@@ -172,6 +192,14 @@ export default function App() {
             >
               <StepIcon direction="next" />
             </button>
+            <button
+              type="button"
+              className="reset-button"
+              title="Paste a game in PGN"
+              onClick={() => setPgnOpen(true)}
+            >
+              Paste PGN
+            </button>
             <ToggleField
               id="flip-board"
               label="Black at bottom"
@@ -181,14 +209,6 @@ export default function App() {
                   ...options,
                   orientation: flipped ? "black" : "white",
                 })
-              }
-            />
-            <ToggleField
-              id="dark-theme"
-              label="Dark theme"
-              checked={options.theme === "dark"}
-              onChange={(dark) =>
-                setOptions({ ...options, theme: dark ? "dark" : "light" })
               }
             />
           </div>
@@ -218,6 +238,11 @@ export default function App() {
         </div>
       </div>
 
+      <PgnDialog
+        open={pgnOpen}
+        onSubmit={loadPgn}
+        onClose={() => setPgnOpen(false)}
+      />
     </main>
   );
 }

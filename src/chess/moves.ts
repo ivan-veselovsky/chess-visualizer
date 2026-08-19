@@ -14,8 +14,12 @@ export function legalTargets(position: Chess, square: Square): Square[] {
 export interface PlayedMove {
   /** The position that follows. */
   fen: string;
-  /** Piece letter and destination, e.g. "Qd3", "Pa8=Q" — what the list shows. */
-  label: string;
+  /**
+   * The move in standard algebraic notation, as PGN writes it — "Qxd6",
+   * "Nxd6+", "O-O", "e8=Q#". Taken from chess.js, which works out the
+   * captures, checks, promotions and disambiguation.
+   */
+  san: string;
 }
 
 /**
@@ -47,10 +51,5 @@ export function applyMove(
     to,
     ...(candidates[0].promotion === undefined ? {} : { promotion: "q" }),
   });
-  const promotion =
-    played.promotion === undefined ? "" : `=${played.promotion.toUpperCase()}`;
-  return {
-    fen: next.fen(),
-    label: `${played.piece.toUpperCase()}${played.to}${promotion}`,
-  };
+  return { fen: next.fen(), san: played.san };
 }

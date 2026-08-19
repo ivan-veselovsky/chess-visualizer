@@ -10,7 +10,7 @@
 /** A position, and the move that produced it — nothing, at the head of a line. */
 export interface HistoryEntry {
   fen: string;
-  /** Piece letter and destination, e.g. "Qd3"; null for a position set outright. */
+  /** The move in SAN, e.g. "Qxd6"; null for a position set outright. */
   move: string | null;
 }
 
@@ -24,6 +24,14 @@ export interface PositionHistory {
 /** A history holding one position, which is where every line starts. */
 export function startHistory(fen: string): PositionHistory {
   return { entries: [{ fen, move: null }], current: 0 };
+}
+
+/**
+ * A history holding a whole line, positioned at its earliest entry — where a
+ * game is read from, rather than where it ended up.
+ */
+export function historyFromLine(entries: HistoryEntry[]): PositionHistory {
+  return { entries, current: entries.length - 1 };
 }
 
 export function currentPosition(history: PositionHistory): string {
@@ -90,26 +98,36 @@ export function goToPosition(
 }
 
 /**
- * How an entry reads in the list: the move that produced it, numbered and
- * lettered for the side that played it — "3 W: Qd3", "5 B: Pb5".
+ * How an entry reads in the list, as a game score is written: White's move
+ * carries the move number, Black's is indented under it so the two columns
+ * line up down the list.
  *
  * The mover is the side *not* to move in the position that followed, and when
  * that is Black the full-move counter has already advanced past them, so it is
  * read back by one.
  */
 export function describeEntry(entry: HistoryEntry): string {
+  if (entry.move === null) {
+    return "start";
+  }
+
   const fields = entry.fen.trim().split(/\s+/);
-  const toMove = fields[1] === "b" ? "b" : "w";
+  const playedByWhite = fields[1] === "b";
   const fullmove = Number(fields[5]);
 
   if (!Number.isFinite(fullmove)) {
-    return entry.fen.trim().slice(0, 24) || "(empty)";
-  }
-  if (entry.move === null) {
-    return `${fullmove} ${toMove === "b" ? "B" : "W"}: start`;
+    return entry.move;
   }
 
-  const playedByWhite = toMove === "b";
   const number = playedByWhite ? fullmove : fullmove - 1;
-  return `${number} ${playedByWhite ? "W" : "B"}: ${entry.move}`;
+  // No padding before the number: Black is indented by the width of its own
+  // White prefix, which is what puts the pair in one column.
+  //
+  // Every space here is non-breaking, the one after the number included. An
+  // ordinary space is collapsible, so a platform free to trim it would pull
+  // White's move a column left of the indent that was measured against it.
+  const prefix = `${number}.\u00a0`;
+  return playedByWhite
+    ? `${prefix}${entry.move}`
+    : `${"\u00a0".repeat(prefix.length)}${entry.move}`;
 }
