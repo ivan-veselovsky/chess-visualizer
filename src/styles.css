@@ -393,6 +393,32 @@ body {
   pointer-events: none;
 }
 
+/*
+  Each side's palette, bound to the plain names everything else already uses:
+  a mark's group and a piece's glyph both carry their side's class, so
+  `var(--attack-king)` resolves to that side's king colour without a single
+  rule below needing to know sides exist.
+*/
+.attack-side-white,
+.piece-white {
+  --attack-king: var(--attack-king-white);
+  --attack-queen: var(--attack-queen-white);
+  --attack-rook: var(--attack-rook-white);
+  --attack-bishop: var(--attack-bishop-white);
+  --attack-knight: var(--attack-knight-white);
+  --attack-pawn: var(--attack-pawn-white);
+}
+
+.attack-side-black,
+.piece-black {
+  --attack-king: var(--attack-king-black);
+  --attack-queen: var(--attack-queen-black);
+  --attack-rook: var(--attack-rook-black);
+  --attack-bishop: var(--attack-bishop-black);
+  --attack-knight: var(--attack-knight-black);
+  --attack-pawn: var(--attack-pawn-black);
+}
+
 /* Each piece is tinted with the colour its own attacks are drawn in. */
 .piece-k {
   --piece-color: var(--attack-king);
@@ -545,13 +571,26 @@ body {
 }
 
 /* Name and swatch columns stay narrow; the value columns split the rest. */
-.stripe-table th:first-child {
-  width: 4.6rem;
+.col-piece {
+  width: 4rem;
 }
 
-.stripe-table-color-head {
-  width: 2rem;
+/* Wide enough for the "Color" heading, with the well breathing inside it. */
+.col-swatch {
+  width: 3rem;
 }
+
+/* Centred in its column, heading included, rather than crowded to one side. */
+.stripe-table-swatch {
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+.stripe-table-color {
+  text-align: center;
+}
+
+
 
 /* Separates White's pair of columns from Black's. */
 .stripe-group-start {
@@ -565,12 +604,13 @@ body {
 
 .attack-swatch {
   display: block;
-  width: 1.6rem;
-  height: 1.6rem;
+  margin-inline: auto;
+  width: 1.3rem;
+  height: 1.3rem;
   padding: 0;
   background: none;
   border: 1px solid var(--panel-border);
-  border-radius: 5px;
+  border-radius: 4px;
   cursor: pointer;
 }
 

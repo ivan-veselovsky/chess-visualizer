@@ -122,7 +122,13 @@ export default function AttackLayer({
         }
         const outline = outlineFor(piece.color);
         return (
-          <g key={piece.square} opacity={opacityFor(piece.color)}>
+          <g
+            key={piece.square}
+            className={
+              piece.color === "w" ? "attack-side-white" : "attack-side-black"
+            }
+            opacity={opacityFor(piece.color)}
+          >
             <g filter={outline ? `url(#${outline.id})` : undefined}>
               <Renderer
                 position={position}

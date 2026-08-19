@@ -64,12 +64,22 @@ export const DEFAULT_OPTIONS: Options = {
   },
   attacks: {
     colors: {
-      king: "#ffd600",
-      queen: "#e53935",
-      rook: "#fb8c00",
-      bishop: "#43a047",
-      knight: "#00a7bd",
-      pawn: "#6f7076", //"#9c9c9c",
+      white: {
+        king: "#ffd600",
+        queen: "#e53935",
+        rook: "#fb8c00",
+        bishop: "#43a047",
+        knight: "#00a7bd",
+        pawn: "#6f7076", //"#9c9c9c",
+      },
+      black: {
+        king: "#ffd600",
+        queen: "#e53935",
+        rook: "#fb8c00",
+        bishop: "#43a047",
+        knight: "#00a7bd",
+        pawn: "#6f7076", //"#9c9c9c",
+      },
     },
     outlineWidths: { 
       white: 0, 

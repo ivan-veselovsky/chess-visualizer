@@ -71,12 +71,21 @@ export default function Board({
   const themeVars = {
     "--square-light": colors.lightSquare,
     "--square-dark": colors.darkSquare,
-    "--attack-king": attacks.colors.king,
-    "--attack-queen": attacks.colors.queen,
-    "--attack-rook": attacks.colors.rook,
-    "--attack-bishop": attacks.colors.bishop,
-    "--attack-knight": attacks.colors.knight,
-    "--attack-pawn": attacks.colors.pawn,
+    // One per piece per side. Which of each pair applies is decided further
+    // down, by a class on the mark's group and on the piece glyph, so the rules
+    // that use them go on saying `var(--attack-king)`.
+    "--attack-king-white": attacks.colors.white.king,
+    "--attack-queen-white": attacks.colors.white.queen,
+    "--attack-rook-white": attacks.colors.white.rook,
+    "--attack-bishop-white": attacks.colors.white.bishop,
+    "--attack-knight-white": attacks.colors.white.knight,
+    "--attack-pawn-white": attacks.colors.white.pawn,
+    "--attack-king-black": attacks.colors.black.king,
+    "--attack-queen-black": attacks.colors.black.queen,
+    "--attack-rook-black": attacks.colors.black.rook,
+    "--attack-bishop-black": attacks.colors.black.bishop,
+    "--attack-knight-black": attacks.colors.black.knight,
+    "--attack-pawn-black": attacks.colors.black.pawn,
     // As percentages, which is what color-mix wants. Rounded, since a
     // fraction times 100 lands on things like 55.00000000000001.
     "--piece-lighten": percent(pieceTint.lightenWhite),

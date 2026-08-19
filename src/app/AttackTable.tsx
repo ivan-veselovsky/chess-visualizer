@@ -62,8 +62,42 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     });
   }
 
-  function setColor(key: keyof AttackColors, value: string) {
-    onChange({ colors: { ...attacks.colors, [key]: value } });
+  function setColor(side: Side, key: keyof AttackColors, value: string) {
+    onChange({
+      colors: {
+        ...attacks.colors,
+        [side]: { ...attacks.colors[side], [key]: value },
+      },
+    });
+  }
+
+  /** A colour well for one piece on one side. */
+  function swatch(side: Side, row: Row) {
+    if (row.color === undefined) {
+      return <td key={side} />;
+    }
+    const value = attacks.colors[side][row.color];
+    return (
+      <td
+        key={side}
+        className={
+          side === "black"
+            ? "stripe-table-swatch stripe-group-start"
+            : "stripe-table-swatch"
+        }
+      >
+        <input
+          type="color"
+          className="attack-swatch"
+          value={value}
+          title={`${side} ${row.piece} attack color (${value})`}
+          aria-label={`${side} ${row.piece} attack color`}
+          onChange={(event) =>
+            setColor(side, row.color as keyof AttackColors, event.target.value.toLowerCase())
+          }
+        />
+      </td>
+    );
   }
 
   function stripeRow(
@@ -177,31 +211,48 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     <section className="options-group">
       <p className="options-hint">
         Widths in square sides: a stripe, and the gap down its middle. The
-        knight's radii say where its ring sits. Colors are shared by both sides.
+        knight's radii say where its ring sits.
       </p>
 
       <table className="stripe-table stripe-table-wide">
+        {/*
+          Widths have to be declared here. Under `table-layout: fixed` the
+          browser takes them from the first row, and this table's first row is
+          three grouped headers spanning seven columns — so a width set on the
+          second row's cells is never read, and each side's three columns were
+          simply splitting its third of the table equally.
+        */}
+        <colgroup>
+          <col className="col-piece" />
+          <col className="col-swatch" />
+          <col />
+          <col />
+          <col className="col-swatch" />
+          <col />
+          <col />
+        </colgroup>
         <thead>
           <tr>
             <th scope="col" rowSpan={2}>
               Piece
             </th>
-            <th scope="col" rowSpan={2} className="stripe-table-color-head">
-              <span className="visually-hidden">Attack color</span>
-            </th>
-            <th scope="colgroup" colSpan={2}>
+            <th scope="colgroup" colSpan={3}>
               White
             </th>
-            <th scope="colgroup" colSpan={2} className="stripe-group-start">
+            <th scope="colgroup" colSpan={3} className="stripe-group-start">
               Black
             </th>
           </tr>
           <tr>
+            <th scope="col" className="stripe-table-color">
+              Color
+            </th>
             <th scope="col">Gap</th>
             <th scope="col">Stripe</th>
-            <th scope="col" className="stripe-group-start">
-              Gap
+            <th scope="col" className="stripe-table-color stripe-group-start">
+              Color
             </th>
+            <th scope="col">Gap</th>
             <th scope="col">Stripe</th>
           </tr>
         </thead>
@@ -209,30 +260,12 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
           {rows.map((row) => (
             <tr key={row.key}>
               <th scope="row">{row.piece}</th>
-              <td>
-                {row.color !== undefined && (
-                  <input
-                    type="color"
-                    className="attack-swatch"
-                    value={attacks.colors[row.color]}
-                    title={`${row.piece} attack color (${
-                      attacks.colors[row.color]
-                    })`}
-                    aria-label={`${row.piece} attack color`}
-                    onChange={(event) =>
-                      setColor(
-                        row.color as keyof AttackColors,
-                        event.target.value.toLowerCase()
-                      )
-                    }
-                  />
-                )}
-              </td>
               {SIDES.flatMap((side) => [
+                swatch(side, row),
                 numberCell(
                   row.cells[side].gap,
                   `${side}-${row.key}-gap`,
-                  side === "black"
+                  false
                 ),
                 numberCell(
                   row.cells[side].width,

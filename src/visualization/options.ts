@@ -103,6 +103,12 @@ export interface AttackColors {
   pawn: string;
 }
 
+/** A palette per side, so the two can be told apart by hue as well as by size. */
+export interface SideAttackColors {
+  white: AttackColors;
+  black: AttackColors;
+}
+
 /**
  * The shape of every piece kind's attack marks, kept separately for each side
  * so the two can be told apart by stripe width as well as by outline. Colours
@@ -124,7 +130,7 @@ export interface SideGeometry {
 }
 
 export interface AttackOptions {
-  colors: AttackColors;
+  colors: SideAttackColors;
   /** In milli-squares — see OutlineWidths. */
   outlineWidths: OutlineWidths;
   rayOpacity: RayOpacity;
