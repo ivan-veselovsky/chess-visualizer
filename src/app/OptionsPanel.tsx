@@ -8,6 +8,7 @@ import type {
   BoardColors,
   Options,
   OutlineWidths,
+  RayOpacity,
   PieceTint,
 } from "./options";
 import { downloadSettings, parseSettings } from "./settingsFile";
@@ -51,6 +52,12 @@ export default function OptionsPanel({
 
   function updateAttacks(patch: Partial<AttackOptions>) {
     onChange({ ...options, attacks: { ...options.attacks, ...patch } });
+  }
+
+  function updateRayOpacity(patch: Partial<RayOpacity>) {
+    updateAttacks({
+      rayOpacity: { ...options.attacks.rayOpacity, ...patch },
+    });
   }
 
   function updateOutlines(patch: Partial<OutlineWidths>) {
@@ -110,15 +117,26 @@ export default function OptionsPanel({
       <AttackTable attacks={options.attacks} onChange={updateAttacks} />
 
       <section className="options-group">
-        <NumberField
-          id="attack-opacity"
-          label="Attack ray opacity"
-          value={options.attacks.rayOpacity}
-          step={0.05}
-          max={1}
-          allowZero
-          onChange={(rayOpacity) => updateAttacks({ rayOpacity })}
-        />
+        <div className="field-row">
+          <NumberField
+            id="white-ray-opacity"
+            label="White attack ray opacity"
+            value={options.attacks.rayOpacity.white}
+            step={0.05}
+            max={1}
+            allowZero
+            onChange={(white) => updateRayOpacity({ white })}
+          />
+          <NumberField
+            id="black-ray-opacity"
+            label="Black attack ray opacity"
+            value={options.attacks.rayOpacity.black}
+            step={0.05}
+            max={1}
+            allowZero
+            onChange={(black) => updateRayOpacity({ black })}
+          />
+        </div>
         <NumberField
           id="decay-per-blocker"
           label="X-ray decay factor"

@@ -75,7 +75,7 @@ export const DEFAULT_OPTIONS: Options = {
       white: 0, 
       black: 0, 
     },
-    rayOpacity: 0.45,
+    rayOpacity: { white: 0.45, black: 0.45 },
     xRayDecayFactor: 0,
     rayInnerSquare: 0.75,
     rayInnerSquareCornerRadius: 0.15,

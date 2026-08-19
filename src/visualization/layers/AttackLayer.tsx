@@ -49,7 +49,11 @@ export default function AttackLayer({
 }: AttackLayerProps) {
   // useId() yields ids like ":r0:"; the colons are awkward inside url(#...).
   const idPrefix = `attack-${useId().replace(/:/g, "")}`;
-  const opacity = Math.min(Math.max(attackOptions.rayOpacity, 0), 1);
+  const opacityFor = (color: "w" | "b") =>
+    Math.min(
+      Math.max(attackOptions.rayOpacity[color === "w" ? "white" : "black"], 0),
+      1
+    );
 
   // One filter per side, each emitted only if that side's outline is wanted.
   const sides = (["white", "black"] as const).map((side) => ({
@@ -118,7 +122,7 @@ export default function AttackLayer({
         }
         const outline = outlineFor(piece.color);
         return (
-          <g key={piece.square} opacity={opacity}>
+          <g key={piece.square} opacity={opacityFor(piece.color)}>
             <g filter={outline ? `url(#${outline.id})` : undefined}>
               <Renderer
                 position={position}

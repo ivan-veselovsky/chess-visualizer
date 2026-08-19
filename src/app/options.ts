@@ -14,6 +14,7 @@ export type {
   PieceTint,
   SideGeometry,
   OutlineWidths,
+  RayOpacity,
   StripeStyle,
 } from "../visualization/options";
 

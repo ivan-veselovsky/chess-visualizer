@@ -604,6 +604,17 @@ body {
   margin-bottom: 0.85rem;
 }
 
+/* Two related settings side by side, sharing the panel's width evenly. */
+.field-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.field-row > .number-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .number-field > label {
   display: block;
   margin-bottom: 0.3rem;

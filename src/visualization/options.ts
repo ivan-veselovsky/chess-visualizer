@@ -69,6 +69,21 @@ export interface StripeStyle {
  * square, and every other length here would need three decimals to say so. The
  * only lengths in the model measured that way.
  */
+/**
+ * How opaque an undimmed attack mark is, from 0 to 1, per side. Applied once
+ * per piece to its whole set of marks, so overlapping marks of the same piece
+ * stay one flat shade; marks of different pieces still blend where they cross,
+ * which is the point of the display.
+ *
+ * Kept per side alongside the outline widths and the stripe geometry: another
+ * way of telling one side's marks from the other's, without touching the hue
+ * that ties a mark to its piece.
+ */
+export interface RayOpacity {
+  white: number;
+  black: number;
+}
+
 export interface OutlineWidths {
   white: number;
   black: number;
@@ -112,13 +127,7 @@ export interface AttackOptions {
   colors: AttackColors;
   /** In milli-squares — see OutlineWidths. */
   outlineWidths: OutlineWidths;
-  /**
-   * How opaque an undimmed attack mark is, from 0 to 1. Applied once per piece
-   * to its whole set of marks, so overlapping marks of the same piece stay one
-   * flat shade; marks of different pieces still blend where they cross, which
-   * is the point of the display.
-   */
-  rayOpacity: number;
+  rayOpacity: RayOpacity;
   /**
    * What a ray's intensity is multiplied by for each piece it passes through.
    * 0 hides everything beyond the first piece (no x-ray at all); 1 lets a ray
