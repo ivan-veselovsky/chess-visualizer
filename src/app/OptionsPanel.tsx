@@ -80,18 +80,20 @@ export default function OptionsPanel({
       </section>
 
       <section className="options-group">
-        <ColorField
-          id="light-square"
-          label="Light squares"
-          value={options.boardColors.lightSquare}
-          onChange={(lightSquare) => updateBoardColors({ lightSquare })}
-        />
-        <ColorField
-          id="dark-square"
-          label="Dark squares"
-          value={options.boardColors.darkSquare}
-          onChange={(darkSquare) => updateBoardColors({ darkSquare })}
-        />
+        <div className="field-row">
+          <ColorField
+            id="light-square"
+            label="Light board squares"
+            value={options.boardColors.lightSquare}
+            onChange={(lightSquare) => updateBoardColors({ lightSquare })}
+          />
+          <ColorField
+            id="dark-square"
+            label="Dark board squares"
+            value={options.boardColors.darkSquare}
+            onChange={(darkSquare) => updateBoardColors({ darkSquare })}
+          />
+        </div>
         <ToggleField
           id="show-grid"
           label="Show grid"
@@ -104,6 +106,7 @@ export default function OptionsPanel({
         <div className="field-row">
           <NumberField
             id="piece-lighten"
+            inline
             hint="How far each side is pulled from its attack colour: 0 keeps the colour exactly, 1 bleaches it to white or black."
             label="Lighten white pieces"
             value={options.pieceTint.lightenWhite}
@@ -114,6 +117,7 @@ export default function OptionsPanel({
           />
           <NumberField
             id="piece-darken"
+            inline
             hint="How far each side is pulled from its attack colour: 0 keeps the colour exactly, 1 bleaches it to white or black."
             label="Darken black pieces"
             value={options.pieceTint.darkenBlack}
@@ -130,7 +134,35 @@ export default function OptionsPanel({
       <section className="options-group">
         <div className="field-row">
           <NumberField
+            id="white-outline-width"
+            inline
+            hint="Traced around each side's marks, which otherwise share a colour."
+            label="White ray outline width"
+            suffix="milli-squares"
+            value={options.attacks.outlineWidths.white}
+            step={1}
+            allowZero
+            onChange={(white) => updateOutlines({ white })}
+          />
+          <NumberField
+            id="black-outline-width"
+            inline
+            hint="Traced around each side's marks, which otherwise share a colour."
+            label="Black ray outline width"
+            suffix="milli-squares"
+            value={options.attacks.outlineWidths.black}
+            step={1}
+            allowZero
+            onChange={(black) => updateOutlines({ black })}
+          />
+        </div>
+      </section>
+
+      <section className="options-group">
+        <div className="field-row">
+          <NumberField
             id="white-ray-opacity"
+            inline
             label="White attack ray opacity"
             value={options.attacks.rayOpacity.white}
             step={0.05}
@@ -140,6 +172,7 @@ export default function OptionsPanel({
           />
           <NumberField
             id="black-ray-opacity"
+            inline
             label="Black attack ray opacity"
             value={options.attacks.rayOpacity.black}
             step={0.05}
@@ -150,6 +183,7 @@ export default function OptionsPanel({
         </div>
         <NumberField
           id="decay-per-blocker"
+          inline
           label="X-ray decay factor"
           suffix="× (0 = no x-ray)"
           value={options.attacks.xRayDecayFactor}
@@ -166,33 +200,12 @@ export default function OptionsPanel({
         />
       </section>
 
-      <section className="options-group">
-        <NumberField
-          id="white-outline-width"
-            hint="Traced around each side's marks, which otherwise share a colour."
-          label="White ray outline width"
-          suffix="milli-squares"
-          value={options.attacks.outlineWidths.white}
-          step={1}
-          allowZero
-          onChange={(white) => updateOutlines({ white })}
-        />
-        <NumberField
-          id="black-outline-width"
-            hint="Traced around each side's marks, which otherwise share a colour."
-          label="Black ray outline width"
-          suffix="milli-squares"
-          value={options.attacks.outlineWidths.black}
-          step={1}
-          allowZero
-          onChange={(black) => updateOutlines({ black })}
-        />
-      </section>
 
 
       <section className="options-group">
         <NumberField
           id="ray-inner-square"
+          inline
           label="Inner square side"
           suffix="squares"
           value={options.attacks.rayInnerSquare}
@@ -201,6 +214,7 @@ export default function OptionsPanel({
         />
         <NumberField
           id="ray-start-corner-radius"
+          inline
           label="Inner square corner rounding"
           suffix="squares"
           value={options.attacks.rayInnerSquareCornerRadius}
@@ -233,7 +247,7 @@ export default function OptionsPanel({
         </button>
         <button
           type="button"
-          className="reset-button"
+          className="reset-button options-footer-end"
           onClick={() => {
             setImportError(null);
             onChange(defaults);

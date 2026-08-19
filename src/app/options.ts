@@ -62,28 +62,6 @@ export interface Options {
   attacks: AttackOptions;
 }
 
-const SHORT_HEX = /^#[0-9a-f]{3}$/i;
-const FULL_HEX = /^#[0-9a-f]{6}$/i;
-
-/**
- * Accepts "#rgb", "#rrggbb" or the same without the leading "#" and returns the
- * canonical "#rrggbb" form. Returns null when the input is not a valid colour.
- */
-export function normalizeHexColor(input: string): string | null {
-  const candidate = input.trim().startsWith("#")
-    ? input.trim()
-    : `#${input.trim()}`;
-
-  if (FULL_HEX.test(candidate)) {
-    return candidate.toLowerCase();
-  }
-  if (SHORT_HEX.test(candidate)) {
-    const [r, g, b] = candidate.slice(1);
-    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
-  }
-  return null;
-}
-
 /**
  * Parses a number, or null when the input is not usable. Zero is rejected
  * unless `allowZero` is set — a zero radius is degenerate, but a zero inner

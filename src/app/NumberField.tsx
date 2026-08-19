@@ -13,6 +13,8 @@ interface NumberFieldProps {
   max?: number;
   /** Explanation shown on hover, rather than as standing text. */
   hint?: string;
+  /** Put the label and the input on one line instead of stacking them. */
+  inline?: boolean;
   onChange: (value: number) => void;
 }
 
@@ -26,10 +28,14 @@ export default function NumberField({
   allowZero,
   max,
   hint,
+  inline = false,
   onChange,
 }: NumberFieldProps) {
   return (
-    <div className="number-field" title={hint}>
+    <div
+      className={inline ? "number-field field-inline" : "number-field"}
+      title={hint}
+    >
       <label htmlFor={id}>{label}</label>
       <div className="number-field-inputs">
         <NumberInput
