@@ -46,7 +46,7 @@ const BLACK_ATTACK_GEOMETRY: AttackGeometry = {
     outerRadius: Math.sqrt(13 / 2), // ~2.5495
     gapWidth: 0,
   },
-  pawnStripe: { rayWidth: 0.45, gapWidth: 0 },
+  pawnStripe: { rayWidth: 0.3, gapWidth: 0 },
 };
 
 export const DEFAULT_OPTIONS: Options = {
