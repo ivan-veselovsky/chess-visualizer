@@ -13,6 +13,7 @@ export type {
   AttackGeometry,
   PieceTint,
   SideGeometry,
+  OutlineColors,
   OutlineWidths,
   RayOpacity,
   StripeStyle,

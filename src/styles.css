@@ -16,9 +16,7 @@
   /* --attack-* are supplied per-board by <Board>, opaque; the alpha comes from
      the attack opacity option and the decay per blocker. */
   --piece-outline: #1a1a1a;
-  /* Traced around each side's attack marks to tell the two apart. */
-  --attack-outline-white: #ffffff;
-  --attack-outline-black: #000000;
+  /* --attack-outline-* are supplied per-board by <Board>. */
   /* How much of a piece's own colour survives when its side is black. */
   --piece-dark-mix: 45%;
   --panel-border: color-mix(in srgb, currentColor 25%, transparent);

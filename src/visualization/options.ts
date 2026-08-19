@@ -84,6 +84,12 @@ export interface RayOpacity {
   black: number;
 }
 
+/** The colour each side's outline is traced in, when it has any width. */
+export interface OutlineColors {
+  white: string;
+  black: string;
+}
+
 export interface OutlineWidths {
   white: number;
   black: number;
@@ -133,6 +139,7 @@ export interface AttackOptions {
   colors: SideAttackColors;
   /** In milli-squares — see OutlineWidths. */
   outlineWidths: OutlineWidths;
+  outlineColors: OutlineColors;
   rayOpacity: RayOpacity;
   /**
    * What a ray's intensity is multiplied by for each piece it passes through.

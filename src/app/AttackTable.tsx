@@ -23,8 +23,10 @@ interface Cell {
   onChange: (value: number) => void;
 }
 
-/** What one side contributes to a row. Most rows fill both. */
+/** What one side contributes to a row. Most rows fill all three. */
 interface SideCells {
+  /** The colour well, and what setting it changes. */
+  swatch?: { value: string; onChange: (value: string) => void };
   gap?: Cell;
   width?: Cell;
 }
@@ -32,8 +34,6 @@ interface SideCells {
 interface Row {
   key: string;
   piece: string;
-  /** Which entry of AttackColors this row tints; absent for a continuation row. */
-  color?: keyof AttackColors;
   cells: Record<Side, SideCells>;
 }
 
@@ -71,12 +71,21 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     });
   }
 
-  /** A colour well for one piece on one side. */
+  /** The attack colour for one piece on one side, as a cell's worth of state. */
+  function pieceSwatch(side: Side, key: keyof AttackColors) {
+    return {
+      value: attacks.colors[side][key],
+      onChange: (value: string) => setColor(side, key, value),
+    };
+  }
+
+  /** A colour well, where the row has one. */
   function swatch(side: Side, row: Row) {
-    if (row.color === undefined) {
-      return <td key={side} />;
+    const cell = row.cells[side].swatch;
+    if (cell === undefined) {
+      return <td key={side} className={side === "black" ? "stripe-group-start" : undefined} />;
     }
-    const value = attacks.colors[side][row.color];
+    const value = cell.value;
     return (
       <td
         key={side}
@@ -90,11 +99,9 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
           type="color"
           className="attack-swatch"
           value={value}
-          title={`${side} ${row.piece} attack color (${value})`}
-          aria-label={`${side} ${row.piece} attack color`}
-          onChange={(event) =>
-            setColor(side, row.color as keyof AttackColors, event.target.value.toLowerCase())
-          }
+          title={`${side} ${row.piece} color (${value})`}
+          aria-label={`${side} ${row.piece} color`}
+          onChange={(event) => cell.onChange(event.target.value.toLowerCase())}
         />
       </td>
     );
@@ -110,6 +117,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
       const update = (patch: Partial<StripeStyle>) =>
         updateGeometry(side, { [key]: { ...stripe, ...patch } });
       return {
+        swatch: pieceSwatch(side, color),
         gap: {
           value: stripe.gapWidth,
           label: `${side} ${piece} gap width`,
@@ -123,7 +131,11 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
         },
       };
     };
-    return { key, piece, color, cells: { white: cellsFor("white"), black: cellsFor("black") } };
+    return {
+      key,
+      piece,
+      cells: { white: cellsFor("white"), black: cellsFor("black") },
+    };
   }
 
   /** The knight's ring, sized like any other stripe: a gap, no total width. */
@@ -131,6 +143,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     const cellsFor = (side: Side): SideCells => {
       const ring = attacks.geometry[side].knightRing;
       return {
+        swatch: pieceSwatch(side, "knight"),
         gap: {
           value: ring.gapWidth,
           label: `${side} knight ring gap width`,
@@ -143,7 +156,6 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     return {
       key: "knight",
       piece: "Knight",
-      color: "knight",
       cells: { white: cellsFor("white"), black: cellsFor("black") },
     };
   }
@@ -175,6 +187,24 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     };
   }
 
+  /** Applies wherever that side's outline has any width. */
+  function outlineRow(): Row {
+    const cellsFor = (side: Side): SideCells => ({
+      swatch: {
+        value: attacks.outlineColors[side],
+        onChange: (value) =>
+          onChange({
+            outlineColors: { ...attacks.outlineColors, [side]: value },
+          }),
+      },
+    });
+    return {
+      key: "outline",
+      piece: "Outline",
+      cells: { white: cellsFor("white"), black: cellsFor("black") },
+    };
+  }
+
   const rows: Row[] = [
     stripeRow("kingStripe", "King", "king"),
     stripeRow("queenStripe", "Queen", "queen"),
@@ -183,6 +213,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     knightRow(),
     knightRadiiRow(),
     stripeRow("pawnStripe", "Pawn", "pawn"),
+    outlineRow(),
   ];
 
   function numberCell(cell: Cell | undefined, id: string, groupStart: boolean) {
