@@ -198,7 +198,7 @@ export default function App() {
               title="Paste a game in PGN"
               onClick={() => setPgnOpen(true)}
             >
-              Paste PGN
+              Import PGN
             </button>
             <ToggleField
               id="flip-board"

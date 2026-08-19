@@ -13,9 +13,9 @@ interface FenFieldProps {
 }
 
 /**
- * The position, as an editable FEN, with every position reached so far offered
- * as a suggestion. The board follows every keystroke that parses; one that does
- * not is reported here and leaves the board alone.
+ * The position, as an editable FEN, beside the list of positions reached so
+ * far. The board follows every keystroke that parses; one that does not is
+ * reported here and leaves the board alone.
  */
 export default function FenField({
   value,
@@ -27,42 +27,52 @@ export default function FenField({
 }: FenFieldProps) {
   return (
     <div className="fen-field">
-      <label htmlFor="fen">Position (FEN)</label>
+      {/* Two labelled columns, each control starting under its own label. */}
       <div className="fen-field-inputs">
-        <input
-          id="fen"
-          type="text"
-          className={error === null ? "fen-input" : "fen-input fen-input-invalid"}
-          value={value}
-          spellCheck={false}
-          autoComplete="off"
-          autoCapitalize="off"
-          aria-invalid={error !== null}
-          aria-describedby={error === null ? undefined : "fen-error"}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        {/*
-          A real list rather than a datalist against the input: a datalist
-          filters its options by what the field already holds, and the field
-          holds a whole FEN, so the only one ever offered was the current
-          position. Options carry their index because that is what moving the
-          pointer takes; the FEN would serve as well, its move counter making
-          it unique to the ply even when the pieces stand as they did before.
-        */}
-        <select
-          className="history-select"
-          aria-label="Position history"
-          title="Position history"
-          value={current}
-          onChange={(event) => onSelectPosition(Number(event.target.value))}
-        >
-          {entries.map((entry, index) => (
-            <option key={index} value={index}>
-              {describeEntry(entry)}
-            </option>
-          ))}
-        </select>
+        <div className="fen-column">
+          <label htmlFor="fen">Position (FEN)</label>
+          <input
+            id="fen"
+            type="text"
+            className={
+              error === null ? "fen-input" : "fen-input fen-input-invalid"
+            }
+            value={value}
+            spellCheck={false}
+            autoComplete="off"
+            autoCapitalize="off"
+            aria-invalid={error !== null}
+            aria-describedby={error === null ? undefined : "fen-error"}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        </div>
+
+        <div className="history-column">
+          <label htmlFor="game-history">Game history</label>
+          {/*
+            A real list rather than a datalist against the input: a datalist
+            filters its options by what the field already holds, and the field
+            holds a whole FEN, so the only one ever offered was the current
+            position. Options carry their index because that is what moving the
+            pointer takes; the FEN would serve as well, its move counter making
+            it unique to the ply even when the pieces stand as they did before.
+          */}
+          <select
+            id="game-history"
+            className="history-select"
+            title="Game history"
+            value={current}
+            onChange={(event) => onSelectPosition(Number(event.target.value))}
+          >
+            {entries.map((entry, index) => (
+              <option key={index} value={index}>
+                {describeEntry(entry)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
       {error !== null && (
         <p id="fen-error" className="fen-error" role="alert">
           {error}
