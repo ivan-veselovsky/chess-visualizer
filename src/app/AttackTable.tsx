@@ -10,6 +10,15 @@ type Side = "white" | "black";
 
 const SIDES: Side[] = ["white", "black"];
 
+/* Shown on hover, so the table stays as short as its rows. */
+const GAP_HINT =
+  "Width of the gap down the middle of the stripe, in square sides. Zero leaves it solid.";
+const STRIPE_HINT = "Full width of the stripe, in square sides.";
+const RADII_HINT =
+  "Where the knight's ring sits: its inner and outer radius, in square sides from the knight.";
+const OUTLINE_HINT =
+  "Colour of the outline traced around this side's marks, where it has any width.";
+
 interface AttackTableProps {
   attacks: AttackOptions;
   onChange: (patch: Partial<AttackOptions>) => void;
@@ -34,6 +43,8 @@ interface SideCells {
 interface Row {
   key: string;
   piece: string;
+  /** Shown on hover over the row's name. */
+  hint?: string;
   cells: Record<Side, SideCells>;
 }
 
@@ -183,6 +194,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     return {
       key: "knight-radii",
       piece: "…radii",
+      hint: RADII_HINT,
       cells: { white: cellsFor("white"), black: cellsFor("black") },
     };
   }
@@ -201,6 +213,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     return {
       key: "outline",
       piece: "Outline",
+      hint: OUTLINE_HINT,
       cells: { white: cellsFor("white"), black: cellsFor("black") },
     };
   }
@@ -240,11 +253,6 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
 
   return (
     <section className="options-group">
-      <p className="options-hint">
-        Widths in square sides: a stripe, and the gap down its middle. The
-        knight's radii say where its ring sits.
-      </p>
-
       <table className="stripe-table stripe-table-wide">
         {/*
           Widths have to be declared here. Under `table-layout: fixed` the
@@ -278,19 +286,29 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
             <th scope="col" className="stripe-table-color">
               Color
             </th>
-            <th scope="col">Gap</th>
-            <th scope="col">Stripe</th>
+            <th scope="col" title={GAP_HINT}>
+              Gap
+            </th>
+            <th scope="col" title={STRIPE_HINT}>
+              Stripe
+            </th>
             <th scope="col" className="stripe-table-color stripe-group-start">
               Color
             </th>
-            <th scope="col">Gap</th>
-            <th scope="col">Stripe</th>
+            <th scope="col" title={GAP_HINT}>
+              Gap
+            </th>
+            <th scope="col" title={STRIPE_HINT}>
+              Stripe
+            </th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.key}>
-              <th scope="row">{row.piece}</th>
+              <th scope="row" title={row.hint}>
+                {row.piece}
+              </th>
               {SIDES.flatMap((side) => [
                 swatch(side, row),
                 numberCell(

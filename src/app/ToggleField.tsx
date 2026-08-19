@@ -2,6 +2,8 @@ interface ToggleFieldProps {
   id: string;
   label: string;
   checked: boolean;
+  /** Explanation shown on hover, rather than as standing text. */
+  hint?: string;
   onChange: (checked: boolean) => void;
 }
 
@@ -10,10 +12,11 @@ export default function ToggleField({
   id,
   label,
   checked,
+  hint,
   onChange,
 }: ToggleFieldProps) {
   return (
-    <div className="toggle-field">
+    <div className="toggle-field" title={hint}>
       <input
         id={id}
         type="checkbox"

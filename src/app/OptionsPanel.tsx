@@ -90,28 +90,28 @@ export default function OptionsPanel({
       </section>
 
       <section className="options-group">
-        <p className="options-hint">
-          How far each side is pulled from its attack colour: 0 keeps the colour
-          exactly, 1 bleaches it to white or black.
-        </p>
-        <NumberField
-          id="piece-lighten"
-          label="Lighten White Pieces"
-          value={options.pieceTint.lightenWhite}
-          step={0.05}
-          max={1}
-          allowZero
-          onChange={(lightenWhite) => updatePieceTint({ lightenWhite })}
-        />
-        <NumberField
-          id="piece-darken"
-          label="Darken Black Pieces"
-          value={options.pieceTint.darkenBlack}
-          step={0.05}
-          max={1}
-          allowZero
-          onChange={(darkenBlack) => updatePieceTint({ darkenBlack })}
-        />
+        <div className="field-row">
+          <NumberField
+            id="piece-lighten"
+            hint="How far each side is pulled from its attack colour: 0 keeps the colour exactly, 1 bleaches it to white or black."
+            label="Lighten white pieces"
+            value={options.pieceTint.lightenWhite}
+            step={0.05}
+            max={1}
+            allowZero
+            onChange={(lightenWhite) => updatePieceTint({ lightenWhite })}
+          />
+          <NumberField
+            id="piece-darken"
+            hint="How far each side is pulled from its attack colour: 0 keeps the colour exactly, 1 bleaches it to white or black."
+            label="Darken black pieces"
+            value={options.pieceTint.darkenBlack}
+            step={0.05}
+            max={1}
+            allowZero
+            onChange={(darkenBlack) => updatePieceTint({ darkenBlack })}
+          />
+        </div>
       </section>
 
       <AttackTable attacks={options.attacks} onChange={updateAttacks} />
@@ -148,19 +148,17 @@ export default function OptionsPanel({
         />
         <ToggleField
           id="full-rays"
+            hint="Keep diagonal rays at full width through the corners where their squares meet, spilling onto the squares to either side."
           label="Full-width diagonal rays"
           checked={options.attacks.fullWidthDiagonalRays}
           onChange={(fullWidthDiagonalRays) => updateAttacks({ fullWidthDiagonalRays })}
         />
-        <p className="options-hint">
-          Keep diagonal rays at full width through the corners where their
-          squares meet, spilling onto the squares to either side.
-        </p>
       </section>
 
       <section className="options-group">
         <NumberField
           id="white-outline-width"
+            hint="Traced around each side's marks, which otherwise share a colour."
           label="White ray outline width"
           suffix="milli-squares"
           value={options.attacks.outlineWidths.white}
@@ -170,6 +168,7 @@ export default function OptionsPanel({
         />
         <NumberField
           id="black-outline-width"
+            hint="Traced around each side's marks, which otherwise share a colour."
           label="Black ray outline width"
           suffix="milli-squares"
           value={options.attacks.outlineWidths.black}
@@ -177,9 +176,6 @@ export default function OptionsPanel({
           allowZero
           onChange={(black) => updateOutlines({ black })}
         />
-        <p className="options-hint">
-          Traced around each side's marks, which otherwise share a colour.
-        </p>
       </section>
 
 

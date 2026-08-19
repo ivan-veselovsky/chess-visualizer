@@ -11,6 +11,8 @@ interface NumberFieldProps {
   allowZero?: boolean;
   /** Upper bound, when the option has one. */
   max?: number;
+  /** Explanation shown on hover, rather than as standing text. */
+  hint?: string;
   onChange: (value: number) => void;
 }
 
@@ -23,10 +25,11 @@ export default function NumberField({
   step,
   allowZero,
   max,
+  hint,
   onChange,
 }: NumberFieldProps) {
   return (
-    <div className="number-field">
+    <div className="number-field" title={hint}>
       <label htmlFor={id}>{label}</label>
       <div className="number-field-inputs">
         <NumberInput
