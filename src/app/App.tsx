@@ -80,6 +80,13 @@ export default function App() {
         {/* Right: everything else, stacked, in the order it is reached for. */}
         <div className="side-column">
           <div className="board-controls">
+            <button
+              type="button"
+              className="reset-button"
+              onClick={() => setFen(DEFAULT_FEN)}
+            >
+              Reset to initial
+            </button>
             <ToggleField
               id="flip-board"
               label="Black at bottom"
@@ -101,12 +108,7 @@ export default function App() {
             />
           </div>
 
-          <FenField
-            value={fen}
-            error={error}
-            onChange={setFen}
-            onReset={() => setFen(DEFAULT_FEN)}
-          />
+          <FenField value={fen} error={error} onChange={setFen} />
 
           <FamousPositions value={fen} onSelect={setFen} />
 

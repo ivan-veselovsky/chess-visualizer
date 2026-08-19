@@ -3,7 +3,6 @@ interface FenFieldProps {
   /** Why the current text was rejected, or null while it parses. */
   error: string | null;
   onChange: (fen: string) => void;
-  onReset: () => void;
 }
 
 /**
@@ -14,7 +13,6 @@ export default function FenField({
   value,
   error,
   onChange,
-  onReset,
 }: FenFieldProps) {
   return (
     <div className="fen-field">
@@ -32,9 +30,6 @@ export default function FenField({
           aria-describedby={error === null ? undefined : "fen-error"}
           onChange={(event) => onChange(event.target.value)}
         />
-        <button type="button" className="reset-button" onClick={onReset}>
-          Reset to initial
-        </button>
       </div>
       {error !== null && (
         <p id="fen-error" className="fen-error" role="alert">

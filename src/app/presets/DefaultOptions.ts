@@ -59,8 +59,8 @@ export const DEFAULT_OPTIONS: Options = {
   orientation: "white",
   showGrid: false,
   pieceTint: {
-    lightenWhite: 0.6,
-    darkenBlack: 0.6,
+    lightenWhite: 1,
+    darkenBlack: 0.7,
   },
   attacks: {
     colors: {

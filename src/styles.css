@@ -32,6 +32,8 @@
   */
   --app-bg: #ffffff;
   --app-fg: #1a1a1a;
+  /* Fill behind a checked box. The text colour reads well on a light page. */
+  --checkbox-accent: currentColor;
 
   /* Follows the setting, not the OS, so form controls match the chosen theme. */
   color-scheme: light;
@@ -63,6 +65,9 @@
 :root[data-theme="dark"] {
   --app-bg: #17181b;
   --app-fg: #b0b0b0;
+  /* Pulled back toward the page: at full text colour a checked box is a bright
+     block, louder than the setting it reports. */
+  --checkbox-accent: color-mix(in srgb, var(--app-fg) 50%, var(--app-bg));
   color-scheme: dark;
 }
 
@@ -170,12 +175,25 @@ body {
   pointer-events: none;
 }
 
-/* First row of the side column: the two board toggles, side by side. */
+/*
+  First row of the side column: the reset button, then the board toggle, with
+  the theme toggle pushed to the right edge — directly under the gear that opens
+  the options, the other page-wide control. Pushed by an auto margin rather than
+  by space-between, which would strand the middle item halfway across.
+*/
 .board-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 1.25rem;
+}
+
+.board-controls > :last-child {
+  margin-left: auto;
+}
+
+.board-controls .reset-button {
+  white-space: nowrap;
 }
 
 .board-controls .toggle-field {
@@ -188,9 +206,8 @@ body {
 
 .famous-positions > label {
   display: block;
-  margin-bottom: 0.15rem;
-  font-size: 0.7rem;
-  opacity: 0.7;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
 }
 
 /*
@@ -202,8 +219,8 @@ body {
 */
 .famous-select {
   width: 100%;
-  padding: 0.2rem 0.4rem;
-  font-size: 0.75rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.9rem;
   color: var(--app-fg);
   background: var(--app-bg);
   border: 1px solid var(--panel-border);
@@ -222,9 +239,8 @@ body {
 
 .fen-field > label {
   display: block;
-  margin-bottom: 0.15rem;
-  font-size: 0.7rem;
-  opacity: 0.7;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
 }
 
 .fen-field-inputs {
@@ -236,9 +252,9 @@ body {
 .fen-input {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0.2rem 0.4rem;
+  padding: 0.4rem 0.5rem;
   font-family: ui-monospace, monospace;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   color: inherit;
   background: none;
   border: 1px solid var(--panel-border);
@@ -248,12 +264,6 @@ body {
 .fen-input-invalid {
   border-color: var(--invalid);
   color: var(--invalid);
-}
-
-.fen-field .reset-button {
-  padding: 0.2rem 0.5rem;
-  font-size: 0.7rem;
-  white-space: nowrap;
 }
 
 .fen-error {
@@ -325,7 +335,9 @@ body {
 
 .coordinate-label {
   font-size: 14px;
-  fill: currentColor;
+  /* Held back from the page's text colour: they label the board rather than
+     compete with it, so they sit nearer the frame behind them. */
+  fill: color-mix(in srgb, currentColor 65%, transparent);
   text-anchor: middle;
   dominant-baseline: central;
   user-select: none;
@@ -596,7 +608,7 @@ body {
   width: 1rem;
   height: 1rem;
   margin: 0;
-  accent-color: currentColor;
+  accent-color: var(--checkbox-accent);
   cursor: pointer;
 }
 
@@ -607,7 +619,9 @@ body {
 
 .reset-button {
   padding: 0.35rem 0.7rem;
-  font-size: 0.85rem;
+  /* One type size across every control: the labels, the fields and the
+     buttons. 0.85 left the buttons reading a step quieter than their row. */
+  font-size: 0.9rem;
   color: inherit;
   background: none;
   border: 1px solid var(--panel-border);
