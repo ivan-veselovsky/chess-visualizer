@@ -2,7 +2,7 @@ import { useId, type ComponentType } from "react";
 import type { Chess, PieceSymbol, Square } from "chess.js";
 import type { PlacedPiece } from "../../chess/model";
 import {
-  MILLI_SQUARE,
+  SQUARE_SIZE,
   settingsSide,
   type Orientation,
   type SettingsSide,
@@ -61,7 +61,7 @@ export default function AttackLayer({
   const sides = (["me", "opponent"] as const).map((side) => ({
     side,
     id: `${idPrefix}-outline-${side}`,
-    width: Math.max(attackOptions.outlineWidths[side], 0) * MILLI_SQUARE,
+    width: Math.max(attackOptions.outlineWidths[side], 0) * SQUARE_SIZE,
   }));
   const outlineFor = (side: SettingsSide) =>
     sides.find((entry) => entry.side === side && entry.width > 0);

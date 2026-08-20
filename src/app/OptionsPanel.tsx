@@ -7,7 +7,6 @@ import type {
   AttackOptions,
   BoardColors,
   Options,
-  OutlineWidths,
   RayOpacity,
   PieceTint,
 } from "./options";
@@ -57,12 +56,6 @@ export default function OptionsPanel({
   function updateRayOpacity(patch: Partial<RayOpacity>) {
     updateAttacks({
       rayOpacity: { ...options.attacks.rayOpacity, ...patch },
-    });
-  }
-
-  function updateOutlines(patch: Partial<OutlineWidths>) {
-    updateAttacks({
-      outlineWidths: { ...options.attacks.outlineWidths, ...patch },
     });
   }
 
@@ -144,33 +137,6 @@ export default function OptionsPanel({
       <section className="options-group">
         <div className="field-row">
           <NumberField
-            id="my-outline-width"
-            inline
-            hint="Traced around one end's marks, to tell them from the other end's."
-            label="My ray outline width"
-            suffix="milli-squares"
-            value={options.attacks.outlineWidths.me}
-            step={1}
-            allowZero
-            onChange={(me) => updateOutlines({ me })}
-          />
-          <NumberField
-            id="opponent-outline-width"
-            inline
-            hint="Traced around one end's marks, to tell them from the other end's."
-            label="Opponent ray outline width"
-            suffix="milli-squares"
-            value={options.attacks.outlineWidths.opponent}
-            step={1}
-            allowZero
-            onChange={(opponent) => updateOutlines({ opponent })}
-          />
-        </div>
-      </section>
-
-      <section className="options-group">
-        <div className="field-row">
-          <NumberField
             id="my-ray-opacity"
             inline
             label="My attack ray opacity"
@@ -211,29 +177,6 @@ export default function OptionsPanel({
       </section>
 
 
-
-      <section className="options-group">
-        <NumberField
-          id="ray-inner-square"
-          inline
-          label="Inner square side"
-          suffix="squares"
-          value={options.attacks.rayInnerSquare}
-          allowZero
-          onChange={(rayInnerSquare) => updateAttacks({ rayInnerSquare })}
-        />
-        <NumberField
-          id="ray-start-corner-radius"
-          inline
-          label="Inner square corner rounding"
-          suffix="squares"
-          value={options.attacks.rayInnerSquareCornerRadius}
-          allowZero
-          onChange={(rayInnerSquareCornerRadius) =>
-            updateAttacks({ rayInnerSquareCornerRadius })
-          }
-        />
-      </section>
 
       {/* One reset for the lot. Per-section buttons meant the panel could sit in
           a state no preset describes, half restored and half not. */}

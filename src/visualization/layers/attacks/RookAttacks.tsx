@@ -1,4 +1,5 @@
 import { rookAttackAxes } from "../../../chess/attacks";
+import { innerSquares } from "./innerSquares";
 import RayStripes from "./RayStripes";
 import type { PieceAttackProps } from "./types";
 
@@ -21,8 +22,7 @@ export default function RookAttacks({
       )}
       stripeClass="attack-stripe attack-rook"
       stripe={geometry.rookRay}
-      innerSquare={attackOptions.rayInnerSquare}
-      startCornerRadius={attackOptions.rayInnerSquareCornerRadius}
+      innerSquares={innerSquares(geometry)}
       fullWidth={attackOptions.fullWidthDiagonalRays}
       idPrefix={idPrefix}
       orientation={orientation}

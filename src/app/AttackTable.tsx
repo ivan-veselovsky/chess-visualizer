@@ -16,8 +16,10 @@ const GAP_HINT =
 const STRIPE_HINT = "Full width of the stripe, in square sides.";
 const RADII_HINT =
   "Where the knight's ring sits: its inner and outer radius, in square sides from the knight.";
+const INNER_SQUARES_HINT =
+  "The two squares every ray is measured against, in square sides: a ray sets off from the large one and stops in a point on the small one. Keep the small inside the large to leave a gap around each piece.";
 const OUTLINE_HINT =
-  "Colour of the outline traced around this side's marks, where it has any width.";
+  "The outline traced around this side's marks, to tell them from the other side's: its colour, and its width in square sides. A hairline is a hundredth or so; zero draws none.";
 
 interface AttackTableProps {
   attacks: AttackOptions;
@@ -29,6 +31,8 @@ interface Cell {
   value: number;
   label: string;
   allowZero?: boolean;
+  /** How much the spinner moves it, where the row's scale calls for less. */
+  step?: number;
   onChange: (value: number) => void;
 }
 
@@ -200,6 +204,48 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     };
   }
 
+  /** The frame the rays are measured in, rather than any one piece's mark. */
+  function innerSquaresRow(): Row {
+    const cellsFor = (side: Side): SideCells => {
+      const geometry = attacks.geometry[side];
+      return {
+        gap: {
+          value: geometry.smallInnerSquare,
+          label: `${side} small inner square`,
+          allowZero: true,
+          // The board draws the pair in order whatever is stored. Storing it in
+          // order too keeps these two inputs telling the truth about it: one
+          // pushes the other along rather than being quietly overruled.
+          onChange: (smallInnerSquare) =>
+            updateGeometry(side, {
+              smallInnerSquare,
+              ...(smallInnerSquare > geometry.largeInnerSquare
+                ? { largeInnerSquare: smallInnerSquare }
+                : {}),
+            }),
+        },
+        width: {
+          value: geometry.largeInnerSquare,
+          label: `${side} large inner square`,
+          allowZero: true,
+          onChange: (largeInnerSquare) =>
+            updateGeometry(side, {
+              largeInnerSquare,
+              ...(largeInnerSquare < geometry.smallInnerSquare
+                ? { smallInnerSquare: largeInnerSquare }
+                : {}),
+            }),
+        },
+      };
+    };
+    return {
+      key: "inner-squares",
+      piece: "Inner sq.",
+      hint: INNER_SQUARES_HINT,
+      cells: { me: cellsFor("me"), opponent: cellsFor("opponent") },
+    };
+  }
+
   /** Applies wherever that side's outline has any width. */
   function outlineRow(): Row {
     const cellsFor = (side: Side): SideCells => ({
@@ -208,6 +254,16 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
         onChange: (value) =>
           onChange({
             outlineColors: { ...attacks.outlineColors, [side]: value },
+          }),
+      },
+      width: {
+        value: attacks.outlineWidths[side],
+        label: `${side} outline width`,
+        allowZero: true,
+        step: 0.005,
+        onChange: (value) =>
+          onChange({
+            outlineWidths: { ...attacks.outlineWidths, [side]: value },
           }),
       },
     });
@@ -227,6 +283,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     knightRow(),
     knightRadiiRow(),
     stripeRow("pawnRay", "Pawn", "pawn"),
+    innerSquaresRow(),
     outlineRow(),
   ];
 
@@ -246,6 +303,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
           ariaLabel={cell.label}
           value={cell.value}
           allowZero={cell.allowZero}
+          step={cell.step}
           onChange={cell.onChange}
         />
       </td>

@@ -47,13 +47,6 @@ export const BORDER_SIZE = 24;
 export const BOARD_ORIGIN: Point = { x: BORDER_SIZE, y: 0 };
 export const CANVAS_SIZE = BOARD_SIZE + BORDER_SIZE;
 
-/**
- * A thousandth of a square side. Lengths are given in square sides throughout,
- * but a hairline is a couple of thousandths of one, and "0.01" is harder to set
- * by eye than "10".
- */
-export const MILLI_SQUARE = SQUARE_SIZE / 1000;
-
 export interface Rect extends Point {
   width: number;
   height: number;
@@ -211,27 +204,49 @@ export function rayStopWedgePath(
 }
 
 /**
- * A rectangle as a closed subpath, with its corners rounded by `radius`. The
- * radius is clamped to half the shorter side, and zero gives plain corners.
+ * The region a ray may occupy from where it starts: everything at or beyond a
+ * straight cut taken square across the ray.
+ *
+ * The cut runs between the two points where the ray's own sides meet the inner
+ * square. On a diagonal those two points lie level with each other — each side
+ * crosses one of the two faces the ray heads between, and by symmetry both do
+ * so at the same depth — so the ray begins on a chord of the square instead of
+ * being notched by its corner. A rank or file crosses a single face square on,
+ * where it is level already and its width makes no difference.
  */
-export function roundedRectPath(box: Rect, radius: number): string {
-  const r = Math.min(Math.max(radius, 0), box.width / 2, box.height / 2);
-  const { x, y, width: w, height: h } = box;
+export function rayStartPlanePath(
+  square: Square,
+  direction: readonly [number, number],
+  halfSide: number,
+  halfWidth: number,
+  orientation: Orientation = "white"
+): string {
+  const step = stepVector(direction, orientation);
+  const length = Math.hypot(step.x, step.y);
+  const along = { x: step.x / length, y: step.y / length };
+  const diagonal = direction[0] !== 0 && direction[1] !== 0;
 
-  if (r === 0) {
-    return `M ${x} ${y} h ${w} v ${h} h ${-w} Z`;
-  }
-  const arc = `a ${r} ${r} 0 0 1`;
+  // How far the inner square reaches along the ray, then back by the width the
+  // ray's own sides cut off. Never behind the centre: a ray broader than the
+  // square it leaves would otherwise start on the far side of its own piece.
+  const reach = halfSide * (Math.abs(along.x) + Math.abs(along.y));
+  const start = Math.max(reach - (diagonal ? halfWidth : 0), 0);
+
+  const center = squareCenter(square, orientation);
+  const from = { x: center.x + along.x * start, y: center.y + along.y * start };
+  const across = { x: -along.y, y: along.x };
+
+  // Long enough that the region leaves the board on every side.
+  const far = 4 * BOARD_SIZE;
+  const corners = [
+    { x: from.x + across.x * far, y: from.y + across.y * far },
+    { x: from.x - across.x * far, y: from.y - across.y * far },
+  ];
   return [
-    `M ${x + r} ${y}`,
-    `H ${x + w - r}`,
-    `${arc} ${r} ${r}`,
-    `V ${y + h - r}`,
-    `${arc} ${-r} ${r}`,
-    `H ${x + r}`,
-    `${arc} ${-r} ${-r}`,
-    `V ${y + r}`,
-    `${arc} ${r} ${-r}`,
+    `M ${corners[0].x} ${corners[0].y}`,
+    `L ${corners[1].x} ${corners[1].y}`,
+    `L ${corners[1].x + along.x * far} ${corners[1].y + along.y * far}`,
+    `L ${corners[0].x + along.x * far} ${corners[0].y + along.y * far}`,
     "Z",
   ].join(" ");
 }

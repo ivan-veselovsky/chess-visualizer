@@ -66,9 +66,9 @@ export interface RayStyle {
  * that tells the two sides' marks apart, since a piece and its attacks share a
  * colour whatever side it is on. Zero draws none for that side.
  *
- * In milli-squares, not square sides: a hairline is a few thousandths of a
- * square, and every other length here would need three decimals to say so. The
- * only lengths in the model measured that way.
+ * In square sides, as every other length in the model is. An outline is a
+ * hairline and so reads in hundredths where the rest read in tenths, which is
+ * a smaller price than being the one measurement in a different unit.
  */
 /**
  * How opaque an undimmed attack mark is, from 0 to 1, per side. Applied once
@@ -123,6 +123,18 @@ export interface SideAttackColors {
  * only lightness and these widths distinguish the sides.
  */
 export interface AttackGeometry {
+  /**
+   * Sides, in square sides, of the two squares concentric with every square and
+   * parallel to it, against which every ray is measured.
+   *
+   * A ray leaves the large one and stops at the small one: it starts on a
+   * straight cut across the large square and ends in a point on the small one,
+   * having run through the centre on the way. Keeping the small one inside the
+   * large leaves a clear gap around each piece between what arrives and what
+   * sets off again; the other way round they overlap.
+   */
+  smallInnerSquare: number;
+  largeInnerSquare: number;
   kingRay: RayStyle;
   queenRay: RayStyle;
   rookRay: RayStyle;
@@ -138,7 +150,6 @@ export interface SideGeometry {
 
 export interface AttackOptions {
   colors: SideAttackColors;
-  /** In milli-squares — see OutlineWidths. */
   outlineWidths: OutlineWidths;
   outlineColors: OutlineColors;
   rayOpacity: RayOpacity;
@@ -148,24 +159,6 @@ export interface AttackOptions {
    * run to the board edge undimmed.
    */
   xRayDecayFactor: number;
-  /**
-   * Side of the inner square, in square sides: concentric with its square and
-   * parallel to it. It is the one boundary every ray is measured against —
-   * where a ray starts, where it ends, and where it dims behind a piece.
-   *
-   * A ray may not pass the sides of that square lying farthest along it. A
-   * diagonal meets two of them at once and so tapers to a point at the corner
-   * where they meet; a rank or file meets one and gets a blunter point.
-   */
-  rayInnerSquare: number;
-  /**
-   * Corner radius, in square sides, of the inner square where a ray *starts*.
-   * Rounding it blunts the point a diagonal is otherwise notched to as it
-   * leaves its piece. Ray endings, and the boundaries where a ray dims behind a
-   * piece it passes, keep the square's sharp corners — so a start never looks
-   * like an end.
-   */
-  rayInnerSquareCornerRadius: number;
   /**
    * Whether rays keep their full width along their whole length. Off, a ray
    * shows only on the squares it attacks, so a diagonal one narrows to a point

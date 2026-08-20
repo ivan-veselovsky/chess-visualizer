@@ -1,4 +1,5 @@
 import { queenAttackAxes } from "../../../chess/attacks";
+import { innerSquares } from "./innerSquares";
 import RayStripes from "./RayStripes";
 import type { PieceAttackProps } from "./types";
 
@@ -21,8 +22,7 @@ export default function QueenAttacks({
       )}
       stripeClass="attack-stripe attack-queen"
       stripe={geometry.queenRay}
-      innerSquare={attackOptions.rayInnerSquare}
-      startCornerRadius={attackOptions.rayInnerSquareCornerRadius}
+      innerSquares={innerSquares(geometry)}
       fullWidth={attackOptions.fullWidthDiagonalRays}
       idPrefix={idPrefix}
       orientation={orientation}

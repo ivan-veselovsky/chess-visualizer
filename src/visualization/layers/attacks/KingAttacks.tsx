@@ -1,4 +1,5 @@
 import { kingAttackAxes } from "../../../chess/attacks";
+import { innerSquares } from "./innerSquares";
 import RayStripes from "./RayStripes";
 import type { PieceAttackProps } from "./types";
 
@@ -24,8 +25,7 @@ export default function KingAttacks({
       )}
       stripeClass="attack-stripe attack-king"
       stripe={geometry.kingRay}
-      innerSquare={attackOptions.rayInnerSquare}
-      startCornerRadius={attackOptions.rayInnerSquareCornerRadius}
+      innerSquares={innerSquares(geometry)}
       fullWidth={attackOptions.fullWidthDiagonalRays}
       idPrefix={idPrefix}
       orientation={orientation}

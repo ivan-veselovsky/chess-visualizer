@@ -1,19 +1,17 @@
 import type { Square } from "chess.js";
 import type { AttackAxis, RaySquare } from "../../../chess/attacks";
 import {
-  BOARD_SIZE,
   SQUARE_SIZE,
   perpendicular,
   rayPoint,
+  rayStartPlanePath,
   rayStopWedgePath,
-  roundedRectPath,
   squareBox,
-  squareCenter,
   type Orientation,
-  type Rect,
 } from "../../geometry";
 import type { RayStyle } from "../../options";
 import { stripeBands, type Band } from "./bands";
+import type { InnerSquares } from "./innerSquares";
 
 interface RayStripesProps {
   /** Square the stripes radiate from. */
@@ -21,16 +19,8 @@ interface RayStripesProps {
   axes: AttackAxis[];
   stripeClass: string;
   stripe: RayStyle;
-  /**
-   * Side, in square sides, of the square that bounds where a ray starts, where
-   * it ends, and where it dims behind a piece it passes through.
-   */
-  innerSquare: number;
-  /**
-   * Corner radius, in square sides, of the inner square a ray starts beyond.
-   * Applies to starts only — ends and dimming boundaries stay sharp.
-   */
-  startCornerRadius: number;
+  /** The two squares this side's rays set off from and stop at. */
+  innerSquares: InnerSquares;
   /**
    * Keep each ray at full width along its whole length. Off, a ray is confined
    * to the squares it attacks, so a diagonal one pinches to a point at every
@@ -40,13 +30,6 @@ interface RayStripesProps {
   idPrefix: string;
   orientation: Orientation;
 }
-
-/** A rectangle as a closed subpath. */
-function rectPath(box: Rect): string {
-  return `M ${box.x} ${box.y} h ${box.width} v ${box.height} h ${-box.width} Z`;
-}
-
-const BOARD_BOX: Rect = { x: 0, y: 0, width: BOARD_SIZE, height: BOARD_SIZE };
 
 /**
  * A stretch of ray at one intensity, bounded by the inner squares of the piece
@@ -119,8 +102,7 @@ export default function RayStripes({
   axes,
   stripeClass,
   stripe,
-  innerSquare,
-  startCornerRadius,
+  innerSquares,
   fullWidth,
   idPrefix,
   orientation,
@@ -130,27 +112,25 @@ export default function RayStripes({
     return null;
   }
 
-  const innerHalfSide = (Math.max(innerSquare, 0) * SQUARE_SIZE) / 2;
+  const { small: smallHalfSide, large: largeHalfSide } = innerSquares;
+  // The whole stripe's half-width, gap and all: it is the ray's own two sides
+  // that the start is cut between, so a gap down the middle changes nothing
+  // about where it begins, and both bands are cut off level with each other.
+  const halfWidth = (Math.max(stripe.rayWidth, 0) * SQUARE_SIZE) / 2;
 
-  // Where every ray starts: the board with this piece's inner square punched
-  // out by the even-odd rule, so a ray leaving it is notched by the two sides
-  // it crosses. Rounding those corners blunts the notch a diagonal would come
-  // to. One hole serves every ray, the strokes all beginning at the centre.
-  const center = squareCenter(origin, orientation);
-  const startHoleId = `${idPrefix}-start`;
-  const startHolePath = `${rectPath(BOARD_BOX)} ${roundedRectPath(
-    {
-      x: center.x - innerHalfSide,
-      y: center.y - innerHalfSide,
-      width: innerHalfSide * 2,
-      height: innerHalfSide * 2,
-    },
-    Math.max(startCornerRadius, 0) * SQUARE_SIZE
-  )}`;
+  /** Everything from where a ray sets off from `square`, as a half-plane. */
+  const from = (square: Square, direction: readonly [number, number]): string =>
+    rayStartPlanePath(
+      square,
+      direction,
+      largeHalfSide,
+      halfWidth,
+      orientation
+    );
 
   /** Everything up to where a ray stops on `square`, as a wedge. */
   const upTo = (square: Square, direction: readonly [number, number]): string =>
-    rayStopWedgePath(square, direction, innerHalfSide, orientation);
+    rayStopWedgePath(square, direction, smallHalfSide, orientation);
 
   // Stripes are stroked opaque; AttackLayer composites the piece and applies the
   // transparency once, so where they overlap — which they do wherever several
@@ -159,9 +139,6 @@ export default function RayStripes({
   // different intensities never cover each other.
   return (
     <g>
-      <clipPath id={startHoleId}>
-        <path d={startHolePath} clipRule="evenodd" />
-      </clipPath>
       {axes.map((axis) => {
         const [df, dr] = axis.direction;
         const normal = perpendicular(axis.direction, orientation);
@@ -180,30 +157,18 @@ export default function RayStripes({
           return (
             <g key={key}>
               {raySegments(origin, ray).map((segment, index) => {
-                // The first stretch starts beyond the piece's own inner square,
-                // which is the shared, possibly rounded hole. Later ones start
-                // beyond a blocker's inner square: the board with everything
-                // short of it removed, so the even-odd rule leaves a notch
-                // rather than a straight cut. Either is nested with the stop at
-                // the end's inner square, one clip path not intersecting two.
-                const first = index === 0;
-                const beyondId = first
-                  ? startHoleId
-                  : `${axisId}-${key}-beyond${index}`;
+                // Every stretch is bounded the same way, whether it sets off
+                // from the piece itself or resumes past one it x-rays through:
+                // a straight cut across the large inner square behind it, and
+                // a point on the small inner square ahead. The two are nested
+                // rather than combined, one clip path not intersecting two.
+                const beyondId = `${axisId}-${key}-beyond${index}`;
                 const upToId = `${axisId}-${key}-upto${index}`;
                 return (
                   <g key={index}>
-                    {!first && (
-                      <clipPath id={beyondId}>
-                        <path
-                          d={`${rectPath(BOARD_BOX)} ${upTo(
-                            segment.start,
-                            direction
-                          )}`}
-                          clipRule="evenodd"
-                        />
-                      </clipPath>
-                    )}
+                    <clipPath id={beyondId}>
+                      <path d={from(segment.start, direction)} />
+                    </clipPath>
                     <clipPath id={upToId}>
                       <path d={upTo(segment.end, direction)} />
                     </clipPath>
