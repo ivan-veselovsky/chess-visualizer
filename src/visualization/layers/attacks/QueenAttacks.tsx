@@ -20,7 +20,7 @@ export default function QueenAttacks({
         attackOptions.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-queen"
-      stripe={geometry.queenStripe}
+      stripe={geometry.queenRay}
       innerSquare={attackOptions.rayInnerSquare}
       startCornerRadius={attackOptions.rayInnerSquareCornerRadius}
       fullWidth={attackOptions.fullWidthDiagonalRays}

@@ -23,7 +23,7 @@ export default function KingAttacks({
         attackOptions.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-king"
-      stripe={geometry.kingStripe}
+      stripe={geometry.kingRay}
       innerSquare={attackOptions.rayInnerSquare}
       startCornerRadius={attackOptions.rayInnerSquareCornerRadius}
       fullWidth={attackOptions.fullWidthDiagonalRays}

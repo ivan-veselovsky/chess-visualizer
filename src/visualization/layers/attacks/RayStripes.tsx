@@ -12,7 +12,7 @@ import {
   type Orientation,
   type Rect,
 } from "../../geometry";
-import type { StripeStyle } from "../../options";
+import type { RayStyle } from "../../options";
 import { stripeBands, type Band } from "./bands";
 
 interface RayStripesProps {
@@ -20,7 +20,7 @@ interface RayStripesProps {
   origin: Square;
   axes: AttackAxis[];
   stripeClass: string;
-  stripe: StripeStyle;
+  stripe: RayStyle;
   /**
    * Side, in square sides, of the square that bounds where a ray starts, where
    * it ends, and where it dims behind a piece it passes through.

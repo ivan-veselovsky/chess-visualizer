@@ -20,7 +20,7 @@ export default function RookAttacks({
         attackOptions.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-rook"
-      stripe={geometry.rookStripe}
+      stripe={geometry.rookRay}
       innerSquare={attackOptions.rayInnerSquare}
       startCornerRadius={attackOptions.rayInnerSquareCornerRadius}
       fullWidth={attackOptions.fullWidthDiagonalRays}

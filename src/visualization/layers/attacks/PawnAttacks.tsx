@@ -39,7 +39,7 @@ export default function PawnAttacks({
   attackOptions,
   geometry,
 }: PieceAttackProps) {
-  const bands = stripeBands(geometry.pawnStripe);
+  const bands = stripeBands(geometry.pawnRay);
   if (bands.length === 0) {
     return null;
   }

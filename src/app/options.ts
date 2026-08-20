@@ -16,7 +16,7 @@ export type {
   OutlineColors,
   OutlineWidths,
   RayOpacity,
-  StripeStyle,
+  RayStyle,
 } from "../visualization/options";
 
 /**
@@ -39,7 +39,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Options` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const OPTIONS_SCHEMA_VERSION = 2;
+export const OPTIONS_SCHEMA_VERSION = 4;
 
 /**
  * Central description of everything the user can tweak: one object holding
@@ -53,6 +53,12 @@ export interface Options {
   /** Which revision of this shape the object was written against. */
   optionsSchemaVersion: number;
   theme: Theme;
+  /**
+   * Text colour under the dark theme. Reaches everything the theme does — the
+   * page, the panel's borders, the board's coordinate labels — since those are
+   * all mixed from it.
+   */
+  darkThemeTextColor: string;
   boardColors: BoardColors;
   /** Which side is at the bottom of the board. */
   orientation: Orientation;

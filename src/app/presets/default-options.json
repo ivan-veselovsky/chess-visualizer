@@ -1,6 +1,7 @@
 {
-  "optionsSchemaVersion": 2,
+  "optionsSchemaVersion": 4,
   "theme": "dark",
+  "darkThemeTextColor": "#bababa",
   "boardColors": {
     "lightSquare": "#ccdccc",
     "darkSquare": "#bfbfbf"
@@ -8,22 +9,22 @@
   "orientation": "white",
   "showGrid": false,
   "pieceTint": {
-    "lightenWhite": 0.85,
-    "darkenBlack": 0.7
+    "lightenWhite": 0.9,
+    "darkenBlack": 0.8
   },
   "attacks": {
     "colors": {
       "me": {
-        "king": "#47e000",
-        "queen": "#769400",
-        "rook": "#66ba12",
-        "bishop": "#27aa4e",
-        "knight": "#09c35a",
+        "king": "#1d9f2c",
+        "queen": "#1d9f2c",
+        "rook": "#1d9f2c",
+        "bishop": "#1d9f2c",
+        "knight": "#1d9f2c",
         "pawn": "#1d9f2c"
       },
       "opponent": {
-        "king": "#ff8800",
-        "queen": "#ff4d00",
+        "king": "#fa5700",
+        "queen": "#fa5700",
         "rook": "#fa5700",
         "bishop": "#fa5700",
         "knight": "#fa5700",
@@ -48,19 +49,19 @@
     "fullWidthDiagonalRays": true,
     "geometry": {
       "me": {
-        "kingStripe": {
+        "kingRay": {
           "rayWidth": 0.2,
           "gapWidth": 0
         },
-        "queenStripe": {
+        "queenRay": {
           "rayWidth": 0.3,
           "gapWidth": 0
         },
-        "rookStripe": {
+        "rookRay": {
           "rayWidth": 0.25,
           "gapWidth": 0
         },
-        "bishopStripe": {
+        "bishopRay": {
           "rayWidth": 0.3,
           "gapWidth": 0
         },
@@ -69,25 +70,25 @@
           "outerRadius": 2.5495097567963922,
           "gapWidth": 0
         },
-        "pawnStripe": {
+        "pawnRay": {
           "rayWidth": 0.3,
           "gapWidth": 0
         }
       },
       "opponent": {
-        "kingStripe": {
+        "kingRay": {
           "rayWidth": 0.2,
           "gapWidth": 0
         },
-        "queenStripe": {
+        "queenRay": {
           "rayWidth": 0.3,
           "gapWidth": 0
         },
-        "rookStripe": {
+        "rookRay": {
           "rayWidth": 0.3,
           "gapWidth": 0
         },
-        "bishopStripe": {
+        "bishopRay": {
           "rayWidth": 0.3,
           "gapWidth": 0
         },
@@ -96,7 +97,7 @@
           "outerRadius": 2.5,
           "gapWidth": 0
         },
-        "pawnStripe": {
+        "pawnRay": {
           "rayWidth": 0.3,
           "gapWidth": 0
         }

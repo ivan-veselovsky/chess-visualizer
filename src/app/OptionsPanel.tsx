@@ -69,14 +69,24 @@ export default function OptionsPanel({
   return (
     <aside className="options-panel" aria-label="Options">
       <section className="options-group">
-        <ToggleField
-          id="dark-theme"
-          label="Dark theme"
-          checked={options.theme === "dark"}
-          onChange={(dark) =>
-            onChange({ ...options, theme: dark ? "dark" : "light" })
-          }
-        />
+        <div className="field-row field-row-apart">
+          <ToggleField
+            id="dark-theme"
+            label="Dark theme"
+            checked={options.theme === "dark"}
+            onChange={(dark) =>
+              onChange({ ...options, theme: dark ? "dark" : "light" })
+            }
+          />
+          <ColorField
+            id="dark-theme-text"
+            label="Dark theme text color"
+            value={options.darkThemeTextColor}
+            onChange={(color) =>
+              onChange({ ...options, darkThemeTextColor: color })
+            }
+          />
+        </div>
       </section>
 
       <section className="options-group">

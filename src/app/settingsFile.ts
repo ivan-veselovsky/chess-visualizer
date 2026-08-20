@@ -33,6 +33,7 @@ export interface ImportResult {
 /** Groups whose absence would leave the app reading undefined at render time. */
 const REQUIRED_KEYS = [
   "theme",
+  "darkThemeTextColor",
   "boardColors",
   "orientation",
   "showGrid",

@@ -3,7 +3,7 @@ import {
   type AttackColors,
   type AttackOptions,
   type AttackGeometry,
-  type StripeStyle,
+  type RayStyle,
 } from "./options";
 
 type Side = "me" | "opponent";
@@ -120,13 +120,13 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   }
 
   function stripeRow(
-    key: "kingStripe" | "queenStripe" | "bishopStripe" | "rookStripe" | "pawnStripe",
+    key: "kingRay" | "queenRay" | "bishopRay" | "rookRay" | "pawnRay",
     piece: string,
     color: keyof AttackColors
   ): Row {
     const cellsFor = (side: Side): SideCells => {
       const stripe = attacks.geometry[side][key];
-      const update = (patch: Partial<StripeStyle>) =>
+      const update = (patch: Partial<RayStyle>) =>
         updateGeometry(side, { [key]: { ...stripe, ...patch } });
       return {
         swatch: pieceSwatch(side, color),
@@ -220,13 +220,13 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   }
 
   const rows: Row[] = [
-    stripeRow("kingStripe", "King", "king"),
-    stripeRow("queenStripe", "Queen", "queen"),
-    stripeRow("rookStripe", "Rook", "rook"),
-    stripeRow("bishopStripe", "Bishop", "bishop"),
+    stripeRow("kingRay", "King", "king"),
+    stripeRow("queenRay", "Queen", "queen"),
+    stripeRow("rookRay", "Rook", "rook"),
+    stripeRow("bishopRay", "Bishop", "bishop"),
     knightRow(),
     knightRadiiRow(),
-    stripeRow("pawnStripe", "Pawn", "pawn"),
+    stripeRow("pawnRay", "Pawn", "pawn"),
     outlineRow(),
   ];
 

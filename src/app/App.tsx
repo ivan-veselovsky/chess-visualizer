@@ -110,7 +110,13 @@ export default function App() {
   // the whole viewport, and this component only owns part of it.
   useEffect(() => {
     document.documentElement.dataset.theme = options.theme;
-  }, [options.theme]);
+    // Read only from inside the dark theme's own block, so publishing it under
+    // the light theme is inert rather than something to guard against.
+    document.documentElement.style.setProperty(
+      "--dark-theme-fg",
+      options.darkThemeTextColor
+    );
+  }, [options.theme, options.darkThemeTextColor]);
 
   // A FEN is unparseable for most of the time it takes to type one, so the
   // board keeps showing the last position that did parse rather than blanking.

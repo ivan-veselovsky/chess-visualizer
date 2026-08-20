@@ -62,7 +62,9 @@
 /* Set by App from the theme option. */
 :root[data-theme="dark"] {
   --app-bg: #17181b;
-  --app-fg: #b0b0b0;
+  /* The fallback is what App publishes anyway; it stands in only for the
+     instant before the first render sets it. */
+  --app-fg: var(--dark-theme-fg, #bababa);
   /* Pulled back toward the page: at full text colour a checked box is a bright
      block, louder than the setting it reports. */
   --checkbox-accent: color-mix(in srgb, var(--app-fg) 50%, var(--app-bg));
@@ -460,9 +462,9 @@ body {
 
 .coordinate-label {
   font-size: 14px;
-  /* Held back from the page's text colour: they label the board rather than
-     compete with it, so they sit nearer the frame behind them. */
-  fill: color-mix(in srgb, currentColor 65%, transparent);
+  /* The page's text colour as it stands. That colour is itself a setting, so
+     holding the labels back from it here would only fight whatever is chosen. */
+  fill: currentColor;
   text-anchor: middle;
   dominant-baseline: central;
   user-select: none;
@@ -786,10 +788,26 @@ input[type="color"]::-moz-color-swatch {
   margin-bottom: 0.85rem;
 }
 
+/*
+  For a row led by a checkbox: at the ordinary gap the next field's label sits
+  close enough to the checkbox's own to read as a second label for it. Only the
+  separation changes — the row is otherwise an ordinary one.
+*/
+.field-row-apart {
+  gap: 5em;
+}
+
 .field-row > .number-field,
 .field-row > .color-field {
   flex: 1 1 0;
   min-width: 0;
+  margin-bottom: 0;
+}
+
+/* A checkbox and its label are as wide as the words; sharing the row evenly
+   would only pad that out and push whatever sits beside it into wrapping. */
+.field-row > .toggle-field {
+  flex: 0 0 auto;
   margin-bottom: 0;
 }
 

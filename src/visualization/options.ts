@@ -42,20 +42,21 @@ export interface KnightRingOptions {
   /**
    * A gap of this width, in square sides, down the middle of the ring, leaving
    * two concentric rings either side of it. Zero leaves the ring solid — the
-   * same thing a zero gap does to a stripe, which is what it is.
+   * same thing a zero gap does to a ray, which is what this is: one bent round
+   * into a circle.
    */
   gapWidth: number;
 }
 
 /**
- * A ray's stripe: its full width, with a gap cut down the middle leaving two
- * parallel bands. Both are in square sides and measured across the stripe, so
- * `gapWidth: 0` degenerates to a single solid stripe of `rayWidth`.
+ * A ray's shape: its full width, with a gap cut down the middle leaving two
+ * parallel bands. Both are in square sides and measured across the ray, so
+ * `gapWidth: 0` degenerates to a single solid band of `rayWidth`.
  *
- * Every piece carries its own pair, so stripes of different pieces can be given
- * different widths and nest inside one another where they overlap.
+ * Every piece carries its own pair, so the rays of different pieces can be
+ * given different widths and nest inside one another where they overlap.
  */
-export interface StripeStyle {
+export interface RayStyle {
   rayWidth: number;
   gapWidth: number;
 }
@@ -117,17 +118,17 @@ export interface SideAttackColors {
 
 /**
  * The shape of every piece kind's attack marks, kept separately for each side
- * so the two can be told apart by stripe width as well as by outline. Colours
+ * so the two can be told apart by ray width as well as by outline. Colours
  * stay shared: a piece and its marks agree on hue whatever side it is on, and
  * only lightness and these widths distinguish the sides.
  */
 export interface AttackGeometry {
-  kingStripe: StripeStyle;
-  queenStripe: StripeStyle;
-  rookStripe: StripeStyle;
-  bishopStripe: StripeStyle;
+  kingRay: RayStyle;
+  queenRay: RayStyle;
+  rookRay: RayStyle;
+  bishopRay: RayStyle;
   knightRing: KnightRingOptions;
-  pawnStripe: StripeStyle;
+  pawnRay: RayStyle;
 }
 
 export interface SideGeometry {

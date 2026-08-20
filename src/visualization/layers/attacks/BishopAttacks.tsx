@@ -20,7 +20,7 @@ export default function BishopAttacks({
         attackOptions.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-bishop"
-      stripe={geometry.bishopStripe}
+      stripe={geometry.bishopRay}
       innerSquare={attackOptions.rayInnerSquare}
       startCornerRadius={attackOptions.rayInnerSquareCornerRadius}
       fullWidth={attackOptions.fullWidthDiagonalRays}

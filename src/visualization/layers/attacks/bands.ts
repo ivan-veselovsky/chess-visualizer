@@ -1,5 +1,5 @@
 import { SQUARE_SIZE } from "../../geometry";
-import type { StripeStyle } from "../../options";
+import type { RayStyle } from "../../options";
 
 /** One band of a stripe: how far off the centre line, and how thick. */
 export interface Band {
@@ -20,7 +20,7 @@ export interface Band {
  * Shared by every mark drawn as a stripe: the sliding pieces' rays, the king's,
  * and the pawn's.
  */
-export function stripeBands({ rayWidth, gapWidth }: StripeStyle): Band[] {
+export function stripeBands({ rayWidth, gapWidth }: RayStyle): Band[] {
   // Both to pixels before clamping — an inner width above the outer one would
   // otherwise yield negative band widths.
   const outer = Math.max(rayWidth, 0) * SQUARE_SIZE;
