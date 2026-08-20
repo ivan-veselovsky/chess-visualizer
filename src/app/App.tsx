@@ -314,7 +314,7 @@ export default function App() {
               title="Paste a game in PGN"
               onClick={() => setPgnOpen(true)}
             >
-              Import PGN
+              Import game (PGN)
             </button>
             <button
               type="button"
@@ -322,7 +322,7 @@ export default function App() {
               title="Copy this game as PGN"
               onClick={() => setPgnExportOpen(true)}
             >
-              Export PGN
+              Export game (PGN)
             </button>
             {/* Put aside at the right, away from the two that move PGN about. */}
             <div className="stash-actions">
@@ -332,7 +332,7 @@ export default function App() {
                 disabled={stashName === null}
                 title={
                   stashName === null
-                    ? "Stash as \u2026 first, to give the game a name"
+                    ? "Stash game as \u2026 first, to give the game a name"
                     : `Put this game back under \u201c${stashName}\u201d`
                 }
                 onClick={() => {
@@ -341,7 +341,7 @@ export default function App() {
                   }
                 }}
               >
-                Stash it
+                Stash game
               </button>
               <button
                 type="button"
@@ -349,7 +349,7 @@ export default function App() {
                 title="Put this game aside under a name"
                 onClick={() => setStashDialogOpen(true)}
               >
-                Stash as {"\u2026"}
+                Stash game as {"\u2026"}
               </button>
             </div>
           </div>
