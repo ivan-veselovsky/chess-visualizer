@@ -1,10 +1,4 @@
-import { Chess, DEFAULT_POSITION, validateFen } from "chess.js";
-
-/**
- * The position the board opens on, and what Reset returns to: the standard
- * initial setup, taken from chess.js rather than written out again here.
- */
-export const DEFAULT_FEN = DEFAULT_POSITION;
+import { Chess, validateFen } from "chess.js";
 
 export interface ParsedFen {
   position: Chess | null;

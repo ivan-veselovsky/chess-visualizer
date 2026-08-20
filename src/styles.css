@@ -224,11 +224,11 @@ body {
   margin-bottom: 0;
 }
 
-.famous-positions {
+.game-library {
   width: 100%;
 }
 
-.famous-positions > label {
+.game-library > label {
   display: block;
   margin-bottom: 0.3rem;
   font-size: 0.9rem;
@@ -241,7 +241,7 @@ body {
   options are set as well: they are drawn by the platform, not inherited from
   the control.
 */
-.famous-select {
+.game-library-select {
   width: 100%;
   padding: 0.4rem 0.5rem;
   font-size: 0.9rem;
@@ -251,7 +251,7 @@ body {
   border-radius: 6px;
 }
 
-.famous-select option {
+.game-library-select option {
   color: var(--app-fg);
   background: var(--app-bg);
 }

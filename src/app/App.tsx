@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Square } from "chess.js";
+import { DEFAULT_POSITION, type Square } from "chess.js";
 import {
   canGoNext,
   canGoPrevious,
@@ -15,10 +15,10 @@ import {
 } from "../chess/history";
 import { applyMove } from "../chess/moves";
 import { parsePgn, toPgn } from "../chess/pgn";
-import { STARTUP_POSITION } from "../chess/famousPositions";
-import { DEFAULT_FEN, parseFen } from "../chess/position";
+import type { LibraryGame } from "../chess/gameLibrary";
+import { parseFen } from "../chess/position";
 import Board from "../visualization/Board";
-import FamousPositions from "./FamousPositions";
+import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
 import GearIcon from "./GearIcon";
 import StepIcon from "./StepIcon";
@@ -32,11 +32,15 @@ import { DEFAULT_OPTIONS } from "./presets";
 export default function App() {
   const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [fen, setFen] = useState(STARTUP_POSITION.fen);
+  const [fen, setFen] = useState(DEFAULT_POSITION);
   const [history, setHistory] = useState<PositionHistory>(() =>
-    startHistory(STARTUP_POSITION.fen)
+    startHistory(DEFAULT_POSITION)
   );
   const [pgnOpen, setPgnOpen] = useState(false);
+  // Which library game the board is on, so the list can keep naming it, and why
+  // one would not load, if ever one does not.
+  const [libraryGame, setLibraryGame] = useState<string | null>(null);
+  const [libraryGameError, setLibraryGameError] = useState<string | null>(null);
   const [pgnExportOpen, setPgnExportOpen] = useState(false);
 
   /**
@@ -52,7 +56,20 @@ export default function App() {
     const loaded = historyFromLine(entries);
     setHistory(loaded);
     setFen(currentPosition(loaded));
+    setLibraryGame(null);
     return null;
+  }
+
+  /**
+   * A game chosen from the list: read in exactly as a pasted one is, but the
+   * list goes on naming it afterwards.
+   */
+  function loadLibraryGame(game: LibraryGame) {
+    const error = loadPgn(game.pgn);
+    setLibraryGameError(error);
+    if (error === null) {
+      setLibraryGame(game.id);
+    }
   }
 
   /**
@@ -72,6 +89,8 @@ export default function App() {
   function setPosition(next: string) {
     setFen(next);
     setHistory(startHistory(next));
+    setLibraryGame(null);
+    setLibraryGameError(null);
   }
 
   /**
@@ -176,7 +195,7 @@ export default function App() {
             <button
               type="button"
               className="reset-button"
-              onClick={() => setPosition(DEFAULT_FEN)}
+              onClick={() => setPosition(DEFAULT_POSITION)}
             >
               Reset to initial position
             </button>
@@ -242,7 +261,11 @@ export default function App() {
             }}
           />
 
-          <FamousPositions value={fen} onSelect={setPosition} />
+          <GameLibrary
+            value={libraryGame}
+            error={libraryGameError}
+            onSelect={loadLibraryGame}
+          />
 
           {optionsOpen && (
             <OptionsPanel
