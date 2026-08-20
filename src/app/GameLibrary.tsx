@@ -25,7 +25,7 @@ export default function GameLibrary({
       <label htmlFor="library-game">Game library</label>
       <select
         id="library-game"
-        className="game-library-select"
+        className="game-select"
         value={value ?? ""}
         onChange={(event) => {
           const game = GAME_LIBRARY.find(

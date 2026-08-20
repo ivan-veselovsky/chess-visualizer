@@ -55,8 +55,14 @@ export function parsePgn(text: string): PgnImport {
  *
  * The entire line is written, not merely as far as the pointer: stepping back
  * to look at an earlier position does not unplay what followed.
+ *
+ * `event` names the game in the tag chess.js would otherwise fill with "?".
+ * Where a game is being kept under a name, that name is what it is called.
  */
-export function toPgn(history: PositionHistory): string | null {
+export function toPgn(
+  history: PositionHistory,
+  event: string | null = null
+): string | null {
   const line = [...history.entries].reverse();
   let game: Chess;
   try {
@@ -74,6 +80,10 @@ export function toPgn(history: PositionHistory): string | null {
     } catch {
       return null;
     }
+  }
+
+  if (event !== null && event !== "") {
+    game.setHeader("Event", event);
   }
 
   return game.pgn({ maxWidth: 72, newline: "\n" });

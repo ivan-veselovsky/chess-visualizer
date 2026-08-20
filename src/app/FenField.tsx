@@ -13,8 +13,8 @@ interface FenFieldProps {
 }
 
 /**
- * The position, as an editable FEN, beside the list of positions reached so
- * far. The board follows every keystroke that parses; one that does not is
+ * The list of positions reached so far, beside the current one as an editable
+ * FEN. The board follows every keystroke that parses; one that does not is
  * reported here and leaves the board alone.
  */
 export default function FenField({
@@ -29,24 +29,6 @@ export default function FenField({
     <div className="fen-field">
       {/* Two labelled columns, each control starting under its own label. */}
       <div className="fen-field-inputs">
-        <div className="fen-column">
-          <label htmlFor="fen">Position (FEN)</label>
-          <input
-            id="fen"
-            type="text"
-            className={
-              error === null ? "fen-input" : "fen-input fen-input-invalid"
-            }
-            value={value}
-            spellCheck={false}
-            autoComplete="off"
-            autoCapitalize="off"
-            aria-invalid={error !== null}
-            aria-describedby={error === null ? undefined : "fen-error"}
-            onChange={(event) => onChange(event.target.value)}
-          />
-        </div>
-
         <div className="history-column">
           <label htmlFor="game-history">Game history</label>
           {/*
@@ -70,6 +52,24 @@ export default function FenField({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="fen-column">
+          <label htmlFor="fen">Position (FEN)</label>
+          <input
+            id="fen"
+            type="text"
+            className={
+              error === null ? "fen-input" : "fen-input fen-input-invalid"
+            }
+            value={value}
+            spellCheck={false}
+            autoComplete="off"
+            autoCapitalize="off"
+            aria-invalid={error !== null}
+            aria-describedby={error === null ? undefined : "fen-error"}
+            onChange={(event) => onChange(event.target.value)}
+          />
         </div>
       </div>
 

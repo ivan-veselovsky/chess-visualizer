@@ -16,6 +16,11 @@ import {
 import { applyMove } from "../chess/moves";
 import { parsePgn, toPgn } from "../chess/pgn";
 import type { LibraryGame } from "../chess/gameLibrary";
+import {
+  stashGame,
+  stashedGame,
+  type GameStash,
+} from "../chess/stash";
 import { parseFen } from "../chess/position";
 import Board from "../visualization/Board";
 import GameLibrary from "./GameLibrary";
@@ -25,6 +30,8 @@ import StepIcon from "./StepIcon";
 import OptionsPanel from "./OptionsPanel";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
+import StashDialog from "./StashDialog";
+import StashedGames from "./StashedGames";
 import ToggleField from "./ToggleField";
 import type { Options } from "./options";
 import { DEFAULT_OPTIONS } from "./presets";
@@ -42,6 +49,14 @@ export default function App() {
   const [libraryGame, setLibraryGame] = useState<string | null>(null);
   const [libraryGameError, setLibraryGameError] = useState<string | null>(null);
   const [pgnExportOpen, setPgnExportOpen] = useState(false);
+  /*
+    Games put aside for the session, and the name the one on the board goes by.
+    The name is what "Stash it" writes back over; until the game has been given
+    one there is nothing to write to, which is what disables that button.
+  */
+  const [stash, setStash] = useState<GameStash>([]);
+  const [stashName, setStashName] = useState<string | null>(null);
+  const [stashDialogOpen, setStashDialogOpen] = useState(false);
 
   /**
    * Replaces the history with a whole game, positioned at its start so it can
@@ -57,6 +72,7 @@ export default function App() {
     setHistory(loaded);
     setFen(currentPosition(loaded));
     setLibraryGame(null);
+    setStashName(null);
     return null;
   }
 
@@ -70,6 +86,28 @@ export default function App() {
     if (error === null) {
       setLibraryGame(game.id);
     }
+  }
+
+  /** Puts the game aside under the name it already goes by. */
+  function stashHere(name: string) {
+    setStash(stashGame(stash, name, history));
+    setStashName(name);
+  }
+
+  /**
+   * A game taken back out of the stash, restored as it was left — the same
+   * line, at the same position in it — and still going by the same name.
+   */
+  function loadStashedGame(name: string) {
+    const game = stashedGame(stash, name);
+    if (game === undefined) {
+      return;
+    }
+    setHistory(game.history);
+    setFen(currentPosition(game.history));
+    setStashName(name);
+    setLibraryGame(null);
+    setLibraryGameError(null);
   }
 
   /**
@@ -91,6 +129,7 @@ export default function App() {
     setHistory(startHistory(next));
     setLibraryGame(null);
     setLibraryGameError(null);
+    setStashName(null);
   }
 
   /**
@@ -219,6 +258,21 @@ export default function App() {
             >
               <StepIcon direction="next" />
             </button>
+            <ToggleField
+              id="flip-board"
+              label="Black at bottom"
+              checked={options.orientation === "black"}
+              onChange={(flipped) =>
+                setOptions({
+                  ...options,
+                  orientation: flipped ? "black" : "white",
+                })
+              }
+            />
+          </div>
+
+          {/* Second row: what a whole game can be done with. */}
+          <div className="board-controls">
             <button
               type="button"
               className="reset-button"
@@ -235,17 +289,34 @@ export default function App() {
             >
               Export PGN
             </button>
-            <ToggleField
-              id="flip-board"
-              label="Black at bottom"
-              checked={options.orientation === "black"}
-              onChange={(flipped) =>
-                setOptions({
-                  ...options,
-                  orientation: flipped ? "black" : "white",
-                })
-              }
-            />
+            {/* Put aside at the right, away from the two that move PGN about. */}
+            <div className="stash-actions">
+              <button
+                type="button"
+                className="reset-button"
+                disabled={stashName === null}
+                title={
+                  stashName === null
+                    ? "Stash as \u2026 first, to give the game a name"
+                    : `Put this game back under \u201c${stashName}\u201d`
+                }
+                onClick={() => {
+                  if (stashName !== null) {
+                    stashHere(stashName);
+                  }
+                }}
+              >
+                Stash it
+              </button>
+              <button
+                type="button"
+                className="reset-button"
+                title="Put this game aside under a name"
+                onClick={() => setStashDialogOpen(true)}
+              >
+                Stash as {"\u2026"}
+              </button>
+            </div>
           </div>
 
           <FenField
@@ -261,11 +332,18 @@ export default function App() {
             }}
           />
 
-          <GameLibrary
-            value={libraryGame}
-            error={libraryGameError}
-            onSelect={loadLibraryGame}
-          />
+          <div className="library-row">
+            <GameLibrary
+              value={libraryGame}
+              error={libraryGameError}
+              onSelect={loadLibraryGame}
+            />
+            <StashedGames
+              stash={stash}
+              value={stashName}
+              onSelect={loadStashedGame}
+            />
+          </div>
 
           {optionsOpen && (
             <OptionsPanel
@@ -283,10 +361,18 @@ export default function App() {
         onClose={() => setPgnOpen(false)}
       />
 
+      <StashDialog
+        open={stashDialogOpen}
+        taken={stash.map((game) => game.name)}
+        initialName={stashName}
+        onSubmit={stashHere}
+        onClose={() => setStashDialogOpen(false)}
+      />
+
       <PgnExportDialog
         open={pgnExportOpen}
         // Only written when it is about to be shown.
-        pgn={pgnExportOpen ? toPgn(history) : null}
+        pgn={pgnExportOpen ? toPgn(history, stashName) : null}
         onClose={() => setPgnExportOpen(false)}
       />
     </main>
