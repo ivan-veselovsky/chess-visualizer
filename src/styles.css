@@ -528,6 +528,7 @@ body {
   text-anchor: middle;
   dominant-baseline: central;
   user-select: none;
+  -webkit-user-drag: none;
 }
 
 .piece {
@@ -535,7 +536,14 @@ body {
   font-size: 48px;
   text-anchor: middle;
   dominant-baseline: central;
+  /*
+    Selecting and dragging are separate permissions in Chrome, and a glyph left
+    draggable is picked up as an image the moment a press turns into a drag.
+    `pointer-events: none` does not cover it: that hides the glyph from our own
+    hit-testing, not from the browser's choice of what to drag.
+  */
   user-select: none;
+  -webkit-user-drag: none;
   pointer-events: none;
 }
 

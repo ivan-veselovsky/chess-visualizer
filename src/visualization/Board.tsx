@@ -130,6 +130,13 @@ export default function Board({
       // Nothing this piece can do: leave it be rather than lift a stuck piece.
       return;
     }
+    /*
+      The press is ours now. Left to itself the browser would also start its
+      own gesture on it — a selection, and from there a native drag of the two
+      text layers, glyphs and coordinates both. That drag cancels the pointer
+      capture and fires pointercancel, which drops the move on the floor.
+    */
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setDrag({ from, targets, at });
   }
@@ -173,6 +180,8 @@ export default function Board({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => setDrag(null)}
+      // Nothing here is a thing to drag away; the move is the only gesture.
+      onDragStart={(event) => event.preventDefault()}
     >
       <g transform={`translate(${BOARD_ORIGIN.x}, ${BOARD_ORIGIN.y})`}>
         <SquareLayer orientation={orientation} />
