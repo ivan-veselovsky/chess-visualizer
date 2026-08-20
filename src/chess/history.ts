@@ -78,6 +78,21 @@ export function goNext(history: PositionHistory): PositionHistory {
   return canGoNext(history) ? { ...history, current: history.current - 1 } : history;
 }
 
+/**
+ * Straight to where the game began, and to where it has got to.
+ *
+ * Available on the same terms as stepping: there is a first position to reach
+ * only when there is one behind, and a last one only when there is one ahead.
+ * The list runs newest first, so the two ends are the last index and index 0.
+ */
+export function goFirst(history: PositionHistory): PositionHistory {
+  return goToPosition(history, history.entries.length - 1);
+}
+
+export function goLast(history: PositionHistory): PositionHistory {
+  return goToPosition(history, 0);
+}
+
 /** Where a position sits in the list, or -1 if it is not one of them. */
 export function indexOfPosition(history: PositionHistory, fen: string): number {
   const wanted = fen.trim();

@@ -1,7 +1,9 @@
 {
   "name": "chess-visualizer",
-  "private": true,
   "version": "0.0.1",
+  "author": "Ivan Veselovskii <ivan@veselovsky.net>",
+  "license": "MIT",
+  "private": false,
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -40,7 +40,7 @@
       "opponent": "#000000"
     },
     "rayOpacity": {
-      "me": 0.5,
+      "me": 0.45,
       "opponent": 0.45
     },
     "xRayDecayFactor": 0,
@@ -54,24 +54,24 @@
           "gapWidth": 0
         },
         "queenRay": {
-          "rayWidth": 0.3,
+          "rayWidth": 0.2,
           "gapWidth": 0
         },
         "rookRay": {
-          "rayWidth": 0.25,
+          "rayWidth": 0.2,
           "gapWidth": 0
         },
         "bishopRay": {
-          "rayWidth": 0.3,
+          "rayWidth": 0.2,
           "gapWidth": 0
         },
         "knightRing": {
           "innerRadius": 2.1213203435596424,
-          "outerRadius": 2.5495097567963922,
+          "outerRadius": 2.3,
           "gapWidth": 0
         },
         "pawnRay": {
-          "rayWidth": 0.3,
+          "rayWidth": 0.2,
           "gapWidth": 0
         }
       },
@@ -81,24 +81,24 @@
           "gapWidth": 0
         },
         "queenRay": {
-          "rayWidth": 0.3,
+          "rayWidth": 0.2,
           "gapWidth": 0
         },
         "rookRay": {
-          "rayWidth": 0.3,
+          "rayWidth": 0.2,
           "gapWidth": 0
         },
         "bishopRay": {
-          "rayWidth": 0.3,
+          "rayWidth": 0.2,
           "gapWidth": 0
         },
         "knightRing": {
           "innerRadius": 2.1213203435596424,
-          "outerRadius": 2.5,
+          "outerRadius": 2.3,
           "gapWidth": 0
         },
         "pawnRay": {
-          "rayWidth": 0.3,
+          "rayWidth": 0.2,
           "gapWidth": 0
         }
       }

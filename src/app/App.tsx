@@ -4,6 +4,8 @@ import {
   canGoNext,
   canGoPrevious,
   currentPosition,
+  goFirst,
+  goLast,
   goNext,
   goToPosition,
   historyFromLine,
@@ -152,12 +154,13 @@ export default function App() {
   }
 
   /**
-   * Walks the list without changing it — what Previous and Next will call.
-   * Whether either is available is `canGoPrevious` / `canGoNext`.
+   * Walks the list without changing it — what the four step buttons call.
+   * Whether each is available is `canGoPrevious` / `canGoNext`: reaching an end
+   * of the list needs something in that direction, exactly as a step does.
    */
-  function stepHistory(direction: "previous" | "next") {
-    const moved =
-      direction === "previous" ? goPrevious(history) : goNext(history);
+  function stepHistory(direction: "first" | "previous" | "next" | "last") {
+    const walk = { first: goFirst, previous: goPrevious, next: goNext, last: goLast };
+    const moved = walk[direction](history);
     setHistory(moved);
     setFen(currentPosition(moved));
   }
@@ -241,6 +244,16 @@ export default function App() {
             <button
               type="button"
               className="reset-button step-button"
+              title="First position"
+              aria-label="First position"
+              disabled={!canGoPrevious(history)}
+              onClick={() => stepHistory("first")}
+            >
+              <StepIcon direction="first" />
+            </button>
+            <button
+              type="button"
+              className="reset-button step-button"
               title="Previous position"
               aria-label="Previous position"
               disabled={!canGoPrevious(history)}
@@ -257,6 +270,16 @@ export default function App() {
               onClick={() => stepHistory("next")}
             >
               <StepIcon direction="next" />
+            </button>
+            <button
+              type="button"
+              className="reset-button step-button"
+              title="Last position"
+              aria-label="Last position"
+              disabled={!canGoNext(history)}
+              onClick={() => stepHistory("last")}
+            >
+              <StepIcon direction="last" />
             </button>
             <ToggleField
               id="flip-board"
