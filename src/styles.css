@@ -86,9 +86,31 @@ body {
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+/*
+  The gap falls before the link, so it and the gear travel together at the
+  right edge and the title keeps the left — the same arrangement the control
+  rows use. An auto margin does this on its own; `justify-content` would have
+  no say once one is set.
+*/
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* Auto on the left to carry it right; a set gap on the other side to keep it
+     clear of the gear rather than up against it. */
+  margin-left: auto;
+  margin-right: 2em;
+  font-size: 0.9rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.source-link:hover {
+  text-decoration: underline;
 }
 
 .app-header h1 {
@@ -100,6 +122,9 @@ body {
   */
   margin: 0 0 0 2rem;
   font-size: 1.5rem;
+  /* Stated outright rather than mixed from the text colour: it is the page's
+     one piece of livery, and reads the same under either theme. */
+  color: #49d0fd;
 }
 
 .gear-button {

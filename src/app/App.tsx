@@ -28,6 +28,7 @@ import Board from "../visualization/Board";
 import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
 import GearIcon from "./GearIcon";
+import GitHubIcon from "./GitHubIcon";
 import StepIcon from "./StepIcon";
 import OptionsPanel from "./OptionsPanel";
 import PgnDialog from "./PgnDialog";
@@ -203,6 +204,17 @@ export default function App() {
     <main className="app">
       <header className="app-header">
         <h1>Chess Visualizer</h1>
+        {/* A new tab: the stash and the game on the board are held in memory
+            alone, and navigating away would take them with it. */}
+        <a
+          className="source-link"
+          href="https://github.com/ivan-veselovsky/chess-visualizer/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <GitHubIcon />
+          Source on GitHub
+        </a>
         <button
           type="button"
           className="gear-button"
