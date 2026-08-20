@@ -1,7 +1,12 @@
 import { useId, type ComponentType } from "react";
 import type { Chess, PieceSymbol, Square } from "chess.js";
 import type { PlacedPiece } from "../../chess/model";
-import { MILLI_SQUARE, type Orientation } from "../geometry";
+import {
+  MILLI_SQUARE,
+  settingsSide,
+  type Orientation,
+  type SettingsSide,
+} from "../geometry";
 import type { AttackOptions } from "../options";
 import BishopAttacks from "./attacks/BishopAttacks";
 import KingAttacks from "./attacks/KingAttacks";
@@ -49,21 +54,17 @@ export default function AttackLayer({
 }: AttackLayerProps) {
   // useId() yields ids like ":r0:"; the colons are awkward inside url(#...).
   const idPrefix = `attack-${useId().replace(/:/g, "")}`;
-  const opacityFor = (color: "w" | "b") =>
-    Math.min(
-      Math.max(attackOptions.rayOpacity[color === "w" ? "white" : "black"], 0),
-      1
-    );
+  const opacityFor = (side: SettingsSide) =>
+    Math.min(Math.max(attackOptions.rayOpacity[side], 0), 1);
 
   // One filter per side, each emitted only if that side's outline is wanted.
-  const sides = (["white", "black"] as const).map((side) => ({
+  const sides = (["me", "opponent"] as const).map((side) => ({
     side,
-    color: side === "white" ? ("w" as const) : ("b" as const),
     id: `${idPrefix}-outline-${side}`,
     width: Math.max(attackOptions.outlineWidths[side], 0) * MILLI_SQUARE,
   }));
-  const outlineFor = (color: "w" | "b") =>
-    sides.find((entry) => entry.color === color && entry.width > 0);
+  const outlineFor = (side: SettingsSide) =>
+    sides.find((entry) => entry.side === side && entry.width > 0);
 
   return (
     <g className="attack-layer">
@@ -120,14 +121,15 @@ export default function AttackLayer({
         if (Renderer === undefined || piece.square === lifted) {
           return null;
         }
-        const outline = outlineFor(piece.color);
+        // Which settings this piece draws with: its end of the board, not its
+        // colour, so flipping hands the near-side look to the other army.
+        const side = settingsSide(piece.color, orientation);
+        const outline = outlineFor(side);
         return (
           <g
             key={piece.square}
-            className={
-              piece.color === "w" ? "attack-side-white" : "attack-side-black"
-            }
-            opacity={opacityFor(piece.color)}
+            className={`attack-side-${side}`}
+            opacity={opacityFor(side)}
           >
             <g filter={outline ? `url(#${outline.id})` : undefined}>
               <Renderer
@@ -136,11 +138,7 @@ export default function AttackLayer({
                 idPrefix={`${idPrefix}-${piece.square}`}
                 orientation={orientation}
                 attackOptions={attackOptions}
-                geometry={
-                  attackOptions.geometry[
-                    piece.color === "w" ? "white" : "black"
-                  ]
-                }
+                geometry={attackOptions.geometry[side]}
               />
             </g>
           </g>

@@ -16,13 +16,13 @@ export interface BoardColors {
 }
 
 /**
- * How far each side's pieces are pulled from the colour their attacks are drawn
+ * How far each army's pieces are pulled from the colour their attacks are drawn
  * in, as a fraction from 0 to 1: 0 leaves a piece exactly its attack colour, 1
  * bleaches it to pure white or pure black.
  *
- * Both sides share one hue per piece kind — that is what ties a piece to its
- * marks — so the only thing left to tell the sides apart is how light or dark
- * that hue is rendered.
+ * Keyed on colour, not position — unlike everything else here. White's pieces
+ * are the light ones wherever they stand, which is what makes flipping the
+ * board visibly move an army rather than merely relabel the ends.
  */
 export interface PieceTint {
   /** Toward white, for White's pieces. */
@@ -80,19 +80,19 @@ export interface StripeStyle {
  * that ties a mark to its piece.
  */
 export interface RayOpacity {
-  white: number;
-  black: number;
+  me: number;
+  opponent: number;
 }
 
 /** The colour each side's outline is traced in, when it has any width. */
 export interface OutlineColors {
-  white: string;
-  black: string;
+  me: string;
+  opponent: string;
 }
 
 export interface OutlineWidths {
-  white: number;
-  black: number;
+  me: number;
+  opponent: number;
 }
 
 /**
@@ -111,8 +111,8 @@ export interface AttackColors {
 
 /** A palette per side, so the two can be told apart by hue as well as by size. */
 export interface SideAttackColors {
-  white: AttackColors;
-  black: AttackColors;
+  me: AttackColors;
+  opponent: AttackColors;
 }
 
 /**
@@ -131,8 +131,8 @@ export interface AttackGeometry {
 }
 
 export interface SideGeometry {
-  white: AttackGeometry;
-  black: AttackGeometry;
+  me: AttackGeometry;
+  opponent: AttackGeometry;
 }
 
 export interface AttackOptions {

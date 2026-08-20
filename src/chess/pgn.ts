@@ -1,5 +1,5 @@
 import { Chess } from "chess.js";
-import type { HistoryEntry } from "./history";
+import type { HistoryEntry, PositionHistory } from "./history";
 
 export interface PgnImport {
   /** The whole line, newest first, ready to become a history. Null on failure. */
@@ -43,4 +43,38 @@ export function parsePgn(text: string): PgnImport {
   }
 
   return { entries: line.reverse(), error: null };
+}
+
+/**
+ * Writes the whole line out as a game.
+ *
+ * The moves are replayed from the line's first position rather than assembled
+ * by hand, so chess.js supplies the tag roster and — where the line began
+ * somewhere other than the initial position — the SetUp and FEN headers that
+ * make the result readable back in.
+ *
+ * The entire line is written, not merely as far as the pointer: stepping back
+ * to look at an earlier position does not unplay what followed.
+ */
+export function toPgn(history: PositionHistory): string | null {
+  const line = [...history.entries].reverse();
+  let game: Chess;
+  try {
+    game = new Chess(line[0].fen);
+  } catch {
+    return null;
+  }
+
+  for (const entry of line.slice(1)) {
+    if (entry.move === null) {
+      continue;
+    }
+    try {
+      game.move(entry.move);
+    } catch {
+      return null;
+    }
+  }
+
+  return game.pgn({ maxWidth: 72, newline: "\n" });
 }

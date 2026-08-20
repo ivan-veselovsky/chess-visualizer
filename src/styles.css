@@ -292,10 +292,14 @@ body {
   border-radius: 6px;
 }
 
-/* Sits beside the FEN, sized to its longest label rather than to the input. */
+/*
+  Sits beside the FEN at a floor of 10em. A maximum would do nothing here: the
+  moves it lists are short, so the control never reaches one and would stay as
+  narrow as its widest option.
+*/
 .history-select {
   flex: 0 0 auto;
-  max-width: 12rem;
+  min-width: 10em;
   padding: 0.4rem 0.5rem;
   /* Fixed pitch, so the indent under a move number lines the columns up. */
   font-family: ui-monospace, monospace;
@@ -336,6 +340,25 @@ body {
   background: rgb(0 0 0 / 45%);
 }
 
+/* The heading and the close control share the dialog's first line. */
+.pgn-dialog-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dialog-close {
+  padding: 0 0.35rem;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.pgn-dialog label,
 .pgn-dialog > label {
   display: block;
   margin-bottom: 0.3rem;
@@ -389,12 +412,12 @@ body {
   stroke-width: 1;
 }
 
-.attack-outline-ink-white {
-  flood-color: var(--attack-outline-white);
+.attack-outline-ink-me {
+  flood-color: var(--attack-outline-me);
 }
 
-.attack-outline-ink-black {
-  flood-color: var(--attack-outline-black);
+.attack-outline-ink-opponent {
+  flood-color: var(--attack-outline-opponent);
 }
 
 .attack-stripe {
@@ -455,29 +478,29 @@ body {
 }
 
 /*
-  Each side's palette, bound to the plain names everything else already uses:
-  a mark's group and a piece's glyph both carry their side's class, so
-  `var(--attack-king)` resolves to that side's king colour without a single
-  rule below needing to know sides exist.
+  Each end's palette, bound to the plain names everything else already uses: a
+  mark's group and a piece's glyph both carry their end's class, so
+  `var(--attack-king)` resolves to that end's king colour without a single rule
+  below needing to know the board has two ends.
 */
-.attack-side-white,
-.piece-white {
-  --attack-king: var(--attack-king-white);
-  --attack-queen: var(--attack-queen-white);
-  --attack-rook: var(--attack-rook-white);
-  --attack-bishop: var(--attack-bishop-white);
-  --attack-knight: var(--attack-knight-white);
-  --attack-pawn: var(--attack-pawn-white);
+.attack-side-me,
+.piece-me {
+  --attack-king: var(--attack-king-me);
+  --attack-queen: var(--attack-queen-me);
+  --attack-rook: var(--attack-rook-me);
+  --attack-bishop: var(--attack-bishop-me);
+  --attack-knight: var(--attack-knight-me);
+  --attack-pawn: var(--attack-pawn-me);
 }
 
-.attack-side-black,
-.piece-black {
-  --attack-king: var(--attack-king-black);
-  --attack-queen: var(--attack-queen-black);
-  --attack-rook: var(--attack-rook-black);
-  --attack-bishop: var(--attack-bishop-black);
-  --attack-knight: var(--attack-knight-black);
-  --attack-pawn: var(--attack-pawn-black);
+.attack-side-opponent,
+.piece-opponent {
+  --attack-king: var(--attack-king-opponent);
+  --attack-queen: var(--attack-queen-opponent);
+  --attack-rook: var(--attack-rook-opponent);
+  --attack-bishop: var(--attack-bishop-opponent);
+  --attack-knight: var(--attack-knight-opponent);
+  --attack-pawn: var(--attack-pawn-opponent);
 }
 
 /* Each piece is tinted with the colour its own attacks are drawn in. */
@@ -505,14 +528,18 @@ body {
   --piece-color: var(--attack-pawn);
 }
 
+/*
+  Tinting is the one thing keyed on the army rather than the end of the board:
+  White's pieces are the light ones wherever they stand, so flipping visibly
+  moves an army instead of only relabelling which end is which. A glyph carries
+  both classes — its army for this, its end for the palette above.
+*/
 .piece-white,
 .piece-black {
   stroke: var(--piece-outline);
   stroke-width: 1.2;
 }
 
-/* Both sides keep the hue their attacks are drawn in; only its lightness says
-   which side a piece is on. */
 .piece-white {
   fill: color-mix(in srgb, var(--piece-color), white var(--piece-lighten));
 }

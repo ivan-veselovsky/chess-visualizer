@@ -14,7 +14,7 @@ import {
   type PositionHistory,
 } from "../chess/history";
 import { applyMove } from "../chess/moves";
-import { parsePgn } from "../chess/pgn";
+import { parsePgn, toPgn } from "../chess/pgn";
 import { STARTUP_POSITION } from "../chess/famousPositions";
 import { DEFAULT_FEN, parseFen } from "../chess/position";
 import Board from "../visualization/Board";
@@ -24,6 +24,7 @@ import GearIcon from "./GearIcon";
 import StepIcon from "./StepIcon";
 import OptionsPanel from "./OptionsPanel";
 import PgnDialog from "./PgnDialog";
+import PgnExportDialog from "./PgnExportDialog";
 import ToggleField from "./ToggleField";
 import type { Options } from "./options";
 import { DEFAULT_OPTIONS } from "./presets";
@@ -36,6 +37,7 @@ export default function App() {
     startHistory(STARTUP_POSITION.fen)
   );
   const [pgnOpen, setPgnOpen] = useState(false);
+  const [pgnExportOpen, setPgnExportOpen] = useState(false);
 
   /**
    * Replaces the history with a whole game, positioned at its start so it can
@@ -200,6 +202,14 @@ export default function App() {
             >
               Import PGN
             </button>
+            <button
+              type="button"
+              className="reset-button"
+              title="Copy this game as PGN"
+              onClick={() => setPgnExportOpen(true)}
+            >
+              Export PGN
+            </button>
             <ToggleField
               id="flip-board"
               label="Black at bottom"
@@ -242,6 +252,13 @@ export default function App() {
         open={pgnOpen}
         onSubmit={loadPgn}
         onClose={() => setPgnOpen(false)}
+      />
+
+      <PgnExportDialog
+        open={pgnExportOpen}
+        // Only written when it is about to be shown.
+        pgn={pgnExportOpen ? toPgn(history) : null}
+        onClose={() => setPgnExportOpen(false)}
       />
     </main>
   );

@@ -7,6 +7,24 @@ export { FILES, RANKS };
 /** Which side is at the bottom of the board. */
 export type Orientation = "white" | "black";
 
+/**
+ * Which set of settings a piece is drawn with.
+ *
+ * Not the piece's colour but its end of the board: the near side is always
+ * "me" and the far side always "opponent", so flipping the board hands the
+ * near-side settings to the other army rather than turning the board's whole
+ * appearance upside down with it.
+ */
+export type SettingsSide = "me" | "opponent";
+
+export function settingsSide(
+  color: "w" | "b",
+  orientation: Orientation = "white"
+): SettingsSide {
+  const nearest = orientation === "black" ? "b" : "w";
+  return color === nearest ? "me" : "opponent";
+}
+
 /** All sizes are in SVG user units; the board is scaled via the viewBox. */
 export const SQUARE_SIZE = 64;
 export const BOARD_SIZE = FILES.length * SQUARE_SIZE;

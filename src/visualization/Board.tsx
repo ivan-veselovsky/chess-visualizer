@@ -6,6 +6,7 @@ import {
   BOARD_ORIGIN,
   CANVAS_SIZE,
   SQUARE_SIZE,
+  settingsSide,
   squareAtPoint,
   squareBox,
   squareCenter,
@@ -74,20 +75,20 @@ export default function Board({
     // One per piece per side. Which of each pair applies is decided further
     // down, by a class on the mark's group and on the piece glyph, so the rules
     // that use them go on saying `var(--attack-king)`.
-    "--attack-outline-white": attacks.outlineColors.white,
-    "--attack-outline-black": attacks.outlineColors.black,
-    "--attack-king-white": attacks.colors.white.king,
-    "--attack-queen-white": attacks.colors.white.queen,
-    "--attack-rook-white": attacks.colors.white.rook,
-    "--attack-bishop-white": attacks.colors.white.bishop,
-    "--attack-knight-white": attacks.colors.white.knight,
-    "--attack-pawn-white": attacks.colors.white.pawn,
-    "--attack-king-black": attacks.colors.black.king,
-    "--attack-queen-black": attacks.colors.black.queen,
-    "--attack-rook-black": attacks.colors.black.rook,
-    "--attack-bishop-black": attacks.colors.black.bishop,
-    "--attack-knight-black": attacks.colors.black.knight,
-    "--attack-pawn-black": attacks.colors.black.pawn,
+    "--attack-outline-me": attacks.outlineColors.me,
+    "--attack-outline-opponent": attacks.outlineColors.opponent,
+    "--attack-king-me": attacks.colors.me.king,
+    "--attack-queen-me": attacks.colors.me.queen,
+    "--attack-rook-me": attacks.colors.me.rook,
+    "--attack-bishop-me": attacks.colors.me.bishop,
+    "--attack-knight-me": attacks.colors.me.knight,
+    "--attack-pawn-me": attacks.colors.me.pawn,
+    "--attack-king-opponent": attacks.colors.opponent.king,
+    "--attack-queen-opponent": attacks.colors.opponent.queen,
+    "--attack-rook-opponent": attacks.colors.opponent.rook,
+    "--attack-bishop-opponent": attacks.colors.opponent.bishop,
+    "--attack-knight-opponent": attacks.colors.opponent.knight,
+    "--attack-pawn-opponent": attacks.colors.opponent.pawn,
     // As percentages, which is what color-mix wants. Rounded, since a
     // fraction times 100 lands on things like 55.00000000000001.
     "--piece-lighten": percent(pieceTint.lightenWhite),
@@ -216,6 +217,7 @@ export default function Board({
                   "piece",
                   `piece-${dragged.type}`,
                   dragged.color === "w" ? "piece-white" : "piece-black",
+                  `piece-${settingsSide(dragged.color, orientation)}`,
                 ].join(" ")}
               >
                 {PIECE_GLYPHS[dragged.type]}

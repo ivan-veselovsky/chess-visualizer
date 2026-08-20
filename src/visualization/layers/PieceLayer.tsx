@@ -1,6 +1,6 @@
 import type { Square } from "chess.js";
 import { PIECE_GLYPHS, type PlacedPiece } from "../../chess/model";
-import { squareCenter, type Orientation } from "../geometry";
+import { settingsSide, squareCenter, type Orientation } from "../geometry";
 
 interface PieceLayerProps {
   pieces: PlacedPiece[];
@@ -35,7 +35,11 @@ export default function PieceLayer({
             className={[
               "piece",
               `piece-${piece.type}`,
+              // Two independent things: the army decides how the glyph is
+              // tinted, the end of the board decides whose palette it draws
+              // from.
               piece.color === "w" ? "piece-white" : "piece-black",
+              `piece-${settingsSide(piece.color, orientation)}`,
             ].join(" ")}
           >
             {PIECE_GLYPHS[piece.type]}

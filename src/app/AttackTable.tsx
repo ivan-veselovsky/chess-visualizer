@@ -6,9 +6,9 @@ import {
   type StripeStyle,
 } from "./options";
 
-type Side = "white" | "black";
+type Side = "me" | "opponent";
 
-const SIDES: Side[] = ["white", "black"];
+const SIDES: Side[] = ["me", "opponent"];
 
 /* Shown on hover, so the table stays as short as its rows. */
 const GAP_HINT =
@@ -49,8 +49,8 @@ interface Row {
 }
 
 /**
- * Every attack dimension in one table: a row per piece, and the two sides side
- * by side so a change to one can be judged against the other.
+ * Every attack dimension in one table: a row per piece, and the two ends of the
+ * board side by side so a change to one can be judged against the other.
  *
  * The columns are a stripe's total width and the width of the gap down its
  * middle, which is what every mark here is made of — a ray's stripe, the king's,
@@ -60,8 +60,9 @@ interface Row {
  * as sized. Its radii get a continuation row of their own rather than being
  * forced into columns that would then describe neither them nor anything else.
  *
- * Colours span both sides: they identify the piece, not the side. Only the
- * sizes and the outlines distinguish White's marks from Black's.
+ * "Me" is whichever army is at the near end and "Opponent" the far one, so
+ * flipping the board hands these settings to the other colour rather than
+ * turning the whole display around.
  */
 export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   function updateGeometry(side: Side, patch: Partial<AttackGeometry>) {
@@ -94,14 +95,14 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   function swatch(side: Side, row: Row) {
     const cell = row.cells[side].swatch;
     if (cell === undefined) {
-      return <td key={side} className={side === "black" ? "stripe-group-start" : undefined} />;
+      return <td key={side} className={side === "opponent" ? "stripe-group-start" : undefined} />;
     }
     const value = cell.value;
     return (
       <td
         key={side}
         className={
-          side === "black"
+          side === "opponent"
             ? "stripe-table-swatch stripe-group-start"
             : "stripe-table-swatch"
         }
@@ -145,7 +146,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     return {
       key,
       piece,
-      cells: { white: cellsFor("white"), black: cellsFor("black") },
+      cells: { me: cellsFor("me"), opponent: cellsFor("opponent") },
     };
   }
 
@@ -167,7 +168,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     return {
       key: "knight",
       piece: "Knight",
-      cells: { white: cellsFor("white"), black: cellsFor("black") },
+      cells: { me: cellsFor("me"), opponent: cellsFor("opponent") },
     };
   }
 
@@ -195,7 +196,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
       key: "knight-radii",
       piece: "…radii",
       hint: RADII_HINT,
-      cells: { white: cellsFor("white"), black: cellsFor("black") },
+      cells: { me: cellsFor("me"), opponent: cellsFor("opponent") },
     };
   }
 
@@ -214,7 +215,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
       key: "outline",
       piece: "Outline",
       hint: OUTLINE_HINT,
-      cells: { white: cellsFor("white"), black: cellsFor("black") },
+      cells: { me: cellsFor("me"), opponent: cellsFor("opponent") },
     };
   }
 
@@ -276,10 +277,10 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
               Piece
             </th>
             <th scope="colgroup" colSpan={3}>
-              White
+              Me
             </th>
             <th scope="colgroup" colSpan={3} className="stripe-group-start">
-              Black
+              Opponent
             </th>
           </tr>
           <tr>

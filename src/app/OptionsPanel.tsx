@@ -134,26 +134,26 @@ export default function OptionsPanel({
       <section className="options-group">
         <div className="field-row">
           <NumberField
-            id="white-outline-width"
+            id="my-outline-width"
             inline
-            hint="Traced around each side's marks, which otherwise share a colour."
-            label="White ray outline width"
+            hint="Traced around one end's marks, to tell them from the other end's."
+            label="My ray outline width"
             suffix="milli-squares"
-            value={options.attacks.outlineWidths.white}
+            value={options.attacks.outlineWidths.me}
             step={1}
             allowZero
-            onChange={(white) => updateOutlines({ white })}
+            onChange={(me) => updateOutlines({ me })}
           />
           <NumberField
-            id="black-outline-width"
+            id="opponent-outline-width"
             inline
-            hint="Traced around each side's marks, which otherwise share a colour."
-            label="Black ray outline width"
+            hint="Traced around one end's marks, to tell them from the other end's."
+            label="Opponent ray outline width"
             suffix="milli-squares"
-            value={options.attacks.outlineWidths.black}
+            value={options.attacks.outlineWidths.opponent}
             step={1}
             allowZero
-            onChange={(black) => updateOutlines({ black })}
+            onChange={(opponent) => updateOutlines({ opponent })}
           />
         </div>
       </section>
@@ -161,24 +161,24 @@ export default function OptionsPanel({
       <section className="options-group">
         <div className="field-row">
           <NumberField
-            id="white-ray-opacity"
+            id="my-ray-opacity"
             inline
-            label="White attack ray opacity"
-            value={options.attacks.rayOpacity.white}
+            label="My attack ray opacity"
+            value={options.attacks.rayOpacity.me}
             step={0.05}
             max={1}
             allowZero
-            onChange={(white) => updateRayOpacity({ white })}
+            onChange={(me) => updateRayOpacity({ me })}
           />
           <NumberField
-            id="black-ray-opacity"
+            id="opponent-ray-opacity"
             inline
-            label="Black attack ray opacity"
-            value={options.attacks.rayOpacity.black}
+            label="Opponent attack ray opacity"
+            value={options.attacks.rayOpacity.opponent}
             step={0.05}
             max={1}
             allowZero
-            onChange={(black) => updateRayOpacity({ black })}
+            onChange={(opponent) => updateRayOpacity({ opponent })}
           />
         </div>
         <NumberField
