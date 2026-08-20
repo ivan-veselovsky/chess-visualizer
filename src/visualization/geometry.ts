@@ -149,10 +149,12 @@ export function perpendicular(
  * A diagonal is cut by the two sides of the inner square meeting at the corner
  * it reaches, which are at right angles, so 90 is not a choice but a
  * description. An orthogonal ray reaches the middle of a side and has no corner
- * to inherit, so it is given a blunter point of its own.
+ * to inherit; it is given the same angle so that an end looks like an end
+ * whichever way the ray runs. Kept as two constants because only one of them
+ * is a description — the other could be changed.
  */
 const DIAGONAL_TIP_ANGLE = 90;
-const ORTHOGONAL_TIP_ANGLE = 120;
+const ORTHOGONAL_TIP_ANGLE = 90;
 
 /**
  * The region a ray may occupy up to where it stops on `square`: a wedge with
@@ -163,8 +165,8 @@ const ORTHOGONAL_TIP_ANGLE = 120;
  * ray stops at the same depth however it is angled. Only the sharpness differs.
  *
  * At 90 degrees the wedge is precisely the quadrant cut by the two sides of the
- * inner square, which is where the shape came from; the orthogonal case simply
- * opens that angle out, having no corner of its own to follow.
+ * inner square, which is where the shape came from; the orthogonal case takes
+ * the same angle across a side it meets square on.
  */
 export function rayStopWedgePath(
   square: Square,

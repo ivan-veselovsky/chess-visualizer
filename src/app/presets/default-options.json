@@ -47,7 +47,7 @@
     "fullWidthDiagonalRays": true,
     "geometry": {
       "me": {
-        "smallInnerSquare": 0.45,
+        "smallInnerSquare": 0.55,
         "largeInnerSquare": 0.7,
         "kingRay": {
           "rayWidth": 0.2,
@@ -76,7 +76,7 @@
         }
       },
       "opponent": {
-        "smallInnerSquare": 0.45,
+        "smallInnerSquare": 0.55,
         "largeInnerSquare": 0.7,
         "kingRay": {
           "rayWidth": 0.2,
