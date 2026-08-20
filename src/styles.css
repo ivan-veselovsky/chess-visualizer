@@ -92,7 +92,13 @@ body {
 }
 
 .app-header h1 {
-  margin: 0;
+  /*
+    Indented to start where the board does. The board sits inside a margin
+    holding its rank labels — 24 of the canvas's 536 units, so about 4.5% of
+    however wide it is drawn — and 2rem is that inset at the sizes the board is
+    usually seen at. An exact match would have to follow the board's width.
+  */
+  margin: 0 0 0 2rem;
   font-size: 1.5rem;
 }
 
