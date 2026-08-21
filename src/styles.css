@@ -90,27 +90,36 @@ body {
   margin-bottom: 1rem;
 }
 
-/*
-  The gap falls before the link, so it and the gear travel together at the
-  right edge and the title keeps the left — the same arrangement the control
-  rows use. An auto margin does this on its own; `justify-content` would have
-  no say once one is set.
-*/
-.source-link {
+/* The links beside the title: plain text until pointed at. */
+.header-link {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  /* Auto on the left to carry it right; a set gap on the other side to keep it
-     clear of the gear rather than up against it. */
-  margin-left: auto;
-  margin-right: 2em;
   font-size: 0.9rem;
   color: inherit;
   text-decoration: none;
 }
 
-.source-link:hover {
+.header-link:hover {
   text-decoration: underline;
+}
+
+/*
+  The gap falls before the first link, so the links and the gear travel
+  together at the right edge and the title keeps the left — the same
+  arrangement the control rows use. An auto margin does this on its own;
+  `justify-content` would have no say once one is set.
+*/
+.sponsor-link {
+  margin-left: auto;
+  /* The same set gap the link beside it keeps from the gear, so the three
+     stand evenly apart rather than the pair reading as one item. */
+  margin-right: 2em;
+}
+
+/* A set gap on the far side, to sit clear of the gear rather than against it. */
+.source-link {
+  margin-right: 2em;
 }
 
 .app-header h1 {
