@@ -33,6 +33,7 @@ import StepIcon from "./StepIcon";
 import OptionsPanel from "./OptionsPanel";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
+import PgnHelp from "./PgnHelp";
 import StashDialog from "./StashDialog";
 import StashedGames from "./StashedGames";
 import ToggleField from "./ToggleField";
@@ -310,22 +311,28 @@ export default function App() {
 
           {/* Second row: what a whole game can be done with. */}
           <div className="board-controls">
-            <button
-              type="button"
-              className="reset-button"
-              title="Paste a game in PGN"
-              onClick={() => setPgnOpen(true)}
-            >
-              Import game (PGN)
-            </button>
-            <button
-              type="button"
-              className="reset-button"
-              title="Copy this game as PGN"
-              onClick={() => setPgnExportOpen(true)}
-            >
-              Export game (PGN)
-            </button>
+            <span className="field-with-help">
+              <button
+                type="button"
+                className="reset-button"
+                aria-describedby="import-pgn-help"
+                onClick={() => setPgnOpen(true)}
+              >
+                Import game (PGN)
+              </button>
+              <PgnHelp id="import-pgn-help" />
+            </span>
+            <span className="field-with-help">
+              <button
+                type="button"
+                className="reset-button"
+                aria-describedby="export-pgn-help"
+                onClick={() => setPgnExportOpen(true)}
+              >
+                Export game (PGN)
+              </button>
+              <PgnHelp id="export-pgn-help" fromEnd />
+            </span>
             {/* Put aside at the right, away from the two that move PGN about. */}
             <div className="stash-actions">
               <button

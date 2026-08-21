@@ -1,4 +1,5 @@
 import { describeEntry, type HistoryEntry } from "../chess/history";
+import FenHelp from "./FenHelp";
 
 interface FenFieldProps {
   value: string;
@@ -55,7 +56,12 @@ export default function FenField({
         </div>
 
         <div className="fen-column">
-          <label htmlFor="fen">Position (FEN)</label>
+          {/* The label carries the explanation: hovering the field itself
+              would put a panel over what is being typed. */}
+          <span className="field-with-help">
+            <label htmlFor="fen">Position (FEN)</label>
+            <FenHelp id="fen-help" />
+          </span>
           <input
             id="fen"
             type="text"
@@ -67,7 +73,9 @@ export default function FenField({
             autoComplete="off"
             autoCapitalize="off"
             aria-invalid={error !== null}
-            aria-describedby={error === null ? undefined : "fen-error"}
+            aria-describedby={
+              error === null ? "fen-help" : "fen-help fen-error"
+            }
             onChange={(event) => onChange(event.target.value)}
           />
         </div>

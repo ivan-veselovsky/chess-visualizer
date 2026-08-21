@@ -356,6 +356,69 @@ body {
   flex: 0 0 auto;
 }
 
+/*
+  A label that explains itself on hover. The cursor is the only sign that it
+  does: the label reads as a label, undecorated, and the change of pointer is
+  what says there is more to read.
+*/
+.field-with-help {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+}
+
+/*
+  Hung below the label and over whatever follows, so the fields keep their
+  places whether it is showing or not. An opaque background of its own: the
+  page's shows through otherwise and the two sets of text overlap.
+*/
+.field-help {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  /* Inside the column it belongs to: that column has a 27rem floor, and a
+     panel wider than it would hang off the window when the page is only just
+     wide enough to reach its own maximum. */
+  width: max(25rem, 100%);
+  max-width: 88vw;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--app-fg);
+  background: var(--app-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 22%);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+/*
+  Hung from the right edge instead, for a control far enough along its row that
+  a panel opening rightwards would run off the window.
+*/
+.field-help-end {
+  left: auto;
+  right: 0;
+}
+
+.field-with-help:hover > .field-help,
+.field-with-help:focus-within > .field-help {
+  visibility: visible;
+  opacity: 1;
+}
+
+.field-help code {
+  padding: 0 0.15em;
+  font-family: ui-monospace, monospace;
+  font-size: 0.95em;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 3px;
+}
+
 .fen-input {
   width: 100%;
   min-width: 0;
