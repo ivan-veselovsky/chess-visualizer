@@ -215,16 +215,29 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0.75em;
 }
 
 /*
-  The gap falls before the toggles rather than between them, so the two travel
-  together at the right edge — the theme one under the gear, the board one
-  beside it — leaving the position controls grouped at the left.
+  The toggle holds the right end of its row, leaving the position controls the
+  rest. Matched on the class alone: `:first-of-type` counts elements of a kind
+  rather than of a class, so wrapping anything else in a div ahead of it would
+  quietly take the toggle out of the running.
 */
-.board-controls > .toggle-field:first-of-type {
+.board-controls > .toggle-field {
   margin-left: auto;
+}
+
+/*
+  The four steps, centred in what the row has left over. Taking the free space
+  as a group and centring inside it puts them between the two controls that
+  hold the ends, rather than up against the left one.
+*/
+.step-buttons {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  gap: 0.75em;
 }
 
 .board-controls .reset-button {
@@ -238,23 +251,28 @@ body {
 */
 .stash-actions {
   display: flex;
-  gap: 1.25rem;
+  gap: 0.75em;
   margin-left: auto;
 }
 
-/* Wide targets rather than icon-sized ones; the arrow stays centred in them. */
+/*
+  Wide targets rather than icon-sized ones; the arrow stays centred in them.
+
+  The four share 28em between them, seven parts to three: stepping is what the
+  row is used for most, so Previous and Next take the larger targets and the
+  two that run to an end of the list give the width up.
+*/
 .step-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 7em;
+  width: 9.8em;
   padding: 0.35rem 0.55rem;
   font-size: 1rem;
 }
 
-/* The two arrows belong together; the row's gap would read as separating them. */
-.step-button + .step-button {
-  margin-left: -0.9rem;
+.step-button.step-button-end {
+  width: 4.2em;
 }
 
 .board-controls .toggle-field {
@@ -863,6 +881,16 @@ input[type="color"]::-moz-color-swatch {
 */
 .field-row-apart {
   gap: 5em;
+}
+
+/*
+  Two controls sharing a row down the middle: each takes half of it, so the
+  second starts at the halfway mark whatever the first one's label measures.
+  Named on both classes to outrank the shrink-to-fit rule below.
+*/
+.field-row.field-row-halves > .toggle-field {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .field-row > .number-field,

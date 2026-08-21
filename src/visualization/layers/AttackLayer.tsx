@@ -124,6 +124,9 @@ export default function AttackLayer({
         // Which settings this piece draws with: its end of the board, not its
         // colour, so flipping hands the near-side look to the other army.
         const side = settingsSide(piece.color, orientation);
+        if (!attackOptions.showAttacks[side]) {
+          return null;
+        }
         const outline = outlineFor(side);
         return (
           <g

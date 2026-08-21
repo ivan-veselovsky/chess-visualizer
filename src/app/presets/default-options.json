@@ -1,5 +1,5 @@
 {
-  "optionsSchemaVersion": 6,
+  "optionsSchemaVersion": 7,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -13,6 +13,10 @@
     "darkenBlack": 0.8
   },
   "attacks": {
+    "showAttacks": {
+      "me": true,
+      "opponent": true
+    },
     "colors": {
       "me": {
         "king": "#1d9f2c",

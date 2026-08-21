@@ -253,46 +253,48 @@ export default function App() {
             >
               Reset to initial position
             </button>
-            <button
-              type="button"
-              className="reset-button step-button"
-              title="First position"
-              aria-label="First position"
-              disabled={!canGoPrevious(history)}
-              onClick={() => stepHistory("first")}
-            >
-              <StepIcon direction="first" />
-            </button>
-            <button
-              type="button"
-              className="reset-button step-button"
-              title="Previous position"
-              aria-label="Previous position"
-              disabled={!canGoPrevious(history)}
-              onClick={() => stepHistory("previous")}
-            >
-              <StepIcon direction="previous" />
-            </button>
-            <button
-              type="button"
-              className="reset-button step-button"
-              title="Next position"
-              aria-label="Next position"
-              disabled={!canGoNext(history)}
-              onClick={() => stepHistory("next")}
-            >
-              <StepIcon direction="next" />
-            </button>
-            <button
-              type="button"
-              className="reset-button step-button"
-              title="Last position"
-              aria-label="Last position"
-              disabled={!canGoNext(history)}
-              onClick={() => stepHistory("last")}
-            >
-              <StepIcon direction="last" />
-            </button>
+            <div className="step-buttons">
+              <button
+                type="button"
+                className="reset-button step-button step-button-end"
+                title="First position"
+                aria-label="First position"
+                disabled={!canGoPrevious(history)}
+                onClick={() => stepHistory("first")}
+              >
+                <StepIcon direction="first" />
+              </button>
+              <button
+                type="button"
+                className="reset-button step-button"
+                title="Previous position"
+                aria-label="Previous position"
+                disabled={!canGoPrevious(history)}
+                onClick={() => stepHistory("previous")}
+              >
+                <StepIcon direction="previous" />
+              </button>
+              <button
+                type="button"
+                className="reset-button step-button"
+                title="Next position"
+                aria-label="Next position"
+                disabled={!canGoNext(history)}
+                onClick={() => stepHistory("next")}
+              >
+                <StepIcon direction="next" />
+              </button>
+              <button
+                type="button"
+                className="reset-button step-button step-button-end"
+                title="Last position"
+                aria-label="Last position"
+                disabled={!canGoNext(history)}
+                onClick={() => stepHistory("last")}
+              >
+                <StepIcon direction="last" />
+              </button>
+            </div>
             <ToggleField
               id="flip-board"
               label="Black at bottom"
@@ -377,6 +379,42 @@ export default function App() {
               stash={stash}
               value={stashName}
               onSelect={loadStashedGame}
+            />
+          </div>
+
+          {/*
+            Out here rather than in the options panel: turning a side's marks
+            off is part of reading the board, not of setting it up, and is
+            reached for as often as the board is flipped.
+          */}
+          <div className="field-row field-row-halves">
+            <ToggleField
+              id="show-my-attacks"
+              label="Show my attacks"
+              checked={options.attacks.showAttacks.me}
+              onChange={(me) =>
+                setOptions({
+                  ...options,
+                  attacks: {
+                    ...options.attacks,
+                    showAttacks: { ...options.attacks.showAttacks, me },
+                  },
+                })
+              }
+            />
+            <ToggleField
+              id="show-opponent-attacks"
+              label="Show opponent's attacks"
+              checked={options.attacks.showAttacks.opponent}
+              onChange={(opponent) =>
+                setOptions({
+                  ...options,
+                  attacks: {
+                    ...options.attacks,
+                    showAttacks: { ...options.attacks.showAttacks, opponent },
+                  },
+                })
+              }
             />
           </div>
 

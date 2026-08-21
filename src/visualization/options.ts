@@ -85,6 +85,16 @@ export interface RayOpacity {
   opponent: number;
 }
 
+/**
+ * Whether each side's attacks are drawn at all. Turning both off leaves the
+ * board as any other program shows it, which is worth being able to get back
+ * to: the marks are there to be compared against the plain position.
+ */
+export interface AttackVisibility {
+  me: boolean;
+  opponent: boolean;
+}
+
 /** The colour each side's outline is traced in, when it has any width. */
 export interface OutlineColors {
   me: string;
@@ -149,6 +159,7 @@ export interface SideGeometry {
 }
 
 export interface AttackOptions {
+  showAttacks: AttackVisibility;
   colors: SideAttackColors;
   outlineWidths: OutlineWidths;
   outlineColors: OutlineColors;
