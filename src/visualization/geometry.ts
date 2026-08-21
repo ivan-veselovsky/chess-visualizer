@@ -253,6 +253,134 @@ export function rayStartPlanePath(
   ].join(" ");
 }
 
+const TWO_PI = Math.PI * 2;
+
+/** An angle brought into [0, 2π). */
+function normalizeAngle(angle: number): number {
+  const wrapped = angle % TWO_PI;
+  return wrapped < 0 ? wrapped + TWO_PI : wrapped;
+}
+
+/** Every angle at which a circle about `center` meets a side of `rect`. */
+function edgeCrossings(center: Point, radius: number, rect: Rect): number[] {
+  const angles: number[] = [];
+  for (const x of [rect.x, rect.x + rect.width]) {
+    const cos = (x - center.x) / radius;
+    if (cos >= -1 && cos <= 1) {
+      const angle = Math.acos(cos);
+      angles.push(normalizeAngle(angle), normalizeAngle(-angle));
+    }
+  }
+  for (const y of [rect.y, rect.y + rect.height]) {
+    const sin = (y - center.y) / radius;
+    if (sin >= -1 && sin <= 1) {
+      const angle = Math.asin(sin);
+      angles.push(normalizeAngle(angle), normalizeAngle(Math.PI - angle));
+    }
+  }
+  return angles;
+}
+
+/**
+ * The widest run of angles over which a whole radial slice of a ring stays
+ * inside a rectangle — the largest sector that can be cut from the ring without
+ * any part of it leaving the square it belongs to.
+ *
+ * A radial slice is a straight segment and a rectangle is convex, so the slice
+ * is inside exactly when both of its ends are. That leaves only the two
+ * bounding circles to test, and only where they cross a side: between two such
+ * crossings nothing changes, so one point in each stretch settles it.
+ *
+ * Angles run clockwise on screen, the board's y pointing down. The end returned
+ * is never less than the start, running past 2π where the run wraps. Null means
+ * no angle qualifies — a ring too thick to fit inside the square at all.
+ */
+export function ringSectorInsideRect(
+  center: Point,
+  innerRadius: number,
+  outerRadius: number,
+  rect: Rect
+): [number, number] | null {
+  const inner = Math.min(innerRadius, outerRadius);
+  const outer = Math.max(innerRadius, outerRadius);
+  if (outer <= 0 || rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+
+  const at = (angle: number, radius: number): Point => ({
+    x: center.x + radius * Math.cos(angle),
+    y: center.y + radius * Math.sin(angle),
+  });
+  const within = ({ x, y }: Point): boolean =>
+    x >= rect.x &&
+    x <= rect.x + rect.width &&
+    y >= rect.y &&
+    y <= rect.y + rect.height;
+  const fits = (angle: number): boolean =>
+    within(at(angle, inner)) && within(at(angle, outer));
+
+  const cuts = [
+    ...edgeCrossings(center, inner, rect),
+    ...edgeCrossings(center, outer, rect),
+  ].sort((a, b) => a - b);
+
+  if (cuts.length === 0) {
+    return fits(0) ? [0, TWO_PI] : null;
+  }
+
+  // The stretches between consecutive crossings, each wholly in or wholly out.
+  const spans = cuts.map((from, index) => {
+    const to = index + 1 < cuts.length ? cuts[index + 1] : cuts[0] + TWO_PI;
+    return { from, to, fits: fits((from + to) / 2) };
+  });
+  if (spans.every((span) => span.fits)) {
+    return [spans[0].from, spans[0].from + TWO_PI];
+  }
+
+  // The longest run of neighbouring stretches, counted round the circle. Their
+  // lengths add up because each begins where the one before it ended.
+  let best: [number, number] | null = null;
+  for (let start = 0; start < spans.length; start += 1) {
+    const previous = spans[(start - 1 + spans.length) % spans.length];
+    if (!spans[start].fits || previous.fits) {
+      continue;
+    }
+    let length = 0;
+    for (let step = 0; step < spans.length; step += 1) {
+      const span = spans[(start + step) % spans.length];
+      if (!span.fits) {
+        break;
+      }
+      length += span.to - span.from;
+    }
+    if (best === null || length > best[1] - best[0]) {
+      best = [spans[start].from, spans[start].from + length];
+    }
+  }
+  return best;
+}
+
+/**
+ * A sector as a closed subpath: the wedge between two radii, out to `radius`.
+ * A run of a full turn has no two edges to draw and comes back as a circle.
+ */
+export function sectorPath(
+  center: Point,
+  from: number,
+  to: number,
+  radius: number
+): string {
+  const at = (angle: number): string =>
+    `${center.x + radius * Math.cos(angle)} ${center.y + radius * Math.sin(angle)}`;
+
+  if (to - from >= TWO_PI - 1e-9) {
+    const arc = `A ${radius} ${radius} 0 1 1`;
+    return `M ${at(0)} ${arc} ${at(Math.PI)} ${arc} ${at(0)} Z`;
+  }
+  const largeArc = to - from > Math.PI ? 1 : 0;
+  return `M ${center.x} ${center.y} L ${at(from)} A ${radius} ${radius} 0 ${largeArc} 1 ${at(to)} Z`;
+}
+
 /**
  * A point `t` steps away from a square's centre along `direction`, where one
  * step is the distance to the neighbouring square along that direction.
