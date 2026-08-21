@@ -1,5 +1,5 @@
 {
-  "optionsSchemaVersion": 7,
+  "optionsSchemaVersion": 11,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -17,6 +17,13 @@
       "me": true,
       "opponent": true
     },
+    "showPins": true,
+    "pinRingColor": "#000000",
+    "pinRingDiameter": 0.85,
+    "showCheck": true,
+    "showCheckmate": true,
+    "checkColor": "#ff4929",
+    "checkmateColor": "#a30000",
     "colors": {
       "me": {
         "king": "#1d9f2c",

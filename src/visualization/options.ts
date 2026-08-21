@@ -160,6 +160,35 @@ export interface SideGeometry {
 
 export interface AttackOptions {
   showAttacks: AttackVisibility;
+  /**
+   * Whether a piece pinned against its own king is ringed.
+   *
+   * One setting for both sides, unlike the marks above: a pin is a fact about
+   * the position rather than about whose reach is being read, and being able to
+   * see one side's pins but not the other's would only mislead.
+   */
+  showPins: boolean;
+  /** What that ring is drawn in. One colour, as the setting above is one flag. */
+  pinRingColor: string;
+  /**
+   * How far across that ring is, in square sides. It stands clear of the piece
+   * rather than framing anything else on the square, so it is given a size of
+   * its own instead of borrowing the one the rays are measured against.
+   */
+  pinRingDiameter: number;
+  /**
+   * Whether the king in check, and the king mated, are shown by a disc laid
+   * under the glyph — as wide across as the pin ring, so the two marks agree.
+   *
+   * Under it rather than over it, and never into it: the king keeps its own
+   * colour exactly, and only its surroundings say what has happened. The disc
+   * is part transparent so that it reads as the square tinted; the colours
+   * themselves are solid, a colour input having no way to carry an alpha.
+   */
+  showCheck: boolean;
+  showCheckmate: boolean;
+  checkColor: string;
+  checkmateColor: string;
   colors: SideAttackColors;
   outlineWidths: OutlineWidths;
   outlineColors: OutlineColors;

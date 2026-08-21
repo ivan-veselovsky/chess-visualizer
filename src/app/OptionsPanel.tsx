@@ -174,6 +174,60 @@ export default function OptionsPanel({
           checked={options.attacks.fullWidthDiagonalRays}
           onChange={(fullWidthDiagonalRays) => updateAttacks({ fullWidthDiagonalRays })}
         />
+        <div className="field-row field-row-halves">
+          <ToggleField
+            id="show-pins"
+            hint="Ring any piece that cannot leave the line it stands on without exposing its own king."
+            label="Show pins"
+            checked={options.attacks.showPins}
+            onChange={(showPins) => updateAttacks({ showPins })}
+          />
+          <ColorField
+            id="pin-ring-color"
+            label="Pin ring color"
+            value={options.attacks.pinRingColor}
+            onChange={(pinRingColor) => updateAttacks({ pinRingColor })}
+          />
+        </div>
+        <NumberField
+          id="pin-ring-diameter"
+          inline
+          label="Pin ring diameter"
+          suffix="squares"
+          value={options.attacks.pinRingDiameter}
+          allowZero
+          onChange={(pinRingDiameter) => updateAttacks({ pinRingDiameter })}
+        />
+        <div className="field-row field-row-halves">
+          <ToggleField
+            id="show-check"
+            hint="Tint the king's own glyph when it stands in check."
+            label="Show check"
+            checked={options.attacks.showCheck}
+            onChange={(showCheck) => updateAttacks({ showCheck })}
+          />
+          <ColorField
+            id="check-color"
+            label="Check color"
+            value={options.attacks.checkColor}
+            onChange={(checkColor) => updateAttacks({ checkColor })}
+          />
+        </div>
+        <div className="field-row field-row-halves">
+          <ToggleField
+            id="show-checkmate"
+            hint="Tint the king's own glyph when it is mated. Takes precedence over check, mate being one as well."
+            label="Show checkmate"
+            checked={options.attacks.showCheckmate}
+            onChange={(showCheckmate) => updateAttacks({ showCheckmate })}
+          />
+          <ColorField
+            id="checkmate-color"
+            label="Checkmate color"
+            value={options.attacks.checkmateColor}
+            onChange={(checkmateColor) => updateAttacks({ checkmateColor })}
+          />
+        </div>
       </section>
 
 

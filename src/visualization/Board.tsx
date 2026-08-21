@@ -1,4 +1,10 @@
-import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+} from "react";
 import type { Chess, Square } from "chess.js";
 import { PIECE_GLYPHS, readPieces } from "../chess/model";
 import { legalTargets } from "../chess/moves";
@@ -17,7 +23,9 @@ import type { AttackOptions, BoardColors, PieceTint } from "./options";
 import AttackLayer from "./layers/AttackLayer";
 import BorderLayer from "./layers/BorderLayer";
 import GridLayer from "./layers/GridLayer";
+import CheckLayer, { type KingAlert } from "./layers/CheckLayer";
 import PieceLayer from "./layers/PieceLayer";
+import PinLayer from "./layers/PinLayer";
 import SquareLayer from "./layers/SquareLayer";
 
 interface BoardProps {
@@ -69,12 +77,34 @@ export default function Board({
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
 
+  /*
+    Only the side to move can be in check, so there is at most one king to
+    point out. Mate is checked first: it is a check as well, and saying so
+    twice would let the milder colour win on a position that is over.
+  */
+  const alert = useMemo<KingAlert | null>(() => {
+    if (!position.isCheck()) {
+      return null;
+    }
+    const mate = position.isCheckmate();
+    if (mate ? !attacks.showCheckmate : !attacks.showCheck) {
+      return null;
+    }
+    const [square] = position.findPiece({ type: "k", color: position.turn() });
+    return square === undefined
+      ? null
+      : { square, kind: mate ? "checkmate" : "check" };
+  }, [position, attacks.showCheck, attacks.showCheckmate]);
+
   const themeVars = {
     "--square-light": colors.lightSquare,
     "--square-dark": colors.darkSquare,
     // One per piece per side. Which of each pair applies is decided further
     // down, by a class on the mark's group and on the piece glyph, so the rules
     // that use them go on saying `var(--attack-king)`.
+    "--pin-ring": attacks.pinRingColor,
+    "--check-color": attacks.checkColor,
+    "--checkmate-color": attacks.checkmateColor,
     "--attack-outline-me": attacks.outlineColors.me,
     "--attack-outline-opponent": attacks.outlineColors.opponent,
     "--attack-king-me": attacks.colors.me.king,
@@ -194,6 +224,21 @@ export default function Board({
           orientation={orientation}
         />
         <BorderLayer orientation={orientation} />
+        {/* Under the glyphs: the ring frames a piece rather than covering it. */}
+        {attacks.showPins && (
+          <PinLayer
+            position={position}
+            attackOptions={attacks}
+            lifted={drag?.from ?? null}
+            orientation={orientation}
+          />
+        )}
+        <CheckLayer
+          alert={alert}
+          diameter={attacks.pinRingDiameter}
+          lifted={drag?.from ?? null}
+          orientation={orientation}
+        />
         <PieceLayer
           pieces={pieces}
           lifted={drag?.from ?? null}

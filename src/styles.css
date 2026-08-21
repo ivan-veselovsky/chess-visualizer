@@ -621,6 +621,20 @@ body {
   -webkit-user-drag: none;
 }
 
+/*
+  The ring around a pinned piece, in the colour set for it. Drawn at full
+  strength: the colour is a setting, and holding it back here would only fight
+  whatever is chosen.
+*/
+.pin-marker {
+  fill: none;
+  stroke: var(--pin-ring);
+  /* In board units, so it thins and thickens with the board rather than
+     staying a fixed number of screen pixels. */
+  stroke-width: 1.3;
+  pointer-events: none;
+}
+
 .piece {
   font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
   font-size: 48px;
@@ -706,6 +720,27 @@ body {
 
 .piece-black {
   fill: color-mix(in srgb, var(--piece-color), black var(--piece-darken));
+}
+
+/*
+  The ground under a king in check, or mated. Part transparent, so it reads as
+  the square tinted rather than as a counter laid on it, and mate the heavier
+  of the two. The glyph is drawn over the top and keeps its own colour whole.
+*/
+.check-disc-check,
+.check-disc-checkmate {
+  stroke: none;
+  pointer-events: none;
+}
+
+.check-disc-check {
+  fill: var(--check-color);
+  fill-opacity: 0.55;
+}
+
+.check-disc-checkmate {
+  fill: var(--checkmate-color);
+  fill-opacity: 0.75;
 }
 
 /* --- Options panel ------------------------------------------------------ */
