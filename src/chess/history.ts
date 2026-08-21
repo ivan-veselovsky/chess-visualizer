@@ -93,6 +93,24 @@ export function goLast(history: PositionHistory): PositionHistory {
   return goToPosition(history, 0);
 }
 
+/**
+ * Whether two lines hold the same game: the same positions, reached by the same
+ * moves, in the same order.
+ *
+ * Where the pointer sits is not part of it. Stepping back to look at an earlier
+ * position leaves the game itself untouched; playing from there does not, and
+ * shows up as a line of a different length or a move that differs.
+ */
+export function sameLine(a: HistoryEntry[], b: HistoryEntry[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (entry, index) =>
+        entry.fen === b[index].fen && entry.move === b[index].move
+    )
+  );
+}
+
 /** Where a position sits in the list, or -1 if it is not one of them. */
 export function indexOfPosition(history: PositionHistory, fen: string): number {
   const wanted = fen.trim();

@@ -12,12 +12,13 @@ import {
   indexOfPosition,
   goPrevious,
   pushPosition,
+  sameLine,
   startHistory,
   type PositionHistory,
 } from "../chess/history";
 import { applyMove } from "../chess/moves";
 import { parsePgn, toPgn } from "../chess/pgn";
-import type { LibraryGame } from "../chess/gameLibrary";
+import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
 import {
   stashGame,
   stashedGame,
@@ -90,6 +91,31 @@ export default function App() {
     if (error === null) {
       setLibraryGame(game.id);
     }
+  }
+
+  /**
+   * The file a library game came from, while the board still holds that game
+   * unchanged.
+   *
+   * Worth going back for rather than writing the game out again: the file
+   * carries the tags the game is actually known by — who played it, where and
+   * when — and replaying the moves through chess.js would put a roster of
+   * question marks in their place. As soon as a move of one's own is played
+   * the line stops being that game, and writing it out is the only honest
+   * thing left to do.
+   */
+  function originalPgn(): string | null {
+    if (libraryGame === null) {
+      return null;
+    }
+    const game = GAME_LIBRARY.find((candidate) => candidate.id === libraryGame);
+    if (game === undefined) {
+      return null;
+    }
+    const { entries } = parsePgn(game.pgn);
+    return entries !== null && sameLine(entries, history.entries)
+      ? game.pgn
+      : null;
   }
 
   /** Puts the game aside under the name it already goes by. */
@@ -452,7 +478,7 @@ export default function App() {
       <PgnExportDialog
         open={pgnExportOpen}
         // Only written when it is about to be shown.
-        pgn={pgnExportOpen ? toPgn(history, stashName) : null}
+        pgn={pgnExportOpen ? originalPgn() ?? toPgn(history, stashName) : null}
         onClose={() => setPgnExportOpen(false)}
       />
     </main>
