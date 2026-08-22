@@ -402,7 +402,8 @@ body {
   box-shadow: 0 8px 20px rgb(0 0 0 / 22%);
   visibility: hidden;
   opacity: 0;
-  transition: opacity 120ms ease;
+  /* Leaving: away at once, so it does not trail the pointer across the page. */
+  transition: opacity 120ms ease, visibility 0s linear 120ms;
 }
 
 /*
@@ -414,10 +415,17 @@ body {
   right: 0;
 }
 
+/*
+  Arriving: held back, so that passing over a label on the way somewhere else
+  does not throw a panel of text across the page. Longer than a browser waits
+  before a tooltip of its own: this one is a paragraph rather than a phrase, and
+  wants asking for rather than stumbling into.
+*/
 .field-with-help:hover > .field-help,
 .field-with-help:focus-within > .field-help {
   visibility: visible;
   opacity: 1;
+  transition: opacity 140ms ease 900ms, visibility 0s linear 900ms;
 }
 
 .field-help code {
