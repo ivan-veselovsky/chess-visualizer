@@ -14,6 +14,7 @@ export type {
   PieceTint,
   SideGeometry,
   OutlineColors,
+  OutlineOpacity,
   OutlineWidths,
   RayOpacity,
   RayStyle,
@@ -39,7 +40,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Options` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const OPTIONS_SCHEMA_VERSION = 11;
+export const OPTIONS_SCHEMA_VERSION = 12;
 
 /**
  * Central description of everything the user can tweak: one object holding

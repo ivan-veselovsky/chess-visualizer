@@ -86,6 +86,19 @@ export interface RayOpacity {
 }
 
 /**
+ * How opaque the outline around a side's marks is, from 0 to 1 — set apart
+ * from the marks themselves so the two can be told apart by either.
+ *
+ * Independence is the whole point of it: rays at zero and outlines at one
+ * leaves a side showing as bare outlines with nothing filled in, which is a
+ * useful way to read a crowded board and impossible with a single figure.
+ */
+export interface OutlineOpacity {
+  me: number;
+  opponent: number;
+}
+
+/**
  * Whether each side's attacks are drawn at all. Turning both off leaves the
  * board as any other program shows it, which is worth being able to get back
  * to: the marks are there to be compared against the plain position.
@@ -193,6 +206,7 @@ export interface AttackOptions {
   outlineWidths: OutlineWidths;
   outlineColors: OutlineColors;
   rayOpacity: RayOpacity;
+  outlineOpacity: OutlineOpacity;
   /**
    * What a ray's intensity is multiplied by for each piece it passes through.
    * 0 hides everything beyond the first piece (no x-ray at all); 1 lets a ray

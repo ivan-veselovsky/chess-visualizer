@@ -1,5 +1,5 @@
 {
-  "optionsSchemaVersion": 11,
+  "optionsSchemaVersion": 12,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -53,6 +53,10 @@
     "rayOpacity": {
       "me": 0.45,
       "opponent": 0.45
+    },
+    "outlineOpacity": {
+      "me": 1,
+      "opponent": 1
     },
     "xRayDecayFactor": 0,
     "fullWidthDiagonalRays": true,

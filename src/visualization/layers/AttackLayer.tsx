@@ -54,8 +54,9 @@ export default function AttackLayer({
 }: AttackLayerProps) {
   // useId() yields ids like ":r0:"; the colons are awkward inside url(#...).
   const idPrefix = `attack-${useId().replace(/:/g, "")}`;
+  const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
   const opacityFor = (side: SettingsSide) =>
-    Math.min(Math.max(attackOptions.rayOpacity[side], 0), 1);
+    clamp(attackOptions.rayOpacity[side]);
 
   // One filter per side, each emitted only if that side's outline is wanted.
   const sides = (["me", "opponent"] as const).map((side) => ({
@@ -78,8 +79,16 @@ export default function AttackLayer({
 
         Dilating the alpha and subtracting the original leaves just the ring.
         That subtraction only comes out clean while the content is still
-        opaque, which is why the transparency is applied outside the filter
-        rather than inside each renderer.
+        opaque, which is why the transparency is applied here and not inside
+        each renderer.
+
+        Both transparencies are applied here, and separately: the outline's by
+        fading the ink it is flooded with, the marks' by scaling the alpha of
+        the rendered result. A single opacity on the group outside would scale
+        whatever the filter produced, outline and marks together, which is
+        exactly what they are meant to be free of. Each is still applied once,
+        to the whole composited thing, so marks of one piece that overlap stay
+        the one flat shade.
       */}
       {sides
         .filter((entry) => entry.width > 0)
@@ -106,12 +115,16 @@ export default function AttackLayer({
             />
             <feFlood
               className={`attack-outline-ink-${entry.side}`}
+              floodOpacity={clamp(attackOptions.outlineOpacity[entry.side])}
               result="ink"
             />
             <feComposite in="ink" in2="ring" operator="in" result="outline" />
+            <feComponentTransfer in="SourceGraphic" result="marks">
+              <feFuncA type="linear" slope={opacityFor(entry.side)} />
+            </feComponentTransfer>
             <feMerge>
               <feMergeNode in="outline" />
-              <feMergeNode in="SourceGraphic" />
+              <feMergeNode in="marks" />
             </feMerge>
           </filter>
         ))}
@@ -132,7 +145,9 @@ export default function AttackLayer({
           <g
             key={piece.square}
             className={`attack-side-${side}`}
-            opacity={opacityFor(side)}
+            // Where a filter runs, it has already applied both transparencies
+            // and an opacity here would scale them a second time.
+            opacity={outline ? undefined : opacityFor(side)}
           >
             <g filter={outline ? `url(#${outline.id})` : undefined}>
               <Renderer

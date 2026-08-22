@@ -8,6 +8,7 @@ import type {
   AttackOptions,
   BoardColors,
   Options,
+  OutlineOpacity,
   RayOpacity,
   PieceTint,
 } from "./options";
@@ -57,6 +58,12 @@ export default function OptionsPanel({
   function updateRayOpacity(patch: Partial<RayOpacity>) {
     updateAttacks({
       rayOpacity: { ...options.attacks.rayOpacity, ...patch },
+    });
+  }
+
+  function updateOutlineOpacity(patch: Partial<OutlineOpacity>) {
+    updateAttacks({
+      outlineOpacity: { ...options.attacks.outlineOpacity, ...patch },
     });
   }
 
@@ -156,6 +163,30 @@ export default function OptionsPanel({
             max={1}
             allowZero
             onChange={(opponent) => updateRayOpacity({ opponent })}
+          />
+        </div>
+        <div className="field-row">
+          <NumberField
+            id="my-outline-opacity"
+            inline
+            hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
+            label="My outline opacity"
+            value={options.attacks.outlineOpacity.me}
+            step={0.05}
+            max={1}
+            allowZero
+            onChange={(me) => updateOutlineOpacity({ me })}
+          />
+          <NumberField
+            id="opponent-outline-opacity"
+            inline
+            hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
+            label="Opponent outline opacity"
+            value={options.attacks.outlineOpacity.opponent}
+            step={0.05}
+            max={1}
+            allowZero
+            onChange={(opponent) => updateOutlineOpacity({ opponent })}
           />
         </div>
         <NumberField
