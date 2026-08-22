@@ -105,6 +105,26 @@ export default function OptionsPanel({
             onChange={(darkSquare) => updateBoardColors({ darkSquare })}
           />
         </div>
+        <div className="field-row">
+          <ColorField
+            id="last-move-color"
+            label="Last move highlight color"
+            value={options.lastMoveColor}
+            onChange={(lastMoveColor) => onChange({ ...options, lastMoveColor })}
+          />
+          <NumberField
+            id="last-move-opacity"
+            inline
+            label="Last move highlight opacity"
+            value={options.lastMoveOpacity}
+            step={0.05}
+            max={1}
+            allowZero
+            onChange={(lastMoveOpacity) =>
+              onChange({ ...options, lastMoveOpacity })
+            }
+          />
+        </div>
         <ToggleField
           id="show-grid"
           label="Show grid"

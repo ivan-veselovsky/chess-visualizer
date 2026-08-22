@@ -23,6 +23,7 @@ import type { AttackOptions, BoardColors, PieceTint } from "./options";
 import AttackLayer from "./layers/AttackLayer";
 import BorderLayer from "./layers/BorderLayer";
 import GridLayer from "./layers/GridLayer";
+import LastMoveLayer, { type LastMove } from "./layers/LastMoveLayer";
 import CheckLayer, { type KingAlert } from "./layers/CheckLayer";
 import PieceLayer from "./layers/PieceLayer";
 import PinLayer from "./layers/PinLayer";
@@ -36,6 +37,11 @@ interface BoardProps {
   /** Omit to make the board read-only. */
   onMove?: (from: Square, to: Square) => void;
   showGrid?: boolean;
+  /** The move that reached this position, to shade the squares it used. */
+  lastMove?: LastMove | null;
+  /** The wash laid over those two squares, and how much of it. */
+  lastMoveColor?: string;
+  lastMoveOpacity?: number;
   orientation?: Orientation;
 }
 
@@ -71,6 +77,9 @@ export default function Board({
   attacks,
   onMove,
   showGrid = true,
+  lastMove = null,
+  lastMoveColor = "#000000",
+  lastMoveOpacity = 0,
   orientation = "white",
 }: BoardProps) {
   const pieces = readPieces(position);
@@ -215,6 +224,12 @@ export default function Board({
     >
       <g transform={`translate(${BOARD_ORIGIN.x}, ${BOARD_ORIGIN.y})`}>
         <SquareLayer orientation={orientation} />
+        <LastMoveLayer
+          move={lastMove}
+          color={lastMoveColor}
+          opacity={lastMoveOpacity}
+          orientation={orientation}
+        />
         {showGrid && <GridLayer />}
         <AttackLayer
           position={position}

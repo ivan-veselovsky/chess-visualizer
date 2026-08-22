@@ -40,7 +40,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Options` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const OPTIONS_SCHEMA_VERSION = 12;
+export const OPTIONS_SCHEMA_VERSION = 15;
 
 /**
  * Central description of everything the user can tweak: one object holding
@@ -66,6 +66,18 @@ export interface Options {
   pieceTint: PieceTint;
   /** Thin lines on the square edges, readable even with identical colours. */
   showGrid: boolean;
+  /**
+   * The wash laid over the two squares of the move just played, and how much of
+   * it, from 0 to 1.
+   *
+   * One colour for both, light square and dark alike: a wash moves each of them
+   * towards the same hue while leaving the difference between them showing
+   * underneath, which taking a fixed share off their brightness does not — that
+   * pulls the light square down towards the dark one until the board stops
+   * reading as a board.
+   */
+  lastMoveColor: string;
+  lastMoveOpacity: number;
   attacks: AttackOptions;
 }
 

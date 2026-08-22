@@ -1,11 +1,13 @@
 {
-  "optionsSchemaVersion": 12,
+  "optionsSchemaVersion": 15,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
     "lightSquare": "#ccdccc",
     "darkSquare": "#bfbfbf"
   },
+  "lastMoveColor": "#fff70a",
+  "lastMoveOpacity": 0.25,
   "orientation": "white",
   "showGrid": false,
   "pieceTint": {

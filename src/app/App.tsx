@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DEFAULT_POSITION, type Square } from "chess.js";
+import { Chess, DEFAULT_POSITION, type Square } from "chess.js";
 import {
   canGoNext,
   canGoPrevious,
@@ -26,6 +26,7 @@ import {
 } from "../chess/stash";
 import { parseFen } from "../chess/position";
 import Board from "../visualization/Board";
+import type { LastMove } from "../visualization/layers/LastMoveLayer";
 import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
 import GearIcon from "./GearIcon";
@@ -196,6 +197,31 @@ export default function App() {
 
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
 
+  /*
+    Which two squares the move that reached this position used.
+
+    Replayed rather than recorded: the list keeps a move's notation and the
+    position it led to, and every way a line can arrive — played, pasted,
+    stashed, read out of the library — already agrees on those two. Asking
+    chess.js to play the move again on the position before it is the one step
+    that turns notation back into squares, and it costs nothing next to
+    everything else drawn on a change of position.
+  */
+  const lastMove = useMemo<LastMove | null>(() => {
+    const entry = history.entries[history.current];
+    const before = history.entries[history.current + 1];
+    if (entry === undefined || entry.move === null || before === undefined) {
+      return null;
+    }
+    try {
+      const board = new Chess(before.fen);
+      const { from, to } = board.move(entry.move);
+      return { from, to };
+    } catch {
+      return null;
+    }
+  }, [history]);
+
   // On the document root rather than a wrapper: the frame colour has to reach
   // the whole viewport, and this component only owns part of it.
   useEffect(() => {
@@ -275,6 +301,9 @@ export default function App() {
               attacks={options.attacks}
               onMove={handleMove}
               showGrid={options.showGrid}
+              lastMove={lastMove}
+              lastMoveColor={options.lastMoveColor}
+              lastMoveOpacity={options.lastMoveOpacity}
               orientation={options.orientation}
             />
           )}
