@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
 import NumberField from "./NumberField";
@@ -284,6 +285,8 @@ export default function OptionsPanel({
           </p>
         )}
       </div>
+
+      <AboutBuild />
     </aside>
   );
 }

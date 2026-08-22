@@ -858,6 +858,27 @@ input[type="color"]::-moz-color-swatch {
   margin-left: auto;
 }
 
+/*
+  Which build this is. Held well back from the settings above it: it answers a
+  question nobody asks twice, and should not compete with anything that can be
+  changed.
+*/
+.about-build {
+  /* A paragraph now, so its own bottom margin has to go. */
+  margin: 1.4rem 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--panel-border);
+  font-size: 0.75rem;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  /* A commit subject can be long and has no spaces to break at in the worst
+     case; wrapping it anywhere is better than widening the panel. */
+  overflow-wrap: anywhere;
+}
+
+.about-commit {
+  font-family: ui-monospace, monospace;
+}
+
 .import-error {
   flex-basis: 100%;
   margin: 0.25rem 0 0;
