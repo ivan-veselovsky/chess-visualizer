@@ -3,6 +3,58 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 /**
+ * The branch this build came off.
+ *
+ * `rev-parse --abbrev-ref HEAD` answers "HEAD" whenever the checkout is
+ * detached, which is what every CI produces: they check out a commit, not a
+ * branch, so git no longer knows which branch was meant. The build environment
+ * does know, and says so in one variable or another, so it is asked first.
+ *
+ * Failing that, a local or remote branch pointing at this very commit is a good
+ * guess — though a shallow CI clone often carries no such ref either, which is
+ * why null is a possible answer. The line simply leaves the branch out then.
+ */
+function branchName(ask: (...args: string[]) => string | null): string | null {
+  const announced =
+    process.env.GITHUB_HEAD_REF || // a pull request's source branch
+    process.env.GITHUB_REF_NAME || // GitHub Actions otherwise
+    process.env.VERCEL_GIT_COMMIT_REF ||
+    process.env.CF_PAGES_BRANCH ||
+    process.env.CI_COMMIT_REF_NAME || // GitLab
+    process.env.CIRCLE_BRANCH ||
+    process.env.BRANCH; // Netlify
+  if (announced) {
+    return announced;
+  }
+
+  const head = ask("rev-parse", "--abbrev-ref", "HEAD");
+  if (head !== null && head !== "HEAD") {
+    return head;
+  }
+
+  for (const refs of ["refs/heads", "refs/remotes"]) {
+    const pointing = ask(
+      "for-each-ref",
+      "--points-at",
+      "HEAD",
+      "--format=%(refname:short)",
+      refs
+    );
+    const named = (pointing ?? "")
+      .split("\n")
+      .map((name) => name.trim())
+      .filter((name) => name !== "")
+      // A remote's own HEAD lists as the bare remote name and names no branch.
+      .filter((name) => refs === "refs/heads" || name.includes("/"));
+    if (named.length > 0) {
+      // "origin/main" is the same branch as "main" for the purpose of saying so.
+      return named[0].replace(/^[^/]+\//, "");
+    }
+  }
+  return null;
+}
+
+/**
  * What git says about the tree being built, read once when the config loads.
  *
  * Anything unavailable comes back as null rather than throwing: a build from a
@@ -19,7 +71,7 @@ function gitInfo() {
   };
   return {
     commit: ask("rev-parse", "--short", "HEAD"),
-    branch: ask("rev-parse", "--abbrev-ref", "HEAD"),
+    branch: branchName(ask),
     message: ask("log", "-1", "--format=%s"),
     // When the bundle was made, not when the commit was: two deploys of one
     // commit are different builds, and it is the deploy being identified.
