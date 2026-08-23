@@ -361,7 +361,7 @@ body {
   min-width: 0;
 }
 
-.history-column {
+.moves-column {
   flex: 0 0 auto;
 }
 
@@ -453,7 +453,7 @@ body {
   moves it lists are short, so the control never reaches one and would stay as
   narrow as its widest option.
 */
-.history-select {
+.moves-select {
   flex: 0 0 auto;
   min-width: 10em;
   padding: 0.4rem 0.5rem;
@@ -468,7 +468,7 @@ body {
 
 /* The popup list is drawn by the platform and does not reliably inherit the
    control's font, so the options state it themselves. */
-.history-select option {
+.moves-select option {
   font-family: ui-monospace, monospace;
   color: var(--app-fg);
   background: var(--app-bg);

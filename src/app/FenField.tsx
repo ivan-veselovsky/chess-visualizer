@@ -30,8 +30,8 @@ export default function FenField({
     <div className="fen-field">
       {/* Two labelled columns, each control starting under its own label. */}
       <div className="fen-field-inputs">
-        <div className="history-column">
-          <label htmlFor="game-history">Game history</label>
+        <div className="moves-column">
+          <label htmlFor="moves">Moves</label>
           {/*
             A real list rather than a datalist against the input: a datalist
             filters its options by what the field already holds, and the field
@@ -41,9 +41,9 @@ export default function FenField({
             it unique to the ply even when the pieces stand as they did before.
           */}
           <select
-            id="game-history"
-            className="history-select"
-            title="Game history"
+            id="moves"
+            className="moves-select"
+            title="History of moves"
             value={current}
             onChange={(event) => onSelectPosition(Number(event.target.value))}
           >
