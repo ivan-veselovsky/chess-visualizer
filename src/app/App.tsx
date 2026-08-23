@@ -26,7 +26,7 @@ import {
 } from "../chess/stash";
 import { parseFen } from "../chess/position";
 import Board from "../visualization/Board";
-import type { LastMove } from "../visualization/layers/LastMoveLayer";
+import type { LastMove } from "../visualization/layers/HighlightLayer";
 import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
 import GearIcon from "./GearIcon";

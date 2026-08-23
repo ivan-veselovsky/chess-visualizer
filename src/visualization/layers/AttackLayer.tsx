@@ -36,9 +36,10 @@ interface AttackLayerProps {
   pieces: PlacedPiece[];
   attackOptions: AttackOptions;
   /**
-   * Square whose piece is being dragged. Its marks are left out: the board is
-   * being read to choose a move, and the moving piece's own reach only clutters
-   * what it is about to be judged against.
+   * Square whose piece is in hand — dragged, or picked out by a click. Its
+   * marks are left out either way: the board is being read to choose a move,
+   * and the moving piece's own reach only clutters what it is about to be
+   * judged against.
    */
   lifted?: Square | null;
   orientation?: Orientation;

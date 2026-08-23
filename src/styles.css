@@ -200,14 +200,23 @@ body {
   cursor: grabbing;
 }
 
-.drag-origin {
-  fill: currentColor;
-  opacity: 0.12;
-}
-
+/*
+  Where the piece in hand may land. Drawn last of all the layers, so it is over
+  the pieces rather than under them — a dot on a square being captured has to
+  show on top of whatever stands there.
+*/
 .drag-target {
   fill: currentColor;
-  opacity: 0.3;
+  fill-opacity: 0.55;
+  /*
+    Ringed in the page's own ground, so the dot separates from whatever it
+    lands on: a white glyph beneath it, a dark square, a ray crossing the
+    middle. Stated apart from the fill, since a plain `opacity` would fade the
+    ring along with it and leave nothing to separate.
+  */
+  stroke: var(--app-bg);
+  stroke-width: 2;
+  stroke-opacity: 0.6;
 }
 
 /* The dragged glyph follows the pointer and must not swallow its own events. */

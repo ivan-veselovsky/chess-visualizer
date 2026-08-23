@@ -20,7 +20,7 @@
       "opponent": true
     },
     "showPins": true,
-    "pinRingColor": "#000000",
+    "pinRingColor": "#616161",
     "pinRingDiameter": 0.85,
     "showCheck": true,
     "showCheckmate": true,
