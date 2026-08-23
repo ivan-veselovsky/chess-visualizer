@@ -19,10 +19,12 @@ export default function ColorField({
   return (
     <div className="color-field">
       <label htmlFor={id}>{label}</label>
+      {/* The well shows the colour but not which one; hovering says. */}
       <input
         id={id}
         type="color"
         value={value}
+        title={value}
         onChange={(event) => onChange(event.target.value.toLowerCase())}
       />
     </div>
