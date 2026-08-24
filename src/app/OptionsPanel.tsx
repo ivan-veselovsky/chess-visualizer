@@ -3,10 +3,12 @@ import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
 import NumberField from "./NumberField";
+import SelectField from "./SelectField";
 import ToggleField from "./ToggleField";
 import type {
   AttackOptions,
   BoardColors,
+  KnightGeometry,
   Options,
   OutlineOpacity,
   RayOpacity,
@@ -218,6 +220,19 @@ export default function OptionsPanel({
           allowZero
           max={1}
           onChange={(xRayDecayFactor) => updateAttacks({ xRayDecayFactor })}
+        />
+        <SelectField<KnightGeometry>
+          id="knight-geometry"
+          label="Knight attack geometry"
+          hint="How the knight's ring is finished off on each square: cut between two radii, or cut by the square with a tail pointing back at the knight — along the board's lines, or along the radius."
+          value={options.attacks.knightGeometry}
+          choices={[
+            { value: "arc", label: "Arc" },
+            { value: "orthogonal-gamma", label: "Orthogonal gamma" },
+            { value: "diagonal-gamma-1", label: "Diagonal gamma 1" },
+            { value: "diagonal-gamma-2", label: "Diagonal gamma 2" },
+          ]}
+          onChange={(knightGeometry) => updateAttacks({ knightGeometry })}
         />
         <ToggleField
           id="full-rays"

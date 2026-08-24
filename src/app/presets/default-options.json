@@ -1,5 +1,5 @@
 {
-  "optionsSchemaVersion": 15,
+  "optionsSchemaVersion": 20,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -19,6 +19,7 @@
       "me": true,
       "opponent": true
     },
+    "knightGeometry": "diagonal-gamma-1",
     "showPins": true,
     "pinRingColor": "#616161",
     "pinRingDiameter": 0.85,

@@ -9,6 +9,7 @@ export type {
   AttackColors,
   AttackOptions,
   BoardColors,
+  KnightGeometry,
   KnightRingOptions,
   AttackGeometry,
   PieceTint,
@@ -40,7 +41,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Options` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const OPTIONS_SCHEMA_VERSION = 15;
+export const OPTIONS_SCHEMA_VERSION = 20;
 
 /**
  * Central description of everything the user can tweak: one object holding

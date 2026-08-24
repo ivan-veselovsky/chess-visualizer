@@ -99,6 +99,20 @@ export interface OutlineOpacity {
 }
 
 /**
+ * How the knight's ring is finished off on each square it attacks.
+ *
+ * "arc" cuts it between two radii and leaves it at that. The others add a
+ * stripe running back towards the knight from where the ring leaves the square
+ * — along the board's own lines for the grid one, along a radius for the two
+ * diagonals, which differ only in how the far end of that stripe is cut.
+ */
+export type KnightGeometry =
+  | "arc"
+  | "orthogonal-gamma"
+  | "diagonal-gamma-1"
+  | "diagonal-gamma-2";
+
+/**
  * Whether each side's attacks are drawn at all. Turning both off leaves the
  * board as any other program shows it, which is worth being able to get back
  * to: the marks are there to be compared against the plain position.
@@ -180,6 +194,8 @@ export interface AttackOptions {
    * the position rather than about whose reach is being read, and being able to
    * see one side's pins but not the other's would only mislead.
    */
+  /** One choice for both sides: it is a shape, not a way of telling them apart. */
+  knightGeometry: KnightGeometry;
   showPins: boolean;
   /** What that ring is drawn in. One colour, as the setting above is one flag. */
   pinRingColor: string;
