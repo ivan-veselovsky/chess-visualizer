@@ -25,6 +25,8 @@ import {
   type GameStash,
 } from "../chess/stash";
 import { parseFen } from "../chess/position";
+import CopyButton from "./CopyButton";
+import { gameLink, openingFromLocation, positionLink } from "./sharing";
 import Board from "../visualization/Board";
 import type { LastMove } from "../visualization/layers/HighlightLayer";
 import GameLibrary from "./GameLibrary";
@@ -46,9 +48,17 @@ import { DEFAULT_OPTIONS } from "./presets";
 export default function App() {
   const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [fen, setFen] = useState(DEFAULT_POSITION);
+  /*
+    What the page opens on. A link may name a position; read once, at the first
+    render, so that stepping away from it afterwards is not undone by a later
+    render reading the address bar again.
+  */
+  const [opening] = useState(openingFromLocation);
+  const [fen, setFen] = useState(opening?.fen ?? DEFAULT_POSITION);
   const [history, setHistory] = useState<PositionHistory>(() =>
-    startHistory(DEFAULT_POSITION)
+    opening?.entries == null
+      ? startHistory(opening?.fen ?? DEFAULT_POSITION)
+      : historyFromLine(opening.entries)
   );
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
@@ -118,6 +128,11 @@ export default function App() {
     return entries !== null && sameLine(entries, history.entries)
       ? game.pgn
       : null;
+  }
+
+  /** The game as it would be written out, for exporting or for sharing. */
+  function sharablePgn(): string | null {
+    return originalPgn() ?? toPgn(history, stashName);
   }
 
   /** Puts the game aside under the name it already goes by. */
@@ -398,6 +413,14 @@ export default function App() {
               </button>
               <PgnHelp id="export-pgn-help" fromEnd />
             </span>
+            <CopyButton
+              label="Share game"
+              title="Copy a link that opens this game at its first position"
+              text={() => {
+                const pgn = sharablePgn();
+                return pgn === null ? null : gameLink(pgn);
+              }}
+            />
             {/* Put aside at the right, away from the two that move PGN about. */}
             <div className="stash-actions">
               <button
@@ -434,6 +457,7 @@ export default function App() {
             onChange={enterPosition}
             entries={history.entries}
             current={history.current}
+            shareLink={positionLink}
             onSelectPosition={(index) => {
               const moved = goToPosition(history, index);
               setHistory(moved);
@@ -517,7 +541,7 @@ export default function App() {
       <PgnExportDialog
         open={pgnExportOpen}
         // Only written when it is about to be shown.
-        pgn={pgnExportOpen ? originalPgn() ?? toPgn(history, stashName) : null}
+        pgn={pgnExportOpen ? sharablePgn() : null}
         onClose={() => setPgnExportOpen(false)}
       />
     </main>

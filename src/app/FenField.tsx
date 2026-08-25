@@ -1,4 +1,5 @@
 import { describeEntry, type HistoryEntry } from "../chess/history";
+import CopyButton from "./CopyButton";
 import FenHelp from "./FenHelp";
 
 interface FenFieldProps {
@@ -10,6 +11,8 @@ interface FenFieldProps {
   entries: HistoryEntry[];
   /** Which of them is on the board. */
   current: number;
+  /** A link that opens the position now in the field, for the Share button. */
+  shareLink: (fen: string) => string;
   onSelectPosition: (index: number) => void;
 }
 
@@ -24,6 +27,7 @@ export default function FenField({
   onChange,
   entries,
   current,
+  shareLink,
   onSelectPosition,
 }: FenFieldProps) {
   return (
@@ -62,22 +66,31 @@ export default function FenField({
             <label htmlFor="fen">Position (FEN)</label>
             <FenHelp id="fen-help" />
           </span>
-          <input
-            id="fen"
-            type="text"
-            className={
-              error === null ? "fen-input" : "fen-input fen-input-invalid"
-            }
-            value={value}
-            spellCheck={false}
-            autoComplete="off"
-            autoCapitalize="off"
-            aria-invalid={error !== null}
-            aria-describedby={
-              error === null ? "fen-help" : "fen-help fen-error"
-            }
-            onChange={(event) => onChange(event.target.value)}
-          />
+          {/* The field takes what room there is; the button keeps its own. */}
+          <div className="fen-input-row">
+            <input
+              id="fen"
+              type="text"
+              className={
+                error === null ? "fen-input" : "fen-input fen-input-invalid"
+              }
+              value={value}
+              spellCheck={false}
+              autoComplete="off"
+              autoCapitalize="off"
+              aria-invalid={error !== null}
+              aria-describedby={
+                error === null ? "fen-help" : "fen-help fen-error"
+              }
+              onChange={(event) => onChange(event.target.value)}
+            />
+            <CopyButton
+              label="Share position"
+              title="Copy a link that opens this position"
+              disabled={error !== null}
+              text={() => shareLink(value)}
+            />
+          </div>
         </div>
       </div>
 

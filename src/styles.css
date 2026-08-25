@@ -451,6 +451,18 @@ body {
   border-radius: 3px;
 }
 
+/* The field and its Share button, the field taking whatever is left over. */
+.fen-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.fen-input-row > .reset-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .fen-input {
   width: 100%;
   min-width: 0;
