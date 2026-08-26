@@ -1,3 +1,5 @@
+import { useState } from "react";
+import ColorDialog from "./ColorDialog";
 import NumberInput from "./NumberInput";
 import {
   type AttackColors,
@@ -49,7 +51,20 @@ interface Row {
   piece: string;
   /** Shown on hover over the row's name. */
   hint?: string;
+  /**
+   * What this row's colour is called, after whose it is: "My **King attack**".
+   * A piece's colour is the colour of its attacks, so that is what it is named
+   * after; the outline is not an attack and says so for itself.
+   */
+  swatchNoun?: string;
   cells: Record<Side, SideCells>;
+}
+
+/** How a colour reads in full — the dialog's heading, and the swatch's title. */
+function swatchName(row: Row, side: Side): string {
+  return `${side === "me" ? "My" : "Opponent"} ${
+    row.swatchNoun ?? `${row.piece} attack`
+  }`;
 }
 
 /**
@@ -69,6 +84,16 @@ interface Row {
  * turning the whole display around.
  */
 export default function AttackTable({ attacks, onChange }: AttackTableProps) {
+  /*
+    Which swatch has its dialog open, named rather than captured. The cell's own
+    handler is rebuilt on every render out of the settings as they stand, so
+    holding on to one would mean changing a colour through a handler that
+    remembers the settings from before the last change.
+  */
+  const [editing, setEditing] = useState<{ rowKey: string; side: Side } | null>(
+    null
+  );
+
   function updateGeometry(side: Side, patch: Partial<AttackGeometry>) {
     onChange({
       geometry: {
@@ -111,13 +136,18 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
             : "stripe-table-swatch"
         }
       >
-        <input
-          type="color"
+        {/*
+          A button rather than a colour input: it opens a dialog carrying a
+          written field as well as the browser's well, which a cell this size
+          has no room for and the browser's own picker will not supply.
+        */}
+        <button
+          type="button"
           className="attack-swatch"
-          value={value}
-          title={`${side} ${row.piece} color (${value})`}
-          aria-label={`${side} ${row.piece} color`}
-          onChange={(event) => cell.onChange(event.target.value.toLowerCase())}
+          style={{ background: value }}
+          title={`${swatchName(row, side)} (${value})`}
+          aria-label={`${swatchName(row, side)} (${value})`}
+          onClick={() => setEditing({ rowKey: row.key, side })}
         />
       </td>
     );
@@ -269,6 +299,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     });
     return {
       key: "outline",
+      swatchNoun: "outline colour",
       piece: "Outline",
       hint: OUTLINE_HINT,
       cells: { me: cellsFor("me"), opponent: cellsFor("opponent") },
@@ -309,6 +340,18 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
       </td>
     );
   }
+
+  // Resolved from this render's rows, so the handler is always the current one.
+  const open =
+    editing === null
+      ? undefined
+      : (() => {
+          const row = rows.find((candidate) => candidate.key === editing.rowKey);
+          const swatch = row?.cells[editing.side].swatch;
+          return swatch === undefined || row === undefined
+            ? undefined
+            : { name: swatchName(row, editing.side), swatch };
+        })();
 
   return (
     <section className="options-group">
@@ -387,6 +430,15 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
         </tbody>
       </table>
 
+      {open !== undefined && (
+        <ColorDialog
+          open
+          label={open.name}
+          value={open.swatch.value}
+          onChange={open.swatch.onChange}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </section>
   );
 }

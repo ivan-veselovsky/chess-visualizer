@@ -127,12 +127,20 @@ export default function OptionsPanel({
             }
           />
         </div>
-        <ToggleField
-          id="show-grid"
-          label="Show grid"
-          checked={options.showGrid}
-          onChange={(showGrid) => onChange({ ...options, showGrid })}
-        />
+        <div className="field-row field-row-apart">
+          <ToggleField
+            id="show-grid"
+            label="Show grid"
+            checked={options.showGrid}
+            onChange={(showGrid) => onChange({ ...options, showGrid })}
+          />
+          <ColorField
+            id="grid-color"
+            label="Grid color"
+            value={options.gridColor}
+            onChange={(gridColor) => onChange({ ...options, gridColor })}
+          />
+        </div>
       </section>
 
       <section className="options-group">
@@ -228,11 +236,25 @@ export default function OptionsPanel({
           value={options.attacks.knightGeometry}
           choices={[
             { value: "arc", label: "Arc" },
-            { value: "orthogonal-gamma", label: "Orthogonal gamma" },
-            { value: "diagonal-gamma-1", label: "Diagonal gamma 1" },
-            { value: "diagonal-gamma-2", label: "Diagonal gamma 2" },
+            { value: "gamma-1", label: "Gamma 1" },
+            { value: "gamma-2", label: "Gamma 2" },
+            { value: "straight-ray", label: "Straight ray" },
           ]}
           onChange={(knightGeometry) => updateAttacks({ knightGeometry })}
+        />
+        <NumberField
+          id="straight-ray-opacity-decay"
+          inline
+          hint="What the straight-ray geometry's marks are drawn at where they only pass through, on the way to the square they reach — as a factor on that side's attack ray opacity, not an opacity of its own."
+          label="Knight straight ray opacity decay"
+          suffix="× ray opacity"
+          value={options.attacks.straightRayOpacityDecay}
+          step={0.05}
+          max={1}
+          allowZero
+          onChange={(straightRayOpacityDecay) =>
+            updateAttacks({ straightRayOpacityDecay })
+          }
         />
         <ToggleField
           id="full-rays"

@@ -1,3 +1,6 @@
+import { useState } from "react";
+import ColorDialog from "./ColorDialog";
+
 interface ColorFieldProps {
   id: string;
   label: string;
@@ -6,9 +9,15 @@ interface ColorFieldProps {
 }
 
 /**
- * A colour option: a labelled well, and nothing else. The browser's own picker
- * shows and accepts a hex value, so a text field beside it only repeated what
- * the well already opens onto.
+ * A colour option: a labelled well that opens a dialog to change it in.
+ *
+ * The well alone would do for choosing one by eye, and for a while that is all
+ * this was. The dialog carries the colour written out as well, to be typed into
+ * or pasted over — which the browser's own picker cannot be relied on for, its
+ * innards belonging to the browser rather than to the page.
+ *
+ * The same dialog serves the swatches in the attack table, so a colour is
+ * changed the same way wherever it is met.
  */
 export default function ColorField({
   id,
@@ -16,16 +25,26 @@ export default function ColorField({
   value,
   onChange,
 }: ColorFieldProps) {
+  const [open, setOpen] = useState(false);
+
   return (
     <div className="color-field">
       <label htmlFor={id}>{label}</label>
-      {/* The well shows the colour but not which one; hovering says. */}
-      <input
+      <button
         id={id}
-        type="color"
-        value={value}
+        type="button"
+        className="color-well"
+        style={{ background: value }}
         title={value}
-        onChange={(event) => onChange(event.target.value.toLowerCase())}
+        aria-label={`${label} (${value})`}
+        onClick={() => setOpen(true)}
+      />
+      <ColorDialog
+        open={open}
+        label={label}
+        value={value}
+        onChange={onChange}
+        onClose={() => setOpen(false)}
       />
     </div>
   );

@@ -37,6 +37,8 @@ interface BoardProps {
   /** Omit to make the board read-only. */
   onMove?: (from: Square, to: Square) => void;
   showGrid?: boolean;
+  /** What the grid's lines are drawn in. */
+  gridColor?: string;
   /** The move that reached this position, to shade the squares it used. */
   lastMove?: LastMove | null;
   /** The wash laid over those two squares, and how much of it. */
@@ -77,6 +79,7 @@ export default function Board({
   attacks,
   onMove,
   showGrid = true,
+  gridColor = "#000000",
   lastMove = null,
   lastMoveColor = "#000000",
   lastMoveOpacity = 0,
@@ -119,6 +122,7 @@ export default function Board({
   const themeVars = {
     "--square-light": colors.lightSquare,
     "--square-dark": colors.darkSquare,
+    "--grid-line": gridColor,
     // One per piece per side. Which of each pair applies is decided further
     // down, by a class on the mark's group and on the piece glyph, so the rules
     // that use them go on saying `var(--attack-king)`.

@@ -41,7 +41,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Options` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const OPTIONS_SCHEMA_VERSION = 20;
+export const OPTIONS_SCHEMA_VERSION = 24;
 
 /**
  * Central description of everything the user can tweak: one object holding
@@ -67,6 +67,8 @@ export interface Options {
   pieceTint: PieceTint;
   /** Thin lines on the square edges, readable even with identical colours. */
   showGrid: boolean;
+  /** What those lines are drawn in, when they are drawn at all. */
+  gridColor: string;
   /**
    * The wash laid over the two squares of the move just played, and how much of
    * it, from 0 to 1.

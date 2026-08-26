@@ -12,7 +12,7 @@
 :root {
   /* --square-light / --square-dark are supplied per-board by <Board>. */
   --board-frame: #4a3728;
-  --grid-line: #000000;
+  /* --grid-line is supplied per-board by <Board>. */
   /* --attack-* are supplied per-board by <Board>, opaque; the alpha comes from
      the attack opacity option and the decay per blocker. */
   --piece-outline: #1a1a1a;
@@ -801,7 +801,6 @@ body {
   background: var(--panel-bg);
 }
 
-
 /* Unlabelled and unruled, so spacing alone separates one group from the next:
    noticeably wider than the gap between fields within a group. */
 .options-group + .options-group {
@@ -840,7 +839,31 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* Never narrower than what it holds. Allowed to collapse it would overlap
+     whatever shares its row rather than moving below it. */
+  min-width: min-content;
   margin-bottom: 0.5rem;
+}
+
+/* The colour written out in the dialog, to be typed into or pasted over. */
+.color-hex {
+  /* Held to the width of what it shows, so the button beside it keeps its
+     place. Allowed to grow it would swallow the row. */
+  flex: 0 0 6.5em;
+  /* Without this the box keeps the width a text input asks for by default,
+     whatever the basis above says. */
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.color-hex-invalid {
+  border-color: var(--invalid);
 }
 
 .color-field > label {
@@ -848,7 +871,6 @@ body {
   min-width: 7rem;
   font-size: 0.9rem;
 }
-
 
 /*
   A colour input is a wrapper around a swatch the browser draws itself, and each
@@ -875,6 +897,16 @@ input[type="color"]::-moz-color-swatch {
   border: none;
 }
 
+.color-well {
+  flex: 0 0 auto;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
 .color-field input[type="color"] {
   flex: 0 0 auto;
   width: 1.8rem;
@@ -885,9 +917,6 @@ input[type="color"]::-moz-color-swatch {
   border-radius: 6px;
   cursor: pointer;
 }
-
-
-
 
 .options-footer {
   margin-top: 1.9rem;
@@ -982,8 +1011,6 @@ input[type="color"]::-moz-color-swatch {
   text-align: center;
 }
 
-
-
 /* Separates White's pair of columns from Black's. */
 .stripe-group-start {
   border-left: 1px solid var(--panel-border);
@@ -994,16 +1021,34 @@ input[type="color"]::-moz-color-swatch {
   text-align: center;
 }
 
+/* A button showing its colour, which opens the dialog that can change it. */
 .attack-swatch {
   display: block;
   margin-inline: auto;
   width: 1.3rem;
   height: 1.3rem;
   padding: 0;
-  background: none;
   border: 1px solid var(--panel-border);
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* Narrow: it holds one colour and its name, not a game. */
+.color-dialog {
+  width: min(20rem, 90vw);
+}
+
+.color-dialog .color-field {
+  /* Wraps rather than overflows: the copy button says how it went, and what it
+     says is longer than what it usually reads. */
+  flex-wrap: wrap;
+  margin: 0.6rem 0 0;
+}
+
+/* Held wide enough for anything the button says once pressed — including that
+   the copy failed — so pressing it does not shove the row about. */
+.color-dialog .color-field .reset-button {
+  min-width: 6.8em;
 }
 
 /* Screen-reader-only: the swatch column needs no visible heading. */
@@ -1045,6 +1090,9 @@ input[type="color"]::-moz-color-swatch {
 */
 .field-row {
   display: flex;
+  /* A pair sits side by side where there is room and stacks where there is
+     not, rather than one field overlapping the other. */
+  flex-wrap: wrap;
   gap: 0.75rem;
   margin-bottom: 0.85rem;
 }
@@ -1068,10 +1116,16 @@ input[type="color"]::-moz-color-swatch {
   min-width: 0;
 }
 
-.field-row > .number-field,
+.field-row > .number-field {
+  flex: 1 1 auto;
+  /* As with the colour fields: never narrower than its own label, so a row too
+     tight for both drops the second below rather than crushing it. */
+  min-width: min-content;
+  margin-bottom: 0;
+}
+
 .field-row > .color-field {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 auto;
   margin-bottom: 0;
 }
 

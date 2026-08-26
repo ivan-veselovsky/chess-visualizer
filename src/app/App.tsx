@@ -316,6 +316,7 @@ export default function App() {
               attacks={options.attacks}
               onMove={handleMove}
               showGrid={options.showGrid}
+              gridColor={options.gridColor}
               lastMove={lastMove}
               lastMoveColor={options.lastMoveColor}
               lastMoveOpacity={options.lastMoveOpacity}

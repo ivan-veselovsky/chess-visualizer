@@ -34,9 +34,25 @@ export function targetSides(
   target: Square,
   orientation: Orientation
 ): TargetSides | null {
-  const from = squareCenter(knight, orientation);
-  const to = squareCenter(target, orientation);
-  const box = squareBox(target, orientation);
+  return targetSidesAt(
+    squareCenter(knight, orientation),
+    squareCenter(target, orientation),
+    squareBox(target, orientation)
+  );
+}
+
+/**
+ * The same, for a square given by where it is rather than by name.
+ *
+ * A knight's move can run off the board, and the corner figures on its own
+ * square are drawn as though both moves into a corner existed — so the square
+ * one of them would have landed on has to be describable without being real.
+ */
+function targetSidesAt(
+  from: Point,
+  to: Point,
+  box: { x: number; y: number; width: number; height: number }
+): TargetSides | null {
   const [x0, y0] = [box.x, box.y];
   const [x1, y1] = [box.x + box.width, box.y + box.height];
 
@@ -89,60 +105,6 @@ export function targetSides(
 }
 
 /**
- * Orthogonal gamma's bar: a stripe of the ring's own thickness lying along `b`,
- * running from where the ring meets it back to `c`.
- *
- * Axis-aligned, which is where the name comes from — it follows the board's
- * own lines rather than the circle's.
- */
-export function orthogonalGammaBar(
-  knight: Point,
-  sides: TargetSides,
-  innerRadius: number,
-  thickness: number
-): { x: number; y: number; width: number; height: number } | null {
-  const { b, c, box } = sides;
-  // Where the ring's inner edge crosses the line `b` lies on.
-  const offset = b.at - (b.axis === "x" ? knight.x : knight.y);
-  const reach = innerRadius ** 2 - offset ** 2;
-  if (reach <= 0) {
-    return null;
-  }
-  const along = Math.sqrt(reach);
-  const centreAlong = b.axis === "x" ? knight.y : knight.x;
-  // The crossing on the same side of the knight as the square itself.
-  const boxLow = b.axis === "x" ? box.y : box.x;
-  const boxHigh = boxLow + (b.axis === "x" ? box.height : box.width);
-  const ringAt =
-    Math.abs(centreAlong + along - (boxLow + boxHigh) / 2) <
-    Math.abs(centreAlong - along - (boxLow + boxHigh) / 2)
-      ? centreAlong + along
-      : centreAlong - along;
-
-  const start = Math.min(Math.max(ringAt, boxLow), boxHigh);
-  const stop = c.at;
-  const lowAlong = Math.min(start, stop);
-  const size = Math.abs(stop - start);
-  if (size <= 0) {
-    return null;
-  }
-
-  /*
-    `b` is one of the box's two sides across the bar's run, and the bar lies on
-    whichever side of it is inside the box. Both coordinates here have to be
-    read on the across axis — the one `b` is fixed in — which is the opposite of
-    the axis the bar runs along.
-  */
-  const acrossLow = b.axis === "x" ? box.x : box.y;
-  const near = b.at === acrossLow ? b.at : b.at - thickness;
-
-  // A side fixed in x runs along y, and the other way about.
-  return b.axis === "x"
-    ? { x: near, y: lowAlong, width: thickness, height: size }
-    : { x: lowAlong, y: near, width: size, height: thickness };
-}
-
-/**
  * Where the ring's outer edge meets a given side of the square, on the side of
  * the knight the square itself lies. Null when the circle misses that line.
  */
@@ -171,62 +133,162 @@ export function outerMeeting(
 }
 
 /**
- * A square cut back to one side of a line through the knight's centre — the
- * ray out to `through`.
+ * An angle brought within half a turn of what it is being compared against.
  *
- * Orthogonal gamma needs its arc cut radially where it leaves by `d`, as the arc
- * geometry does, while still running out to `b` at the other end for the bar to
- * carry on from. Neither the square alone nor a sector alone says that, so the
- * two are intersected: the square, trimmed against the one radius that matters.
- *
- * `keep` is any point on the side to be kept. Returns null if nothing is left.
+ * A sector's span arrives measured from zero upwards while `atan2` answers
+ * between -π and π; comparing the two as they come would put one end most of a
+ * turn from the other and leave an arc running nearly the whole way round.
  */
-export function squareBeyondRadius(
+function near(angle: number, reference: number): number {
+  const turn = Math.PI * 2;
+  return angle + Math.round((reference - angle) / turn) * turn;
+}
+
+/**
+ * How far past the corner's radius the arc runs on towards `b`, in square
+ * sides. Larger leaves less daylight at `b`, not more.
+ */
+const CLEARANCE_FROM_B = 0.1;
+
+/**
+ * The arc's span with the end away from `d` brought in to the radius through
+ * the corner where `c` and `b` meet.
+ *
+ * The other end is left exactly where it was — it is the ray out to where the
+ * outer circle meets `d`, which the stripe is anchored on too, and moving it
+ * would part the two.
+ */
+export function spanFromCorner(
   knight: Point,
-  through: Point,
-  keep: Point,
-  box: { x: number; y: number; width: number; height: number }
-): string | null {
-  const ray = { x: through.x - knight.x, y: through.y - knight.y };
+  sides: TargetSides,
+  outerRadius: number,
+  thickness: number,
+  span: [number, number]
+): [number, number] {
+  const { b, c, box } = sides;
+  const onD = outerMeeting(knight, sides.d, box, outerRadius);
+  if (onD === null) {
+    return span;
+  }
+  const middle = (span[0] + span[1]) / 2;
+  const atD = near(Math.atan2(onD.y - knight.y, onD.x - knight.x), middle);
+  const kept =
+    Math.abs(span[0] - atD) < Math.abs(span[1] - atD) ? span[0] : span[1];
+
+  const corner: Point =
+    c.axis === "x" ? { x: c.at, y: b.at } : { x: b.at, y: c.at };
+  const atCorner = near(
+    Math.atan2(corner.y - knight.y, corner.x - knight.x),
+    kept
+  );
+
+  /*
+    Turned a little further on towards `b`. The corner's bare radius leaves the
+    arc ending sooner than it looks as though it should, the corner being well
+    inside the ring; a set distance along the ring carries the end back out to
+    where the eye expects it, while still leaving daylight before `b`.
+
+    A set distance rather than one taken from the ring's own thickness: tying it
+    to the ring closes the gap almost to nothing as the ring is widened, and a
+    couple of pixels of daylight reads as none at all.
+  */
+  const further = (CLEARANCE_FROM_B * SQUARE_SIZE) / outerRadius;
+  const reached = atCorner + Math.sign(atCorner - kept) * further;
+  return [Math.min(kept, reached), Math.max(kept, reached)];
+}
+
+/**
+ * The arc's span with the end towards `b` brought in to the far side of the
+ * stripe that comes up to meet it there.
+ *
+ * The first diagonal does the same thing at its other end, where arc and stripe
+ * share the radius out to `d`. Left alone, the arc runs on past its stripe to
+ * `b` and leaves a step at the join, the arc being wider there than the stripe
+ * that arrives.
+ */
+export function spanToStripe(
+  knight: Point,
+  sides: TargetSides,
+  outerRadius: number,
+  thickness: number,
+  span: [number, number]
+): [number, number] {
+  const stripe = diagonalTailFromB(knight, sides, outerRadius, thickness);
+  const onD = outerMeeting(knight, sides.d, sides.box, outerRadius);
+  if (stripe === null || onD === null) {
+    return span;
+  }
+
+  const middle = (span[0] + span[1]) / 2;
+  const atD = near(Math.atan2(onD.y - knight.y, onD.x - knight.x), middle);
+  const kept =
+    Math.abs(span[0] - atD) < Math.abs(span[1] - atD) ? span[0] : span[1];
+
+  // The stripe's two sides: one runs through the b/c corner, the other is the
+  // far one, and it is the far one the arc should stop on.
+  const { b, c } = sides;
+  const corner: Point =
+    c.axis === "x" ? { x: c.at, y: b.at } : { x: b.at, y: c.at };
+  const atCorner = Math.atan2(corner.y - knight.y, corner.x - knight.x);
+  const far =
+    Math.abs(near(stripe.from, atCorner) - atCorner) >
+    Math.abs(near(stripe.to, atCorner) - atCorner)
+      ? stripe.from
+      : stripe.to;
+
+  const reached = near(far, kept);
+  return [Math.min(kept, reached), Math.max(kept, reached)];
+}
+
+/**
+ * The second diagonal's stripe: a sector running out from the corner where `b`
+ * and `c` meet to the ring's inner edge, so it meets the arc from beneath,
+ * along `b`, rather than from above along `d`.
+ *
+ * The side towards `d` is the radius through that corner. The other is turned
+ * away from `d` by just enough that the wedge would be the ring's thickness
+ * across where it met the ring's outer edge — the same rule the first diagonal
+ * uses, so the two stripes are the same width where they touch the ring.
+ *
+ * That corner is a corner of the square, so the square itself decides where the
+ * stripe begins, and the ring's inner circle where it ends.
+ */
+export function diagonalTailFromB(
+  knight: Point,
+  sides: TargetSides,
+  outerRadius: number,
+  thickness: number
+): { path: string; from: number; to: number } | null {
+  const { b, c, d } = sides;
+  const corner: Point =
+    c.axis === "x" ? { x: c.at, y: b.at } : { x: b.at, y: c.at };
+
+  const ray = { x: corner.x - knight.x, y: corner.y - knight.y };
   const length = Math.hypot(ray.x, ray.y);
   if (length === 0) {
     return null;
   }
-  let normal = { x: -ray.y / length, y: ray.x / length };
-  if ((keep.x - knight.x) * normal.x + (keep.y - knight.y) * normal.y < 0) {
-    normal = { x: -normal.x, y: -normal.y };
-  }
-  const side = (p: Point) =>
-    (p.x - knight.x) * normal.x + (p.y - knight.y) * normal.y;
+  const unit = { x: ray.x / length, y: ray.y / length };
+  const across = { x: -unit.y, y: unit.x };
 
-  // Sutherland–Hodgman against the single half-plane.
-  const corners: Point[] = [
-    { x: box.x, y: box.y },
-    { x: box.x + box.width, y: box.y },
-    { x: box.x + box.width, y: box.y + box.height },
-    { x: box.x, y: box.y + box.height },
-  ];
-  const kept: Point[] = [];
-  for (let i = 0; i < corners.length; i += 1) {
-    const current = corners[i];
-    const previous = corners[(i + corners.length - 1) % corners.length];
-    const now = side(current);
-    const before = side(previous);
-    if (now >= 0 !== before >= 0) {
-      const t = before / (before - now);
-      kept.push({
-        x: previous.x + (current.x - previous.x) * t,
-        y: previous.y + (current.y - previous.y) * t,
-      });
-    }
-    if (now >= 0) {
-      kept.push(current);
-    }
-  }
-  if (kept.length < 3) {
-    return null;
-  }
-  return `M ${kept.map((p) => `${p.x} ${p.y}`).join(" L ")} Z`;
+  // Turned away from the corner where `d` meets `c`, which is to say away from
+  // `d` — the stripe lies on the `b` side of the radius through its own corner.
+  const far: Point =
+    d.axis === "x" ? { x: d.at, y: c.at } : { x: c.at, y: d.at };
+  const towardsD =
+    (far.x - corner.x) * across.x + (far.y - corner.y) * across.y;
+
+  const spread = Math.asin(Math.min(thickness / outerRadius, 1));
+  const first = Math.atan2(ray.y, ray.x);
+  const second = first + (towardsD > 0 ? -spread : spread);
+  const from = Math.min(first, second);
+  const to = Math.max(first, second);
+
+  return {
+    path: sectorPath(knight, from, to, outerRadius + SQUARE_SIZE),
+    from,
+    to,
+  };
 }
 
 /**
@@ -242,13 +304,16 @@ export function squareBeyondRadius(
  * Returned as a wedge reaching well past the ring, to be clipped by the square,
  * by the ring's outer circle, and — for the second of the two diagonals — by
  * `stopRadius`, the radius at which the first side runs out through `c`.
+ *
+ * The two bounding angles come back as well, so that wedges sharing a corner of
+ * the knight's own square can be joined into one figure there.
  */
 export function diagonalGammaSector(
   knight: Point,
   sides: TargetSides,
   outerRadius: number,
   thickness: number
-): { path: string; stopRadius: number } | null {
+): { path: string; stopRadius: number; from: number; to: number } | null {
   const { c, d, box } = sides;
   const onD = outerMeeting(knight, d, box, outerRadius);
   if (onD === null) {
@@ -286,8 +351,7 @@ export function diagonalGammaSector(
   const second = first + (towardCorner > 0 ? -spread : spread);
 
   const far = outerRadius + SQUARE_SIZE;
-  return {
-    path: sectorPath(knight, Math.min(first, second), Math.max(first, second), far),
-    stopRadius,
-  };
+  const from = Math.min(first, second);
+  const to = Math.max(first, second);
+  return { path: sectorPath(knight, from, to, far), stopRadius, from, to };
 }

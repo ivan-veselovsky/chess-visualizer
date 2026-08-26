@@ -1,5 +1,5 @@
 {
-  "optionsSchemaVersion": 20,
+  "optionsSchemaVersion": 24,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -10,6 +10,7 @@
   "lastMoveOpacity": 0.25,
   "orientation": "white",
   "showGrid": false,
+  "gridColor": "#000000",
   "pieceTint": {
     "lightenWhite": 0.9,
     "darkenBlack": 0.8
@@ -19,7 +20,8 @@
       "me": true,
       "opponent": true
     },
-    "knightGeometry": "diagonal-gamma-1",
+    "knightGeometry": "arc",
+    "straightRayOpacityDecay": 0.25,
     "showPins": true,
     "pinRingColor": "#616161",
     "pinRingDiameter": 0.85,

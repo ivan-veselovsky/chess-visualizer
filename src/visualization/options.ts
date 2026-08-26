@@ -101,16 +101,16 @@ export interface OutlineOpacity {
 /**
  * How the knight's ring is finished off on each square it attacks.
  *
- * "arc" cuts it between two radii and leaves it at that. The others add a
- * stripe running back towards the knight from where the ring leaves the square
- * — along the board's own lines for the grid one, along a radius for the two
- * diagonals, which differ only in how the far end of that stripe is cut.
+ * "arc" cuts it between two radii and leaves it at that. The two gammas add a
+ * radial stripe as well: the first leaning in from `d`, above the arc; the
+ * second rising from the corner by `b`, beneath it.
+ *
+ * "straight-ray" draws no ring at all. Each move gets a stripe of the ring's
+ * thickness from the knight out to its outer radius, aimed at the square it
+ * reaches and pointed at the end, and the whole journey shows — faintly where
+ * it passes over, plainly where it arrives.
  */
-export type KnightGeometry =
-  | "arc"
-  | "orthogonal-gamma"
-  | "diagonal-gamma-1"
-  | "diagonal-gamma-2";
+export type KnightGeometry = "arc" | "gamma-1" | "gamma-2" | "straight-ray";
 
 /**
  * Whether each side's attacks are drawn at all. Turning both off leaves the
@@ -196,6 +196,17 @@ export interface AttackOptions {
    */
   /** One choice for both sides: it is a shape, not a way of telling them apart. */
   knightGeometry: KnightGeometry;
+  /**
+   * What the straight-ray geometry's marks are drawn at where they are only
+   * passing through — the knight's own square, and the ones between it and the
+   * square it reaches.
+   *
+   * A factor on `rayOpacity` for that side rather than an opacity of its own,
+   * so raising a side's rays raises its trails with them: 0.3 draws them at
+   * three tenths of whatever that side's rays are drawn at. One draws the whole
+   * length alike; zero shows only where each move arrives.
+   */
+  straightRayOpacityDecay: number;
   showPins: boolean;
   /** What that ring is drawn in. One colour, as the setting above is one flag. */
   pinRingColor: string;

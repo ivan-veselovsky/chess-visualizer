@@ -30,7 +30,7 @@ export default function CopyButton({
         window.clearTimeout(timer.current);
       }
     },
-    []
+    [],
   );
 
   async function copy() {
