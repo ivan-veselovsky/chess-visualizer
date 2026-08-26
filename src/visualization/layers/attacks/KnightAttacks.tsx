@@ -10,7 +10,7 @@ import {
 } from "../../geometry";
 import { stripeBands } from "./bands";
 import {
-  diagonalGammaBand,
+  diagonalGammaSector,
   orthogonalGammaBar,
   outerMeeting,
   squareBeyondRadius,
@@ -118,8 +118,8 @@ export default function KnightAttacks({
         });
       }
     } else if (gamma === "diagonal-gamma-1" || gamma === "diagonal-gamma-2") {
-      const band = diagonalGammaBand(center, sides, outer, thickness);
-      if (band !== null) {
+      const wedge = diagonalGammaSector(center, sides, outer, thickness);
+      if (wedge !== null) {
         /*
           The two diagonals part company only here, at the tail's inner end.
           The first lets `c` cut it off straight; the second stops it on a
@@ -128,10 +128,10 @@ export default function KnightAttacks({
         */
         const stopped = gamma === "diagonal-gamma-2";
         if (stopped) {
-          stops.push({ key: target, radius: band.stopRadius });
+          stops.push({ key: target, radius: wedge.stopRadius });
         }
         const area = (
-          <path d={band.path} className="attack-area attack-knight-area" />
+          <path d={wedge.path} className="attack-area attack-knight-area" />
         );
         tails.push({
           key: target,

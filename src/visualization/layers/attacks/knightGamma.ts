@@ -1,5 +1,12 @@
 import type { Square } from "chess.js";
-import { SQUARE_SIZE, squareBox, squareCenter, type Orientation, type Point } from "../../geometry";
+import {
+  SQUARE_SIZE,
+  sectorPath,
+  squareBox,
+  squareCenter,
+  type Orientation,
+  type Point,
+} from "../../geometry";
 
 /**
  * The three sides of an attacked square the gamma geometries are built on.
@@ -223,45 +230,30 @@ export function squareBeyondRadius(
 }
 
 /**
- * Diagonal gamma's stripe, as a long band between two parallel lines.
+ * Diagonal gamma's stripe, as a sector: a wedge whose two sides are both radii
+ * out of the knight's centre.
  *
- * One of those lines is strictly radial: it runs from the knight's centre out
- * through the point where the ring's outer edge meets `d`. The other is that
- * line moved sideways by the ring's thickness, away from the corner where `d`
- * and `c` meet — so the band leans across the square rather than clipping its
- * corner off.
+ * One of those radii runs through the point where the ring's outer edge meets
+ * `d`, which is the same ray the arc is cut on, so the two meet without a seam.
+ * The other is turned away from the corner where `d` meets `c`, by just enough
+ * that the wedge is the ring's own thickness where it joins the ring — narrowing
+ * as it runs inward, the way anything drawn out of a centre does.
  *
- * The band is returned long, to be clipped by the ring's outer circle at one
- * end and by a circle of its own at the other — `stopRadius`, which is where
- * the radial edge runs out through `c`. Both ends are then arcs about the
- * knight, which sits better against the ring than a flat cut along `c` did.
+ * Returned as a wedge reaching well past the ring, to be clipped by the square,
+ * by the ring's outer circle, and — for the second of the two diagonals — by
+ * `stopRadius`, the radius at which the first side runs out through `c`.
  */
-export function diagonalGammaBand(
+export function diagonalGammaSector(
   knight: Point,
   sides: TargetSides,
   outerRadius: number,
   thickness: number
 ): { path: string; stopRadius: number } | null {
   const { c, d, box } = sides;
-  const offset = d.at - (d.axis === "x" ? knight.x : knight.y);
-  const reach = outerRadius ** 2 - offset ** 2;
-  if (reach <= 0) {
+  const onD = outerMeeting(knight, d, box, outerRadius);
+  if (onD === null) {
     return null;
   }
-  const along = Math.sqrt(reach);
-  const centreAlong = d.axis === "x" ? knight.y : knight.x;
-  const boxLow = d.axis === "x" ? box.y : box.x;
-  const boxHigh = boxLow + (d.axis === "x" ? box.height : box.width);
-  const middle = (boxLow + boxHigh) / 2;
-  const meeting =
-    Math.abs(centreAlong + along - middle) < Math.abs(centreAlong - along - middle)
-      ? centreAlong + along
-      : centreAlong - along;
-
-  const onD: Point =
-    d.axis === "x"
-      ? { x: d.at, y: meeting }
-      : { x: meeting, y: d.at };
 
   const ray = { x: onD.x - knight.x, y: onD.y - knight.y };
   const length = Math.hypot(ray.x, ray.y);
@@ -269,40 +261,33 @@ export function diagonalGammaBand(
     return null;
   }
   const unit = { x: ray.x / length, y: ray.y / length };
-  const side = { x: -unit.y, y: unit.x };
 
-  // Away from the corner where `d` meets `c`, so the band crosses the square.
-  const corner: Point =
-    d.axis === "x" ? { x: d.at, y: c.at } : { x: c.at, y: d.at };
-  const towardCorner =
-    (corner.x - onD.x) * side.x + (corner.y - onD.y) * side.y;
-  const sign = towardCorner > 0 ? -1 : 1;
-  const shifted = {
-    x: onD.x + side.x * thickness * sign,
-    y: onD.y + side.y * thickness * sign,
-  };
-
-  // Where the radial edge — the one facing `d` — runs out through `c`. The
-  // edge is radial, so how far along it that happens is the radius itself.
+  // Where the first side runs out through `c`. It is a radius, so how far along
+  // it that happens is the radius itself.
   const towards = c.axis === "x" ? unit.x : unit.y;
   if (towards === 0) {
     return null;
   }
-  const stopRadius =
-    (c.at - (c.axis === "x" ? knight.x : knight.y)) / towards;
+  const stopRadius = (c.at - (c.axis === "x" ? knight.x : knight.y)) / towards;
   if (!(stopRadius > 0) || stopRadius >= outerRadius) {
     return null;
   }
 
-  const far = 4 * SQUARE_SIZE * 8;
-  const corners = [
-    { x: onD.x + unit.x * far, y: onD.y + unit.y * far },
-    { x: onD.x - unit.x * far, y: onD.y - unit.y * far },
-    { x: shifted.x - unit.x * far, y: shifted.y - unit.y * far },
-    { x: shifted.x + unit.x * far, y: shifted.y + unit.y * far },
-  ];
+  // Wide enough to be `thickness` across where it meets the ring's outer edge.
+  const spread = Math.asin(Math.min(thickness / outerRadius, 1));
+  const first = Math.atan2(ray.y, ray.x);
+
+  // Turned away from the corner where `d` and `c` meet.
+  const corner: Point =
+    d.axis === "x" ? { x: d.at, y: c.at } : { x: c.at, y: d.at };
+  const across = { x: -unit.y, y: unit.x };
+  const towardCorner =
+    (corner.x - onD.x) * across.x + (corner.y - onD.y) * across.y;
+  const second = first + (towardCorner > 0 ? -spread : spread);
+
+  const far = outerRadius + SQUARE_SIZE;
   return {
-    path: `M ${corners.map((p) => `${p.x} ${p.y}`).join(" L ")} Z`,
+    path: sectorPath(knight, Math.min(first, second), Math.max(first, second), far),
     stopRadius,
   };
 }
