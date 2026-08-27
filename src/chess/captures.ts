@@ -26,15 +26,17 @@ export const CAPTURE_ORDER: PieceSymbol[] = ["q", "r", "b", "n", "p"];
  * Only the moves up to the shown position count, so stepping back through a
  * game puts the men back as it goes.
  *
- * What a line starts from counts too. A position typed or pasted has no moves
- * behind it, so what is missing from it is worked out from the men that remain
- * — see `missingFrom` — and a game that begins mid-position keeps that deficit
- * showing as it goes on. A line that starts from the usual array adds nothing,
- * every man being present, so an ordinary game is exactly its own captures.
+ * A line that starts from a position rather than from a game — a FEN typed or
+ * pasted, or a game beginning mid-board — has nothing behind it, and nothing is
+ * claimed. What is missing from such a board could be read off the men that
+ * remain, but only by guessing: a promoted man cannot be told from the one he
+ * stands in for, so a side that lost a queen and promoted another looks whole,
+ * and every pawn that promoted looks taken. Those are the positions where the
+ * count would matter most and where it would be furthest out, so the bar stays
+ * empty until it has moves to go on.
  */
 export function capturesUpTo(history: PositionHistory): Capture[] {
-  const start = history.entries[history.entries.length - 1];
-  const taken: Capture[] = missingFrom(start.fen);
+  const taken: Capture[] = [];
   // Entries run newest first, so the oldest move is at the far end.
   for (
     let index = history.entries.length - 2;
@@ -70,77 +72,6 @@ export function countsFor(
       (capture) => capture.by === by && capture.type === type,
     ).length,
   })).filter((kind) => kind.count > 0);
-}
-
-/** What each army starts with. */
-const INITIAL: Record<PieceSymbol, number> = {
-  k: 1,
-  q: 1,
-  r: 2,
-  b: 2,
-  n: 2,
-  p: 8,
-};
-
-/** The men standing in a position, counted per army. */
-function menInFen(fen: string): Record<Color, Record<PieceSymbol, number>> {
-  const empty = (): Record<PieceSymbol, number> => ({
-    k: 0,
-    q: 0,
-    r: 0,
-    b: 0,
-    n: 0,
-    p: 0,
-  });
-  const men: Record<Color, Record<PieceSymbol, number>> = {
-    w: empty(),
-    b: empty(),
-  };
-  // The placement field alone, read directly rather than through a board: a
-  // position to be counted need not be one that could be played from.
-  for (const character of fen.split(" ")[0] ?? "") {
-    const type = character.toLowerCase() as PieceSymbol;
-    if (type in INITIAL) {
-      men[character === type ? "b" : "w"][type] += 1;
-    }
-  }
-  return men;
-}
-
-/**
- * What a position is missing, against the array both armies start from.
- *
- * Promotions are allowed for, since a man who left the board by promoting was
- * not taken. There is no telling a promoted queen from the original one, so the
- * count goes the only way it can: a side holding more of a kind than it started
- * with must have promoted that many pawns, and those pawns are struck off what
- * it is missing rather than counted as taken.
- *
- * That much is arithmetic; what it cannot recover is a side that lost its queen
- * and promoted another. The queen taken is invisible, both counts being one.
- * It is the price of reading a position instead of a game, and it only ever
- * understates.
- */
-export function missingFrom(fen: string): Capture[] {
-  const men = menInFen(fen);
-  const gone: Capture[] = [];
-
-  for (const colour of ["w", "b"] as Color[]) {
-    const standing = men[colour];
-    const promoted = (["q", "r", "b", "n"] as PieceSymbol[]).reduce(
-      (total, type) => total + Math.max(0, standing[type] - INITIAL[type]),
-      0,
-    );
-    for (const type of CAPTURE_ORDER) {
-      const started = type === "p" ? INITIAL.p - promoted : INITIAL[type];
-      const lost = Math.max(0, started - standing[type]);
-      for (let index = 0; index < lost; index += 1) {
-        // Whoever it belonged to, the other side took it.
-        gone.push({ type, by: colour === "w" ? "b" : "w" });
-      }
-    }
-  }
-  return gone;
 }
 
 /**
