@@ -1,5 +1,3 @@
-import { describeEntry, type HistoryEntry } from "../chess/history";
-import CopyButton from "./CopyButton";
 import FenHelp from "./FenHelp";
 
 interface FenFieldProps {
@@ -7,91 +5,38 @@ interface FenFieldProps {
   /** Why the current text was rejected, or null while it parses. */
   error: string | null;
   onChange: (fen: string) => void;
-  /** Every position reached so far, newest first. */
-  entries: HistoryEntry[];
-  /** Which of them is on the board. */
-  current: number;
-  /** A link that opens the position now in the field, for the Share button. */
-  shareLink: (fen: string) => string;
-  onSelectPosition: (index: number) => void;
 }
 
 /**
- * The list of positions reached so far, beside the current one as an editable
- * FEN. The board follows every keystroke that parses; one that does not is
- * reported here and leaves the board alone.
+ * The position on the board as an editable FEN, its label beside it.
+ *
+ * The board follows every keystroke that parses; one that does not is reported
+ * underneath and leaves the board alone.
  */
-export default function FenField({
-  value,
-  error,
-  onChange,
-  entries,
-  current,
-  shareLink,
-  onSelectPosition,
-}: FenFieldProps) {
+export default function FenField({ value, error, onChange }: FenFieldProps) {
   return (
     <div className="fen-field">
-      {/* Two labelled columns, each control starting under its own label. */}
-      <div className="fen-field-inputs">
-        <div className="moves-column">
-          <label htmlFor="moves">Moves</label>
-          {/*
-            A real list rather than a datalist against the input: a datalist
-            filters its options by what the field already holds, and the field
-            holds a whole FEN, so the only one ever offered was the current
-            position. Options carry their index because that is what moving the
-            pointer takes; the FEN would serve as well, its move counter making
-            it unique to the ply even when the pieces stand as they did before.
-          */}
-          <select
-            id="moves"
-            className="moves-select"
-            title="History of moves"
-            value={current}
-            onChange={(event) => onSelectPosition(Number(event.target.value))}
-          >
-            {entries.map((entry, index) => (
-              <option key={index} value={index}>
-                {describeEntry(entry)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="fen-column">
-          {/* The label carries the explanation: hovering the field itself
-              would put a panel over what is being typed. */}
-          <span className="field-with-help">
-            <label htmlFor="fen">Position (FEN)</label>
-            <FenHelp id="fen-help" />
-          </span>
-          {/* The field takes what room there is; the button keeps its own. */}
-          <div className="fen-input-row">
-            <input
-              id="fen"
-              type="text"
-              className={
-                error === null ? "fen-input" : "fen-input fen-input-invalid"
-              }
-              value={value}
-              spellCheck={false}
-              autoComplete="off"
-              autoCapitalize="off"
-              aria-invalid={error !== null}
-              aria-describedby={
-                error === null ? "fen-help" : "fen-help fen-error"
-              }
-              onChange={(event) => onChange(event.target.value)}
-            />
-            <CopyButton
-              label="Share position"
-              title="Copy a link that opens this position"
-              disabled={error !== null}
-              text={() => shareLink(value)}
-            />
-          </div>
-        </div>
+      <div className="board-controls fen-row">
+        {/* The label carries the explanation: hovering the field itself would
+            put a panel over what is being typed. */}
+        <span className="field-with-help">
+          <label htmlFor="fen">Position (FEN)</label>
+          <FenHelp id="fen-help" />
+        </span>
+        <input
+          id="fen"
+          type="text"
+          className={
+            error === null ? "fen-input" : "fen-input fen-input-invalid"
+          }
+          value={value}
+          spellCheck={false}
+          autoComplete="off"
+          autoCapitalize="off"
+          aria-invalid={error !== null}
+          aria-describedby={error === null ? "fen-help" : "fen-help fen-error"}
+          onChange={(event) => onChange(event.target.value)}
+        />
       </div>
 
       {error !== null && (

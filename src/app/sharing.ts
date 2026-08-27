@@ -63,7 +63,4 @@ function link(parameter: string, value: string): string {
   return url.toString();
 }
 
-export const positionLink = (fen: string): string =>
-  link(POSITION_PARAM, fen.trim());
-
 export const gameLink = (pgn: string): string => link(GAME_PARAM, pgn);

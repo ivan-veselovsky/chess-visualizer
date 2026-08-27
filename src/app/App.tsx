@@ -27,13 +27,15 @@ import {
 } from "../chess/stash";
 import { parseFen } from "../chess/position";
 import CopyButton from "./CopyButton";
-import { gameLink, openingFromLocation, positionLink } from "./sharing";
+import { gameLink, openingFromLocation } from "./sharing";
 import Board from "../visualization/Board";
 import type { LastMove } from "../visualization/layers/HighlightLayer";
 import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
+import MovesSelect from "./MovesSelect";
 import GearIcon from "./GearIcon";
 import GitHubIcon from "./GitHubIcon";
+import ShareIcon from "./ShareIcon";
 import SponsorIcon from "./SponsorIcon";
 import StepIcon from "./StepIcon";
 import OptionsPanel from "./OptionsPanel";
@@ -315,36 +317,35 @@ export default function App() {
         <section className="board-pane">
           {shown !== null && (
             <div className="board-with-captured">
-            <Board
-              position={shown}
-              colors={options.boardColors}
-              pieceTint={options.pieceTint}
-              attacks={options.attacks}
-              onMove={handleMove}
-              showGrid={options.showGrid}
-              gridColor={options.gridColor}
-              lastMove={lastMove}
-              lastMoveColor={options.lastMoveColor}
-              lastMoveOpacity={options.lastMoveOpacity}
-              orientation={options.orientation}
-            />
-            {options.showTakenPieces && (
-            <CapturedBar
-              captures={captures}
-              orientation={options.orientation}
-              pieceTint={options.pieceTint}
-              attacks={options.attacks}
-            />
-            )}
+              <Board
+                position={shown}
+                colors={options.boardColors}
+                pieceTint={options.pieceTint}
+                attacks={options.attacks}
+                onMove={handleMove}
+                showGrid={options.showGrid}
+                gridColor={options.gridColor}
+                lastMove={lastMove}
+                lastMoveColor={options.lastMoveColor}
+                lastMoveOpacity={options.lastMoveOpacity}
+                orientation={options.orientation}
+              />
+              {options.showTakenPieces && (
+                <CapturedBar
+                  captures={captures}
+                  orientation={options.orientation}
+                  pieceTint={options.pieceTint}
+                  attacks={options.attacks}
+                />
+              )}
             </div>
           )}
         </section>
 
         {/* Right: everything else, stacked, in the order it is reached for. */}
         <div className="side-column">
-          {/* Which way round the board is, on a line of its own: sharing one with
-              the position controls made a row too long for the column, and a row
-              that wraps is a row that costs the board its height. */}
+          {/* Which way round the board is, and the way back to the start: the
+              two that set a board up rather than move through one. */}
           <div className="board-controls">
             <ToggleField
               id="flip-board"
@@ -357,16 +358,17 @@ export default function App() {
                 })
               }
             />
-          </div>
-
-          <div className="board-controls">
             <button
               type="button"
-              className="reset-button"
+              className="reset-button controls-end"
               onClick={() => setPosition(DEFAULT_POSITION)}
             >
               Reset to initial position
             </button>
+          </div>
+
+          {/* Stepping through the line, and jumping anywhere in it. */}
+          <div className="board-controls move-nav">
             <div className="step-buttons">
               <button
                 type="button"
@@ -409,9 +411,21 @@ export default function App() {
                 <StepIcon direction="last" />
               </button>
             </div>
+            <MovesSelect
+              entries={history.entries}
+              current={history.current}
+              onSelect={(index) => {
+                const moved = goToPosition(history, index);
+                setHistory(moved);
+                setFen(currentPosition(moved));
+              }}
+            />
           </div>
 
           {/* Second row: what a whole game can be done with. */}
+          <FenField value={fen} error={error} onChange={enterPosition} />
+
+          {/* The two that move a game in and out of PGN, and the link to it. */}
           <div className="board-controls">
             <span className="field-with-help">
               <button
@@ -435,68 +449,58 @@ export default function App() {
               </button>
               <PgnHelp id="export-pgn-help" fromEnd />
             </span>
-            <CopyButton
-              label="Share game"
-              title="Copy a link that opens this game at its first position"
-              text={() => {
-                const pgn = sharablePgn();
-                return pgn === null ? null : gameLink(pgn);
-              }}
-            />
-            {/* Put aside at the right, away from the two that move PGN about. */}
-            <div className="stash-actions">
-              <button
-                type="button"
-                className="reset-button"
-                disabled={stashName === null}
-                title={
-                  stashName === null
-                    ? "Stash game as \u2026 first, to give the game a name"
-                    : `Put this game back under \u201c${stashName}\u201d`
-                }
-                onClick={() => {
-                  if (stashName !== null) {
-                    stashHere(stashName);
-                  }
+            <div className="controls-end">
+              <CopyButton
+                label="Share game"
+                icon={<ShareIcon />}
+                title="Copy a link that opens this game at its first position"
+                text={() => {
+                  const pgn = sharablePgn();
+                  return pgn === null ? null : gameLink(pgn);
                 }}
-              >
-                Stash game
-              </button>
-              <button
-                type="button"
-                className="reset-button"
-                title="Put this game aside under a name"
-                onClick={() => setStashDialogOpen(true)}
-              >
-                Stash game as {"\u2026"}
-              </button>
+              />
             </div>
           </div>
 
-          <FenField
-            value={fen}
-            error={error}
-            onChange={enterPosition}
-            entries={history.entries}
-            current={history.current}
-            shareLink={positionLink}
-            onSelectPosition={(index) => {
-              const moved = goToPosition(history, index);
-              setHistory(moved);
-              setFen(currentPosition(moved));
-            }}
-          />
-
-          <div className="library-row">
-            <GameLibrary
-              value={libraryGame}
-              error={libraryGameError}
-              onSelect={loadLibraryGame}
-            />
+          {/* Putting a game aside, and taking one back. */}
+          <div className="board-controls">
+            <button
+              type="button"
+              className="reset-button"
+              disabled={stashName === null}
+              title={
+                stashName === null
+                  ? "Stash game as \u2026 first, to give the game a name"
+                  : `Put this game back under \u201c${stashName}\u201d`
+              }
+              onClick={() => {
+                if (stashName !== null) {
+                  stashHere(stashName);
+                }
+              }}
+            >
+              Stash game
+            </button>
+            <button
+              type="button"
+              className="reset-button"
+              title="Put this game aside under a name"
+              onClick={() => setStashDialogOpen(true)}
+            >
+              Stash game as {"\u2026"}
+            </button>
             <StashedGames
               stash={stash}
               value={stashName}
               onSelect={loadStashedGame}
+            />
+          </div>
+
+          <div className="board-controls">
+            <GameLibrary
+              value={libraryGame}
+              error={libraryGameError}
+              onSelect={loadLibraryGame}
             />
           </div>
 
@@ -508,7 +512,7 @@ export default function App() {
           <div className="field-row field-row-halves">
             <ToggleField
               id="show-my-attacks"
-              label="Show my attacks"
+              label="Show my attack rays"
               checked={options.attacks.showAttacks.me}
               onChange={(me) =>
                 setOptions({
@@ -522,7 +526,7 @@ export default function App() {
             />
             <ToggleField
               id="show-opponent-attacks"
-              label="Show opponent's attacks"
+              label="Show opponent's attack rays"
               checked={options.attacks.showAttacks.opponent}
               onChange={(opponent) =>
                 setOptions({

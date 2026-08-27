@@ -15,12 +15,7 @@ export interface LibraryGame {
   pgn: string;
 }
 
-/**
- * Every PGN in the directory, as text, resolved when the bundle is built.
- *
- * The files are numbered, and the paths come back sorted, so the list is in the
- * order the directory reads — chronological, as the numbering has it.
- */
+/** Every PGN in the directory, as text, resolved when the bundle is built. */
 const files = import.meta.glob<string>("./game-library/*.pgn", {
   query: "?raw",
   import: "default",
@@ -39,8 +34,15 @@ function year(date: string): string {
   return match === null ? "?" : match[1];
 }
 
+/**
+ * The collection, in alphabetical order of what the dropdown shows.
+ *
+ * By the label rather than by the file: the files are numbered by date, which
+ * is an order you have to know the games to read, while a name is something to
+ * look for. Compared as the reader's own locale compares them, so accented
+ * names fall where that reader expects rather than after Z.
+ */
 export const GAME_LIBRARY: LibraryGame[] = Object.keys(files)
-  .sort()
   .map((path) => {
     const pgn = files[path];
     return {
@@ -54,4 +56,5 @@ export const GAME_LIBRARY: LibraryGame[] = Object.keys(files)
       ].join(" - "),
       pgn,
     };
-  });
+  })
+  .sort((one, other) => one.label.localeCompare(other.label));

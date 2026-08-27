@@ -250,27 +250,60 @@ body {
 }
 
 /*
-  A toggle sharing a row holds its right end, leaving the rest to whatever else
-  is on it. Matched on the class alone: `:first-of-type` counts elements of a
-  kind rather than of a class, so wrapping anything else in a div ahead of it
-  would quietly take the toggle out of the running.
-
-  A row that holds nothing but a toggle is left where it starts — there is no
-  other end for it to hold.
+  The position as a FEN: its label at the left, the field taking the rest of the
+  row. One long line of text that is read far more often than it is typed into,
+  so it lies along a row rather than standing under a heading of its own.
 */
-.board-controls > .toggle-field:not(:only-child) {
+.fen-field {
+  width: 100%;
+}
+
+.fen-row > .field-with-help {
+  flex: 0 0 auto;
+  font-size: 0.9rem;
+}
+
+/* The colon belongs to the layout, not to the label. */
+.fen-row > .field-with-help label::after {
+  content: ":";
+}
+
+.fen-row > .fen-input {
+  flex: 1 1 0;
+  min-width: 8rem;
+}
+
+/* A button that carries an icon as well as a word keeps the two apart. */
+.reset-button:has(> svg) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+/* Held at the far end of its row, whatever shares the row with it. */
+.controls-end,
+.stash-actions {
   margin-left: auto;
 }
 
 /*
-  The four steps, centred in what the row has left over. Taking the free space
-  as a group and centring inside it puts them between the two controls that
-  hold the ends, rather than up against the left one.
+  A little more air than the gap between rows gives on its own. This is the row
+  reached for most, and space around it is what picks it out of a stack of rows
+  that are otherwise evenly spaced.
+*/
+.move-nav {
+  padding: 0.5em 0;
+}
+
+/*
+  The four steps, leading their row. They take the free space as a group so that
+  their shares of it stay in proportion, and sit at its near end, leaving the
+  list of positions at the far one.
 */
 .step-buttons {
   flex: 1;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.75em;
 }
 
@@ -279,14 +312,13 @@ body {
 }
 
 /*
-  Grouped and pushed right, the way the toggles are on the row above: the two
-  that move a game in and out of PGN stay at the left, and putting one aside
-  reads as a separate act rather than a third thing to do with a file.
+  Grouped and pushed right: the two that move a game in and out of PGN stay at
+  the left, and putting one aside reads as a separate act rather than a third
+  thing to do with a file.
 */
 .stash-actions {
   display: flex;
   gap: 0.75em;
-  margin-left: auto;
 }
 
 /*
@@ -320,28 +352,56 @@ body {
   margin-bottom: 0;
 }
 
-/* The two lists side by side, each taking half of what the column offers. */
-.library-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.library-row > * {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
+/*
+  A list of games with its name beside it. Along a row rather than under a
+  heading: each shares its row with the buttons it belongs to, and a heading
+  above would put a line of its own between them.
+*/
 .game-library,
 .stashed-games {
-  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .game-library > label,
 .stashed-games > label {
-  display: block;
-  margin-bottom: 0.3rem;
+  flex: 0 0 auto;
   font-size: 0.9rem;
+}
+
+/* The colon belongs to the layout, not to the label. */
+.game-library > label::after,
+.stashed-games > label::after {
+  content: ":";
+}
+
+/* Why a game would not load, on a line under the list that would not load it. */
+.game-list-error {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+/* Takes its row, so the list can sit beside its name rather than under it. */
+.board-controls > .game-library {
+  flex: 1 1 auto;
+}
+
+/* Wide enough for a game's whole title, and no wider. */
+.game-library > .game-select {
+  flex: 0 1 26rem;
+}
+
+/* Held at the far end of its row, beside the buttons that fill it. */
+.stashed-games {
+  margin-left: auto;
+}
+
+.stashed-games > .game-select {
+  flex: 0 1 auto;
+  min-width: 12rem;
 }
 
 /*
@@ -352,7 +412,7 @@ body {
   the control.
 */
 .game-select {
-  width: 100%;
+  min-width: 0;
   padding: 0.4rem 0.5rem;
   font-size: 0.9rem;
   color: var(--app-fg);
@@ -377,30 +437,16 @@ body {
   cursor: not-allowed;
 }
 
-/* Fills the side column, so its width no longer follows the board's height. */
-.fen-field {
-  width: 100%;
-}
-
-.fen-field label {
-  display: block;
-  margin-bottom: 0.3rem;
-  font-size: 0.9rem;
-}
-
-.fen-field-inputs {
+.moves-field {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
-.fen-column {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-.moves-column {
+.moves-field > label {
   flex: 0 0 auto;
+  font-size: 0.9rem;
 }
 
 /*
@@ -474,20 +520,7 @@ body {
   border-radius: 3px;
 }
 
-/* The field and its Share button, the field taking whatever is left over. */
-.fen-input-row {
-  display: flex;
-  align-items: stretch;
-  gap: 0.5rem;
-}
-
-.fen-input-row > .reset-button {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
 .fen-input {
-  width: 100%;
   min-width: 0;
   padding: 0.4rem 0.5rem;
   font-family: ui-monospace, monospace;
@@ -1054,6 +1087,21 @@ input[type="color"]::-moz-color-swatch {
   border: 1px solid var(--panel-border);
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* Narrower than a game, wider than a colour: one long line of text. */
+.position-dialog {
+  width: min(34rem, 90vw);
+  /*
+    The explanation hangs below its label, out past the dialog's own box. Left
+    scrollable, the dialog counted that panel as content and carried a scrollbar
+    for it even while it was hidden; there is nothing here to scroll anyway.
+  */
+  overflow: visible;
+}
+
+.position-dialog .fen-input {
+  margin-top: 0.3rem;
 }
 
 /* Narrow: it holds one colour and its name, not a game. */

@@ -44,7 +44,8 @@ export default function GameLibrary({
           </option>
         ))}
       </select>
-      {error !== null && <p className="fen-error">{error}</p>}
+      {/* Dropped below the pair, rather than squeezed in beside them. */}
+      {error !== null && <p className="fen-error game-list-error">{error}</p>}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 interface CopyButtonProps {
   label: string;
@@ -6,6 +6,8 @@ interface CopyButtonProps {
   text: () => string | null;
   title?: string;
   disabled?: boolean;
+  /** Drawn ahead of the label, and kept there while the button reports back. */
+  icon?: ReactNode;
 }
 
 /**
@@ -20,6 +22,7 @@ export default function CopyButton({
   text,
   title,
   disabled = false,
+  icon,
 }: CopyButtonProps) {
   const [said, setSaid] = useState<"copied" | "failed" | null>(null);
   const timer = useRef<number | null>(null);
@@ -59,6 +62,7 @@ export default function CopyButton({
       disabled={disabled}
       onClick={copy}
     >
+      {icon}
       {said === "copied" ? "Copied" : said === "failed" ? "Copy failed" : label}
     </button>
   );
