@@ -20,6 +20,7 @@ import {
   type Point,
 } from "./geometry";
 import type { AttackOptions, BoardColors, PieceTint } from "./options";
+import { pieceVars } from "./pieceVars";
 import AttackLayer from "./layers/AttackLayer";
 import BorderLayer from "./layers/BorderLayer";
 import GridLayer from "./layers/GridLayer";
@@ -45,12 +46,6 @@ interface BoardProps {
   lastMoveColor?: string;
   lastMoveOpacity?: number;
   orientation?: Orientation;
-}
-
-/** A 0..1 fraction as a CSS percentage. */
-function percent(fraction: number): string {
-  const clamped = Math.min(Math.max(fraction, 0), 1);
-  return `${Math.round(clamped * 1000) / 10}%`;
 }
 
 /** A piece under the pointer, with the squares it may legally be let go on. */
@@ -123,30 +118,13 @@ export default function Board({
     "--square-light": colors.lightSquare,
     "--square-dark": colors.darkSquare,
     "--grid-line": gridColor,
-    // One per piece per side. Which of each pair applies is decided further
-    // down, by a class on the mark's group and on the piece glyph, so the rules
-    // that use them go on saying `var(--attack-king)`.
     "--pin-ring": attacks.pinRingColor,
     "--check-color": attacks.checkColor,
     "--checkmate-color": attacks.checkmateColor,
     "--attack-outline-me": attacks.outlineColors.me,
     "--attack-outline-opponent": attacks.outlineColors.opponent,
-    "--attack-king-me": attacks.colors.me.king,
-    "--attack-queen-me": attacks.colors.me.queen,
-    "--attack-rook-me": attacks.colors.me.rook,
-    "--attack-bishop-me": attacks.colors.me.bishop,
-    "--attack-knight-me": attacks.colors.me.knight,
-    "--attack-pawn-me": attacks.colors.me.pawn,
-    "--attack-king-opponent": attacks.colors.opponent.king,
-    "--attack-queen-opponent": attacks.colors.opponent.queen,
-    "--attack-rook-opponent": attacks.colors.opponent.rook,
-    "--attack-bishop-opponent": attacks.colors.opponent.bishop,
-    "--attack-knight-opponent": attacks.colors.opponent.knight,
-    "--attack-pawn-opponent": attacks.colors.opponent.pawn,
-    // As percentages, which is what color-mix wants. Rounded, since a
-    // fraction times 100 lands on things like 55.00000000000001.
-    "--piece-lighten": percent(pieceTint.lightenWhite),
-    "--piece-darken": percent(pieceTint.darkenBlack),
+    // The piece palette and the tints, shared with the bar of taken men.
+    ...pieceVars(pieceTint, attacks),
   } as CSSProperties;
 
   /**

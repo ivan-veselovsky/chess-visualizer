@@ -16,6 +16,7 @@ import {
   startHistory,
   type PositionHistory,
 } from "../chess/history";
+import { capturesUpTo } from "../chess/captures";
 import { applyMove } from "../chess/moves";
 import { parsePgn, toPgn } from "../chess/pgn";
 import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
@@ -36,6 +37,7 @@ import GitHubIcon from "./GitHubIcon";
 import SponsorIcon from "./SponsorIcon";
 import StepIcon from "./StepIcon";
 import OptionsPanel from "./OptionsPanel";
+import CapturedBar from "./CapturedBar";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
@@ -237,6 +239,9 @@ export default function App() {
     }
   }, [history]);
 
+  /** Everything taken on the way to the position on the board. */
+  const captures = useMemo(() => capturesUpTo(history), [history]);
+
   // On the document root rather than a wrapper: the frame colour has to reach
   // the whole viewport, and this component only owns part of it.
   useEffect(() => {
@@ -306,9 +311,10 @@ export default function App() {
       </header>
 
       <div className="app-body">
-        {/* Left: the board alone, as tall as the window allows. */}
+        {/* Left: the board and the men taken off it, as tall as the window allows. */}
         <section className="board-pane">
           {shown !== null && (
+            <div className="board-with-captured">
             <Board
               position={shown}
               colors={options.boardColors}
@@ -322,11 +328,37 @@ export default function App() {
               lastMoveOpacity={options.lastMoveOpacity}
               orientation={options.orientation}
             />
+            {options.showTakenPieces && (
+            <CapturedBar
+              captures={captures}
+              orientation={options.orientation}
+              pieceTint={options.pieceTint}
+              attacks={options.attacks}
+            />
+            )}
+            </div>
           )}
         </section>
 
         {/* Right: everything else, stacked, in the order it is reached for. */}
         <div className="side-column">
+          {/* Which way round the board is, on a line of its own: sharing one with
+              the position controls made a row too long for the column, and a row
+              that wraps is a row that costs the board its height. */}
+          <div className="board-controls">
+            <ToggleField
+              id="flip-board"
+              label="Black at bottom"
+              checked={options.orientation === "black"}
+              onChange={(flipped) =>
+                setOptions({
+                  ...options,
+                  orientation: flipped ? "black" : "white",
+                })
+              }
+            />
+          </div>
+
           <div className="board-controls">
             <button
               type="button"
@@ -377,17 +409,6 @@ export default function App() {
                 <StepIcon direction="last" />
               </button>
             </div>
-            <ToggleField
-              id="flip-board"
-              label="Black at bottom"
-              checked={options.orientation === "black"}
-              onChange={(flipped) =>
-                setOptions({
-                  ...options,
-                  orientation: flipped ? "black" : "white",
-                })
-              }
-            />
           </div>
 
           {/* Second row: what a whole game can be done with. */}

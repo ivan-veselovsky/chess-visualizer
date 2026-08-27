@@ -141,6 +141,14 @@ export default function OptionsPanel({
             onChange={(gridColor) => onChange({ ...options, gridColor })}
           />
         </div>
+        <ToggleField
+          id="show-taken-pieces"
+          label="Show taken pieces"
+          checked={options.showTakenPieces}
+          onChange={(showTakenPieces) =>
+            onChange({ ...options, showTakenPieces })
+          }
+        />
       </section>
 
       <section className="options-group">

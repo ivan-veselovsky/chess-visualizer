@@ -1,5 +1,5 @@
 {
-  "optionsSchemaVersion": 24,
+  "optionsSchemaVersion": 25,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -11,6 +11,7 @@
   "orientation": "white",
   "showGrid": false,
   "gridColor": "#000000",
+  "showTakenPieces": true,
   "pieceTint": {
     "lightenWhite": 0.9,
     "darkenBlack": 0.8

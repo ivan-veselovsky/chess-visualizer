@@ -49,14 +49,20 @@
   --board-zoom: 1;
   /* Only the heading and the page's own padding share the board's column now;
      everything else moved to the right. Measured, not guessed: too small and
-     the page scrolls. */
-  --board-reserve: 6.5rem;
+     the page scrolls — 75px of heading above the board and 32px of padding
+     below it, and a few more so that a shift of a pixel or two somewhere else
+     does not bring the scrollbar back. */
+  --board-reserve: 7rem;
   /* The height-derived limit on its own, so the board's column can be sized to
      it directly instead of growing past it and centring the board in the slack. */
   --board-cap: calc((100vh - var(--board-reserve)) * var(--board-zoom));
   /* Excludes mobile browser chrome; ignored where unsupported. */
   --board-cap: calc((100dvh - var(--board-reserve)) * var(--board-zoom));
   --board-max: min(100%, var(--board-cap));
+  /* The bar of taken men, and the air between it and the board. Named here
+     because the board's own column has to make room for both. */
+  --captured-bar-width: 1.7rem;
+  --captured-bar-gap: 0.4rem;
 }
 
 /* Set by App from the theme option. */
@@ -164,7 +170,9 @@ body {
 
 /* Holds the board and nothing else, so its width is the board's height. */
 .board-pane {
-  flex: 0 1 var(--board-cap);
+  /* The board's own height, and the bar's width on top of it: the cap is what
+     the board may be, and the bar stands beside it rather than inside it. */
+  flex: 0 1 calc(var(--board-cap) + var(--captured-bar-width) + var(--captured-bar-gap));
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -174,9 +182,14 @@ body {
   The right-hand stack: the two toggles, the FEN, the examples, and the panel
   when it is open. Takes whatever the board leaves, down to a floor wide enough
   for the attack table — below that the whole column wraps under the board.
+
+  Its basis is that same floor. Wrapping is decided on the bases rather than on
+  the floors, so asking for more than the least it can live with brought the
+  wrap on early: on a tall screen the board's column is wide, and a column
+  wrapped under it is a page that scrolls.
 */
 .side-column {
-  flex: 1 1 30rem;
+  flex: 1 1 27rem;
   min-width: 27rem;
   display: flex;
   flex-direction: column;
@@ -237,12 +250,15 @@ body {
 }
 
 /*
-  The toggle holds the right end of its row, leaving the position controls the
-  rest. Matched on the class alone: `:first-of-type` counts elements of a kind
-  rather than of a class, so wrapping anything else in a div ahead of it would
-  quietly take the toggle out of the running.
+  A toggle sharing a row holds its right end, leaving the rest to whatever else
+  is on it. Matched on the class alone: `:first-of-type` counts elements of a
+  kind rather than of a class, so wrapping anything else in a div ahead of it
+  would quietly take the toggle out of the running.
+
+  A row that holds nothing but a toggle is left where it starts — there is no
+  other end for it to hold.
 */
-.board-controls > .toggle-field {
+.board-controls > .toggle-field:not(:only-child) {
   margin-left: auto;
 }
 
@@ -284,13 +300,20 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 9.8em;
+  /* Shares of the row rather than fixed widths, held to the sizes they used to
+     have. Fixed, the four of them and the button beside them asked for more
+     than the column has and the row broke in two; sharing, they give width up
+     together and the row stays one line however narrow the column gets. */
+  flex: 35 1 0;
+  min-width: 0;
+  max-width: 9.8em;
   padding: 0.35rem 0.55rem;
   font-size: 1rem;
 }
 
 .step-button.step-button-end {
-  width: 4.2em;
+  flex: 15 1 0;
+  max-width: 4.2em;
 }
 
 .board-controls .toggle-field {
@@ -1215,4 +1238,117 @@ input[type="color"]::-moz-color-swatch {
 
 .reset-button:not(:disabled):hover {
   background: var(--panel-bg);
+}
+
+/* --- Captured pieces ---------------------------------------------------- */
+
+/*
+  The board and the bar of men taken off it, side by side. Stretching rather
+  than sizing: the bar takes the row's height, which the board sets, so the two
+  stay the same height however the board is scaled.
+*/
+.board-with-captured {
+  display: flex;
+  align-items: stretch;
+  gap: var(--captured-bar-gap);
+  min-width: 0;
+}
+
+/* Shrinks by the bar's width rather than pushing it out of the column. */
+.board-with-captured > .board {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+  A column beside the board with a group of trophies hanging from each end: the
+  near player's along the bottom, the far player's along the top, both ordered
+  so the queens meet in the middle.
+*/
+.captured-bar {
+  flex: 0 0 auto;
+  width: var(--captured-bar-width);
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+  As tall as the board and no taller. The bar stretches to the whole <svg>,
+  which carries a strip of coordinates along its foot: 24 units under a board of
+  512, in a canvas of 536. Taking that share back off the top-aligned column
+  leaves it flush with the board's own first and last ranks, so the trophies
+  line up with the squares rather than with the letters under them.
+*/
+.captured-column {
+  height: calc(100% * 512 / 536);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 0;
+}
+
+/*
+  Allowed to shrink, all the way down. A bar shorter than the men it holds — a
+  short window and a game of many captures — squeezes the groups instead of
+  running them into each other, and an <svg> given less room scales what it
+  draws rather than cropping it, so the men only get smaller.
+*/
+.captured-group,
+.captured-run {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+/*
+  Repeats of one kind lie slightly over each other — never across kinds, so a
+  stack of pawns still reads as pawns while the kinds stay told apart. It also
+  buys room: fifteen men end to end are taller than half a board.
+*/
+.captured-run > .captured-piece + .captured-piece {
+  margin-top: -0.35em;
+}
+
+/*
+  Square, since the glyph turns inside it. The box is a shade larger than the
+  glyph it holds: `.piece` sets 48px inside a 64 viewBox, so the man himself
+  comes out at three quarters of this — smaller than one on the board, these
+  being a tally rather than a position.
+*/
+.captured-piece {
+  display: block;
+  flex: 0 1 auto;
+  width: 1.5em;
+  height: 1.5em;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* How far ahead, against whoever is: at the group's inner end, by the queens. */
+.captured-lead {
+  flex: 0 0 auto;
+  margin: 0.15em 0;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+/*
+  A black man on the dark page's own ground is very nearly that ground: the
+  board's men are laid on squares, which stay light under either theme, but
+  these are laid on the page. A quarter of the way to white is enough to tell
+  them from it while leaving them the colour they were tinted with — further
+  than that and they stop reading as the black army.
+
+  The board's own men are untouched, standing where they always did.
+*/
+:root[data-theme="dark"] .captured-bar .piece-black {
+  fill: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
+    white 25%
+  );
 }
