@@ -4,6 +4,8 @@ interface FenFieldProps {
   value: string;
   /** Why the current text was rejected, or null while it parses. */
   error: string | null;
+  /** Why the position cannot be changed here, when it cannot. */
+  readOnly?: string | null;
   onChange: (fen: string) => void;
 }
 
@@ -13,7 +15,12 @@ interface FenFieldProps {
  * The board follows every keystroke that parses; one that does not is reported
  * underneath and leaves the board alone.
  */
-export default function FenField({ value, error, onChange }: FenFieldProps) {
+export default function FenField({
+  value,
+  error,
+  readOnly = null,
+  onChange,
+}: FenFieldProps) {
   return (
     <div className="fen-field">
       <div className="board-controls fen-row">
@@ -30,6 +37,8 @@ export default function FenField({ value, error, onChange }: FenFieldProps) {
             error === null ? "fen-input" : "fen-input fen-input-invalid"
           }
           value={value}
+          readOnly={readOnly !== null}
+          title={readOnly ?? undefined}
           spellCheck={false}
           autoComplete="off"
           autoCapitalize="off"

@@ -5,6 +5,8 @@ interface GameLibraryProps {
   value: string | null;
   /** Why the last choice would not load, when it would not. */
   error?: string | null;
+  /** Why the list is closed, when it is. */
+  locked?: string | null;
   onSelect: (game: LibraryGame) => void;
 }
 
@@ -18,6 +20,7 @@ interface GameLibraryProps {
 export default function GameLibrary({
   value,
   error = null,
+  locked = null,
   onSelect,
 }: GameLibraryProps) {
   return (
@@ -27,6 +30,8 @@ export default function GameLibrary({
         id="library-game"
         className="game-select"
         value={value ?? ""}
+        disabled={locked !== null}
+        title={locked ?? undefined}
         onChange={(event) => {
           const game = GAME_LIBRARY.find(
             (candidate) => candidate.id === event.target.value

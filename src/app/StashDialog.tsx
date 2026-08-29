@@ -6,6 +6,12 @@ interface StashDialogProps {
   taken: string[];
   /** What the game already goes by, offered as the starting point. */
   initialName?: string | null;
+  /** Why the question is being asked, when it is not simply "stash this". */
+  prompt?: string;
+  /** What the way out is called, when it is not simply cancelling. */
+  dismissLabel?: string;
+  /** What the way in is called, when it is not simply stashing. */
+  submitLabel?: string;
   onSubmit: (name: string) => void;
   onClose: () => void;
 }
@@ -22,6 +28,9 @@ export default function StashDialog({
   open,
   taken,
   initialName = null,
+  prompt,
+  dismissLabel = "Cancel",
+  submitLabel,
   onSubmit,
   onClose,
 }: StashDialogProps) {
@@ -63,7 +72,10 @@ export default function StashDialog({
   return (
     // onClose also fires for Escape and the backdrop, keeping the flag in step.
     <dialog ref={dialog} className="pgn-dialog stash-dialog" onClose={onClose}>
-      <label htmlFor="stash-name">Stash the game as</label>
+      {prompt !== undefined && <p className="stash-prompt">{prompt}</p>}
+      <label htmlFor="stash-name">
+        {prompt === undefined ? "Stash the game as" : "Keep it as"}
+      </label>
       <input
         id="stash-name"
         type="text"
@@ -97,10 +109,10 @@ export default function StashDialog({
       )}
       <div className="pgn-dialog-actions">
         <button type="button" className="reset-button" onClick={onClose}>
-          Cancel
+          {dismissLabel}
         </button>
         <button type="button" className="reset-button" onClick={stash}>
-          {replacing ? "Replace" : "Stash"}
+          {replacing ? "Replace" : (submitLabel ?? "Stash")}
         </button>
       </div>
     </dialog>

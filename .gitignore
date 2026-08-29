@@ -5,3 +5,6 @@ dist/
 
 # Personal Claude Code permissions; not shared.
 .claude/settings.local.json
+
+# Wrangler's local state.
+.wrangler/

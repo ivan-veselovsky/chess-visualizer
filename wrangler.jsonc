@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chess-visualizer",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-01",
+  // The built app. Anything matching a file in here is served as-is; everything
+  // else falls through to the Worker above, which is how /ws reaches it.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // The app is one page that reads its own address, so a path it does not
+    // have a file for is still the app: an invite link points at /game?id=...,
+    // which is nothing on disk and must not come back as a 404.
+    "not_found_handling": "single-page-application"
+  },
+  // One object per game, addressed by the game's id.
+  "durable_objects": {
+    "bindings": [{ "name": "GAME", "class_name": "Game" }]
+  },
+  // SQLite-backed, which is the storage the free plan offers.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Game"] }]
+}

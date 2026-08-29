@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Chess, DEFAULT_POSITION, type Square } from "chess.js";
+import { Chess, DEFAULT_POSITION, type Color, type Square } from "chess.js";
 import {
   canGoNext,
   canGoPrevious,
@@ -15,10 +15,16 @@ import {
   sameLine,
   startHistory,
   type PositionHistory,
+  type HistoryEntry,
 } from "../chess/history";
 import { capturesUpTo } from "../chess/captures";
 import { applyMove } from "../chess/moves";
-import { parsePgn, toPgn } from "../chess/pgn";
+import {
+  parsePgn,
+  toPgn,
+  type PgnEnding,
+  type PgnPlayers,
+} from "../chess/pgn";
 import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
 import {
   stashGame,
@@ -46,6 +52,14 @@ import PgnHelp from "./PgnHelp";
 import StashDialog from "./StashDialog";
 import StashedGames from "./StashedGames";
 import ToggleField from "./ToggleField";
+import ChallengeDialog from "./friend/ChallengeDialog";
+import InviteDialog from "./friend/InviteDialog";
+import InvitePanel from "./friend/InvitePanel";
+import JoinDialog from "./friend/JoinDialog";
+import { describeEnding } from "./friend/ending";
+import { friendlyGameName } from "./friend/gameName";
+import PlayerName from "./friend/PlayerName";
+import { useFriendGame } from "./friend/useFriendGame";
 import type { Options } from "./options";
 import { DEFAULT_OPTIONS } from "./presets";
 
@@ -62,7 +76,7 @@ export default function App() {
   const [history, setHistory] = useState<PositionHistory>(() =>
     opening?.entries == null
       ? startHistory(opening?.fen ?? DEFAULT_POSITION)
-      : historyFromLine(opening.entries)
+      : historyFromLine(opening.entries),
   );
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
@@ -136,7 +150,69 @@ export default function App() {
 
   /** The game as it would be written out, for exporting or for sharing. */
   function sharablePgn(): string | null {
-    return originalPgn() ?? toPgn(history, stashName);
+    /*
+      A game with a friend has names, a place and a date; a line being studied
+      has none of those, and PGN's own "?" is the truer answer for it.
+    */
+    const live =
+      friend.phase.kind === "playing"
+        ? {
+            white: friend.phase.you === "w" ? friend.name : friend.phase.opponent,
+            black: friend.phase.you === "b" ? friend.name : friend.phase.opponent,
+            site: window.location.host,
+          }
+        : null;
+    /*
+      A game that has been put away still writes itself out in full, for as
+      long as the line on the board is the one that was played — which is how
+      a game from the library behaves, and for the same reason.
+    */
+    const remembered =
+      played !== null && sameLine(played.entries, history.entries)
+        ? played
+        : null;
+    const players = live ?? remembered?.players ?? null;
+    /*
+      How it ended, where the board cannot say. A resignation and an agreed
+      draw both leave an ordinary position behind, and a PGN written from the
+      moves alone would call the game unfinished.
+    */
+    const ending =
+      friend.phase.kind === "playing" && friend.phase.over !== null
+        ? {
+            result: friend.phase.over.result,
+            how: describeEnding(friend.phase.over.reason),
+          }
+        : (remembered?.ending ?? null);
+    return originalPgn() ?? toPgn(history, stashName, players, ending);
+  }
+
+  /**
+   * Puts a game on the board, built from where it starts and what has been
+   * played — the moves being what the object keeps, so a line rebuilt from
+   * them cannot disagree with it.
+   */
+  function putUp({
+    initialFEN,
+    moves,
+  }: {
+    initialFEN: string;
+    moves: string[];
+  }) {
+    const board = new Chess(initialFEN);
+    const entries: HistoryEntry[] = [{ fen: initialFEN, move: null }];
+    for (const san of moves) {
+      try {
+        board.move(san);
+      } catch {
+        break;
+      }
+      entries.unshift({ fen: board.fen(), move: san });
+    }
+    setHistory({ entries, current: 0 });
+    setFen(entries[0].fen);
+    setLibraryGame(null);
+    setStashName(null);
   }
 
   /** Puts the game aside under the name it already goes by. */
@@ -244,6 +320,142 @@ export default function App() {
   /** Everything taken on the way to the position on the board. */
   const captures = useMemo(() => capturesUpTo(history), [history]);
 
+  /** The friendly game: whether one is being offered, answered, or played. */
+  const friend = useFriendGame({
+    /*
+      A move that has happened — mine or theirs, the object does not distinguish
+      and neither does this. The position comes with it, so the two boards are
+      the same board rather than two agreeing accounts of one.
+    */
+    onMoved: ({ san, fen: after }) => {
+      setHistory((current) => pushPosition(current, after, san));
+      setFen(after);
+    },
+    /*
+      The whole line, on joining a game or coming back to one. Replayed here
+      rather than sent as positions: the moves are what the object keeps, and
+      a line rebuilt from them is a line that cannot disagree with it.
+    */
+    /*
+      A move unmade. The line is kept newest-first, so the move just played is
+      the entry at the head, and dropping it is the whole of it.
+    */
+    onTookBack: ({ fen: back }) => {
+      setHistory((current) =>
+        current.entries.length > 1
+          ? { entries: current.entries.slice(1), current: 0 }
+          : current
+      );
+      setFen(back);
+    },
+    onLine: ({ initialFEN, moves }) => {
+      if (initialFEN === "") {
+        return;
+      }
+      /*
+        A game starting would replace whatever is on the board, and what is on
+        it may have been an afternoon's work. So it waits: the board is left
+        alone until the question has been answered, and the new game goes up
+        whichever way it is answered.
+      */
+      if (history.entries.length > 1 && stashName === null) {
+        setWaitingToStart({ initialFEN, moves });
+        return;
+      }
+      putUp({ initialFEN, moves });
+    },
+  });
+  const [joining, setJoining] = useState(false);
+  /**
+   * A game that has begun but is not on the board yet, because what is on the
+   * board has not been dealt with. Held until the question is answered, and
+   * only then put up.
+   */
+  const [waitingToStart, setWaitingToStart] = useState<{
+    initialFEN: string;
+    moves: string[];
+  } | null>(null);
+  /**
+   * A game with a friend that has finished, and what a PGN of it should say.
+   *
+   * Kept after the panel is put away, for the same reason a game from the
+   * library is: the line on the board is still that game, and the things a
+   * PGN wants to know about it — who played, where, how it ended — cannot be
+   * worked out from the moves. Held only while the line is untouched; playing
+   * on from it makes it something else, and then the answer is question marks.
+   */
+  const [played, setPlayed] = useState<{
+    players: PgnPlayers;
+    ending: PgnEnding;
+    entries: HistoryEntry[];
+  } | null>(null);
+
+  /*
+    Sitting down at the board: each player sees it from their own side.
+
+    Once, when a game starts, rather than on every render — the toggle stays
+    live, and someone who turns the board round to look from the other side
+    should find it stays turned round.
+  */
+  /*
+    While a game with somebody else is on, the ways of putting a different game
+    on the board are closed. Disabled rather than hidden: the controls are
+    still there to be seen, and hovering one says why it will not answer.
+  */
+  const inGame =
+    friend.phase.kind === "playing" && friend.phase.over === null
+      ? "Playing a game with a friend — finish it first"
+      : null;
+
+  /*
+    Which army is at which end of the board as it stands. The names follow the
+    board rather than the players, so turning it round moves them with it.
+  */
+  const nearSide: Color = options.orientation === "black" ? "b" : "w";
+  const farSide: Color = nearSide === "w" ? "b" : "w";
+
+  /*
+    A finished game remembers itself, once, at the moment it finishes — while
+    everything a PGN needs is still to hand.
+  */
+  const recorded = useRef<string | null>(null);
+  useEffect(() => {
+    const phase = friend.phase;
+    if (
+      phase.kind !== "playing" ||
+      phase.over === null ||
+      recorded.current === phase.gameId
+    ) {
+      return;
+    }
+    recorded.current = phase.gameId;
+    setPlayed({
+      players: {
+        white: phase.you === "w" ? friend.name : phase.opponent,
+        black: phase.you === "b" ? friend.name : phase.opponent,
+        site: window.location.host,
+      },
+      ending: {
+        result: phase.over.result,
+        how: describeEnding(phase.over.reason),
+      },
+      entries: history.entries,
+    });
+  }, [friend.phase, friend.name, history.entries]);
+
+  const seated = useRef<string | null>(null);
+  useEffect(() => {
+    const phase = friend.phase;
+    if (phase.kind !== "playing" || seated.current === phase.gameId) {
+      return;
+    }
+    seated.current = phase.gameId;
+    setOptions((current) => ({
+      ...current,
+      orientation: phase.you === "b" ? "black" : "white",
+    }));
+  }, [friend.phase]);
+
   // On the document root rather than a wrapper: the frame colour has to reach
   // the whole viewport, and this component only owns part of it.
   useEffect(() => {
@@ -252,7 +464,7 @@ export default function App() {
     // the light theme is inert rather than something to guard against.
     document.documentElement.style.setProperty(
       "--dark-theme-fg",
-      options.darkThemeTextColor
+      options.darkThemeTextColor,
     );
   }, [options.theme, options.darkThemeTextColor]);
 
@@ -271,13 +483,27 @@ export default function App() {
       return;
     }
     const next = applyMove(shown, from, to);
-    if (next !== null) {
-      playPosition(next.fen, next.san);
+    if (next === null) {
+      return;
     }
+    /*
+      In a game with somebody else the move is offered, not made. It reaches the
+      board when the object says it happened — which is the same moment the
+      opponent hears about it, and the only account either of them acts on.
+    */
+    if (friend.phase.kind === "playing") {
+      friend.move(history.entries.length - 1, next.san);
+      return;
+    }
+    playPosition(next.fen, next.san);
   }
 
   return (
-    <main className="app">
+    <main
+      className={
+        friend.phase.kind === "playing" ? "app app-playing" : "app"
+      }
+    >
       <header className="app-header">
         <h1>Chess Visualizer</h1>
         {/* New tabs throughout: the stash and the game on the board are held
@@ -316,8 +542,27 @@ export default function App() {
         {/* Left: the board and the men taken off it, as tall as the window allows. */}
         <section className="board-pane">
           {shown !== null && (
-            <div className="board-with-captured">
-              <Board
+            <div
+              className={
+                options.showTakenPieces
+                  ? "board-and-players"
+                  : "board-and-players board-and-players-bare"
+              }
+            >
+              {/* Whoever is at the far end of the board as it now stands. */}
+              {friend.phase.kind === "playing" && (
+                <PlayerName
+                  name={
+                    farSide === friend.phase.you
+                      ? friend.name
+                      : friend.phase.opponent
+                  }
+                  color={farSide}
+                  mine={farSide === friend.phase.you}
+                />
+              )}
+              <div className="board-with-captured">
+                <Board
                 position={shown}
                 colors={options.boardColors}
                 pieceTint={options.pieceTint}
@@ -325,17 +570,33 @@ export default function App() {
                 onMove={handleMove}
                 showGrid={options.showGrid}
                 gridColor={options.gridColor}
+                playable={
+                  friend.phase.kind === "playing" ? friend.phase.you : null
+                }
                 lastMove={lastMove}
                 lastMoveColor={options.lastMoveColor}
                 lastMoveOpacity={options.lastMoveOpacity}
                 orientation={options.orientation}
               />
-              {options.showTakenPieces && (
-                <CapturedBar
-                  captures={captures}
-                  orientation={options.orientation}
-                  pieceTint={options.pieceTint}
-                  attacks={options.attacks}
+                {options.showTakenPieces && (
+                  <CapturedBar
+                    captures={captures}
+                    orientation={options.orientation}
+                    pieceTint={options.pieceTint}
+                    attacks={options.attacks}
+                  />
+                )}
+              </div>
+              {/* And whoever is at this end. */}
+              {friend.phase.kind === "playing" && (
+                <PlayerName
+                  name={
+                    nearSide === friend.phase.you
+                      ? friend.name
+                      : friend.phase.opponent
+                  }
+                  color={nearSide}
+                  mine={nearSide === friend.phase.you}
                 />
               )}
             </div>
@@ -344,6 +605,38 @@ export default function App() {
 
         {/* Right: everything else, stacked, in the order it is reached for. */}
         <div className="side-column">
+          {/* Offering a game, and taking one up. */}
+          <div className="board-controls">
+            <button
+              type="button"
+              className="reset-button"
+              disabled={inGame !== null}
+              title={inGame ?? undefined}
+              onClick={friend.start}
+            >
+              Challenge a friend {"\u2026"}
+            </button>
+            <button
+              type="button"
+              className="reset-button"
+              disabled={inGame !== null}
+              title={inGame ?? "Enter the id somebody read out to you"}
+              onClick={() => setJoining(true)}
+            >
+              Join a game {"\u2026"}
+            </button>
+          </div>
+
+          <InvitePanel
+            phase={friend.phase}
+            onLeave={friend.leave}
+            onResign={friend.resign}
+            onOfferDraw={friend.offerDraw}
+            onAnswerDraw={friend.answerDraw}
+            notice={friend.notice}
+            onDismissNotice={friend.dismissNotice}
+          />
+
           {/* Which way round the board is, and the way back to the start: the
               two that set a board up rather than move through one. */}
           <div className="board-controls">
@@ -361,6 +654,8 @@ export default function App() {
             <button
               type="button"
               className="reset-button controls-end"
+              disabled={inGame !== null}
+              title={inGame ?? undefined}
               onClick={() => setPosition(DEFAULT_POSITION)}
             >
               Reset to initial position
@@ -383,10 +678,22 @@ export default function App() {
               <button
                 type="button"
                 className="reset-button step-button"
-                title="Previous position"
                 aria-label="Previous position"
-                disabled={!canGoPrevious(history)}
-                onClick={() => stepHistory("previous")}
+                disabled={
+                  friend.phase.kind === "playing"
+                    ? (friend.phase.takebacksLeft?.[friend.phase.you] ?? 0) <= 0
+                    : !canGoPrevious(history)
+                }
+                title={
+                  friend.phase.kind === "playing"
+                    ? `Take your last move back (${(friend.phase.takebacksLeft?.[friend.phase.you] ?? 0)} left)`
+                    : "Previous position"
+                }
+                onClick={() =>
+                  friend.phase.kind === "playing"
+                    ? friend.takeBack()
+                    : stepHistory("previous")
+                }
               >
                 <StepIcon direction="previous" />
               </button>
@@ -423,7 +730,14 @@ export default function App() {
           </div>
 
           {/* Second row: what a whole game can be done with. */}
-          <FenField value={fen} error={error} onChange={enterPosition} />
+          {/* Still readable while a game is on — it is worth copying — but
+              not a way to put another position on the board. */}
+          <FenField
+            value={fen}
+            error={error}
+            readOnly={inGame}
+            onChange={enterPosition}
+          />
 
           {/* The two that move a game in and out of PGN, and the link to it. */}
           <div className="board-controls">
@@ -432,6 +746,8 @@ export default function App() {
                 type="button"
                 className="reset-button"
                 aria-describedby="import-pgn-help"
+                disabled={inGame !== null}
+                title={inGame ?? undefined}
                 onClick={() => setPgnOpen(true)}
               >
                 Import game (PGN)
@@ -492,6 +808,7 @@ export default function App() {
             <StashedGames
               stash={stash}
               value={stashName}
+              locked={inGame}
               onSelect={loadStashedGame}
             />
           </div>
@@ -500,6 +817,7 @@ export default function App() {
             <GameLibrary
               value={libraryGame}
               error={libraryGameError}
+              locked={inGame}
               onSelect={loadLibraryGame}
             />
           </div>
@@ -550,16 +868,88 @@ export default function App() {
         </div>
       </div>
 
+      <JoinDialog
+        open={joining}
+        onJoin={(gameId) => {
+          setJoining(false);
+          friend.openInvite(gameId);
+        }}
+        onClose={() => setJoining(false)}
+      />
+
+      <ChallengeDialog
+        open={friend.phase.kind === "challenging"}
+        name={friend.name}
+        onSubmit={friend.challenge}
+        // Only a dismissal abandons the challenge. A <dialog> fires `close`
+        // whenever it closes, including when it closes because the game was
+        // created — and calling off the game at that moment would throw away
+        // the invite that had just been made.
+        onClose={() =>
+          friend.phase.kind === "challenging" ? friend.leave() : undefined
+        }
+      />
+
+      <InviteDialog
+        phase={friend.phase}
+        name={friend.name}
+        onAnswer={friend.answer}
+        onClose={() =>
+          friend.phase.kind === "invited" ? friend.leave() : undefined
+        }
+      />
+
       <PgnDialog
         open={pgnOpen}
         onSubmit={loadPgn}
         onClose={() => setPgnOpen(false)}
       />
 
+      {/* Asked before the board changes, not after: the game is waiting to go
+          up, and what is on the board now is still there to be kept. Either
+          answer starts the game. */}
+      <StashDialog
+        open={waitingToStart !== null}
+        taken={stash.map((game) => game.name)}
+        initialName={`Set aside ${new Date().toLocaleDateString()}`}
+        prompt={
+          friend.phase.kind === "playing"
+            ? `You're about to start a game with ${friend.phase.opponent}. Would you like to stash the current game?`
+            : "Would you like to stash the current game?"
+        }
+        submitLabel="Stash"
+        dismissLabel="Discard"
+        onSubmit={(name) => {
+          setStash(stashGame(stash, name, history));
+          if (waitingToStart !== null) {
+            putUp(waitingToStart);
+          }
+          setWaitingToStart(null);
+        }}
+        onClose={() => {
+          if (waitingToStart !== null) {
+            putUp(waitingToStart);
+          }
+          setWaitingToStart(null);
+        }}
+      />
+
       <StashDialog
         open={stashDialogOpen}
         taken={stash.map((game) => game.name)}
-        initialName={stashName}
+        /* A game with a friend names itself: both players, the day, and the id
+           it was played under. Whatever it is already called wins, since that
+           is a name somebody chose. */
+        initialName={
+          stashName ??
+          (friend.phase.kind === "playing"
+            ? friendlyGameName(
+                friend.phase.you === "w" ? friend.name : friend.phase.opponent,
+                friend.phase.you === "b" ? friend.name : friend.phase.opponent,
+                friend.phase.gameId
+              )
+            : null)
+        }
         onSubmit={stashHere}
         onClose={() => setStashDialogOpen(false)}
       />

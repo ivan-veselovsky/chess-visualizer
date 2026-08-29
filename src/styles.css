@@ -52,13 +52,8 @@
      the page scrolls — 75px of heading above the board and 32px of padding
      below it, and a few more so that a shift of a pixel or two somewhere else
      does not bring the scrollbar back. */
-  --board-reserve: 7rem;
-  /* The height-derived limit on its own, so the board's column can be sized to
-     it directly instead of growing past it and centring the board in the slack. */
-  --board-cap: calc((100vh - var(--board-reserve)) * var(--board-zoom));
-  /* Excludes mobile browser chrome; ignored where unsupported. */
-  --board-cap: calc((100dvh - var(--board-reserve)) * var(--board-zoom));
-  --board-max: min(100%, var(--board-cap));
+  /* The board's cap is worked out on `.app`, which is where the room the two
+     player names need is known. */
   /* The bar of taken men, and the air between it and the board. Named here
      because the board's own column has to make room for both. */
   --captured-bar-width: 1.7rem;
@@ -83,7 +78,22 @@ body {
   color: var(--app-fg);
 }
 
+/*
+  How tall the board may be.
+
+  Worked out here rather than on the root because it depends on whether a game
+  with a friend is on: two names sit above and below the board then, and the
+  board gives up their height. Both are declared on the same element, so the
+  cap resolves against whichever value of `--player-names` applies.
+*/
 .app {
+  /* Only a game with a friend puts names round the board. */
+  --player-names: 0rem;
+  --board-reserve: calc(7rem + var(--player-names));
+  --board-cap: calc((100vh - var(--board-reserve)) * var(--board-zoom));
+  /* Excludes mobile browser chrome; ignored where unsupported. */
+  --board-cap: calc((100dvh - var(--board-reserve)) * var(--board-zoom));
+  --board-max: min(100%, var(--board-cap));
   max-width: 1500px;
   margin: 0 auto;
   padding: 1.5rem 0.75rem 2rem;
@@ -158,6 +168,11 @@ body {
 .gear-button:hover,
 .gear-button[aria-expanded="true"] {
   background: var(--panel-bg);
+}
+
+/* A game with a friend names both players, above the board and below it. */
+.app-playing {
+  --player-names: 3.2rem;
 }
 
 /* Board on the left, everything else stacked on the right. */
@@ -521,6 +536,10 @@ body {
 }
 
 .fen-input {
+  /* Fills what it is given. In a flex row the rules below say what that is;
+     standing on its own — in a dialog, say — what it is given is the width of
+     the dialog, and a field for a whole name should use it. */
+  width: 100%;
   min-width: 0;
   padding: 0.4rem 0.5rem;
   font-family: ui-monospace, monospace;
@@ -573,6 +592,12 @@ body {
   background: var(--app-bg);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
+}
+
+/* Why the dialog opened, when it opened on its own account. */
+.stash-prompt {
+  margin: 0 0 0.7rem;
+  font-size: 0.9rem;
 }
 
 .stash-dialog {
@@ -1399,4 +1424,221 @@ input[type="color"]::-moz-color-swatch {
     color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
     white 25%
   );
+}
+
+/* --- Playing with a friend ---------------------------------------------- */
+
+.challenge-dialog {
+  width: min(36rem, 94vw);
+  /* The color swatch and the two lists sit on rows of their own; nothing here
+     is long enough to need scrolling, and a hover panel would be clipped. */
+  overflow: visible;
+}
+
+.challenge-title {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.challenge-name {
+  flex: 1 1 auto;
+  min-width: 8rem;
+}
+
+.challenge-number {
+  flex: 0 0 5rem;
+}
+
+/*
+  The chosen color, shown as itself. Empty until a choice is made, and taking
+  the dialog's own background until then: an unfilled field should not look
+  like a filled one.
+
+  Sized whether or not it holds anything. An empty element has no line box and
+  no height to speak of, which left it a stripe rather than a field waiting to
+  be filled — so it states a height, and holds one wide enough for the longest
+  thing it can say.
+*/
+.color-shown {
+  flex: 0 0 9rem;
+  min-height: 2.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+/*
+  The field and its three choices, always on one line. Wrapped, the choices
+  read as a second question rather than as the answer to the one above them.
+*/
+.color-row {
+  flex-wrap: nowrap;
+}
+
+.color-row .reset-button {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.color-shown-w {
+  color: #1a1a1a;
+  background: #f4f4f4;
+}
+
+.color-shown-b {
+  color: #f4f4f4;
+  background: #2a2a2a;
+}
+
+.color-choices {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/* The terms, as they were offered: read, not filled in. */
+.invite-terms {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 0.9rem;
+  margin: 0.8rem 0 0;
+  font-size: 0.9rem;
+}
+
+.invite-terms dt {
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.invite-terms dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/*
+  How the game stands, beside the board rather than over it: waiting for a
+  friend to answer takes as long as it takes them to read a message, and the
+  board stays usable throughout.
+*/
+.invite-panel {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-bg);
+}
+
+.invite-heading {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.invite-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+/* The link shares its row with the button that copies it. */
+.invite-panel .board-controls > .fen-input {
+  flex: 1 1 0;
+  min-width: 6rem;
+}
+
+/* Read aloud as often as it is pasted, so it is set out in threes. */
+.invite-number {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.6rem;
+  font-family: ui-monospace, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.join-number {
+  flex: 0 0 9rem;
+  font-family: ui-monospace, monospace;
+}
+
+/*
+  The two players, above and below the board they are playing on. Turning the
+  board round moves them with it, since each is drawn for the end of the board
+  it is at rather than for the person it names.
+*/
+.board-and-players {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/*
+  Set in by the width of the rank labels, so a name begins where the first file
+  does rather than over the coordinates beside it.
+
+  The board is what this column holds less the bar and the gap; the strip down
+  its left is 24 of the canvas's 536 units. Where there is no bar those two
+  measures are zero, and the sum still comes out right.
+*/
+.player-name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.25rem 0;
+  padding-left: calc(
+    (100% - var(--captured-bar-width) - var(--captured-bar-gap)) * 24 / 536
+  );
+  font-size: 0.95rem;
+}
+
+/* With the bar hidden, the board is the whole column. */
+.board-and-players-bare {
+  --captured-bar-width: 0px;
+  --captured-bar-gap: 0px;
+}
+
+/* Which army, said in the colour rather than in a word. */
+.player-color {
+  flex: 0 0 auto;
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 50%;
+}
+
+.player-color-w {
+  background: #f4f4f4;
+}
+
+.player-color-b {
+  background: #2a2a2a;
+}
+
+.player-mine {
+  color: color-mix(in srgb, currentColor 60%, transparent);
+}
+
+/* What can still be done about the game, before what the game is. */
+.invite-actions {
+  margin-bottom: 0.55rem;
+}
+
+/* A refusal, said where the game is and gone as soon as anything happens. */
+.invite-notice {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--invalid);
+  cursor: pointer;
+}
+
+.invite-question {
+  margin-bottom: 0.55rem;
+  font-size: 0.9rem;
 }

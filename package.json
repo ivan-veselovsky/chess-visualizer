@@ -8,7 +8,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:ws": "node worker/tests/all.mjs",
+    "test:unit": "node --experimental-strip-types tests/unit.mjs",
+    "test": "npm run test:unit"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
@@ -20,6 +23,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4"
+    "@types/react-dom": "^19.2.4",
+    "wrangler": "^4.127.0"
   }
 }

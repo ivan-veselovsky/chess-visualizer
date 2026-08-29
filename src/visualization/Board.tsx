@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from "react";
-import type { Chess, Square } from "chess.js";
+import type { Chess, Color, Square } from "chess.js";
 import { PIECE_GLYPHS, readPieces } from "../chess/model";
 import { legalTargets } from "../chess/moves";
 import {
@@ -37,6 +37,12 @@ interface BoardProps {
   attacks: AttackOptions;
   /** Omit to make the board read-only. */
   onMove?: (from: Square, to: Square) => void;
+  /**
+   * The one army this board may move, when it may only move one — a game
+   * against somebody else, where the other side is theirs to play. Omitted for
+   * a board being studied, where both sides are the reader's to try.
+   */
+  playable?: Color | null;
   showGrid?: boolean;
   /** What the grid's lines are drawn in. */
   gridColor?: string;
@@ -75,6 +81,7 @@ export default function Board({
   onMove,
   showGrid = true,
   gridColor = "#000000",
+  playable = null,
   lastMove = null,
   lastMoveColor = "#000000",
   lastMoveOpacity = 0,
@@ -177,6 +184,21 @@ export default function Board({
 
     if (at === null || from === null || position.get(from) === undefined) {
       return;
+    }
+    /*
+      In a game with somebody else, only your own men, and only when it is your
+      move. Stopping it here rather than at the drop means the opponent's pieces
+      never lift and never show where they could go — the board says what may be
+      done by what it lets you take hold of.
+    */
+    if (playable !== null) {
+      const piece = position.get(from);
+      if (piece === undefined || piece.color !== playable) {
+        return;
+      }
+      if (position.turn() !== playable) {
+        return;
+      }
     }
     const targets = legalTargets(position, from);
     if (targets.length === 0) {

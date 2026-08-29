@@ -4,6 +4,8 @@ interface StashedGamesProps {
   stash: GameStash;
   /** Which stashed game the board is on, or null when it is on anything else. */
   value: string | null;
+  /** Why the list is closed, when it is. */
+  locked?: string | null;
   onSelect: (name: string) => void;
 }
 
@@ -16,6 +18,7 @@ interface StashedGamesProps {
 export default function StashedGames({
   stash,
   value,
+  locked = null,
   onSelect,
 }: StashedGamesProps) {
   const empty = stash.length === 0;
@@ -27,8 +30,8 @@ export default function StashedGames({
         id="stashed-game"
         className="game-select"
         value={value ?? ""}
-        disabled={empty}
-        title={empty ? "Nothing stashed yet" : undefined}
+        disabled={empty || locked !== null}
+        title={locked ?? (empty ? "Nothing stashed yet" : undefined)}
         onChange={(event) => {
           if (event.target.value !== "") {
             onSelect(event.target.value);
