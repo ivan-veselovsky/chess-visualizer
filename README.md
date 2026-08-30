@@ -1,6 +1,6 @@
 # Chess Visualizer
 
-## See the board. Spot the threats. Blunder less.
+## Blunder less. See the board. Spot the threats. 
 
 Love chess but hate missing the obvious?
 
@@ -18,11 +18,11 @@ Love chess but hate missing the obvious?
 
 - **Fully customizable visualization** — configure every color and nearly every aspect of the visualization geometry.
 
-- **It takes two to tango** — play online with a friend, resume an existing game, play with odds, and allow takebacks.
+- **It takes two to tango** — play online with a friend, no sign-up; resume a game, take up an unfinished one from a PGN, play with odds, and allow takebacks.
 
 - **Classic games and PGN / FEN support** — explore famous games from the built-in library, import and export games and positions in PGN / FEN format.
 
-- **And plenty more.**
+- **And plenty more** — share a position or a game as a link, read the material balance off the captured-pieces bar, and put a game aside in the stash while you look at another.
 
 [Try Chess Visualizer online](https://chess-visualizer.ivan-a87.workers.dev).
 
@@ -34,8 +34,15 @@ Like this project? You can [♥$ support](https://github.com/sponsors/ivan-vesel
 
 ## More screenshots
 
-Anderssen - Dufresne 1852
-![Anderssen - Dufresne 1852](img/image-01.png)
+Adolf Anderssen - Jean Dufresne - 1852
+![Adolf Anderssen - Jean Dufresne - 1852](img/image-01.png)
 
-Reti - Capablanka 1924
-![Reti - Capablanka 1924](img/image-02.png)
+Richard Reti - Jose Raul Capablanca - 1924
+![Richard Reti - Jose Raul Capablanca - 1924](img/image-02.png)
+
+## Development
+
+    npm install
+    npm run dev        # the visualizer alone
+    npm run build && npx wrangler dev   # ...with the two-player server
+    npm test           # unit tests;  ./test-local.sh runs the protocol suites
