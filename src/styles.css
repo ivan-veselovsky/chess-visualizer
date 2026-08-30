@@ -1382,27 +1382,34 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
-  Allowed to shrink, all the way down. A bar shorter than the men it holds — a
-  short window and a game of many captures — squeezes the groups instead of
-  running them into each other, and an <svg> given less room scales what it
-  draws rather than cropping it, so the men only get smaller.
+  Held at their natural size rather than squeezed.
+
+  These used to be allowed to shrink all the way down, which on a short bar
+  made the men smaller and smaller until they were unreadable — and on a bar
+  short enough, ran the two groups into each other anyway. Closing the gaps
+  between men of a kind is the better thing to give up, so that is what the bar
+  now does, and the men keep the size at which they can be told apart.
 */
 .captured-group,
 .captured-run {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
 }
 
 /*
-  Repeats of one kind lie slightly over each other — never across kinds, so a
-  stack of pawns still reads as pawns while the kinds stay told apart. It also
-  buys room: fifteen men end to end are taller than half a board.
+  Repeats of one kind lie over each other — never across kinds, so a stack of
+  pawns still reads as pawns while the kinds stay told apart. It also buys
+  room: fifteen men end to end are taller than half a board.
+
+  How far they lie over is set by the bar itself, which measures what it has to
+  hold against the room it has. The value here is only what they lie by when
+  there is room to spare.
 */
 .captured-run > .captured-piece + .captured-piece {
-  margin-top: -0.35em;
+  margin-top: calc(-1 * var(--captured-overlap, 0.35em));
 }
 
 /*
@@ -1413,11 +1420,24 @@ input[type="color"]::-moz-color-swatch {
 */
 .captured-piece {
   display: block;
-  flex: 0 1 auto;
-  width: 1.5em;
-  height: 1.5em;
+  flex: 0 0 auto;
+  width: var(--captured-size, 1.5em);
+  height: var(--captured-size, 1.5em);
   min-height: 0;
   overflow: visible;
+}
+
+/*
+  A setting that is present but not in force, because another has taken it
+  over. Faded rather than hidden, and it says why on hover: a control that
+  disappears leaves the reader wondering whether they imagined it.
+*/
+.field-disabled {
+  opacity: 0.45;
+}
+
+.field-disabled label {
+  cursor: default;
 }
 
 /* How far ahead, against whoever is: at the group's inner end, by the queens. */

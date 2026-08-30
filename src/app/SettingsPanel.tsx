@@ -143,11 +143,23 @@ export default function SettingsPanel({
             onChange={(darkSquare) => updateBoardColors({ darkSquare })}
           />
         </div>
+        {/*
+          The negative mark takes the place of the colour and the wash rather
+          than sitting beside them, so both are shown greyed while it is on and
+          say why on hover. Greyed rather than gone: a setting that vanishes
+          leaves the reader wondering whether they imagined it.
+        */}
         <div className="field-row">
           <ColorField
             id="last-move-color"
             label="Last move highlight color"
             value={settings.lastMoveColor}
+            disabled={settings.lastMoveNegative}
+            hint={
+              settings.lastMoveNegative
+                ? "Not used: the negative circle takes its colour from the squares themselves."
+                : undefined
+            }
             onChange={(lastMoveColor) => onChange({ ...settings, lastMoveColor })}
           />
           <NumberField
@@ -158,8 +170,43 @@ export default function SettingsPanel({
             step={0.05}
             max={1}
             allowZero
+            disabled={settings.lastMoveNegative}
+            hint={
+              settings.lastMoveNegative
+                ? "Not used: a circle half the other square's colour is not the other square's colour."
+                : undefined
+            }
             onChange={(lastMoveOpacity) =>
               onChange({ ...settings, lastMoveOpacity })
+            }
+          />
+        </div>
+        <div className="field-row field-row-halves">
+          <ToggleField
+            id="last-move-negative"
+            label="Negative square color circle"
+            hint="Mark the last move's two squares with the other square colour — dark on a light square, light on a dark one. A bishop's two squares then match; a pawn's are opposites."
+            checked={settings.lastMoveNegative}
+            onChange={(lastMoveNegative) =>
+              onChange({ ...settings, lastMoveNegative })
+            }
+          />
+          <NumberField
+            id="last-move-negative-diameter"
+            inline
+            label="Negative circle diameter"
+            suffix="squares"
+            value={settings.lastMoveNegativeDiameter}
+            step={0.02}
+            allowZero
+            disabled={!settings.lastMoveNegative}
+            hint={
+              settings.lastMoveNegative
+                ? "How much of the square the mark covers."
+                : "Not used until the negative circle is switched on."
+            }
+            onChange={(lastMoveNegativeDiameter) =>
+              onChange({ ...settings, lastMoveNegativeDiameter })
             }
           />
         </div>

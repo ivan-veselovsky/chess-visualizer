@@ -644,6 +644,8 @@ export default function App() {
                 lastMove={lastMove}
                 lastMoveColor={settings.lastMoveColor}
                 lastMoveOpacity={settings.lastMoveOpacity}
+                lastMoveNegative={settings.lastMoveNegative}
+                lastMoveNegativeDiameter={settings.lastMoveNegativeDiameter}
                 orientation={settings.orientation}
               />
                 {settings.showTakenPieces && (

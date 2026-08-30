@@ -11,6 +11,8 @@ interface NumberInputProps {
   step?: number;
   /** Needed when the input has no visible <label> of its own, as in a table. */
   ariaLabel?: string;
+  /** Present but not answering, because something else has taken it over. */
+  disabled?: boolean;
   onChange: (value: number) => void;
 }
 
@@ -30,6 +32,7 @@ export default function NumberInput({
   max,
   step = 0.05,
   ariaLabel,
+  disabled = false,
   onChange,
 }: NumberInputProps) {
   const [text, setText] = useState(() => format(value));
@@ -58,6 +61,7 @@ export default function NumberInput({
       value={text}
       aria-label={ariaLabel}
       aria-invalid={!isValid}
+      disabled={disabled}
       onChange={(event) => {
         setText(event.target.value);
         const parsed = accept(event.target.value);

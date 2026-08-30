@@ -42,7 +42,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Settings` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const SETTINGS_SCHEMA_VERSION = 27;
+export const SETTINGS_SCHEMA_VERSION = 29;
 
 /**
  * Central description of everything the user can tweak: one object holding
@@ -84,6 +84,32 @@ export interface Settings {
    */
   lastMoveColor: string;
   lastMoveOpacity: number;
+  /**
+   * Mark the two squares with the other kind of square's colour instead — dark
+   * on a light square, light on a dark one.
+   *
+   * A rule rather than a colour, and so it takes the place of the two settings
+   * above rather than sitting beside them: there is nothing to choose and
+   * nothing to fade, since a mark that is half the other colour is not the
+   * other colour.
+   *
+   * What it shows is the move's shape. A bishop's two squares are the same
+   * colour and so are marked alike; a pawn's are not, and are marked as each
+   * other's opposite. The board says which kind of move it was before the
+   * pieces are read.
+   */
+  lastMoveNegative: boolean;
+  /**
+   * How far across that circle is, in square sides.
+   *
+   * Its own measure rather than the pin ring's, which the plain highlight
+   * borrows. The two marks are doing different jobs: the wash tints part of a
+   * square and reads as a tint whatever size it is, while this one is the
+   * square's own colour turned round and so reads as a smaller square of the
+   * other kind — how much of the square it covers is the whole of its effect,
+   * and is worth setting on its own.
+   */
+  lastMoveNegativeDiameter: number;
   attacks: AttackSettings;
 }
 

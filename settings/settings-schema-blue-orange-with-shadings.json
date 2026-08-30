@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 27,
+  "schemaVersion": 29,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -8,6 +8,8 @@
   },
   "lastMoveColor": "#dbd524",
   "lastMoveOpacity": 0.6,
+  "lastMoveNegative": false,
+  "lastMoveNegativeDiameter": 0.76,
   "orientation": "black",
   "showGrid": false,
   "gridColor": "#5e5e5e",

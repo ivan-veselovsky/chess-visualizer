@@ -60,6 +60,10 @@ interface BoardProps {
   /** The wash laid over those two squares, and how much of it. */
   lastMoveColor?: string;
   lastMoveOpacity?: number;
+  /** Mark the two squares with the other square colour instead of a wash. */
+  lastMoveNegative?: boolean;
+  /** How far across that mark is, in squares. */
+  lastMoveNegativeDiameter?: number;
   orientation?: Orientation;
 }
 
@@ -95,6 +99,8 @@ export default function Board({
   lastMove = null,
   lastMoveColor = "#000000",
   lastMoveOpacity = 0,
+  lastMoveNegative = false,
+  lastMoveNegativeDiameter = 0.76,
   orientation = "white",
 }: BoardProps) {
   const pieces = readPieces(position);
@@ -303,6 +309,8 @@ export default function Board({
           ]}
           color={lastMoveColor}
           opacity={lastMoveOpacity}
+          negative={lastMoveNegative}
+          negativeDiameter={lastMoveNegativeDiameter}
           orientation={orientation}
           diameter={attacks.pinRingDiameter}
         />

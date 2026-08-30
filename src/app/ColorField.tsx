@@ -5,6 +5,10 @@ interface ColorFieldProps {
   id: string;
   label: string;
   value: string;
+  /** Present but not answering; `hint` should then say why. */
+  disabled?: boolean;
+  /** Explanation shown on hover, rather than as standing text. */
+  hint?: string;
   onChange: (color: string) => void;
 }
 
@@ -23,19 +27,22 @@ export default function ColorField({
   id,
   label,
   value,
+  disabled = false,
+  hint,
   onChange,
 }: ColorFieldProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="color-field">
+    <div className={disabled ? "color-field field-disabled" : "color-field"}>
       <label htmlFor={id}>{label}</label>
       <button
         id={id}
         type="button"
         className="color-well"
+        disabled={disabled}
         style={{ background: value }}
-        title={value}
+        title={hint ?? value}
         aria-label={`${label} (${value})`}
         onClick={() => setOpen(true)}
       />

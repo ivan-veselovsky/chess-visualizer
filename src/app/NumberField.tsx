@@ -15,6 +15,8 @@ interface NumberFieldProps {
   hint?: string;
   /** Put the label and the input on one line instead of stacking them. */
   inline?: boolean;
+  /** Present but not answering; `hint` should then say why. */
+  disabled?: boolean;
   onChange: (value: number) => void;
 }
 
@@ -29,13 +31,17 @@ export default function NumberField({
   max,
   hint,
   inline = false,
+  disabled = false,
   onChange,
 }: NumberFieldProps) {
+  const classes = [
+    inline ? "number-field field-inline" : "number-field",
+    disabled ? "field-disabled" : "",
+  ]
+    .filter((name) => name !== "")
+    .join(" ");
   return (
-    <div
-      className={inline ? "number-field field-inline" : "number-field"}
-      title={hint}
-    >
+    <div className={classes} title={hint}>
       <label htmlFor={id}>{label}</label>
       <div className="number-field-inputs">
         <NumberInput
@@ -44,6 +50,7 @@ export default function NumberField({
           step={step}
           allowZero={allowZero}
           max={max}
+          disabled={disabled}
           onChange={onChange}
         />
         {suffix !== undefined && <span className="field-suffix">{suffix}</span>}

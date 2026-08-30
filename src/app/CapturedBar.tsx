@@ -1,3 +1,5 @@
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import type { Color, PieceSymbol } from "chess.js";
 import {
   CAPTURE_ORDER,
@@ -17,6 +19,34 @@ interface CapturedBarProps {
   pieceTint: PieceTint;
   attacks: AttackSettings;
 }
+
+/**
+ * How much of each man the one before it may cover, at the least and at the
+ * most, and how much clear bar to keep between the two armies.
+ *
+ * The men lie over each other by a fixed amount until they stop fitting, and
+ * then by however much they must. Overlapping further is the right thing to
+ * give up first: a stack of pawns still reads as a stack of pawns when they
+ * lie closer, whereas the alternative — which is what happened before — is
+ * that the flex box shrinks them, and men that shrink stop being legible at
+ * all while also, on a short enough bar, running the two groups together.
+ *
+ * The gap is what makes the picture readable: two heaps with clear bar between
+ * them are two players' trophies, and two heaps that touch are one heap.
+ */
+const OVERLAP_EM = { least: 0.35, most: 1.15 };
+const GAP_EM = 4;
+
+/**
+ * How big a man is, and how small he may be made.
+ *
+ * Shrinking is the second thing tried and the last thing given up. Once the
+ * men lie as close as they are allowed to, the only room left is in the men
+ * themselves — but a man shrunk far enough stops being a knight or a bishop
+ * and becomes a smudge, so there is a floor, below which the bar simply holds
+ * more than it can show.
+ */
+const SIZE_EM = { full: 1.5, least: 0.85 };
 
 const NAMES: Record<PieceSymbol, [string, string]> = {
   k: ["king", "kings"],
@@ -135,6 +165,91 @@ export default function CapturedBar({
 }: CapturedBarProps) {
   const mine: Color = orientation === "white" ? "w" : "b";
   const theirs: Color = mine === "w" ? "b" : "w";
+  const column = useRef<HTMLDivElement>(null);
+  const [fitted, setFitted] = useState({
+    overlap: OVERLAP_EM.least,
+    size: SIZE_EM.full,
+  });
+
+  /**
+   * How far the men must lie over each other to leave the gap standing.
+   *
+   * Worked out from what is on the bar rather than guessed at: the two groups
+   * are measured as they are drawn, and the shortfall is divided among the
+   * joins that can absorb it — every man after the first of his kind, since
+   * kinds are never overlapped into each other.
+   *
+   * One pass settles it, because the relationship is linear and known: closing
+   * each join by a millimetre shortens the column by a millimetre per join. No
+   * loop, no search, and nothing that can oscillate.
+   */
+  const fit = useCallback(() => {
+    const box = column.current;
+    if (box === null) {
+      return;
+    }
+    const groups = [...box.children].filter(
+      (child): child is HTMLElement => child instanceof HTMLElement
+    );
+    const joins = [...box.querySelectorAll(".captured-run")].reduce(
+      (total, run) => total + Math.max(run.childElementCount - 1, 0),
+      0
+    );
+    if (joins === 0) {
+      setFitted({ overlap: OVERLAP_EM.least, size: SIZE_EM.full });
+      return;
+    }
+    const men = box.querySelectorAll(".captured-piece").length;
+    const em = Number.parseFloat(getComputedStyle(box).fontSize) || 16;
+    const taken = groups.reduce((total, group) => total + group.offsetHeight, 0);
+    // In ems, so that the answer does not depend on what the page's text size
+    // happens to be on this machine.
+    const over = (taken + GAP_EM * em - box.clientHeight) / em;
+
+    setFitted((was) => {
+      /*
+        Closing the joins first. Each one closed by a hair shortens the column
+        by a hair, so what is needed divides straight across them.
+      */
+      const overlap = Math.min(
+        Math.max(was.overlap + over / joins, OVERLAP_EM.least),
+        OVERLAP_EM.most
+      );
+      /*
+        Whatever the joins could not absorb comes off the men themselves, which
+        is the same arithmetic over a different count: every man is shorter, not
+        only the ones with a man above them.
+      */
+      const left = over - (overlap - was.overlap) * joins;
+      const size =
+        men === 0
+          ? SIZE_EM.full
+          : Math.min(
+              Math.max(was.size - left / men, SIZE_EM.least),
+              SIZE_EM.full
+            );
+      return was.overlap === overlap && was.size === size
+        ? was
+        : { overlap, size };
+    });
+  }, []);
+
+  /*
+    Re-measured when the bar changes size — a window resized, a panel opened,
+    the board given more or less room — and when the men on it change. The
+    column is watched rather than the groups: its height is the board's to
+    decide, so nothing this does can change it, and there is no loop.
+  */
+  useLayoutEffect(() => {
+    fit();
+    const box = column.current;
+    if (box === null || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const watch = new ResizeObserver(fit);
+    watch.observe(box);
+    return () => watch.disconnect();
+  }, [fit, captures]);
   // Positive when the near player is ahead. Shown against whoever leads, and
   // against neither when the two have taken as much as each other.
   const lead = materialTaken(captures, mine) - materialTaken(captures, theirs);
@@ -148,11 +263,15 @@ export default function CapturedBar({
         "The number is how far ahead in material whoever carries it is, " +
         "counting pawn 1, knight 3, bishop 3, rook 5, queen 9."
       }
-      style={pieceVars(pieceTint, attacks)}
+      style={{
+        ...pieceVars(pieceTint, attacks),
+        "--captured-overlap": `${fitted.overlap}em`,
+        "--captured-size": `${fitted.size}em`,
+      } as CSSProperties}
     >
       {/* The board's own height, less the strip of coordinates along its foot,
           so the two groups sit against the board's own top and bottom edges. */}
-      <div className="captured-column">
+      <div className="captured-column" ref={column}>
         {/* Above: what the opponent has taken, which is your own army. */}
         <CapturedGroup
           men={captures}
