@@ -1,14 +1,25 @@
 import CopyButton from "../CopyButton";
+import DrawIcon from "../DrawIcon";
+import FlagIcon from "../FlagIcon";
 import ShareIcon from "../ShareIcon";
+import TakebackIcon from "../TakebackIcon";
 import { describeHandicap } from "../../chess/handicap";
-import type { Color } from "chess.js";
-import type { EndReason, GameResult } from "../../../worker/protocol";
+import { endingOf } from "./ending";
 import { OPPONENT_CHOOSES } from "../../../worker/protocol";
 import { spellGameId } from "./storage";
-import type { Phase } from "./useFriendGame";
+import type { Link, Phase } from "./useFriendGame";
 
 interface InvitePanelProps {
   phase: Phase;
+  /** How the line stands, at both ends of it. */
+  link: Link;
+  /** This player's own name, for the end of the line they are at. */
+  myName: string;
+  /** Whether a move can be taken back at this moment. */
+  canTakeBack: boolean;
+  /** Why it can or cannot, for the button to say without being pressed. */
+  takebackReason: string;
+  onTakeBack: () => void;
   onLeave: () => void;
   onResign: () => void;
   onOfferDraw: () => void;
@@ -18,35 +29,34 @@ interface InvitePanelProps {
   onDismissNotice: () => void;
 }
 
+/**
+ * One light on the line: green for up, red for down, grey for not knowable
+ * from here.
+ *
+ * The colour is not the whole of it — it carries the same three states in
+ * words, for anyone who cannot tell the first two apart or is not looking at
+ * it with their eyes.
+ */
+function LinkDot({ up, what }: { up: boolean | null; what: string }) {
+  const state = up === null ? "unknown" : up ? "up" : "down";
+  const said =
+    up === null ? "unknown" : up ? "connected" : "not connected";
+  return (
+    <span
+      className={`link-dot link-dot-${state}`}
+      role="img"
+      aria-label={`${what}: ${said}`}
+      title={`${what}: ${said}`}
+    />
+  );
+}
+
 /** The terms worth saying, run together; the ones that say nothing are left out. */
 function terms(parts: (string | null)[]): string {
   return parts.filter((part) => part !== null).join(" \u00b7 ");
 }
 
 /** How a finished game reads to the player looking at it. */
-function endingOf(
-  over: { result: GameResult; reason: EndReason },
-  you: Color
-): string {
-  const mine = over.result === "1-0" ? "w" : over.result === "0-1" ? "b" : null;
-  const how: Record<EndReason, string> = {
-    checkmate: "checkmate",
-    resignation: "resignation",
-    stalemate: "stalemate",
-    agreement: "agreement",
-    repetition: "repetition",
-    fiftyMove: "the fifty-move rule",
-    insufficientMaterial: "too little material to mate",
-    challengeDeclined: "the challenge being declined",
-    challengeCancelled: "the invite being taken back",
-  };
-  if (mine === null) {
-    return `Drawn by ${how[over.reason]}.`;
-  }
-  return mine === you
-    ? `You won by ${how[over.reason]}.`
-    : `You lost by ${how[over.reason]}.`;
-}
 
 /**
  * How the friendly game stands, beside the board rather than over it.
@@ -66,6 +76,11 @@ function endingOf(
  */
 export default function InvitePanel({
   phase,
+  link,
+  myName,
+  canTakeBack,
+  takebackReason,
+  onTakeBack,
   onLeave,
   onResign,
   onOfferDraw,
@@ -83,6 +98,16 @@ export default function InvitePanel({
 
   return (
     <aside className="invite-panel" aria-label="Game with a friend">
+      {/* The address named a game and the object has not said what it is yet.
+          Said plainly, because the wait is a round trip and the id is the one
+          thing already known to be true. */}
+      {phase.kind === "opening" && (
+        <p className="invite-heading">
+          Opening game {spellGameId(phase.gameId)}
+          {"\u2026"}
+        </p>
+      )}
+
       {phase.kind === "waiting" && (
         <>
           <p className="invite-heading">Waiting for your opponent…</p>
@@ -147,33 +172,110 @@ export default function InvitePanel({
 
       {phase.kind === "playing" && (
         <>
-          {/* What can still be done about the game, before what it is: the
-              actions are why anyone looks at this panel mid-game. */}
+          {/* What game this is, first: everything under it is about this game,
+              and the reader who has two of them open needs to know which one
+              they are looking at before they read a control. */}
+          <p className="invite-heading">
+            {phase.over === null
+              ? `Playing ${phase.opponent} — you are ${phase.you === "w" ? "White" : "Black"}`
+              : endingOf(phase.over, phase.you)}
+          </p>
+
+          {/*
+            The line, drawn as it is: two hops, each with a light on it. The
+            middle one is the object, which is the only thing either player is
+            actually connected to — they are never connected to each other, and
+            a picture that suggested otherwise would make the wrong half look
+            broken when one of them walks away.
+          */}
+          <p
+            className="link-row"
+            aria-label={`Connection: ${
+              link.mine ? "connected" : "not connected"
+            } to the server, opponent ${
+              link.theirs === null
+                ? "unknown"
+                : link.theirs
+                  ? "connected"
+                  : "not connected"
+            }`}
+          >
+            <span className="link-name">{myName} (me)</span>
+            <span className="link-wire" />
+            <LinkDot up={link.mine} what="Your connection to the server" />
+            <span className="link-name">Server</span>
+            <span className="link-wire" />
+            <LinkDot
+              /*
+                Unknown once the game is over, whatever was last heard: the
+                probes have stopped, and a light nothing is checking should not
+                be reporting. Also unknown when this end's own line is down,
+                since the far end is only ever knowable through it.
+              */
+              up={link.mine && phase.over === null ? link.theirs : null}
+              what={`${phase.opponent}'s connection to the server`}
+            />
+            <span className="link-name">{phase.opponent}</span>
+          </p>
+
+          {/*
+            A row of its own, above the two that end the game. Taking a move
+            back is part of playing — an agreed courtesy, spent from a counted
+            allowance — and putting it beside Resign would make a slip of the
+            mouse expensive.
+
+            Shown only where the game allows any: a control that can never be
+            enabled is a question the reader has to answer every time they look
+            at the panel.
+          */}
+          {/*
+            The two that end the game at one end of the row, and the one that
+            is part of playing it held right away at the other. They share a
+            row because they are all things to do about the game in front of
+            you; they are put at opposite ends because a slip of the mouse
+            between them should not be able to end it.
+
+            Takeback is there only where the game allows any: a control that
+            can never be enabled is a question the reader has to answer every
+            time they look at the panel.
+          */}
           {phase.over === null && (
             <div className="board-controls invite-actions">
-              <>
+              <button
+                type="button"
+                className="reset-button"
+                title="Give the game up"
+                onClick={onResign}
+              >
+                <FlagIcon />
+                Resign
+              </button>
+              <button
+                type="button"
+                className="reset-button"
+                disabled={phase.drawOffered === phase.you}
+                title={
+                  phase.drawOffered === phase.you
+                    ? "Already offered — it is with your opponent"
+                    : "Offer to end the game evenly"
+                }
+                onClick={onOfferDraw}
+              >
+                <DrawIcon />
+                Suggest draw
+              </button>
+              {phase.terms.takebacks > 0 && (
                 <button
                   type="button"
-                  className="reset-button"
-                  title="Give the game up"
-                  onClick={onResign}
+                  className="reset-button controls-end"
+                  disabled={!canTakeBack}
+                  title={takebackReason}
+                  onClick={onTakeBack}
                 >
-                  Resign
+                  <TakebackIcon />
+                  Takeback
                 </button>
-                <button
-                  type="button"
-                  className="reset-button"
-                  disabled={phase.drawOffered === phase.you}
-                  title={
-                    phase.drawOffered === phase.you
-                      ? "Already offered — it is with your opponent"
-                      : "Offer to end the game evenly"
-                  }
-                  onClick={onOfferDraw}
-                >
-                  Suggest draw
-                </button>
-              </>
+              )}
             </div>
           )}
 
@@ -199,11 +301,6 @@ export default function InvitePanel({
             </div>
           )}
 
-          <p className="invite-heading">
-            {phase.over === null
-              ? `Playing ${phase.opponent} — you are ${phase.you === "w" ? "White" : "Black"}`
-              : endingOf(phase.over, phase.you)}
-          </p>
           {/* Said and then let go of: the game is what matters, not the last
               thing that could not be done. */}
           {notice !== null && (
@@ -216,20 +313,19 @@ export default function InvitePanel({
             </p>
           )}
 
-          <p className="invite-note">
-            {terms([
-              phase.terms.handicap === null
-                ? null
-                : describeHandicap(phase.terms.handicap, "challenger"),
-              phase.terms.takebacks > 0
-                ? `takebacks: you ${phase.takebacksLeft?.[phase.you] ?? 0}, ${
-                    phase.opponent
-                  } ${
-                    phase.takebacksLeft?.[phase.you === "w" ? "b" : "w"] ?? 0
-                  }`
-                : null,
-            ])}
-          </p>
+          {/* The odds are not repeated here. They were a thing to agree to,
+              and once the game is on they are in the position itself — where
+              the reader can see them. What is left to spend cannot be seen on
+              the board, so that is what this line is for. */}
+          {phase.terms.takebacks > 0 && (
+            <p className="invite-note">
+              {`Takebacks: me ${
+                phase.takebacksLeft?.[phase.you] ?? 0
+              }, ${phase.opponent} ${
+                phase.takebacksLeft?.[phase.you === "w" ? "b" : "w"] ?? 0
+              }`}
+            </p>
+          )}
 
           {/*
             A finished game is not left, it is put away — there is nothing to

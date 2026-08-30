@@ -1,5 +1,5 @@
 /** Odds, takebacks, and the position they imply. */
-import { connect, settle, token, gameId, check, summary } from "./lib.mjs";
+import { connect, answered, token, gameId, check, summary } from "./lib.mjs";
 
 console.log("Odds and takebacks\n");
 
@@ -7,8 +7,7 @@ const offer = async (extra, color = "w") => {
   const game = gameId();
   const ws = await connect(game);
   ws.say({ type: "create", token: token(), name: "Bob", color, ...extra });
-  await settle();
-  return { said: ws.heard[0], game, ws };
+  return { said: await answered(ws), game, ws };
 };
 
 {
@@ -54,7 +53,7 @@ const offer = async (extra, color = "w") => {
   const { said, game, ws } = await offer({ handicap, takebacks: 2 });
   const looker = await connect(game);
   looker.say({ type: "peek" });
-  await settle();
+  await answered(looker);
   const seen = looker.heard[0];
   check("the guest is shown the same odds value",
     JSON.stringify(seen?.terms.handicap) === JSON.stringify(handicap), JSON.stringify(seen?.terms));

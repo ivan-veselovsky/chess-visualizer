@@ -30,8 +30,13 @@ export function openingFromUrl(search: string): Opening | null {
   if (pgn !== null) {
     const { entries } = parsePgn(pgn);
     if (entries !== null && entries.length > 0) {
-      // The list runs newest first, so the game's start is its last entry.
-      return { entries, fen: entries[entries.length - 1].fen };
+      /*
+        The position the board opens on, which must be the one the line is
+        opened at or the two disagree: the history lands at the last move, so
+        this is the last move's position. The list runs newest first, so that
+        is its head.
+      */
+      return { entries, fen: entries[0].fen };
     }
   }
 

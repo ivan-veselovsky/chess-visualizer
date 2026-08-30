@@ -1,5 +1,5 @@
 /** The position a game starts from. */
-import { connect, settle, token, gameId, check, summary } from "./lib.mjs";
+import { connect, answered, token, gameId, check, summary } from "./lib.mjs";
 
 console.log("The position a game starts from\n");
 
@@ -7,8 +7,7 @@ const start = async (initialFEN, color = "w") => {
   const game = gameId();
   const ws = await connect(game);
   ws.say({ type: "create", token: token(), name: "Bob", color, ...(initialFEN ? { initialFEN } : {}) });
-  await settle();
-  return ws.heard[0];
+  return await answered(ws);
 };
 
 const standard = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -38,11 +37,10 @@ for (const [what, fen] of bad) {
   const game = gameId(), host = token();
   const bob = await connect(game);
   bob.say({ type: "create", token: host, name: "Bob", color: "b", initialFEN: blackFirst });
-  await settle();
+  await answered(bob);
   const looker = await connect(game);
   looker.say({ type: "peek" });
-  await settle();
-  const c = looker.heard[0];
+  const c = await answered(looker);
   check("the guest is shown the challenger, their own color and the position",
     c?.challenger === "Bob" && c.you === "w" && c.terms.initialFEN === blackFirst, JSON.stringify(c));
   check("the challenger takes Black and so moves first here", c?.you === "w");

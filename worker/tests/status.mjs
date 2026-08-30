@@ -1,5 +1,5 @@
 /** Status, result and reason. */
-import { connect, settle, token, gameId, check, summary } from "./lib.mjs";
+import { connect, answered, until, token, gameId, check, summary } from "./lib.mjs";
 
 console.log("Status, result and reason\n");
 
@@ -7,14 +7,13 @@ const play = async (accept) => {
   const game = gameId(), host = token(), guest = token();
   const bob = await connect(game);
   bob.say({ type: "create", token: host, name: "Bob", color: "w" });
-  await settle();
+  await answered(bob);
   const alice = await connect(game);
   alice.say({ type: "answer", token: guest, name: "Alice", accept });
-  await settle();
+  await answered(alice);
   const back = await connect(game);
   back.say({ type: "resume", token: host });
-  await settle();
-  const state = back.heard[0];
+  const state = await until(back, "state");
   for (const ws of [bob, alice, back]) ws.close();
   return state;
 };
@@ -38,13 +37,13 @@ for (const [what, accept] of [["accepted", true], ["declined", false]]) {
   const game = gameId(), host = token();
   const bob = await connect(game);
   bob.say({ type: "create", token: host, name: "Bob", color: "w" });
-  await settle();
+  await answered(bob);
   const first = await connect(game);
   first.say({ type: "answer", token: token(), name: "Alice", accept });
-  await settle();
+  await answered(first);
   const second = await connect(game);
   second.say({ type: "answer", token: token(), name: "Mallory", accept: true });
-  await settle(600);
+  await answered(second);
   check(`a game already ${what} cannot be answered again`,
     second.heard[0]?.type === "error", JSON.stringify(second.heard[0]));
   bob.close(); first.close(); second.close();

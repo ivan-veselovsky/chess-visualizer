@@ -1,5 +1,5 @@
 /** The worker is reachable and a game can be played through it. */
-import { base, connect, settle, token, gameId, check, summary } from "./lib.mjs";
+import { base, connect, answered, until, untilClosed, token, gameId, check, summary } from "./lib.mjs";
 const http = base.replace(/^ws/, "http");
 console.log(`Testing ${base}\n`);
 
@@ -16,31 +16,35 @@ check("the socket opens", true, "");
 const opened = Date.now() - t0;
 
 bob.say({ type: "create", token: bobToken, name: "Bob", color: "w" });
-await settle();
+await answered(bob);
 check("a game can be created", bob.heard[0]?.type === "created", JSON.stringify(bob.heard[0]));
 
 const alice = await connect(game, "Alice");
 alice.say({ type: "peek" });
-await settle();
+await answered(alice);
 check("the invite reads back", alice.heard[0]?.type === "challenge" && alice.heard[0].challenger === "Bob",
   JSON.stringify(alice.heard[0]));
 
 const sent = Date.now();
 alice.say({ type: "answer", token: aliceToken, name: "Alice", accept: true });
-await settle();
+await until(alice, "joined");
+await until(bob, "answered");
 const roundTrip = Date.now() - sent;
-check("answering couples the two", alice.heard[1]?.type === "joined", JSON.stringify(alice.heard[1]));
-check("and the host hears about it", bob.heard[1]?.type === "answered", JSON.stringify(bob.heard[1]));
+check("answering couples the two",
+  alice.heard.some((m) => m.type === "joined"), JSON.stringify(alice.heard));
+check("and the host hears about it",
+  bob.heard.some((m) => m.type === "answered"), JSON.stringify(bob.heard));
 
 bob.close(); alice.close();
-await settle(300);
+await untilClosed(bob);
+await untilClosed(alice);
 const back = await connect(game, "Bob returning");
 back.say({ type: "resume", token: bobToken });
-await settle();
+await answered(back);
 check("the game survives both sides disconnecting",
   back.heard[0]?.type === "state" && back.heard[0].status === "inProgress",
   JSON.stringify(back.heard[0]));
 back.close();
 
-console.log(`\n  socket opened in ${opened}ms; one exchange took under ${roundTrip}ms (including a 500ms wait)`);
+console.log(`\n  socket opened in ${opened}ms; one exchange took ${roundTrip}ms`);
 process.exit(summary() ? 0 : 1);

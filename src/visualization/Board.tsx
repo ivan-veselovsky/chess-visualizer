@@ -29,6 +29,7 @@ import CheckLayer, { type KingAlert } from "./layers/CheckLayer";
 import PieceLayer from "./layers/PieceLayer";
 import PinLayer from "./layers/PinLayer";
 import SquareLayer from "./layers/SquareLayer";
+import SquareShadingLayer from "./layers/SquareShadingLayer";
 
 interface BoardProps {
   position: Chess;
@@ -43,6 +44,14 @@ interface BoardProps {
    * a board being studied, where both sides are the reader's to try.
    */
   playable?: Color | null;
+  /**
+   * Nothing may be moved at all — an earlier position in a game being played,
+   * which is there to be looked at and not to be played from. Different from
+   * `playable`, which says *whose* men may move: a board being studied has no
+   * side and is still free to be pushed around, and this is the one case where
+   * a board with no side is not.
+   */
+  frozen?: boolean;
   showGrid?: boolean;
   /** What the grid's lines are drawn in. */
   gridColor?: string;
@@ -82,6 +91,7 @@ export default function Board({
   showGrid = true,
   gridColor = "#000000",
   playable = null,
+  frozen = false,
   lastMove = null,
   lastMoveColor = "#000000",
   lastMoveOpacity = 0,
@@ -156,7 +166,7 @@ export default function Board({
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
-    if (onMove === undefined) {
+    if (onMove === undefined || frozen) {
       return;
     }
     const at = boardPoint(event);
@@ -276,6 +286,16 @@ export default function Board({
     >
       <g transform={`translate(${BOARD_ORIGIN.x}, ${BOARD_ORIGIN.y})`}>
         <SquareLayer orientation={orientation} />
+        {/* Over the squares and under everything else: it colours the board
+            rather than marking anything on it. */}
+        {(attacks.squareShading.showMine || attacks.squareShading.showOpponent) && (
+          <SquareShadingLayer
+            position={position}
+            shading={attacks.squareShading}
+            lifted={inHand?.from ?? null}
+            orientation={orientation}
+          />
+        )}
         <HighlightLayer
           squares={[
             ...(lastMove === null ? [] : [lastMove.from, lastMove.to]),
@@ -284,6 +304,7 @@ export default function Board({
           color={lastMoveColor}
           opacity={lastMoveOpacity}
           orientation={orientation}
+          diameter={attacks.pinRingDiameter}
         />
         {showGrid && <GridLayer />}
         <AttackLayer

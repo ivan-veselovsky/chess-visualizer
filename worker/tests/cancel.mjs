@@ -1,5 +1,5 @@
 /** Taking an invite back. */
-import { connect, settle, token, gameId, check, summary } from "./lib.mjs";
+import { connect, answered, until, token, gameId, check, summary } from "./lib.mjs";
 
 console.log("Withdrawing a challenge\n");
 
@@ -7,7 +7,7 @@ const offered = async () => {
   const game = gameId(), host = token();
   const bob = await connect(game, "Bob");
   bob.say({ type: "create", token: host, name: "Bob", color: "w" });
-  await settle();
+  await answered(bob);
   bob.heard.length = 0;
   return { game, host, bob };
 };
@@ -15,7 +15,7 @@ const offered = async () => {
 {
   const { game, host, bob } = await offered();
   bob.say({ type: "cancel", token: host });
-  await settle();
+  await answered(bob);
   check("the challenger can take their invite back",
     bob.heard[0]?.type === "ended" && bob.heard[0].reason === "challengeCancelled",
     JSON.stringify(bob.heard[0]));
@@ -24,14 +24,13 @@ const offered = async () => {
 
   const looker = await connect(game, "someone with the link");
   looker.say({ type: "peek" });
-  await settle();
+  await answered(looker);
   check("the link then says the invite was withdrawn, not answered",
     looker.heard[0]?.code === "challengeCancelled", JSON.stringify(looker.heard[0]));
 
   const taker = await connect(game, "someone answering anyway");
   taker.say({ type: "answer", token: token(), name: "Alice", accept: true });
-  await settle();
-  await settle(400);
+  await answered(taker);
   check("and nobody can take it up",
     taker.heard[0]?.code === "challengeCancelled", JSON.stringify(taker.heard[0]));
   bob.close(); looker.close(); taker.close();
@@ -41,7 +40,7 @@ const offered = async () => {
   const { game, bob } = await offered();
   const stranger = await connect(game, "stranger");
   stranger.say({ type: "cancel", token: token() });
-  await settle();
+  await answered(stranger);
   check("only the challenger may take it back",
     stranger.heard[0]?.code === "notYourInvite", JSON.stringify(stranger.heard[0]));
   bob.close(); stranger.close();
@@ -51,10 +50,14 @@ const offered = async () => {
   const { game, host, bob } = await offered();
   const alice = await connect(game, "Alice");
   alice.say({ type: "answer", token: token(), name: "Alice", accept: true });
-  await settle();
+  // Waiting for what reaches *bob*, and for the last of it: joining sends him
+  // an `answered` and then a `presence`, and clearing between the two leaves
+  // the second to arrive in an empty list and be taken for the answer to the
+  // cancel below.
+  await until(bob, "presence");
   bob.heard.length = 0;
   bob.say({ type: "cancel", token: host });
-  await settle();
+  await answered(bob);
   check("an invite that has been answered cannot be withdrawn",
     bob.heard[0]?.code === "alreadyAnswered", JSON.stringify(bob.heard[0]));
   check("and the game is untouched — the line stays open",

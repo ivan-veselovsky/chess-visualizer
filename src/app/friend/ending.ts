@@ -1,4 +1,5 @@
-import type { EndReason } from "../../../worker/protocol";
+import type { Color } from "chess.js";
+import type { EndReason, GameResult } from "../../../worker/protocol";
 
 /**
  * How a game ended, in plain words.
@@ -28,4 +29,35 @@ export function describeEnding(reason: EndReason): string {
     case "challengeCancelled":
       return "Invite taken back";
   }
+}
+
+/**
+ * The same ending, said to one of the two people it happened to.
+ *
+ * A result is written from nobody's point of view — "0-1" is a fact about the
+ * board. This is the same fact told to a player, which is what somebody
+ * reading their own list of games wants to know.
+ */
+export function endingOf(
+  over: { result: GameResult; reason: EndReason },
+  you: Color
+): string {
+  const mine = over.result === "1-0" ? "w" : over.result === "0-1" ? "b" : null;
+  const how: Record<EndReason, string> = {
+    checkmate: "checkmate",
+    resignation: "resignation",
+    stalemate: "stalemate",
+    agreement: "agreement",
+    repetition: "repetition",
+    fiftyMove: "the fifty-move rule",
+    insufficientMaterial: "too little material to mate",
+    challengeDeclined: "the challenge being declined",
+    challengeCancelled: "the invite being taken back",
+  };
+  if (mine === null) {
+    return `Drawn by ${how[over.reason]}.`;
+  }
+  return mine === you
+    ? `You won by ${how[over.reason]}.`
+    : `You lost by ${how[over.reason]}.`;
 }

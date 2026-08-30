@@ -118,8 +118,17 @@ export default function InviteDialog({
                 </>
               )}
             </dd>
-            <dt>Handicap</dt>
-            <dd>{describeHandicap(phase.terms.handicap, "opponent")}</dd>
+            {/* One row for where the game starts, as the challenge dialog
+                asks it: odds and a game to be continued are two answers to the
+                same question, and "Handicap: None" answers neither. */}
+            <dt>Start from</dt>
+            <dd>
+              {phase.terms.priorMoves > 0
+                ? `A game already ${phase.terms.priorMoves} moves in`
+                : phase.terms.handicap !== null
+                  ? describeHandicap(phase.terms.handicap, "opponent")
+                  : "The initial position"}
+            </dd>
             <dt>Takebacks</dt>
             <dd>{phase.terms.takebacks} each</dd>
           </dl>

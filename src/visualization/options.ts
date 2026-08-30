@@ -99,6 +99,36 @@ export interface OutlineOpacity {
 }
 
 /**
+ * Colouring the squares themselves by what attacks them.
+ *
+ * Answers a different question from the rays, and is read differently: the rays
+ * say where one piece can go, this says how contested a square is. They are
+ * shown independently because a board can want either without the other.
+ */
+export interface SquareShading {
+  /**
+   * Whether each side's attackers colour the squares they cover. They are
+   * separate questions rather than one: a board shaded by both ends at once
+   * says which of them holds a square, and a board shaded by one says how far
+   * that one reaches, which is not the same thing and is sometimes the thing
+   * being looked for.
+   *
+   * A side turned off is not counted either, so the other side's picture is the
+   * same whether it is shown alone or beside its opponent's.
+   */
+  showMine: boolean;
+  showOpponent: boolean;
+  /** What a square attacked only by this end of the board is tinted with. */
+  me: string;
+  opponent: string;
+  /**
+   * How much colour a single attacker lays down, from 0 to 1. Each attacker
+   * after it takes the same share of whatever transparency is left.
+   */
+  strength: number;
+}
+
+/**
  * How the knight's ring is finished off on each square it attacks.
  *
  * "arc" cuts it between two radii and leaves it at that. The two gammas add a
@@ -196,6 +226,8 @@ export interface AttackOptions {
    */
   /** One choice for both sides: it is a shape, not a way of telling them apart. */
   knightGeometry: KnightGeometry;
+  /** Colouring every square by who attacks it, and how often. */
+  squareShading: SquareShading;
   /**
    * What the straight-ray geometry's marks are drawn at where they are only
    * passing through — the knight's own square, and the ones between it and the

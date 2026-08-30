@@ -9,25 +9,38 @@ import type {
   Tally,
   Terms,
 } from "../../../worker/protocol";
-import { OPPONENT_CHOOSES } from "../../../worker/protocol";
 import {
-  forgetInviteInUrl,
-  inviteLink,
-  invitedTo,
+  answerTo,
+  OPPONENT_CHOOSES,
+  PROBE_EVERY,
+  PROBE_SILENT,
+  PROTOCOL_VERSION,
+} from "../../../worker/protocol";
+import {
+  forgetGameInUrl,
+  gameInUrl,
+  gameLink,
   openGame,
+  showGameInUrl,
   type Connection,
   type FromClient,
   type FromServer,
 } from "./connection";
 import {
-  clearPending,
+  forgetGame,
+  forgetSeats,
+  gameOf,
+  markGameOver,
+  isChallengerSeat,
   loadGame,
   newGameId,
   newToken,
-  pendingGame,
   saveGame,
   saveName,
+  savedGames,
   savedName,
+  seatOf,
+  type SavedGame,
 } from "./storage";
 
 /**
@@ -44,17 +57,23 @@ function explain(code: ErrorCode): string {
     case "gameExists":
       return "That game id is taken. Try creating the invite again.";
     case "noSuchGame":
-      return "No game with that id. Check the digits, or ask for a new invite.";
+      return "Game not found.";
     case "alreadyAnswered":
-      return "Somebody has already answered this invite.";
+      return "That game is under way.";
+    case "gameOver":
+      return "That game is over.";
     case "ownInvite":
       return "This is your own invite — send it to a friend instead.";
     case "unknownToken":
       return "This browser is not one of the players in that game.";
+    case "versionMismatch":
+      return "This page is out of date. Reload it to carry on.";
     case "badPosition":
       return "That position cannot be played from.";
+    case "badLine":
+      return "That game cannot be continued.";
     case "termsConflict":
-      return "Choose odds or a position, not both.";
+      return "Choose odds or a game to continue, not both.";
     case "notYourTurn":
       return "It is not your move.";
     case "illegalMove":
@@ -76,6 +95,22 @@ function explain(code: ErrorCode): string {
     case "badMessage":
       return "Something went wrong talking to the server.";
   }
+}
+
+/**
+ * Eight characters of nothing in particular, minted fresh for every question.
+ *
+ * Drawn from the same source the tokens are, for no reason but that it is the
+ * source at hand; nothing here is a secret. What matters is only that the
+ * opponent cannot have seen this one before, so that answering it means having
+ * read it — a fixed question could be answered by anything that had ever heard
+ * the answer once.
+ */
+function newProbe(): string {
+  const letters = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => letters[b % letters.length]).join("");
 }
 
 /**
@@ -103,6 +138,22 @@ const DURING_PLAY = new Set<ErrorCode>([
   "noDrawOffered",
 ]);
 
+/**
+ * How the line stands, from this end.
+ *
+ * `mine` is known here: the socket is open and answering, or it is not.
+ * `theirs` can only be told by the object, so it is `null` — not false —
+ * whenever this end cannot reach the object. A light that cannot be seen is
+ * not a light that is off, and saying otherwise would be reporting an outage
+ * on somebody else's side of the world on no evidence at all.
+ */
+export interface Link {
+  mine: boolean;
+  theirs: boolean | null;
+}
+
+const OFFLINE: Link = { mine: false, theirs: null };
+
 /** What the challenger fills in. */
 export interface ChallengeTerms {
   name: string;
@@ -110,6 +161,15 @@ export interface ChallengeTerms {
   color: ColorChoice;
   handicap: Handicap | null;
   takebacks: number;
+  /**
+   * A game to be taken up where it was left, instead of odds: where it began
+   * and what has been played. Null for a game starting from nothing played.
+   *
+   * The two are alternatives because they are two answers to one question —
+   * where this game starts — and a game that has been played for twenty moves
+   * is not a game that starts with a piece missing.
+   */
+  continueFrom: { initialFEN: string; moves: string[] } | null;
 }
 
 /**
@@ -123,6 +183,14 @@ export type Phase =
   | { kind: "idle" }
   /** Composing a challenge; nothing has been created yet. */
   | { kind: "challenging" }
+  /*
+    A game named by the address, before the server has said what it is. The
+    address carries an id and nothing else, so until the object answers there
+    is no telling whether this is a seat to take up, a game to come back to, or
+    somebody else's game entirely — and showing any one of the three on a guess
+    would mean showing the wrong one for as long as the round trip takes.
+  */
+  | { kind: "opening"; gameId: string }
   /** Created, invite out, nobody has answered. */
   | {
       kind: "waiting";
@@ -187,6 +255,24 @@ export function useFriendGame(listeners: FriendListeners) {
    */
   const [notice, setNotice] = useState<string | null>(null);
   const [name, setName] = useState(savedName);
+  const [link, setLink] = useState<Link>(OFFLINE);
+  /**
+   * The question put to the opponent that has not been answered yet, and when
+   * the last one was answered properly.
+   *
+   * Every question is new. A fixed one could be answered by anything that had
+   * ever seen the answer — a stale reply still in flight, a socket replaying
+   * what it heard last time — and the whole reason for asking this way is that
+   * the answer has to be worked out from the question just sent.
+   */
+  const asked = useRef<{ text: string; at: number } | null>(null);
+  const answeredAt = useRef(0);
+  /*
+    The games this browser could still walk back into, read when there is a
+    reason for the answer to have changed. Every one of them is entered or left
+    through a phase change, so that is when to look again.
+  */
+  const [games, setGames] = useState<SavedGame[]>(savedGames);
   const connection = useRef<Connection | null>(null);
   /*
     Held in a ref and refreshed every render. The socket's handler is set up
@@ -196,20 +282,88 @@ export function useFriendGame(listeners: FriendListeners) {
   const told = useRef(listeners);
   told.current = listeners;
   const token = useRef<string | null>(null);
+  /**
+   * Which seat this tab is at — the game's id, with a minus in front of it for
+   * the side that offered the game. It is what the address says and what the
+   * saved record is filed under, and it is the only thing distinguishing two
+   * tabs of one browser sitting at the two ends of one board.
+   */
+  const seat = useRef<string | null>(null);
+  /**
+   * Whether the address this tab was opened at named a seat of its own — the
+   * minus in front of the id.
+   *
+   * It decides what silence means. A number somebody read out, or a link a
+   * friend sent, that turns out to name no game is worth saying so about: the
+   * digits are wrong, or the game is long gone, and the reader can do
+   * something about it. One's own old address is not. It is a page left open
+   * in a tab since last week, or a bookmark of a game that has since been
+   * played and forgotten, and the useful thing to do with it is to put a clean
+   * board up and say nothing at all.
+   */
+  const cameFromOwnAddress = useRef(false);
+  /** A retry waiting to happen, and how many have been waited for. */
+  const retry = useRef<number | null>(null);
+  /** Consecutive failures, which is what the waiting is measured against. */
+  const attempts = useRef(0);
+  /**
+   * Whether this page has been told it is older than the game it is playing.
+   *
+   * Nothing is retried after that. A page that cannot be understood will not
+   * be understood any better on the fourth attempt, and going quiet is what
+   * makes the one thing worth doing — reloading — the only thing left to do.
+   */
+  const [outdated, setOutdated] = useState(false);
   /** The challenge being made, kept in case its id turns out to be taken. */
   const offering = useRef<{ terms: ChallengeTerms; tries: number } | null>(
     null
   );
 
+  const stopRetrying = useCallback(() => {
+    if (retry.current !== null) {
+      window.clearTimeout(retry.current);
+      retry.current = null;
+    }
+  }, []);
+
   const disconnect = useCallback(() => {
+    stopRetrying();
     connection.current?.close();
     connection.current = null;
-  }, []);
+    setLink(OFFLINE);
+  }, [stopRetrying]);
+
+  /**
+   * Goes back for a game whose line has dropped.
+   *
+   * Nothing about the phase is touched. A connection coming and going is not
+   * something happening to the game — the game is on the object, and this end
+   * is only finding its way back to it — so the board stays as it was and the
+   * lights say what is going on. What comes back from `resume` is the truth
+   * about the game, and it lands through the ordinary handler.
+   *
+   * Held in a ref so that the close handler, which was made once, can reach
+   * today's version of it.
+   */
+  const comeBack = useRef<() => void>(() => undefined);
 
   const connect = useCallback(
     (gameId: string, onMessage: (message: FromServer) => void) => {
       disconnect();
-      connection.current = openGame(gameId, onMessage, () => undefined);
+      connection.current = openGame(
+        gameId,
+        onMessage,
+        () => comeBack.current(),
+        // Losing this end makes the other end unknowable, which is a different
+        // thing from knowing it is gone.
+        (up) => {
+          if (up) {
+            // Back on the line: the next drop starts its waiting over.
+            attempts.current = 0;
+          }
+          setLink((was) => (up ? { ...was, mine: true } : OFFLINE));
+        }
+      );
       return connection.current;
     },
     [disconnect]
@@ -221,10 +375,12 @@ export function useFriendGame(listeners: FriendListeners) {
       switch (message.type) {
         case "created":
           offering.current = null;
+          // From here the tab is at this game, and its address says so.
+          showGameInUrl(seat.current ?? gameId);
           setPhase({
             kind: "waiting",
             gameId,
-            link: inviteLink(gameId),
+            link: gameLink(gameId),
             you: message.you,
             terms: message.terms,
           });
@@ -240,6 +396,13 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
         case "moved":
           setNotice(null);
+          // A move can be the one that ends it — mate, or a draw on the board.
+          if (message.status === "finished" && message.reason !== null) {
+            markGameOver(gameId, {
+              result: message.result,
+              reason: message.reason,
+            });
+          }
           told.current.onMoved(message);
           setPhase((current) =>
             current.kind === "playing"
@@ -270,6 +433,10 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
         case "ended":
           setNotice(null);
+          markGameOver(gameId, {
+            result: message.result,
+            reason: message.reason,
+          });
           setPhase((current) =>
             current.kind === "playing"
               ? {
@@ -297,6 +464,7 @@ export function useFriendGame(listeners: FriendListeners) {
           );
           break;
         case "joined":
+          showGameInUrl(seat.current ?? gameId);
           told.current.onLine({
             initialFEN: message.terms.initialFEN ?? "",
             moves: message.moves,
@@ -323,6 +491,23 @@ export function useFriendGame(listeners: FriendListeners) {
         case "answered":
           setNotice(null);
           /*
+            The record was written when the invite went out, when there was
+            nobody to name. Now there is, and the list of games to come back to
+            is read from these records — a game that says "waiting for an
+            answer" long after one arrived is a list telling the reader
+            something that stopped being true.
+          */
+          if (message.accepted && token.current !== null) {
+            saveGame({
+              gameId,
+              token: token.current,
+              you: message.you,
+              myName: name,
+              opponentName: message.opponent,
+              role: "challenger",
+            });
+          }
+          /*
             The board the game starts from, which the challenger may be seeing
             for the first time: the terms settle at the moment somebody answers,
             and until then this browser was showing whatever was on it.
@@ -330,7 +515,10 @@ export function useFriendGame(listeners: FriendListeners) {
           if (message.accepted && message.terms.initialFEN !== null) {
             told.current.onLine({
               initialFEN: message.terms.initialFEN,
-              moves: [],
+              // Empty for a game starting from scratch; the carried line for
+              // one being continued, which the challenger's board must show
+              // whatever they have been pushing around since offering it.
+              moves: message.moves,
             });
           }
           setPhase((current) =>
@@ -357,6 +545,45 @@ export function useFriendGame(listeners: FriendListeners) {
           setPhase({ kind: "declined", mine: true });
           break;
         case "state":
+          showGameInUrl(seat.current ?? gameId);
+          /*
+            The record is rewritten before it is marked, not after. Writing it
+            is writing the whole of it, so a rewrite that knows nothing about
+            an ending is a rewrite that removes one — and coming back to a game
+            that finished last week would quietly turn it into a game still
+            being played.
+          */
+          // Coming back is a chance to hear who the opponent turned out to be,
+          // for a browser that left before they answered.
+          if (
+            message.opponent !== null &&
+            token.current !== null &&
+            seat.current !== null
+          ) {
+            saveGame({
+              gameId,
+              token: token.current,
+              you: message.you,
+              myName: name,
+              opponentName: message.opponent,
+              /*
+                Read off the seat this tab came back to, not looked up by the
+                game. A browser can hold both seats at one game, and asking the
+                game which of them this is has two answers — one of which files
+                this player's token over the other player's record.
+              */
+              role: isChallengerSeat(seat.current)
+                ? "challenger"
+                : "opponent",
+            });
+          }
+          // And now the ending, which outlasts everything above it.
+          if (message.status === "finished" && message.reason !== null) {
+            markGameOver(gameId, {
+              result: message.result,
+              reason: message.reason,
+            });
+          }
           if (message.terms.initialFEN !== null) {
             told.current.onLine({
               initialFEN: message.terms.initialFEN,
@@ -368,7 +595,7 @@ export function useFriendGame(listeners: FriendListeners) {
               ? {
                   kind: "waiting",
                   gameId,
-                  link: inviteLink(gameId),
+                  link: gameLink(gameId),
                   you: message.you,
                   terms: message.terms,
                 }
@@ -386,6 +613,42 @@ export function useFriendGame(listeners: FriendListeners) {
                       : null,
                 }
           );
+          break;
+        case "presence":
+          /*
+            The object's own view, which is worth having at the moment a game
+            is joined or come back to: it is right there and there is no reason
+            to look at an unknown light for three seconds waiting for a probe.
+            After that the probes are the measure, and a probe that goes
+            unanswered puts the light out whatever this said.
+          */
+          setLink((was) => ({ ...was, theirs: message.opponent }));
+          if (message.opponent) {
+            answeredAt.current = Date.now();
+          }
+          break;
+        case "probe":
+          // Their question. Answering it is what proves this end is a player
+          // and not a socket somebody forgot to close.
+          if (token.current !== null) {
+            connection.current?.send({
+              type: "probed",
+              token: token.current,
+              text: answerTo(message.text),
+            });
+          }
+          break;
+        case "probed":
+          // Ours, answered. Only the answer to the question actually
+          // outstanding counts; anything else is late, or was not worked out.
+          if (
+            asked.current !== null &&
+            message.text === answerTo(asked.current.text)
+          ) {
+            asked.current = null;
+            answeredAt.current = Date.now();
+            setLink((was) => ({ ...was, theirs: true }));
+          }
           break;
         case "error":
           /*
@@ -416,6 +679,36 @@ export function useFriendGame(listeners: FriendListeners) {
             setNotice(explain(message.code));
             break;
           }
+          /*
+            A token the object does not recognise, or a game it has never heard
+            of, is a saved game that has stopped being one — the record was
+            wiped, or the id was mistyped in the first place. Dropped here so
+            that the list of games to come back to does not go on offering a
+            door that opens onto nothing.
+          */
+          if (message.code === "versionMismatch") {
+            setOutdated(true);
+            stopRetrying();
+            break;
+          }
+          const gone =
+            message.code === "unknownToken" || message.code === "noSuchGame";
+          if (gone && seat.current !== null) {
+            forgetGame(seat.current);
+          }
+          /*
+            An address of this tab's own that names nothing: an old link, a
+            game since forgotten, an object long collected. Nothing to tell
+            anybody — the board is cleared of it and the page is as it would
+            have been had they typed the address without the question.
+          */
+          if (gone && cameFromOwnAddress.current) {
+            cameFromOwnAddress.current = false;
+            seat.current = null;
+            forgetGameInUrl();
+            setPhase({ kind: "idle" });
+            break;
+          }
           setPhase({ kind: "error", reason: explain(message.code) });
           break;
       }
@@ -429,6 +722,7 @@ export function useFriendGame(listeners: FriendListeners) {
       offering.current = { terms, tries };
       const gameId = newGameId();
       token.current = newToken();
+      seat.current = seatOf(gameId, "challenger");
       setName(terms.name);
       saveName(terms.name);
       saveGame({
@@ -443,11 +737,20 @@ export function useFriendGame(listeners: FriendListeners) {
       });
       connect(gameId, (message) => handle(gameId, message)).send({
         type: "create",
+        v: PROTOCOL_VERSION,
         token: token.current,
         name: terms.name,
         color: terms.color,
         handicap: terms.handicap,
         takebacks: terms.takebacks,
+        // Sent only when there is one; an absent line is a game that starts
+        // where games start.
+        ...(terms.continueFrom === null
+          ? {}
+          : {
+              initialFEN: terms.continueFrom.initialFEN,
+              line: terms.continueFrom.moves,
+            }),
       });
     },
     [connect, handle]
@@ -458,14 +761,61 @@ export function useFriendGame(listeners: FriendListeners) {
     [offer]
   );
 
-  /** Looks at an invite without taking it up. */
+  /**
+   * Goes to a game by its id alone, which is all a link or a spoken number
+   * carries.
+   *
+   * What comes back decides what it was: an invite to take up, a game already
+   * under way, or nothing at all. Held in `opening` until then rather than
+   * guessed at.
+   */
   const openInvite = useCallback(
     (gameId: string) => {
+      seat.current = null;
+      setPhase({ kind: "opening", gameId });
       connect(gameId, (message) => handle(gameId, message)).send({
         type: "peek",
+        v: PROTOCOL_VERSION,
       });
     },
     [connect, handle]
+  );
+
+  /**
+   * Back into a game this browser still holds a token for.
+   *
+   * The token is what does it — the id alone would only ask to be let in, and
+   * the object would rightly say the seat is taken.
+   */
+  const rejoinQuietly = useCallback(
+    (mine: string) => {
+      const saved = loadGame(mine);
+      if (saved === null) {
+        return;
+      }
+      const gameId = gameOf(mine);
+      token.current = saved.token;
+      seat.current = mine;
+      connect(gameId, (message) => handle(gameId, message)).send({
+        type: "resume",
+        v: PROTOCOL_VERSION,
+        token: saved.token,
+      });
+    },
+    [connect, handle]
+  );
+
+  const rejoin = useCallback(
+    (mine: string) => {
+      if (loadGame(mine) === null) {
+        return;
+      }
+      // Said out loud, unlike the one the retry uses: this is somebody asking
+      // for a game, and the wait is theirs to see.
+      setPhase({ kind: "opening", gameId: gameOf(mine) });
+      rejoinQuietly(mine);
+    },
+    [rejoinQuietly]
   );
 
   /** Answers one, either way. Both spend the invite. */
@@ -475,6 +825,7 @@ export function useFriendGame(listeners: FriendListeners) {
         return;
       }
       token.current = newToken();
+      seat.current = seatOf(phase.gameId, "opponent");
       setName(myName);
       saveName(myName);
       const mine = phase.you === OPPONENT_CHOOSES ? (color ?? "w") : phase.you;
@@ -486,10 +837,9 @@ export function useFriendGame(listeners: FriendListeners) {
         opponentName: phase.challenger,
         role: "opponent",
       });
-      // The question has been answered; the address should stop asking it.
-      forgetInviteInUrl();
       connection.current?.send({
         type: "answer",
+        v: PROTOCOL_VERSION,
         token: token.current,
         name: myName,
         accept,
@@ -552,51 +902,184 @@ export function useFriendGame(listeners: FriendListeners) {
     if (phase.kind === "waiting" && token.current !== null) {
       connection.current?.send({ type: "cancel", token: token.current });
     }
+    /*
+      What is kept is what could still be walked back into. An invite just
+      withdrawn could not, and neither could a game already over — closing one
+      is saying so. A game still being played is kept whatever this tab does
+      with it, since the seat is not given up by looking away.
+
+      Both seats go, not only this tab's. A browser holding the two ends of one
+      board holds two tokens that can no longer play anything, and closing the
+      game is a statement about the game rather than about the chair.
+    */
+    if (
+      seat.current !== null &&
+      (phase.kind === "waiting" ||
+        (phase.kind === "playing" && phase.over !== null))
+    ) {
+      forgetSeats(gameOf(seat.current));
+    }
+    seat.current = null;
     disconnect();
-    clearPending();
+    forgetGameInUrl();
     setPhase({ kind: "idle" });
   }, [disconnect, phase]);
 
+
+  /**
+   * Goes to a game by id, whichever way the id arrived — a link followed, or
+   * nine digits read down a telephone and typed in.
+   *
+   * Holding a token for it is what decides: with one this is coming back to
+   * your own seat, without one it is asking for the empty one. The same id
+   * therefore does different things in different browsers, which is what makes
+   * a single link enough for both the player who sent it and the friend who
+   * received it.
+   */
   /*
-    On the way in: an invite link takes precedence over whatever this browser
-    was last doing, since following one is a deliberate act. Otherwise a game
-    left open is resumed, which is what a reload in the middle of one looks
-    like from here.
+    A line that dropped while a game was on, gone back for: after a second, then
+    two, then four, to a quarter of a minute — quickly enough that a blink is
+    hardly noticed, slowly enough that an object which is down stays down
+    rather than being knocked on thirty times a minute.
   */
   useEffect(() => {
-    /*
-      A link to a game this browser is already in is not an invite any more,
-      whatever the address says: someone reopening it from a chat weeks later
-      should find their game, not be told that somebody answered it.
-    */
-    const invited = invitedTo();
-    const saved = invited === null ? pendingGame() : loadGame(invited);
-    if (saved !== null) {
-      forgetInviteInUrl();
-      token.current = saved.token;
-      connect(saved.gameId, (message) => handle(saved.gameId, message)).send({
-        type: "resume",
-        token: saved.token,
-      });
-      return;
-    }
-    if (invited !== null) {
-      openInvite(invited);
+    comeBack.current = () => {
+      const mine = seat.current;
+      if (mine === null || outdated || retry.current !== null) {
+        return;
+      }
+      const wait = Math.min(1000 * 2 ** attempts.current, 15_000);
+      retry.current = window.setTimeout(() => {
+        retry.current = null;
+        if (seat.current === null || outdated) {
+          return;
+        }
+        attempts.current += 1;
+        // If this one does not take either, its own close comes back here.
+        rejoinQuietly(mine);
+      }, wait);
+    };
+  });
+
+  const goTo = useCallback(
+    (asked: string) => {
+      if (loadGame(asked) !== null) {
+        rejoin(asked);
+        return;
+      }
+      /*
+        A challenger's address, opened by a browser that holds no such seat.
+        The seat it names is the one seat nobody else can have — it belongs to
+        whoever offered the game, and only their token opens it — so this is
+        somebody who copied their own address bar instead of the invite. Read
+        as the invite they meant to send, which is the only thing it can be.
+      */
+      if (isChallengerSeat(asked)) {
+        // And the address is put right at once, so that a refresh does the
+        // same thing as the first visit and nobody is shown a mark for a seat
+        // they do not have.
+        showGameInUrl(gameOf(asked));
+        goTo(gameOf(asked));
+        return;
+      }
+      openInvite(asked);
+    },
+    [openInvite, rejoin]
+  );
+
+  /*
+    On the way in the address is the whole of it: a tab is at the game its own
+    URL names, and at no game at all when it names none. Nothing is resumed
+    behind the reader's back — a tab opened for something else stays free, and
+    the games worth coming back to are offered instead of entered.
+
+    Which of the two things a named game is, this does not decide: a token for
+    it means coming back, no token means asking to be let in, and the object
+    settles the rest.
+  */
+  useEffect(() => {
+    const gameId = gameInUrl();
+    if (gameId !== null) {
+      cameFromOwnAddress.current = isChallengerSeat(gameId);
+      goTo(gameId);
     }
     // Once, on the way in. Later changes are driven by what the player does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /*
+    Asking the opponent, for as long as there is one to ask.
+
+    Only while a game is on: an invite nobody has answered has nobody at the
+    other end, and a question sent into that is one the object must wake up to
+    carry nowhere. It also keeps the second light honest — it is about a
+    person, and until somebody answers the invite there is no person.
+  */
+  useEffect(() => {
+    if (phase.kind !== "playing" || phase.over !== null) {
+      asked.current = null;
+      /*
+        Nobody is being asked any more, so nothing is known about them. A game
+        that has ended needs no opponent — there is no move to wait for — and a
+        light left showing the last answer would go on making a claim that
+        nothing is checking, which is worse than saying nothing.
+      */
+      setLink((was) => ({ ...was, theirs: null }));
+      return;
+    }
+    answeredAt.current = Date.now();
+    const tick = () => {
+      if (token.current === null) {
+        return;
+      }
+      /*
+        Unanswered for too long, and their light goes out. This end's own light
+        is left alone: it is measured by its own heartbeat, and "my line is
+        down" and "they are not answering" are different things to be told.
+      */
+      if (Date.now() - answeredAt.current > PROBE_SILENT) {
+        setLink((was) => ({ ...was, theirs: was.mine ? false : null }));
+      }
+      const text = newProbe();
+      asked.current = { text, at: Date.now() };
+      connection.current?.send({ type: "probe", token: token.current, text });
+    };
+    tick();
+    const timer = window.setInterval(tick, PROBE_EVERY);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase.kind, phase.kind === "playing" ? phase.over : null]);
+
+  useEffect(() => setGames(savedGames()), [phase.kind]);
+
+  /*
+    And when another tab changes what this browser is in. Storage events fire
+    in every tab but the one that wrote, which is exactly the set of tabs whose
+    idea of the list has just gone stale — a game entered in one window should
+    not still be offered as unentered in the next window along.
+  */
+  useEffect(() => {
+    const reread = () => setGames(savedGames());
+    window.addEventListener("storage", reread);
+    return () => window.removeEventListener("storage", reread);
   }, []);
 
   useEffect(() => disconnect, [disconnect]);
 
   return {
     phase,
+    link,
+    /** Whether this page has been told it is older than the game it is in. */
+    outdated,
     notice,
     dismissNotice: () => setNotice(null),
     name,
     start,
     challenge,
-    openInvite,
+    goTo,
+    rejoin,
+    /** Games this browser holds a seat at, for a tab that is showing none. */
+    games,
     answer,
     move,
     takeBack,

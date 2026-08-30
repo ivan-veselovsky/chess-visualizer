@@ -7,13 +7,27 @@
  * step between what is written and what is checked.
  */
 import { toPgn } from "../src/chess/pgn.ts";
+import { lineOf as lineFromHistory } from "../src/chess/history.ts";
 import {
   describeHandicap,
   positionWithHandicap,
 } from "../src/chess/handicap.ts";
-import { readGameId, spellGameId } from "../src/app/friend/storage.ts";
+import {
+  forgetGame,
+  forgetSeats,
+  gameOf,
+  markGameOver,
+  isChallengerSeat,
+  loadGame,
+  readGameId,
+  saveGame,
+  savedGames,
+  seatOf,
+  spellGameId,
+} from "../src/app/friend/storage.ts";
 import { friendlyGameName } from "../src/app/friend/gameName.ts";
 import { describeEnding } from "../src/app/friend/ending.ts";
+import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { Chess } from "chess.js";
 
 let passed = 0;
@@ -163,6 +177,239 @@ console.log("\nNaming a game that was played\n");
   const name = friendlyGameName("Bob", "Alice", "482913657", new Date(2026, 0, 5));
   check("months and days are padded, so names sort by date",
     name === "Bob - Alice - 2026.01.05 - 482913657", name);
+}
+
+console.log("\nColour on the two scales\n");
+{
+  check("black and white are the same on either scale",
+    toLinear(0) === 0 && toLinear(255) === 1 &&
+    Math.round(toSrgb(0)) === 0 && Math.round(toSrgb(1)) === 255);
+  check("the curve is its own way back",
+    [0, 1, 17, 64, 128, 200, 255].every(
+      (v) => Math.abs(toSrgb(toLinear(v)) - v) < 1e-9));
+  check("mid grey carries about a fifth of white's light",
+    Math.abs(toLinear(128) - 0.216) < 0.001, toLinear(128));
+  check("half the light is written 188, not 128",
+    Math.round(toSrgb(0.5)) === 188, toSrgb(0.5));
+}
+
+console.log("\nShading colours mixed as light\n");
+{
+  const red = readRgb("#ff0000");
+  const green = readRgb("#00ff00");
+  check("a colour with nothing to mix into is left as it was",
+    toHex(mix(red, green, 1)) === "#ff0000" &&
+    toHex(mix(red, green, 0)) === "#00ff00",
+    toHex(mix(red, green, 1)) + " " + toHex(mix(red, green, 0)));
+  check("red and green in equal measure make a bright yellow, not a brown",
+    toHex(mix(red, green, 0.5)) === "#bcbc00", toHex(mix(red, green, 0.5)));
+  check("three attackers to one leans that way without hiding the other",
+    toHex(mix(red, green, 0.75)) === "#e18900", toHex(mix(red, green, 0.75)));
+  check("mixing is symmetric: the same pair either way round",
+    toHex(mix(red, green, 0.3)) === toHex(mix(green, red, 0.7)));
+  check("a pair that averages near grey is not blown up to white",
+    toHex(mix(readRgb("#ff0080"), readRgb("#00ff80"), 0.5)) === "#bcbc80",
+    toHex(mix(readRgb("#ff0080"), readRgb("#00ff80"), 0.5)));
+  check("short hex is read as the long form",
+    toHex(readRgb("#f80")) === "#ff8800", toHex(readRgb("#f80")));
+}
+
+console.log("\nSeats, and the games they are at\n");
+{
+  check("the side that offered the game sits at the minus",
+    seatOf("482913657", "challenger") === "-482913657" &&
+    seatOf("482913657", "opponent") === "482913657");
+  check("and either way the game is the digits",
+    gameOf("-482913657") === "482913657" && gameOf("482913657") === "482913657");
+  check("which seat is which is read off the sign",
+    isChallengerSeat("-482913657") && !isChallengerSeat("482913657"));
+}
+
+console.log("\nGames this browser is in\n");
+{
+  // Enough of a browser for the part of the app that keeps games in one.
+  const held = new Map();
+  globalThis.window = {
+    localStorage: {
+      get length() {
+        return held.size;
+      },
+      key: (i) => [...held.keys()][i] ?? null,
+      getItem: (k) => held.get(k) ?? null,
+      setItem: (k, v) => void held.set(k, String(v)),
+      removeItem: (k) => void held.delete(k),
+    },
+  };
+  const seat = (gameId, opponentName, role = "challenger") => ({
+    gameId,
+    token: `t-${role}-${gameId}`,
+    you: "w",
+    myName: "Bob",
+    opponentName,
+    role,
+  });
+  const listed = () =>
+    savedGames()
+      .map((g) => seatOf(g.gameId, g.role))
+      .sort()
+      .join();
+
+  check("a browser in no game has nothing to offer", savedGames().length === 0);
+
+  saveGame(seat("482913657", "Alice"));
+  saveGame(seat("913447201", "Carol"));
+  check("two games at once are two seats, not one that replaced the other",
+    listed() === "-482913657,-913447201", listed());
+  check("each keeps its own token",
+    loadGame("-482913657")?.token === "t-challenger-482913657" &&
+    loadGame("-913447201")?.token === "t-challenger-913447201");
+  check("and is not to be found at the seat it does not hold",
+    loadGame("482913657") === null);
+
+  // The point of the whole business: both ends of one game, in one browser.
+  saveGame(seat("482913657", "Bob", "opponent"));
+  check("both seats at one game are two records",
+    listed() === "-482913657,-913447201,482913657", listed());
+
+  saveGame(seat("482913657", "Alice again"));
+  check("saving the same seat again updates it rather than doubling it",
+    listed() === "-482913657,-913447201,482913657" &&
+    loadGame("-482913657")?.opponentName === "Alice again", listed());
+
+  // A game that has ended stays in the list and says how it went — at both
+  // seats, since the tab at the other end may not have been open to hear it.
+  markGameOver("482913657", { result: "1-0", reason: "resignation" });
+  check("ending a game marks both of its seats",
+    loadGame("-482913657")?.ending?.reason === "resignation" &&
+    loadGame("482913657")?.ending?.result === "1-0");
+  check("and leaves them in the list, to be told about",
+    listed() === "-482913657,-913447201,482913657", listed());
+  check("while a game still being played has no ending",
+    loadGame("-913447201")?.ending === undefined);
+
+  // Closing a finished game gives up every seat this browser holds at it.
+  forgetSeats("482913657");
+  check("closing it drops both of them",
+    listed() === "-913447201", listed());
+
+  forgetGame("-913447201");
+  check("and giving up a single seat drops that one alone",
+    savedGames().length === 0);
+}
+
+console.log("\nWrites that would quietly lose something\n");
+{
+  const held = new Map();
+  globalThis.window = {
+    localStorage: {
+      get length() {
+        return held.size;
+      },
+      key: (i) => [...held.keys()][i] ?? null,
+      getItem: (k) => held.get(k) ?? null,
+      setItem: (k, v) => void held.set(k, String(v)),
+      removeItem: (k) => void held.delete(k),
+    },
+  };
+  // The complaints are the point; the test should not be read as failing.
+  const complaints = [];
+  const spoke = console.error;
+  console.error = (...said) => complaints.push(said.join(" "));
+
+  const mine = {
+    gameId: "800000001",
+    token: "mine",
+    you: "w",
+    myName: "Bob",
+    opponentName: "Alice",
+    role: "challenger",
+  };
+  saveGame(mine);
+  saveGame({ ...mine, token: "somebody else's" });
+  check("a seat is not written over with a different token",
+    loadGame("-800000001")?.token === "mine", loadGame("-800000001")?.token);
+  check("and the attempt says so rather than passing quietly",
+    complaints.some((c) => /different token/.test(c)), complaints.join(" | "));
+
+  complaints.length = 0;
+  markGameOver("800000001", { result: "1-0", reason: "checkmate" });
+  // The write that lost an ending once: it knows about the opponent's name
+  // and nothing about how the game finished.
+  saveGame({ ...mine, opponentName: "Alice again" });
+  check("an ending is not dropped by a write that does not know about it",
+    loadGame("-800000001")?.ending?.reason === "checkmate",
+    JSON.stringify(loadGame("-800000001")));
+  check("and that is said out loud too",
+    complaints.some((c) => /Keeping the ending/.test(c)), complaints.join(" | "));
+  check("while the write itself still went through",
+    loadGame("-800000001")?.opponentName === "Alice again");
+
+  console.error = spoke;
+  // Tidied up after: the storage module keeps a copy of what it writes in
+  // memory, and that copy outlives this block and would be counted by the next.
+  forgetSeats("800000001");
+}
+
+console.log("\nRecords this build did not write\n");
+{
+  const held = new Map();
+  globalThis.window = {
+    localStorage: {
+      get length() {
+        return held.size;
+      },
+      key: (i) => [...held.keys()][i] ?? null,
+      getItem: (k) => held.get(k) ?? null,
+      setItem: (k, v) => void held.set(k, String(v)),
+      removeItem: (k) => void held.delete(k),
+    },
+  };
+  const shape = {
+    gameId: "700000001",
+    token: "t-old",
+    you: "w",
+    myName: "Bob",
+    opponentName: "Alice",
+    role: "challenger",
+  };
+
+  held.set("cv.game.-700000001", JSON.stringify(shape));
+  check("a record with no version is not one this build reads",
+    loadGame("-700000001") === null);
+
+  held.set("cv.game.-700000002", JSON.stringify({ ...shape, gameId: "700000002", v: 0 }));
+  check("nor is one written against another version",
+    loadGame("-700000002") === null);
+
+  held.set("cv.game.rubbish", "{not json");
+  check("and neither is something that will not parse",
+    savedGames().length === 0, JSON.stringify(savedGames()));
+  check("all three are swept up rather than walked past every time",
+    held.size === 0, [...held.keys()].join());
+
+  held.set("cv.name", "Bob");
+  saveGame({ ...shape, gameId: "700000003" });
+  check("what this build wrote is read back",
+    savedGames().length === 1 && loadGame("-700000003")?.token === "t-old");
+  check("and nothing but games is read as one", held.get("cv.name") === "Bob");
+}
+
+console.log("\nA line, as it travels\n");
+{
+  const history = lineOf(["e4", "e5", "Nf3"]);
+  const line = lineFromHistory(history);
+  check("the moves come out in the order they were played",
+    JSON.stringify(line.moves) === JSON.stringify(["e4", "e5", "Nf3"]),
+    JSON.stringify(line.moves));
+  check("and the position they were played from comes with them",
+    line.initialFEN.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w"),
+    line.initialFEN);
+}
+{
+  const board = new Chess();
+  const line = lineFromHistory({ entries: [{ fen: board.fen(), move: null }], current: 0 });
+  check("a board nobody has moved on is a line of no moves",
+    line.moves.length === 0 && line.initialFEN === board.fen());
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

@@ -1,5 +1,5 @@
 /** The other ways an invite can end. */
-import { connect, settle, token, gameId, check, summary } from "./lib.mjs";
+import { connect, answered, until, token, gameId, check, summary } from "./lib.mjs";
 
 console.log("The other ways an invite can end\n");
 
@@ -8,18 +8,20 @@ console.log("The other ways an invite can end\n");
   const game = gameId(), host = token(), guest = token();
   const bob = await connect(game, "Bob");
   bob.say({ type: "create", token: host, name: "Bob", color: "b" });
-  await settle();
+  await answered(bob);
   const alice = await connect(game);
   alice.say({ type: "answer", token: guest, name: "Alice", accept: false });
-  await settle();
+  await until(alice, "declined");
+  await until(bob, "answered");
   check("declining tells the one who declined", alice.heard[0]?.type === "declined", JSON.stringify(alice.heard[0]));
+  const toldHost = bob.heard.find((m) => m.type === "answered");
   check("and tells the host it was declined, by whom",
-    bob.heard[1]?.type === "answered" && bob.heard[1].accepted === false && bob.heard[1].opponent === "Alice",
-    JSON.stringify(bob.heard[1]));
+    toldHost?.accepted === false && toldHost.opponent === "Alice",
+    JSON.stringify(toldHost));
 
   const other = await connect(game, "someone else");
   other.say({ type: "answer", token: token(), name: "Carol", accept: true });
-  await settle();
+  await answered(other);
   check("a declined invite is spent too — nobody else can take it up",
     other.heard[0]?.type === "error", JSON.stringify(other.heard[0]));
   bob.close(); alice.close();
@@ -30,10 +32,10 @@ console.log("The other ways an invite can end\n");
   const game = gameId(), host = token();
   const bob = await connect(game);
   bob.say({ type: "create", token: host, name: "Bob", color: "w" });
-  await settle();
+  await answered(bob);
   const same = await connect(game);
   same.say({ type: "answer", token: host, name: "Bob", accept: true });
-  await settle();
+  await answered(same);
   check("the host cannot answer their own invite",
     same.heard[0]?.type === "error" && /your own invite/.test(same.heard[0].reason),
     JSON.stringify(same.heard[0]));
@@ -45,10 +47,10 @@ console.log("The other ways an invite can end\n");
   const game = gameId(), host = token();
   const bob = await connect(game);
   bob.say({ type: "create", token: host, name: "Bob", color: "w" });
-  await settle();
+  await answered(bob);
   const racers = await Promise.all([connect(game, "A"), connect(game, "B"), connect(game, "C")]);
   racers.forEach((ws, i) => ws.say({ type: "answer", token: token(), name: `Racer${i}`, accept: true }));
-  await settle(600);
+  await Promise.all(racers.map((ws) => answered(ws)));
   const joined = racers.filter((ws) => ws.heard[0]?.type === "joined");
   const refused = racers.filter((ws) => ws.heard[0]?.type === "error");
   check("three answering at once: exactly one gets in",
@@ -61,7 +63,7 @@ console.log("The other ways an invite can end\n");
 {
   const stranger = await connect(gameId(), "wanderer");
   stranger.say({ type: "peek" });
-  await settle();
+  await answered(stranger);
   check("an invite that was never created says so",
     stranger.heard[0]?.type === "error" && /no such game/.test(stranger.heard[0].reason),
     JSON.stringify(stranger.heard[0]));
@@ -72,11 +74,11 @@ console.log("The other ways an invite can end\n");
   const game = gameId(), host = token();
   const bob = await connect(game);
   bob.say({ type: "create", token: host, name: "Bob", color: "w", initialFEN: "rnbqkbnr/ppppp1pp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" });
-  await settle();
+  await answered(bob);
   bob.close();
   const bobBack = await connect(game, "Bob returning");
   bobBack.say({ type: "resume", token: host });
-  await settle();
+  await answered(bobBack);
   check("the host can come back while still waiting",
     bobBack.heard[0]?.type === "state" && bobBack.heard[0].status === "planning" && bobBack.heard[0].opponent === null,
     JSON.stringify(bobBack.heard[0]));

@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const suites = ["reach", "invite", "edges", "position", "status", "resume", "handicap", "collision", "openColor", "moves", "courtesies", "cancel"];
+const suites = ["reach", "invite", "edges", "position", "status", "resume", "handicap", "collision", "openColor", "moves", "courtesies", "cancel", "continued", "presence", "version"];
 const base = process.env.WS_BASE ?? "ws://127.0.0.1:8787";
 
 console.log(`\nTesting ${base}\n${"=".repeat(40)}`);
@@ -54,5 +54,9 @@ for (const suite of suites) {
   console.log("-".repeat(40));
 }
 
-console.log(failed === 0 ? "\nAll suites passed.\n" : `\n${failed} suite(s) failed.\n`);
+console.log(
+  failed === 0
+    ? `\n${suites.length - failed} suite(s) passed.\n`
+    : `\n${failed} suite(s) failed.\n`
+);
 process.exit(failed === 0 ? 0 : 1);

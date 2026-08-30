@@ -9,6 +9,7 @@ import {
   goNext,
   goToPosition,
   historyFromLine,
+  lineOf,
   indexOfPosition,
   goPrevious,
   pushPosition,
@@ -56,6 +57,7 @@ import ChallengeDialog from "./friend/ChallengeDialog";
 import InviteDialog from "./friend/InviteDialog";
 import InvitePanel from "./friend/InvitePanel";
 import JoinDialog from "./friend/JoinDialog";
+import SavedGames from "./friend/SavedGames";
 import { describeEnding } from "./friend/ending";
 import { friendlyGameName } from "./friend/gameName";
 import PlayerName from "./friend/PlayerName";
@@ -94,9 +96,9 @@ export default function App() {
   const [stashDialogOpen, setStashDialogOpen] = useState(false);
 
   /**
-   * Replaces the history with a whole game, positioned at its start so it can
-   * be stepped through from the beginning. Returns why the text was rejected,
-   * for the dialog to show without closing.
+   * Replaces the history with a whole game, positioned at the last move it
+   * reached. Returns why the text was rejected, for the dialog to show without
+   * closing.
    */
   function loadPgn(pgn: string): string | null {
     const { entries, error } = parsePgn(pgn);
@@ -357,8 +359,16 @@ export default function App() {
         it may have been an afternoon's work. So it waits: the board is left
         alone until the question has been answered, and the new game goes up
         whichever way it is answered.
+
+        Unless the game starting *is* what is on the board — a game offered to
+        be continued comes back as the line it was offered from. There is
+        nothing to lose there and so nothing to ask about.
       */
-      if (history.entries.length > 1 && stashName === null) {
+      const here = lineOf(history);
+      const same =
+        here.initialFEN === initialFEN &&
+        here.moves.join(" ") === moves.join(" ");
+      if (!same && history.entries.length > 1 && stashName === null) {
         setWaitingToStart({ initialFEN, moves });
         return;
       }
@@ -406,6 +416,49 @@ export default function App() {
     friend.phase.kind === "playing" && friend.phase.over === null
       ? "Playing a game with a friend — finish it first"
       : null;
+
+  /*
+    Whether a takeback can be asked for, and when it cannot, why not.
+
+    Four things have to hold, and the order they are asked in is the order they
+    are worth saying: the game must be on, the move to unmake must be this
+    player's own and still the last one, the board must be showing the game
+    rather than a position back down the line, and there must be an allowance
+    left. A game taken up from another one has a floor as well — the moves it
+    was handed cannot be unmade by people who did not play them.
+  */
+  const takeback: { can: boolean; why: string } = (() => {
+    const phase = friend.phase;
+    if (phase.kind !== "playing" || phase.over !== null) {
+      return { can: false, why: "" };
+    }
+    const left = phase.takebacksLeft?.[phase.you] ?? 0;
+    // Whose move it is in the game, which is the head of the line — not the
+    // position being looked at, which may be anywhere in it.
+    const toMove = history.entries[0].fen.split(" ")[1];
+    if (history.entries.length - 1 <= (phase.terms.priorMoves ?? 0)) {
+      return {
+        can: false,
+        why: "The game was taken up from here; these moves came with it",
+      };
+    }
+    if (toMove === phase.you) {
+      return {
+        can: false,
+        why: "Your opponent has replied — only your own last move can be taken back",
+      };
+    }
+    if (history.current !== 0) {
+      return {
+        can: false,
+        why: "Go back to the latest position to take a move back",
+      };
+    }
+    if (left <= 0) {
+      return { can: false, why: "No takebacks left" };
+    }
+    return { can: true, why: `Take your last move back (${left} left)` };
+  })();
 
   /*
     Which army is at which end of the board as it stands. The names follow the
@@ -492,6 +545,14 @@ export default function App() {
       opponent hears about it, and the only account either of them acts on.
     */
     if (friend.phase.kind === "playing") {
+      // Only from the position the game is actually at: a move worked out from
+      // an earlier one would be sent for a ply that has already been played.
+      // And only while there is a line to send it down — a move handed to a
+      // dead socket goes nowhere and is undone by the next thing the object
+      // says, which looks to the player like the board eating their move.
+      if (history.current !== 0 || !friend.link.mine) {
+        return;
+      }
       friend.move(history.entries.length - 1, next.san);
       return;
     }
@@ -573,6 +634,13 @@ export default function App() {
                 playable={
                   friend.phase.kind === "playing" ? friend.phase.you : null
                 }
+                // Stepping back through a game is reading it. Playing on from
+                // an earlier position would be starting a different game, and
+                // the one being played is not this browser's to fork.
+                frozen={
+                  friend.phase.kind === "playing" &&
+                  (history.current !== 0 || !friend.link.mine)
+                }
                 lastMove={lastMove}
                 lastMoveColor={options.lastMoveColor}
                 lastMoveOpacity={options.lastMoveOpacity}
@@ -627,8 +695,44 @@ export default function App() {
             </button>
           </div>
 
+          {/*
+            Older than the game it is in, and nothing it does will work until
+            it is reloaded. Said where every other thing about the game is
+            said, and shown whether or not a game is on — the page is what is
+            out of date, not the game.
+          */}
+          {friend.outdated && (
+            <aside className="invite-panel" role="alert">
+              <p className="invite-heading">This page is out of date</p>
+              <p className="invite-note">
+                It was opened before the version now running, and the two no
+                longer understand each other. Reloading picks up the new one.
+              </p>
+              <div className="pgn-dialog-actions">
+                <button
+                  type="button"
+                  className="reset-button"
+                  onClick={() => window.location.reload()}
+                >
+                  Reload
+                </button>
+              </div>
+            </aside>
+          )}
+
+          {/* Only when this tab is at no game: a tab that is at one says so in
+              its address, and the panel below is about that game. */}
+          {friend.phase.kind === "idle" && (
+            <SavedGames games={friend.games} onOpen={friend.rejoin} />
+          )}
+
           <InvitePanel
             phase={friend.phase}
+            link={friend.link}
+            myName={friend.name}
+            canTakeBack={takeback.can}
+            takebackReason={takeback.why}
+            onTakeBack={friend.takeBack}
             onLeave={friend.leave}
             onResign={friend.resign}
             onOfferDraw={friend.offerDraw}
@@ -679,21 +783,9 @@ export default function App() {
                 type="button"
                 className="reset-button step-button"
                 aria-label="Previous position"
-                disabled={
-                  friend.phase.kind === "playing"
-                    ? (friend.phase.takebacksLeft?.[friend.phase.you] ?? 0) <= 0
-                    : !canGoPrevious(history)
-                }
-                title={
-                  friend.phase.kind === "playing"
-                    ? `Take your last move back (${(friend.phase.takebacksLeft?.[friend.phase.you] ?? 0)} left)`
-                    : "Previous position"
-                }
-                onClick={() =>
-                  friend.phase.kind === "playing"
-                    ? friend.takeBack()
-                    : stepHistory("previous")
-                }
+                disabled={!canGoPrevious(history)}
+                title="Previous position"
+                onClick={() => stepHistory("previous")}
               >
                 <StepIcon direction="previous" />
               </button>
@@ -872,7 +964,7 @@ export default function App() {
         open={joining}
         onJoin={(gameId) => {
           setJoining(false);
-          friend.openInvite(gameId);
+          friend.goTo(gameId);
         }}
         onClose={() => setJoining(false)}
       />
@@ -880,6 +972,10 @@ export default function App() {
       <ChallengeDialog
         open={friend.phase.kind === "challenging"}
         name={friend.name}
+        // What is on the board, in case the game is to be taken up from it
+        // rather than started: the whole line, not merely the position, so
+        // that the moves already played stay part of the game.
+        board={lineOf(history)}
         onSubmit={friend.challenge}
         // Only a dismissal abandons the challenge. A <dialog> fires `close`
         // whenever it closes, including when it closes because the game was

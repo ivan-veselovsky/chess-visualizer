@@ -1212,6 +1212,26 @@ input[type="color"]::-moz-color-swatch {
   min-width: 0;
 }
 
+/*
+  The two shading colours face each other across their row, under the switches
+  that turn them on: mine at the left edge, the opponent's at the right. The
+  second is laid out backwards for it — well first, label outermost — so the
+  row reads outwards from the middle rather than twice from the left.
+*/
+.field-row-shade-colors > .color-field {
+  flex: 1 1 0;
+}
+
+.field-row-shade-colors > .color-field:last-of-type {
+  flex-direction: row-reverse;
+}
+
+/* And no colon on that one: a colon points at the control it labels, and this
+   label has the well behind it rather than ahead. */
+.field-row-shade-colors > .color-field:last-of-type > label::after {
+  content: "";
+}
+
 .field-row > .number-field {
   flex: 1 1 auto;
   /* As with the colour fields: never narrower than its own label, so a row too
@@ -1428,22 +1448,69 @@ input[type="color"]::-moz-color-swatch {
 
 /* --- Playing with a friend ---------------------------------------------- */
 
+/*
+  Written `[open]` rather than on the class alone. A dialog is hidden by the
+  browser's own `display: none`, and an author's `display` beats that whatever
+  its specificity — a rule without the guard would leave the dialog on screen
+  while it was closed.
+*/
+.challenge-dialog[open] {
+  /* Rows with room between them. They are four separate questions and were
+     sitting directly on top of one another. */
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.4rem;
+}
+
 .challenge-dialog {
-  width: min(36rem, 94vw);
+  /*
+    Wide enough for its widest row without anything having to shrink, which is
+    now the odds row rather than the color one: a label, the "start from"
+    choice, and two more lists that only appear when odds are picked. Measured
+    at 564px against 561 of room — three pixels, and the last list dropped to a
+    line of its own.
+
+    Widened rather than made to shrink. A list that shrinks clips the text it
+    is showing, and the whole of what these say is "One knight" or "Opponent
+    gives"; a narrow window is still free to wrap them, which is what wrapping
+    is for.
+  */
+  width: min(40rem, 94vw);
   /* The color swatch and the two lists sit on rows of their own; nothing here
      is long enough to need scrolling, and a hover panel would be clipped. */
   overflow: visible;
 }
 
 .challenge-title {
-  margin: 0 0 0.6rem;
+  /* The gap above does the spacing now. */
+  margin: 0;
   font-size: 1rem;
   font-weight: 600;
 }
 
-.challenge-name {
-  flex: 1 1 auto;
+/* One width for every label, so the four controls start at the same place
+   instead of stepping in and out with the words in front of them. */
+.challenge-dialog .board-controls > label {
+  /* Wider than the longest of them, and no wider: every pixel here comes off
+     the color row, which has the least room to spare. */
+  flex: 0 0 5.4rem;
+}
+
+/*
+  A field on the row with its label, not a banner under it. Fields of this kind
+  fill whatever they are given, which standing alone in a dialog is the whole
+  width — enough on its own to push the label onto a line of its own.
+*/
+.challenge-dialog .challenge-name {
+  width: auto;
+  flex: 1 1 12rem;
   min-width: 8rem;
+}
+
+/* The row of buttons has the column's gap above it already. */
+.challenge-dialog .pgn-dialog-actions {
+  margin-top: 0.2rem;
 }
 
 .challenge-number {
@@ -1552,6 +1619,60 @@ input[type="color"]::-moz-color-swatch {
   min-width: 6rem;
 }
 
+/*
+  The line between the two players, drawn as the two hops it really is. Small
+  and quiet: it is there to be glanced at when something seems wrong, not to be
+  the first thing read in the panel.
+*/
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0 0 0.7rem;
+  font-size: 0.85rem;
+  color: color-mix(in srgb, currentColor 75%, transparent);
+}
+
+.link-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The wire. Takes what room is left, so the row spans the panel however long
+   the two names happen to be. */
+.link-wire {
+  flex: 1 1 0.8em;
+  min-width: 0.8em;
+  height: 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+}
+
+.link-dot {
+  flex: 0 0 auto;
+  width: 0.62em;
+  height: 0.62em;
+  border-radius: 50%;
+  /* A ring of the panel's own background, so a lit dot reads as lit rather
+     than as a coloured smudge against whatever is behind it. */
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.link-dot-up {
+  background: #35b45a;
+}
+
+.link-dot-down {
+  background: #e04b3f;
+}
+
+/* Not knowable from here: this end cannot reach the server, so what the other
+   end is doing is nobody's guess. Hollow rather than filled — it is the
+   absence of a reading, not a reading of nothing. */
+.link-dot-unknown {
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+
 /* Read aloud as often as it is pasted, so it is set out in threes. */
 .invite-number {
   flex: 0 0 auto;
@@ -1561,6 +1682,45 @@ input[type="color"]::-moz-color-swatch {
   letter-spacing: 0.04em;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
+}
+
+/*
+  The games this browser is in, one to a row. A plain list: it is a way back
+  into something, not a control panel, and rows that look like rows are read
+  down faster than a wall of buttons.
+*/
+.saved-games {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-games > li + li {
+  margin-top: 0.4rem;
+}
+
+/* The number first and what the game is after it: the digits are what a game
+   is looked up by, and they line up down the list where the words do not. */
+.saved-game {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.saved-game-who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, currentColor 78%, transparent);
+}
+
+.saved-game-id {
+  flex: 0 0 auto;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.02em;
 }
 
 .join-number {
@@ -1641,4 +1801,22 @@ input[type="color"]::-moz-color-swatch {
 .invite-question {
   margin-bottom: 0.55rem;
   font-size: 0.9rem;
+}
+
+/* A question asked before a setting is changed on the reader's behalf. */
+.confirm-dialog {
+  width: min(28rem, 92vw);
+}
+
+.confirm-question {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* Between the settings for the marks and the one that colours the board. */
+.options-divider {
+  margin: 1.4rem 0 1.1rem;
+  border: none;
+  border-top: 1px solid var(--panel-border);
 }

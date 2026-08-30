@@ -18,5 +18,16 @@
     "bindings": [{ "name": "GAME", "class_name": "Game" }]
   },
   // SQLite-backed, which is the storage the free plan offers.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Game"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Game"] }],
+  /*
+    Keep what the Worker says, rather than only showing it to whoever happens
+    to be watching. `wrangler tail` is a live stream and nothing more: a run
+    that fails while nobody is attached leaves nothing behind at all, which is
+    how a failure comes to be unexplainable. With this, the logs are held by
+    Cloudflare and can be read in the dashboard afterwards.
+
+    Sampling is left at everything. This is a small app with few requests, and
+    the whole value here is that the one interesting request was kept.
+  */
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
 }

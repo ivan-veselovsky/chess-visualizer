@@ -9,6 +9,10 @@ import {
 import {
   canMoveTo,
   OPPONENT_CHOOSES,
+  PING,
+  PONG,
+  PROTOCOL_VERSION,
+  STALE_AFTER,
   termsOf,
   type ErrorCode,
 } from "./protocol";
@@ -58,6 +62,8 @@ function endOf(board: Chess): { result: GameResult; reason: EndReason } | null {
 /** What a socket has proved about itself, kept where hibernation cannot lose it. */
 interface Bound {
   token: string;
+  /** When it proved it, as a floor under the heartbeat's own timestamps. */
+  since: number;
 }
 
 /**
@@ -78,6 +84,19 @@ interface Bound {
  * receive.
  */
 export class Game extends DurableObject {
+  constructor(ctx: DurableObjectState, env: unknown) {
+    super(ctx, env as never);
+    /*
+      The heartbeat, answered by the runtime rather than by this object. A
+      client asking every few seconds whether its line is still up would
+      otherwise wake the object every few seconds, for the whole of a game and
+      for every game at once — to say nothing at all.
+    */
+    ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair(PING, PONG)
+    );
+  }
+
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected a WebSocket upgrade", { status: 426 });
@@ -93,6 +112,16 @@ export class Game extends DurableObject {
     ws: WebSocket,
     raw: string | ArrayBuffer
   ): Promise<void> {
+    /*
+      Anything at all counts as a sign of life, a heartbeat being only the sign
+      that can be asked for on demand. A player who has just moved is plainly
+      there, and should not have to prove it twice.
+    */
+    const bound = ws.deserializeAttachment() as Bound | null;
+    if (bound !== null) {
+      ws.serializeAttachment({ ...bound, since: Date.now() });
+    }
+
     let message: FromClient;
     try {
       message = JSON.parse(typeof raw === "string" ? raw : "");
@@ -100,11 +129,67 @@ export class Game extends DurableObject {
       return this.refuse(ws, "badMessage", "That was not a message I can read");
     }
 
+    /*
+      Every conversation opens with one of four messages, and each of them says
+      what revision the far end speaks. Checked here rather than in each of
+      them: the point is that nothing else is acted on until the two ends are
+      known to mean the same thing by it.
+    */
+    if (
+      (message.type === "create" ||
+        message.type === "answer" ||
+        message.type === "peek" ||
+        message.type === "resume") &&
+      message.v !== PROTOCOL_VERSION
+    ) {
+      return this.refuse(
+        ws,
+        "versionMismatch",
+        `This game speaks version ${PROTOCOL_VERSION}, and that was version ${
+          message.v ?? "none"
+        }`
+      );
+    }
+
+    /*
+      Every message is answered, including the ones that go wrong.
+
+      An exception thrown in a handler ends the handler and nothing else: the
+      socket stays open, the player is told nothing, and they sit looking at a
+      board waiting for a move the object has already forgotten about. That is
+      how a missing runtime method cost an afternoon here once — the failure
+      was not loud, it was silent, and silence is indistinguishable from a slow
+      network.
+
+      So the dispatch is wrapped. What went wrong is said out loud, where the
+      observability setting will keep it, and the player is told that something
+      did rather than left to wonder.
+    */
+    try {
+      return await this.dispatch(ws, message);
+    } catch (thrown) {
+      console.error(
+        `handling ${message.type} threw:`,
+        thrown instanceof Error ? (thrown.stack ?? thrown.message) : thrown
+      );
+      return this.deny(
+        ws,
+        "badMessage",
+        "Something went wrong handling that"
+      );
+    }
+  }
+
+  /** What each kind of message means. */
+  private async dispatch(ws: WebSocket, message: FromClient): Promise<void> {
     switch (message.type) {
       case "create":
         return this.create(ws, message);
       case "peek":
         return this.peek(ws);
+      case "probe":
+      case "probed":
+        return this.carry(ws, message);
       case "answer":
         return this.answer(ws, message);
       case "resume":
@@ -156,27 +241,61 @@ export class Game extends DurableObject {
       saying where the game begins.
     */
     const handicap = message.handicap ?? null;
-    if (handicap !== null && message.initialFEN !== undefined) {
+    const line = message.line ?? [];
+    if (
+      handicap !== null &&
+      (message.initialFEN !== undefined || line.length > 0)
+    ) {
       return this.refuse(
         ws,
         "termsConflict",
-        "Give odds or a position, not both"
+        "Give odds or a game to continue, not both"
       );
     }
     const takebacks = Math.max(0, Math.trunc(message.takebacks ?? 0));
     /*
-      The board can only be worked out once it is known who plays which side.
-      A challenge that leaves the choice to whoever answers therefore has no
-      position yet, and gets one at the moment the choice is made.
+      Odds are given by a person, so which board they make cannot be known
+      until it is known which side that person is playing — a challenge that
+      leaves the choice open therefore has no position yet, and gets one at the
+      moment the choice is made.
+
+      A position given outright, or a game handed over to be continued, is the
+      same board whoever ends up playing which side, so it is settled here.
     */
     const initialFEN =
-      message.color === OPPONENT_CHOOSES
-        ? null
-        : startingPosition(handicap, message.color, message.initialFEN);
+      handicap === null
+        ? (message.initialFEN ?? DEFAULT_POSITION)
+        : message.color === OPPONENT_CHOOSES
+          ? null
+          : startingPosition(handicap, message.color, undefined);
     if (initialFEN !== null) {
       const unplayable = whyNotPlayable(initialFEN);
       if (unplayable !== null) {
         return this.refuse(ws, "badPosition", unplayable);
+      }
+    }
+
+    /*
+      The carried line is replayed rather than taken on trust. What arrives is
+      a list of moves in somebody else's notation, and the only way to know it
+      is a game — and that there is still a game left in it — is to play it.
+    */
+    if (line.length > 0 && initialFEN !== null) {
+      const carried = new Chess(initialFEN);
+      for (const san of line) {
+        try {
+          carried.move(san);
+        } catch {
+          return this.refuse(
+            ws,
+            "badLine",
+            `That game cannot be continued: ${san} will not play`
+          );
+        }
+      }
+      const unplayable = whyNotPlayable(carried.fen());
+      if (unplayable !== null) {
+        return this.refuse(ws, "badLine", unplayable);
       }
     }
 
@@ -193,7 +312,10 @@ export class Game extends DurableObject {
       handicap,
       takebacks,
       initialFEN,
-      moves: [],
+      // The carried moves are the game's own moves from here on; what makes
+      // them different is only that they were not played here.
+      moves: [...line],
+      priorMoves: line.length,
       takebacksLeft: { w: takebacks, b: takebacks },
       drawOfferedBy: null,
       createdAt: Date.now(),
@@ -214,14 +336,18 @@ export class Game extends DurableObject {
       return this.refuse(ws, "noSuchGame", "There is no such game");
     }
     if (record.status !== "planning") {
-      // Withdrawn and answered are different things to be told.
-      return record.reason === "challengeCancelled"
-        ? this.refuse(ws, "challengeCancelled", "That invite was taken back")
-        : this.refuse(
-            ws,
-            "alreadyAnswered",
-            "This invite has already been answered"
-          );
+      /*
+        Withdrawn, under way, and over are three different things to be told,
+        and the one thing none of them may be told as is "no such game": a
+        caller who cannot get in is owed the difference between a game that is
+        not theirs and a number that is nobody's.
+      */
+      if (record.reason === "challengeCancelled") {
+        return this.refuse(ws, "challengeCancelled", "That invite was taken back");
+      }
+      return record.status === "inProgress"
+        ? this.refuse(ws, "alreadyAnswered", "That game is under way")
+        : this.refuse(ws, "gameOver", "That game is over");
     }
     return this.tell(ws, {
       type: "challenge",
@@ -263,7 +389,7 @@ export class Game extends DurableObject {
       if (record.guest?.token === message.token) {
         // The same guest again: say what was settled, and settle nothing new.
         this.bind(ws, message.token);
-        return this.tell(
+        this.tell(
           ws,
           record.status === "inProgress"
             ? {
@@ -276,6 +402,7 @@ export class Game extends DurableObject {
               }
             : { type: "declined" }
         );
+        return this.saidPresence(record);
       }
       return this.refuse(
         ws,
@@ -354,11 +481,7 @@ export class Game extends DurableObject {
       challenge that left the side open had no position until this moment, and
       a board cannot be set up from terms nobody has been given.
     */
-    const settled = {
-      handicap: record.handicap,
-      takebacks: record.takebacks,
-      initialFEN,
-    };
+    const settled = termsOf({ ...record, initialFEN });
 
     this.bind(ws, message.token);
     if (!message.accept) {
@@ -369,6 +492,7 @@ export class Game extends DurableObject {
         opponent: guest.name,
         you: hostColor,
         terms: settled,
+        moves: record.moves,
       });
     }
 
@@ -377,15 +501,55 @@ export class Game extends DurableObject {
       you: guestColor,
       opponent: record.host.name,
       terms: settled,
-      moves: [],
+      // Whatever the game already stands on: empty for one starting from
+      // scratch, the carried line for one being taken up.
+      moves: record.moves,
       takebacksLeft: record.takebacksLeft,
     });
-    return this.sendTo(record.host.token, {
+    this.sendTo(record.host.token, {
       type: "answered",
       accepted: true,
       opponent: guest.name,
       you: hostColor,
       terms: settled,
+      moves: record.moves,
+    });
+    return this.saidPresence({ ...record, guest });
+  }
+
+  /**
+   * Carries a question to the other player, or an answer back to them.
+   *
+   * The object is a post office here and nothing more: it does not read the
+   * text, does not check it, and keeps no note of what was asked. Only the two
+   * clients know what a right answer looks like, which is what makes the round
+   * trip worth anything — a reply this object could have written by itself
+   * would prove nothing about whether anybody is at the other end.
+   *
+   * Nothing is said when there is nobody to carry it to. Silence is the
+   * correct answer to "is my opponent there" when there is no opponent, and
+   * the asker's own timer is what turns that silence into a red light.
+   */
+  private async carry(
+    ws: WebSocket,
+    message: Extract<FromClient, { type: "probe" | "probed" }>
+  ): Promise<void> {
+    const record = await this.read();
+    const player = this.playerFor(record, message.token);
+    if (record === null || player === null) {
+      return this.deny(
+        ws,
+        "unknownToken",
+        "That token belongs to no one here"
+      );
+    }
+    const other = player === record.host ? record.guest : record.host;
+    if (other === null) {
+      return;
+    }
+    return this.sendTo(other.token, {
+      type: message.type,
+      text: message.text,
     });
   }
 
@@ -395,8 +559,18 @@ export class Game extends DurableObject {
     message: Extract<FromClient, { type: "resume" }>
   ): Promise<void> {
     const record = await this.read();
+    /*
+      Two different nothings, and a caller can act on the difference. A game
+      that was never created is a number that is wrong — mistyped, or from a
+      link so old the game has been swept away. A game that exists but does not
+      know this token is somebody else's game, and saying "not found" about it
+      would be telling them their id was wrong when it was right.
+    */
+    if (record === null) {
+      return this.refuse(ws, "noSuchGame", "There is no such game");
+    }
     const player = this.playerFor(record, message.token);
-    if (record === null || player === null) {
+    if (player === null) {
       return this.refuse(
         ws,
         "unknownToken",
@@ -405,7 +579,7 @@ export class Game extends DurableObject {
     }
     this.bind(ws, message.token);
     const opponent = player === record.host ? record.guest : record.host;
-    return this.tell(ws, {
+    this.tell(ws, {
       type: "state",
       you: player.color,
       opponent: opponent?.name ?? null,
@@ -417,6 +591,8 @@ export class Game extends DurableObject {
       takebacksLeft: record.takebacksLeft,
       drawOfferedBy: record.drawOfferedBy,
     });
+    // Both lights, now that there is one more connection to report.
+    return this.saidPresence(record);
   }
 
   /**
@@ -539,6 +715,18 @@ export class Game extends DurableObject {
     }
     if (record.moves.length === 0) {
       return this.deny(ws, "nothingToTakeBack", "Nothing has been played yet");
+    }
+    /*
+      A game continued from another one can be taken back only as far as the
+      point it was taken up at. What came before was played somewhere else, by
+      people who are not at this board to agree to it being unmade.
+    */
+    if (record.moves.length <= (record.priorMoves ?? 0)) {
+      return this.deny(
+        ws,
+        "nothingToTakeBack",
+        "Those moves came with the game rather than from it"
+      );
     }
 
     /*
@@ -735,8 +923,48 @@ export class Game extends DurableObject {
    * back with it.
    */
   private bind(ws: WebSocket, token: string): void {
-    const bound: Bound = { token };
+    const bound: Bound = { token, since: Date.now() };
     ws.serializeAttachment(bound);
+  }
+
+  /**
+   * When this socket last showed a sign of life.
+   *
+   * The heartbeat is answered by the runtime while the object sleeps, and the
+   * runtime remembers when it last did — so an object waking for any reason at
+   * all can see how each of its sockets has been getting on in the meantime,
+   * without having been awake to watch.
+   *
+   * A socket that has only just bound has no heartbeat behind it yet, so the
+   * moment it bound counts.
+   */
+  private lastSign(ws: WebSocket): number {
+    const bound = ws.deserializeAttachment() as Bound | null;
+    /*
+      The runtime can say when it last answered a heartbeat on this object's
+      behalf, which is fresher than anything the object saw itself — but not
+      every runtime offers it, and where it is missing the call throws rather
+      than returning nothing. Asked for only where it exists, and never relied
+      on: what the object was told directly is enough on its own, which is why
+      the beat that wakes it is a message and not a heartbeat.
+    */
+    const stamp = (
+      ws as { getAutoResponseTimestamp?: () => Date | null }
+    ).getAutoResponseTimestamp;
+    const answered =
+      typeof stamp === "function" ? stamp.call(ws)?.getTime() : undefined;
+    return Math.max(answered ?? 0, bound?.since ?? 0);
+  }
+
+  /**
+   * Whether that player is on the line: a connection that has been heard from
+   * lately, rather than merely a connection that exists.
+   */
+  private isHere(token: string, except?: WebSocket): boolean {
+    const stale = Date.now() - STALE_AFTER;
+    return this.socketsFor(token).some(
+      (socket) => socket !== except && this.lastSign(socket) > stale
+    );
   }
 
   /** Every connection that has proved itself to be this player. */
@@ -751,11 +979,46 @@ export class Game extends DurableObject {
     ws.send(JSON.stringify(message));
   }
 
-  private sendTo(token: string, message: FromServer): void {
+  /**
+   * To every connection that player has. `except` leaves one out — a socket on
+   * its way down is still listed while its closing is being handled, and
+   * writing to it throws.
+   */
+  private sendTo(
+    token: string,
+    message: FromServer,
+    except?: WebSocket
+  ): void {
     const text = JSON.stringify(message);
     for (const socket of this.socketsFor(token)) {
-      socket.send(text);
+      if (socket !== except) {
+        socket.send(text);
+      }
     }
+  }
+
+  /**
+   * Tells each player whether the other is connected.
+   *
+   * Sent when it could have changed — somebody arriving, somebody's last
+   * connection going away — rather than on a timer. A player with no
+   * connection is told nothing, which is the honest outcome: their own client
+   * knows its line is down, and knows that makes the rest unknowable.
+   */
+  private saidPresence(record: GameRecord | null, except?: WebSocket): void {
+    if (record === null || record.guest === null) {
+      return;
+    }
+    this.sendTo(
+      record.host.token,
+      { type: "presence", opponent: this.isHere(record.guest.token, except) },
+      except
+    );
+    this.sendTo(
+      record.guest.token,
+      { type: "presence", opponent: this.isHere(record.host.token, except) },
+      except
+    );
   }
 
   /**
@@ -795,6 +1058,10 @@ export class Game extends DurableObject {
     code: number,
     reason: string
   ): Promise<void> {
+    // The other player is watching a light that says whether this one is
+    // there. This is the moment it goes out.
+    this.saidPresence(await this.read(), ws);
+
     /*
       Closing from this end too, with the code that came in — where that code
       can be sent at all. 1004, 1005 and 1006 are statuses the runtime reports

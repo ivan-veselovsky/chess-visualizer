@@ -1,5 +1,5 @@
 {
-  "optionsSchemaVersion": 25,
+  "optionsSchemaVersion": 27,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -10,7 +10,7 @@
   "lastMoveOpacity": 0.25,
   "orientation": "white",
   "showGrid": false,
-  "gridColor": "#000000",
+  "gridColor": "#5e5e5e",
   "showTakenPieces": true,
   "pieceTint": {
     "lightenWhite": 0.9,
@@ -22,6 +22,13 @@
       "opponent": true
     },
     "knightGeometry": "arc",
+    "squareShading": {
+      "showMine": false,
+      "showOpponent": false,
+      "me": "#1d9f2c",
+      "opponent": "#fa5700",
+      "strength": 0.18
+    },
     "straightRayOpacityDecay": 0.25,
     "showPins": true,
     "pinRingColor": "#616161",

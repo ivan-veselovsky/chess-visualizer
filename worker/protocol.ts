@@ -103,6 +103,17 @@ export interface GameRecord {
    */
   moves: string[];
   /**
+   * How many moves at the head of `moves` were carried in rather than played
+   * here.
+   *
+   * They are moves of the game like any other — they are what the position
+   * stands on, they are numbered with the rest, and they come out in the PGN —
+   * but they are not this game's to unmake. A takeback reaches back only as
+   * far as the point the players started from; before that is somebody's
+   * history, possibly their own from a week ago.
+   */
+  priorMoves: number;
+  /**
    * Takebacks each player has left, counted down from `takebacks`.
    *
    * Per player, and spent by using them: a game where one side has thought
@@ -133,6 +144,8 @@ export function canMoveTo(from: GameStatus, to: GameStatus): boolean {
 export type FromClient =
   | {
       type: "create";
+      /** What revision this end speaks; see PROTOCOL_VERSION. */
+      v?: number;
       token: string;
       name: string;
       /** `OPPONENT_CHOOSES` to let whoever answers pick, and take the rest. */
@@ -147,11 +160,38 @@ export type FromClient =
        * position is worked out from.
        */
       initialFEN?: string;
+      /**
+       * Moves already played, carried into the game — a game abandoned and
+       * taken up again, or one read in from a PGN.
+       *
+       * Played from `initialFEN`, and refused if they will not play. They
+       * become the head of the game's own move list rather than a separate
+       * account of it, so what the players are shown, what a takeback may
+       * reach, and what comes out as a PGN are all read from one line.
+       *
+       * Not to be given together with odds either, for the same reason: a game
+       * that has been played is not a game that starts with a piece missing.
+       */
+      line?: string[];
     }
   /** Asks what this invite is, claiming nothing and needing no token. */
-  | { type: "peek" }
+  | { type: "peek"; v?: number }
+  /**
+   * A question put to the opponent, for them to answer in person.
+   *
+   * The object does not answer it and does not look at it — it carries it
+   * across and carries the answer back. What is being tested is the whole
+   * round trip: this client's line up, the object, the opponent's line down,
+   * their code running well enough to read a message and reply, and the whole
+   * way back again. A socket that is open at one end and dead at the other
+   * cannot fake it, because the answer has to be computed.
+   */
+  | { type: "probe"; token: string; text: string }
+  /** The answer to one, on its way back. */
+  | { type: "probed"; token: string; text: string }
   | {
       type: "answer";
+      v?: number;
       token: string;
       name: string;
       accept: boolean;
@@ -159,7 +199,7 @@ export type FromClient =
       color?: Color;
     }
   /** Comes back to a game already joined, on a new connection. */
-  | { type: "resume"; token: string }
+  | { type: "resume"; v?: number; token: string }
   /**
    * A move, and which ply it is meant to be.
    *
@@ -211,6 +251,13 @@ export type FromServer =
       opponent: string;
       you: Color;
       terms: Terms;
+      /**
+       * The line the game starts on: empty for a game beginning from nothing
+       * played, and the carried moves for one being continued. The challenger
+       * has been looking at an invite, not at a game, and this is the board
+       * they are being handed.
+       */
+      moves: string[];
     }
   | {
       type: "state";
@@ -245,6 +292,19 @@ export type FromServer =
   | { type: "ended"; result: GameResult; reason: EndReason }
   | { type: "drawOffered"; by: Color }
   | { type: "drawDeclined" }
+  /**
+   * Whether the other player has a connection open at this moment.
+   *
+   * Told rather than asked: only the object knows what sockets it holds, and a
+   * client pinging its opponent through the object would be asking the object
+   * that same question the long way round — and getting no answer at all in
+   * precisely the case it cares about.
+   */
+  | { type: "presence"; opponent: boolean }
+  /** The opponent's question, to be answered. */
+  | { type: "probe"; text: string }
+  /** Their answer to yours. */
+  | { type: "probed"; text: string }
   | { type: "error"; code: ErrorCode; reason: string };
 
 /**
@@ -259,10 +319,17 @@ export type ErrorCode =
   /** The id is taken by somebody else's game. Try another. */
   | "gameExists"
   | "noSuchGame"
+  /** Answered already, and being played: there is no seat to take. */
   | "alreadyAnswered"
+  /** Answered, played, and finished. */
+  | "gameOver"
   | "ownInvite"
   | "unknownToken"
+  /** The two ends are not speaking the same revision of this conversation. */
+  | "versionMismatch"
   | "badPosition"
+  /** The moves carried in will not play from the position given. */
+  | "badLine"
   | "termsConflict"
   /** The challenge left the side open and the answer did not name one. */
   | "colorNeeded"
@@ -295,7 +362,79 @@ export interface Terms {
   takebacks: number;
   /** Null while the colors are open; settled the moment they are. */
   initialFEN: string | null;
+  /**
+   * How many of the game's moves were carried in with it, as a count — the
+   * moves themselves arrive with the game, and saying them twice would be two
+   * accounts of one line. Zero for a game that started from nothing played.
+   */
+  priorMoves: number;
 }
+
+/**
+ * The heartbeat, as two fixed strings.
+ *
+ * Fixed because the object answers them without waking: a hibernating Durable
+ * Object can be told one exact message to reply to one exact way, and the
+ * runtime does it while the object stays asleep. So a client may ask "are you
+ * there" as often as it likes without costing a wake-up — which is the only
+ * reason asking often is affordable at all.
+ *
+ * They are not part of `FromClient` or `FromServer`: nothing in the object or
+ * the app ever sees one.
+ */
+/**
+ * What revision of this conversation both ends are speaking.
+ *
+ * Raised whenever a change would leave the two ends misunderstanding each
+ * other — a message renamed, a field given a different meaning, a refusal
+ * where there used to be an answer. Not raised for anything an older end would
+ * simply ignore, since ignoring is what an unknown field already gets.
+ *
+ * The app and the object are one deployment, so they are only ever out of step
+ * for one reason: a page open since before a deploy. That page has last week's
+ * code and is about to be told about a game by an object running today's, and
+ * the honest thing is to say so rather than carry on and be subtly wrong.
+ *
+ * A client that sends nothing here is older than the version that started
+ * sending it, and is treated as a mismatch on those grounds.
+ */
+export const PROTOCOL_VERSION = 2;
+
+/**
+ * How often each player asks the other, and how long an unanswered question
+ * waits before the light goes out.
+ *
+ * Two of these are the round trip and the timeout; the third is the answer
+ * itself. A question is eight characters of nothing in particular and the
+ * answer is those characters backwards — trivial to compute and impossible to
+ * produce without having read the question, which is the whole point of asking
+ * it this way rather than trusting a socket to still be attached to somebody.
+ */
+export const PROBE_EVERY = 3_000;
+export const PROBE_SILENT = 6_000;
+
+/** What a probe's text must come back as. */
+export const answerTo = (text: string): string =>
+  [...text].reverse().join("");
+
+export const PING = '{"type":"ping"}';
+export const PONG = '{"type":"pong"}';
+
+/**
+ * How long a connection may go without a sign of life before it is treated as
+ * gone.
+ *
+ * Sockets do not always close. A tab navigated away, a laptop shut, a network
+ * handed over — the far end stops existing and nothing says so, and the object
+ * goes on holding a socket that will never carry anything again. Counting
+ * those as a player who is present is how a light stays green over an empty
+ * chair.
+ *
+ * Measured against the beat that reaches the object, not the heartbeat that
+ * stops short of it: three of those, so that one late beat is not read as
+ * somebody leaving, and somebody leaving is noticed within a few seconds.
+ */
+export const STALE_AFTER = 6_000;
 
 /** A number for each side. */
 export interface Tally {
@@ -309,4 +448,6 @@ export const termsOf = (record: GameRecord): Terms => ({
   handicap: record.handicap,
   takebacks: record.takebacks,
   initialFEN: record.initialFEN,
+  // Records written before games could be continued carried none.
+  priorMoves: record.priorMoves ?? 0,
 });

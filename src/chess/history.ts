@@ -27,11 +27,43 @@ export function startHistory(fen: string): PositionHistory {
 }
 
 /**
- * A history holding a whole line, positioned at its earliest entry — where a
- * game is read from, rather than where it ended up.
+ * A history holding a whole line, positioned at the end of it.
+ *
+ * At the end rather than the beginning: a game arrives here from a library, a
+ * link or a paste, and what somebody opening one wants first is to see where
+ * it got to. Reading it from the start is a step away — the button for it is
+ * right there — whereas landing at move zero puts a click between the reader
+ * and the thing they opened, every time.
+ *
+ * It also makes the board say what it holds. A line shown at its first
+ * position looks like an empty board, which is misleading when the game on it
+ * is exactly what is about to be offered to a friend.
  */
 export function historyFromLine(entries: HistoryEntry[]): PositionHistory {
-  return { entries, current: entries.length - 1 };
+  return { entries, current: 0 };
+}
+
+/**
+ * A whole history as a starting point and the moves from it, in the order they
+ * were played — the shape a game travels in, rather than the shape it is read
+ * in here.
+ *
+ * The entries run newest first and each carries the move that produced it, so
+ * the earliest entry is the position the line began at and every other entry's
+ * move, read backwards, is the line.
+ */
+export function lineOf(history: PositionHistory): {
+  initialFEN: string;
+  moves: string[];
+} {
+  const { entries } = history;
+  return {
+    initialFEN: entries[entries.length - 1].fen,
+    moves: entries
+      .slice(0, entries.length - 1)
+      .map((entry) => entry.move ?? "")
+      .reverse(),
+  };
 }
 
 export function currentPosition(history: PositionHistory): string {

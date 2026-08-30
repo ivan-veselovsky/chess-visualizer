@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Color } from "chess.js";
+import { DEFAULT_POSITION, type Color } from "chess.js";
 import {
   HANDICAP_PIECES,
   type Handicap,
@@ -12,9 +12,15 @@ interface ChallengeDialogProps {
   open: boolean;
   /** The name last played under, so it need not be typed again. */
   name: string;
+  /** What is on the board here, in case the game is to be taken up from it. */
+  board: { initialFEN: string; moves: string[] };
   onSubmit: (terms: ChallengeTerms) => void;
   onClose: () => void;
 }
+
+/** Where a game is to start: from scratch, from odds, or from a game already
+    under way on the challenger's own board. */
+type StartFrom = "fresh" | "odds" | "board";
 
 const PIECE_NAMES: Record<HandicapPiece, string> = {
   pawn: "One pawn",
@@ -38,12 +44,14 @@ const PIECE_NAMES: Record<HandicapPiece, string> = {
 export default function ChallengeDialog({
   open,
   name,
+  board,
   onSubmit,
   onClose,
 }: ChallengeDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [myName, setMyName] = useState(name);
   const [color, setColor] = useState<ColorChoice | null>(null);
+  const [start, setStart] = useState<StartFrom>("fresh");
   const [giver, setGiver] = useState<Handicap["giver"] | "">("");
   const [piece, setPiece] = useState<HandicapPiece | "">("");
   const [takebacks, setReMoves] = useState(0);
@@ -56,6 +64,7 @@ export default function ChallengeDialog({
     if (open && !element.open) {
       setMyName(name);
       setColor(null);
+      setStart("fresh");
       setGiver("");
       setPiece("");
       setReMoves(0);
@@ -65,9 +74,22 @@ export default function ChallengeDialog({
     }
   }, [open, name]);
 
+  /*
+    There is something to take up when the board is not simply waiting to be
+    started on: a game part-played, or a position set up by hand. Offered only
+    then, since otherwise it is the initial position under a second name.
+  */
+  const continuable =
+    board.moves.length > 0 || board.initialFEN !== DEFAULT_POSITION;
+
   const handicap: Handicap | null =
-    giver === "" || piece === "" ? null : { giver, piece };
-  const ready = myName.trim() !== "" && color !== null;
+    start !== "odds" || giver === "" || piece === ""
+      ? null
+      : { giver, piece };
+  const continueFrom = start === "board" ? board : null;
+  // Odds chosen but not named would quietly become an even game.
+  const oddsNamed = start !== "odds" || (giver !== "" && piece !== "");
+  const ready = myName.trim() !== "" && color !== null && oddsNamed;
 
   return (
     <dialog
@@ -138,36 +160,72 @@ export default function ChallengeDialog({
         </div>
       </div>
 
+      {/*
+        One question — where does this game start — and one control for it.
+        Odds and a game taken up are alternatives, not two settings that happen
+        to conflict: both answer it, and the object refuses to be told twice.
+      */}
       <div className="board-controls">
-        <label htmlFor="challenge-giver">Handicap</label>
+        <label htmlFor="challenge-start">Start from</label>
         <select
-          id="challenge-giver"
+          id="challenge-start"
           className="game-select choice-select"
-          value={giver}
-          onChange={(event) =>
-            setGiver(event.target.value as Handicap["giver"] | "")
-          }
+          value={start}
+          onChange={(event) => setStart(event.target.value as StartFrom)}
         >
-          <option value=""></option>
-          <option value="challenger">I give</option>
-          <option value="opponent">Opponent gives</option>
-        </select>
-        <select
-          className="game-select choice-select"
-          value={piece}
-          aria-label="What is given"
-          onChange={(event) =>
-            setPiece(event.target.value as HandicapPiece | "")
-          }
-        >
-          <option value=""></option>
-          {HANDICAP_PIECES.map((kind) => (
-            <option key={kind} value={kind}>
-              {PIECE_NAMES[kind]}
+          <option value="fresh">The initial position</option>
+          <option value="odds">Odds</option>
+          {continuable && (
+            <option value="board">
+              {board.moves.length > 0
+                ? `The game on my board (${board.moves.length} ${
+                    board.moves.length === 1 ? "move" : "moves"
+                  })`
+                : "The position on my board"}
             </option>
-          ))}
+          )}
         </select>
+        {start === "odds" && (
+          <>
+            <select
+              className="game-select choice-select"
+              value={giver}
+              aria-label="Who gives odds"
+              onChange={(event) =>
+                setGiver(event.target.value as Handicap["giver"] | "")
+              }
+            >
+              <option value=""></option>
+              <option value="challenger">I give</option>
+              <option value="opponent">Opponent gives</option>
+            </select>
+            <select
+              className="game-select choice-select"
+              value={piece}
+              aria-label="What is given"
+              onChange={(event) =>
+                setPiece(event.target.value as HandicapPiece | "")
+              }
+            >
+              <option value=""></option>
+              {HANDICAP_PIECES.map((kind) => (
+                <option key={kind} value={kind}>
+                  {PIECE_NAMES[kind]}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
       </div>
+      {/* Said here rather than found out later: moves that came with a game
+          are not this game's to unmake. */}
+      {start === "board" && board.moves.length > 0 && (
+        <p className="invite-note challenge-note">
+          Both of you take it up from here. The {board.moves.length} moves
+          already played stay in the game and in its PGN, and neither side can
+          take them back.
+        </p>
+      )}
 
       <div className="board-controls">
         <label
@@ -198,13 +256,25 @@ export default function ChallengeDialog({
           type="button"
           className="reset-button"
           disabled={!ready}
-          title={ready ? undefined : "A name and a color first"}
+          title={
+            ready
+              ? undefined
+              : oddsNamed
+                ? "A name and a color first"
+                : "Say what the odds are, or start from the initial position"
+          }
           onClick={() =>
             color !== null &&
-            onSubmit({ name: myName.trim(), color, handicap, takebacks })
+            onSubmit({
+              name: myName.trim(),
+              color,
+              handicap,
+              takebacks,
+              continueFrom,
+            })
           }
         >
-          Create invite
+          Challenge
         </button>
       </div>
     </dialog>

@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
+import ConfirmDialog from "./ConfirmDialog";
 import NumberField from "./NumberField";
 import SelectField from "./SelectField";
 import ToggleField from "./ToggleField";
@@ -13,6 +14,7 @@ import type {
   OutlineOpacity,
   RayOpacity,
   PieceTint,
+  SquareShading,
 } from "./options";
 import { downloadSettings, parseSettings } from "./settingsFile";
 
@@ -31,6 +33,9 @@ export default function OptionsPanel({
   defaults,
   onChange,
 }: OptionsPanelProps) {
+  /** Asked when shading goes on and the board is still a checkerboard. */
+  const [askPlainBoard, setAskPlainBoard] = useState(false);
+
   const fileInput = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -69,8 +74,39 @@ export default function OptionsPanel({
     });
   }
 
+  function updateShading(patch: Partial<SquareShading>) {
+    updateAttacks({
+      squareShading: { ...options.attacks.squareShading, ...patch },
+    });
+    /*
+      Shading colours whole squares, and a checkerboard underneath gives every
+      colour two readings. Worth offering to flatten — and worth asking rather
+      than doing, since the board's colours are the reader's own setting. Either
+      side going on raises the question; both being off again does not put the
+      board back, the reader having answered it once.
+    */
+    if (
+      (patch.showMine === true || patch.showOpponent === true) &&
+      options.boardColors.darkSquare !== options.boardColors.lightSquare
+    ) {
+      setAskPlainBoard(true);
+    }
+  }
+
   return (
     <aside className="options-panel" aria-label="Options">
+      <ConfirmDialog
+        open={askPlainBoard}
+        question="Make both board squares the same colour?"
+        detail={`Shading colours the squares themselves, and a checkerboard under it gives each colour two readings. This sets the dark squares to ${options.boardColors.lightSquare}, the colour the light ones already are.`}
+        confirmLabel="Make them plain"
+        dismissLabel="Keep the checkerboard"
+        onConfirm={() =>
+          updateBoardColors({ darkSquare: options.boardColors.lightSquare })
+        }
+        onClose={() => setAskPlainBoard(false)}
+      />
+
       <section className="options-group">
         <div className="field-row field-row-apart">
           <ToggleField
@@ -328,6 +364,64 @@ export default function OptionsPanel({
       </section>
 
 
+
+      {/*
+        Kept apart, and last: this is a way of reading the whole board rather
+        than a setting for the marks on it, and grouping it with them would
+        suggest it were one more of them.
+      */}
+      <hr className="options-divider" />
+
+      <section className="options-group">
+        {/* A different question from the rays, and shown independently: the
+            rays say where a piece can go, this says how contested a square is.
+            Each side has a switch of its own: both together say who holds a
+            square, one alone says how far that side reaches.
+
+            Laid out in two columns, mine and the opponent's, so that each
+            side's switch and the colour it lays down read as one thing. */}
+        <div className="field-row field-row-halves">
+          <ToggleField
+            id="shade-mine"
+            hint="Colour every square my men cover, more strongly where more of them cover it."
+            label="Shade squares attacked by my pieces"
+            checked={options.attacks.squareShading.showMine}
+            onChange={(showMine) => updateShading({ showMine })}
+          />
+          <ToggleField
+            id="shade-theirs"
+            hint="The same for the other end of the board. With both on, a square takes a blend of the two, weighted by how many attackers each side has."
+            label="Shade squares attacked by opponent"
+            checked={options.attacks.squareShading.showOpponent}
+            onChange={(showOpponent) => updateShading({ showOpponent })}
+          />
+        </div>
+        <div className="field-row field-row-shade-colors">
+          <ColorField
+            id="shade-me"
+            label="My shading color"
+            value={options.attacks.squareShading.me}
+            onChange={(me) => updateShading({ me })}
+          />
+          <ColorField
+            id="shade-opponent"
+            label="Opponent's shading color"
+            value={options.attacks.squareShading.opponent}
+            onChange={(opponent) => updateShading({ opponent })}
+          />
+        </div>
+        <NumberField
+          id="shade-strength"
+          inline
+          hint="How much colour one attacker lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid."
+          label="Shading strength"
+          value={options.attacks.squareShading.strength}
+          step={0.02}
+          max={1}
+          allowZero
+          onChange={(strength) => updateShading({ strength })}
+        />
+      </section>
 
       {/* One reset for the lot. Per-section buttons meant the panel could sit in
           a state no preset describes, half restored and half not. */}
