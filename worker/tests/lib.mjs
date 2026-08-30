@@ -77,6 +77,13 @@ export async function heard(ws, n = 1, timeout = 4000) {
  * It looks at everything the socket has heard, not only at what arrives next —
  * so where the same kind of message has come before, clear `heard` first, or
  * the wait is answered by the old one and returns at once.
+ *
+ * There was a "wait for one more message than there is now" helper here too,
+ * and it is gone. It read well and was wrong twice in production: most of what
+ * this object says goes to *both* players, so at almost any moment there is a
+ * message already on its way, and "one more" turns out to be that one rather
+ * than the answer being waited for. Naming the message is the whole point —
+ * a wait that does not say what it is waiting for is a sleep with extra steps.
  */
 export async function until(ws, what, timeout = 4000) {
   const matches =
@@ -88,17 +95,6 @@ export async function until(ws, what, timeout = 4000) {
   }
   return found();
 }
-
-/**
- * Waits for one more message than this socket has already heard.
- *
- * For the commonest shape of all: say something, wait for the answer, read it
- * off the end. Counting from where the conversation has got to rather than
- * from its beginning, so that a step does not have to know what came before
- * it.
- */
-export const replied = (ws, timeout = 4000) =>
-  heard(ws, ws.heard.length + 1, timeout);
 
 /**
  * Waits for the object to say anything at all to this socket.

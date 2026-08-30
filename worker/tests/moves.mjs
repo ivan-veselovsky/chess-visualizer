@@ -1,5 +1,5 @@
 /** Moves: who may make them, in what order, and how a game ends. */
-import { connect, answered, replied, until, token, gameId, check, summary } from "./lib.mjs";
+import { connect, answered, until, token, gameId, check, summary } from "./lib.mjs";
 
 console.log("Playing the game\n");
 
@@ -37,27 +37,31 @@ async function started(color = "w") {
     JSON.stringify(guest.heard[0]));
 
   host.say({ type: "move", token: hostToken, ply: 1, san: "e5" });
-  await replied(host);
+  await until(host, (m) => m.code === "notYourTurn");
   check("the same player cannot move twice",
     host.heard.at(-1)?.code === "notYourTurn", JSON.stringify(host.heard.at(-1)));
 
+  guest.heard.length = 0;
+  host.heard.length = 0;
   guest.say({ type: "move", token: guestToken, ply: 1, san: "e5" });
-  await replied(guest);
+  await until(guest, "moved");
+  await until(host, "moved");
   check("the other player can", guest.heard.at(-1)?.san === "e5", JSON.stringify(guest.heard.at(-1)));
 
+  guest.heard.length = 0;
   guest.say({ type: "move", token: guestToken, ply: 1, san: "e5" });
-  await replied(guest);
+  await until(guest, "moved");
   check("a move sent twice is answered, not played twice",
     guest.heard.at(-1)?.type === "moved" && guest.heard.at(-1).ply === 1,
     JSON.stringify(guest.heard.at(-1)));
 
   host.say({ type: "move", token: hostToken, ply: 2, san: "Qh9" });
-  await replied(host);
+  await until(host, (m) => m.code === "illegalMove");
   check("an impossible move is refused",
     host.heard.at(-1)?.code === "illegalMove", JSON.stringify(host.heard.at(-1)));
 
   host.say({ type: "move", token: hostToken, ply: 7, san: "Nf3" });
-  await replied(host);
+  await until(host, (m) => m.code === "staleMove");
   check("a move for the wrong ply is refused",
     host.heard.at(-1)?.code === "staleMove", JSON.stringify(host.heard.at(-1)));
 
@@ -70,7 +74,7 @@ async function started(color = "w") {
   host.say({ type: "move", token: hostToken, ply: 0, san: "e4" });
   await until(guest, "moved");
   guest.say({ type: "move", token: guestToken, ply: 1, san: "c5" });
-  await replied(guest);
+  await until(guest, "moved");
   host.close(); guest.close();
   const back = await connect(game, "returning");
   back.say({ type: "resume", token: guestToken });
@@ -90,7 +94,7 @@ async function started(color = "w") {
     from.say({ type: "move", token: who, ply: line.findIndex(([s]) => s === san), san });
     // Both are told of every move; waiting for the mover's own copy is enough
     // to know the object has finished with it.
-    await replied(from);
+    await until(from, (m) => m.type === "moved" && m.san === san);
   }
   // The mating move was the guest's, and this reads what the host was told
   // about it, which is a second arrival on a second socket.
@@ -100,7 +104,7 @@ async function started(color = "w") {
     last?.status === "finished" && last.result === "0-1" && last.reason === "checkmate",
     JSON.stringify(last));
   host.say({ type: "move", token: hostToken, ply: 4, san: "Kf2" });
-  await replied(host);
+  await until(host, (m) => m.code === "notPlaying");
   check("and nothing more can be played",
     host.heard.at(-1)?.code === "notPlaying", JSON.stringify(host.heard.at(-1)));
   host.close(); guest.close();

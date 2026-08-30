@@ -1,5 +1,5 @@
 /** A game taken up where another one was left off. */
-import { connect, answered, replied, until, token, gameId, check, summary } from "./lib.mjs";
+import { connect, answered, until, token, gameId, check, summary } from "./lib.mjs";
 
 console.log("Continuing a game already played\n");
 
@@ -47,11 +47,12 @@ async function continued(line = LINE, takebacks = 2) {
 {
   const { host, guest, hostToken, guestToken } = await continued();
   guest.say({ type: "move", token: guestToken, ply: 6, san: "Ba4" });
-  await replied(guest);
+  await until(guest, (m) => m.code === "notYourTurn");
   check("it is not the answerer's move — the line says whose it is",
     guest.heard.at(-1)?.code === "notYourTurn", JSON.stringify(guest.heard.at(-1)));
   host.say({ type: "move", token: hostToken, ply: 6, san: "Ba4" });
-  await replied(host);
+  await until(host, "moved");
+  await until(guest, "moved");
   check("the game goes on from the end of the carried line",
     host.heard.at(-1)?.type === "moved" && host.heard.at(-1).ply === 6 &&
     host.heard.at(-1).san === "Ba4", JSON.stringify(host.heard.at(-1)));
@@ -62,22 +63,24 @@ async function continued(line = LINE, takebacks = 2) {
 {
   const { host, guest, hostToken, guestToken } = await continued();
   host.say({ type: "move", token: hostToken, ply: 6, san: "Ba4" });
-  await replied(host);
+  await until(host, "moved");
+  await until(guest, "moved");
   host.say({ type: "takeBack", token: hostToken });
-  await replied(host);
+  await until(host, "tookBack");
+  await until(guest, "tookBack");
   check("a move played here can be taken back",
     host.heard.at(-1)?.type === "tookBack" && host.heard.at(-1).ply === 6,
     JSON.stringify(host.heard.at(-1)));
 
   host.say({ type: "takeBack", token: hostToken });
-  await replied(host);
+  await until(host, (m) => m.code === "nothingToTakeBack");
   check("but the carried moves cannot — they came with the game",
     host.heard.at(-1)?.code === "nothingToTakeBack" &&
     /came with the game/.test(host.heard.at(-1).reason),
     JSON.stringify(host.heard.at(-1)));
 
   guest.say({ type: "takeBack", token: guestToken });
-  await replied(guest);
+  await until(guest, (m) => m.code === "nothingToTakeBack");
   check("and neither can the other side reach into them",
     guest.heard.at(-1)?.code === "nothingToTakeBack",
     JSON.stringify(guest.heard.at(-1)));
@@ -123,10 +126,10 @@ async function continued(line = LINE, takebacks = 2) {
 {
   const { game, host, guest, hostToken } = await continued();
   host.say({ type: "move", token: hostToken, ply: 6, san: "Ba4" });
-  await replied(host);
+  await until(host, "moved");
   const back = await connect(game, "returning");
   back.say({ type: "resume", token: hostToken });
-  await replied(back);
+  await until(back, "state");
   check("resuming gives the carried line and the played move as one line",
     back.heard[0]?.type === "state" &&
     JSON.stringify(back.heard[0].moves) === JSON.stringify([...LINE, "Ba4"]) &&
@@ -139,7 +142,7 @@ async function continued(line = LINE, takebacks = 2) {
 {
   const game = gameId(), host = await connect(game, "plain");
   host.say({ type: "create", token: token(), name: "Bob", color: "w" });
-  await replied(host);
+  await until(host, "created");
   check("an ordinary game says it carried no moves",
     host.heard[0]?.terms.priorMoves === 0, JSON.stringify(host.heard[0]?.terms));
   host.close();
