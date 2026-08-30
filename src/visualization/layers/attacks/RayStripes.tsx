@@ -9,7 +9,7 @@ import {
   squareBox,
   type Orientation,
 } from "../../geometry";
-import type { RayStyle } from "../../options";
+import type { RayStyle } from "../../settings";
 import { stripeBands, type Band } from "./bands";
 import type { InnerSquares } from "./innerSquares";
 

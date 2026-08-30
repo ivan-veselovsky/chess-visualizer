@@ -19,7 +19,7 @@ import {
   type Orientation,
   type Point,
 } from "./geometry";
-import type { AttackOptions, BoardColors, PieceTint } from "./options";
+import type { AttackSettings, BoardColors, PieceTint } from "./settings";
 import { pieceVars } from "./pieceVars";
 import AttackLayer from "./layers/AttackLayer";
 import BorderLayer from "./layers/BorderLayer";
@@ -35,7 +35,7 @@ interface BoardProps {
   position: Chess;
   colors: BoardColors;
   pieceTint: PieceTint;
-  attacks: AttackOptions;
+  attacks: AttackSettings;
   /** Omit to make the board read-only. */
   onMove?: (from: Square, to: Square) => void;
   /**
@@ -310,7 +310,7 @@ export default function Board({
         <AttackLayer
           position={position}
           pieces={pieces}
-          attackOptions={attacks}
+          attackSettings={attacks}
           // Whichever way the piece was taken up: a move is being weighed, and
           // its own reach is the one thing not being weighed against.
           lifted={inHand?.from ?? null}
@@ -321,7 +321,7 @@ export default function Board({
         {attacks.showPins && (
           <PinLayer
             position={position}
-            attackOptions={attacks}
+            attackSettings={attacks}
             lifted={drag?.from ?? null}
             orientation={orientation}
           />

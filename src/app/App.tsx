@@ -45,7 +45,7 @@ import GitHubIcon from "./GitHubIcon";
 import ShareIcon from "./ShareIcon";
 import SponsorIcon from "./SponsorIcon";
 import StepIcon from "./StepIcon";
-import OptionsPanel from "./OptionsPanel";
+import SettingsPanel from "./SettingsPanel";
 import CapturedBar from "./CapturedBar";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
@@ -62,12 +62,12 @@ import { describeEnding } from "./friend/ending";
 import { friendlyGameName } from "./friend/gameName";
 import PlayerName from "./friend/PlayerName";
 import { useFriendGame } from "./friend/useFriendGame";
-import type { Options } from "./options";
-import { DEFAULT_OPTIONS } from "./presets";
+import type { Settings } from "./settings";
+import { DEFAULT_SETTINGS } from "./presets";
 
 export default function App() {
-  const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
-  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   /*
     What the page opens on. A link may name a position; read once, at the first
     render, so that stepping away from it afterwards is not undone by a later
@@ -464,7 +464,7 @@ export default function App() {
     Which army is at which end of the board as it stands. The names follow the
     board rather than the players, so turning it round moves them with it.
   */
-  const nearSide: Color = options.orientation === "black" ? "b" : "w";
+  const nearSide: Color = settings.orientation === "black" ? "b" : "w";
   const farSide: Color = nearSide === "w" ? "b" : "w";
 
   /*
@@ -503,7 +503,7 @@ export default function App() {
       return;
     }
     seated.current = phase.gameId;
-    setOptions((current) => ({
+    setSettings((current) => ({
       ...current,
       orientation: phase.you === "b" ? "black" : "white",
     }));
@@ -512,14 +512,14 @@ export default function App() {
   // On the document root rather than a wrapper: the frame colour has to reach
   // the whole viewport, and this component only owns part of it.
   useEffect(() => {
-    document.documentElement.dataset.theme = options.theme;
+    document.documentElement.dataset.theme = settings.theme;
     // Read only from inside the dark theme's own block, so publishing it under
     // the light theme is inert rather than something to guard against.
     document.documentElement.style.setProperty(
       "--dark-theme-fg",
-      options.darkThemeTextColor,
+      settings.darkThemeTextColor,
     );
-  }, [options.theme, options.darkThemeTextColor]);
+  }, [settings.theme, settings.darkThemeTextColor]);
 
   // A FEN is unparseable for most of the time it takes to type one, so the
   // board keeps showing the last position that did parse rather than blanking.
@@ -590,10 +590,10 @@ export default function App() {
         <button
           type="button"
           className="gear-button"
-          aria-label="Options"
-          aria-expanded={optionsOpen}
-          title="Options"
-          onClick={() => setOptionsOpen((open) => !open)}
+          aria-label="Settings"
+          aria-expanded={settingsOpen}
+          title="Settings"
+          onClick={() => setSettingsOpen((open) => !open)}
         >
           <GearIcon />
         </button>
@@ -605,7 +605,7 @@ export default function App() {
           {shown !== null && (
             <div
               className={
-                options.showTakenPieces
+                settings.showTakenPieces
                   ? "board-and-players"
                   : "board-and-players board-and-players-bare"
               }
@@ -625,12 +625,12 @@ export default function App() {
               <div className="board-with-captured">
                 <Board
                 position={shown}
-                colors={options.boardColors}
-                pieceTint={options.pieceTint}
-                attacks={options.attacks}
+                colors={settings.boardColors}
+                pieceTint={settings.pieceTint}
+                attacks={settings.attacks}
                 onMove={handleMove}
-                showGrid={options.showGrid}
-                gridColor={options.gridColor}
+                showGrid={settings.showGrid}
+                gridColor={settings.gridColor}
                 playable={
                   friend.phase.kind === "playing" ? friend.phase.you : null
                 }
@@ -642,16 +642,16 @@ export default function App() {
                   (history.current !== 0 || !friend.link.mine)
                 }
                 lastMove={lastMove}
-                lastMoveColor={options.lastMoveColor}
-                lastMoveOpacity={options.lastMoveOpacity}
-                orientation={options.orientation}
+                lastMoveColor={settings.lastMoveColor}
+                lastMoveOpacity={settings.lastMoveOpacity}
+                orientation={settings.orientation}
               />
-                {options.showTakenPieces && (
+                {settings.showTakenPieces && (
                   <CapturedBar
                     captures={captures}
-                    orientation={options.orientation}
-                    pieceTint={options.pieceTint}
-                    attacks={options.attacks}
+                    orientation={settings.orientation}
+                    pieceTint={settings.pieceTint}
+                    attacks={settings.attacks}
                   />
                 )}
               </div>
@@ -747,10 +747,10 @@ export default function App() {
             <ToggleField
               id="flip-board"
               label="Black at bottom"
-              checked={options.orientation === "black"}
+              checked={settings.orientation === "black"}
               onChange={(flipped) =>
-                setOptions({
-                  ...options,
+                setSettings({
+                  ...settings,
                   orientation: flipped ? "black" : "white",
                 })
               }
@@ -915,7 +915,7 @@ export default function App() {
           </div>
 
           {/*
-            Out here rather than in the options panel: turning a side's marks
+            Out here rather than in the settings panel: turning a side's marks
             off is part of reading the board, not of setting it up, and is
             reached for as often as the board is flipped.
           */}
@@ -923,13 +923,13 @@ export default function App() {
             <ToggleField
               id="show-my-attacks"
               label="Show my attack rays"
-              checked={options.attacks.showAttacks.me}
+              checked={settings.attacks.showAttacks.me}
               onChange={(me) =>
-                setOptions({
-                  ...options,
+                setSettings({
+                  ...settings,
                   attacks: {
-                    ...options.attacks,
-                    showAttacks: { ...options.attacks.showAttacks, me },
+                    ...settings.attacks,
+                    showAttacks: { ...settings.attacks.showAttacks, me },
                   },
                 })
               }
@@ -937,24 +937,24 @@ export default function App() {
             <ToggleField
               id="show-opponent-attacks"
               label="Show opponent's attack rays"
-              checked={options.attacks.showAttacks.opponent}
+              checked={settings.attacks.showAttacks.opponent}
               onChange={(opponent) =>
-                setOptions({
-                  ...options,
+                setSettings({
+                  ...settings,
                   attacks: {
-                    ...options.attacks,
-                    showAttacks: { ...options.attacks.showAttacks, opponent },
+                    ...settings.attacks,
+                    showAttacks: { ...settings.attacks.showAttacks, opponent },
                   },
                 })
               }
             />
           </div>
 
-          {optionsOpen && (
-            <OptionsPanel
-              options={options}
-              defaults={DEFAULT_OPTIONS}
-              onChange={setOptions}
+          {settingsOpen && (
+            <SettingsPanel
+              settings={settings}
+              defaults={DEFAULT_SETTINGS}
+              onChange={setSettings}
             />
           )}
         </div>

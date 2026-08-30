@@ -9,7 +9,7 @@ export default function QueenAttacks({
   piece,
   idPrefix,
   orientation,
-  attackOptions,
+  attackSettings,
   geometry,
 }: PieceAttackProps) {
   return (
@@ -18,12 +18,12 @@ export default function QueenAttacks({
       axes={queenAttackAxes(
         position,
         piece.square,
-        attackOptions.xRayDecayFactor
+        attackSettings.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-queen"
       stripe={geometry.queenRay}
       innerSquares={innerSquares(geometry)}
-      fullWidth={attackOptions.fullWidthDiagonalRays}
+      fullWidth={attackSettings.fullWidthDiagonalRays}
       idPrefix={idPrefix}
       orientation={orientation}
     />

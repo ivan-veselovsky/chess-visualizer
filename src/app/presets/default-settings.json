@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 27,
+  "theme": "dark",
+  "darkThemeTextColor": "#bababa",
+  "boardColors": {
+    "lightSquare": "#ccdccc",
+    "darkSquare": "#bfbfbf"
+  },
+  "lastMoveColor": "#dbd524",
+  "lastMoveOpacity": 0.6,
+  "orientation": "white",
+  "showGrid": false,
+  "gridColor": "#5e5e5e",
+  "showTakenPieces": true,
+  "pieceTint": {
+    "lightenWhite": 0.9,
+    "darkenBlack": 0.8
+  },
+  "attacks": {
+    "showAttacks": {
+      "me": true,
+      "opponent": true
+    },
+    "knightGeometry": "arc",
+    "squareShading": {
+      "showMine": false,
+      "showOpponent": false,
+      "me": "#1100ff",
+      "opponent": "#ff5900",
+      "strength": 0.16
+    },
+    "straightRayOpacityDecay": 0.25,
+    "showPins": true,
+    "pinRingColor": "#616161",
+    "pinRingDiameter": 0.85,
+    "showCheck": true,
+    "showCheckmate": true,
+    "checkColor": "#ff4929",
+    "checkmateColor": "#a30000",
+    "colors": {
+      "me": {
+        "king": "#0040ff",
+        "queen": "#0040ff",
+        "rook": "#0040ff",
+        "bishop": "#0040ff",
+        "knight": "#0040ff",
+        "pawn": "#0040ff"
+      },
+      "opponent": {
+        "king": "#fa5700",
+        "queen": "#fa5700",
+        "rook": "#fa5700",
+        "bishop": "#fa5700",
+        "knight": "#fa5700",
+        "pawn": "#fa5700"
+      }
+    },
+    "outlineWidths": {
+      "me": 0,
+      "opponent": 0
+    },
+    "outlineColors": {
+      "me": "#ffffff",
+      "opponent": "#000000"
+    },
+    "rayOpacity": {
+      "me": 0.45,
+      "opponent": 0.45
+    },
+    "outlineOpacity": {
+      "me": 1,
+      "opponent": 1
+    },
+    "xRayDecayFactor": 0,
+    "fullWidthDiagonalRays": true,
+    "geometry": {
+      "me": {
+        "smallInnerSquare": 0.55,
+        "largeInnerSquare": 0.7,
+        "kingRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        },
+        "queenRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        },
+        "rookRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        },
+        "bishopRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        },
+        "knightRing": {
+          "innerRadius": 2.25,
+          "outerRadius": 2.45,
+          "gapWidth": 0
+        },
+        "pawnRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        }
+      },
+      "opponent": {
+        "smallInnerSquare": 0.55,
+        "largeInnerSquare": 0.7,
+        "kingRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        },
+        "queenRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        },
+        "rookRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        },
+        "bishopRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        },
+        "knightRing": {
+          "innerRadius": 2.25,
+          "outerRadius": 2.45,
+          "gapWidth": 0
+        },
+        "pawnRay": {
+          "rayWidth": 0.2,
+          "gapWidth": 0
+        }
+      }
+    }
+  }
+}

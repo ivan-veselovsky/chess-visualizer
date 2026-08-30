@@ -29,7 +29,7 @@ export default function PawnAttacks({
   piece,
   idPrefix,
   orientation,
-  attackOptions,
+  attackSettings,
   geometry,
 }: PieceAttackProps) {
   const bands = stripeBands(geometry.pawnRay);
@@ -42,7 +42,7 @@ export default function PawnAttacks({
     return null;
   }
 
-  const fullWidth = attackOptions.fullWidthDiagonalRays;
+  const fullWidth = attackSettings.fullWidthDiagonalRays;
   const { small: smallHalfSide, large: largeHalfSide } = innerSquares(geometry);
   const halfWidth = (Math.max(geometry.pawnRay.rayWidth, 0) * SQUARE_SIZE) / 2;
   const center = squareCenter(piece.square, orientation);

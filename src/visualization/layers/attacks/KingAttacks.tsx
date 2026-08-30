@@ -12,7 +12,7 @@ export default function KingAttacks({
   piece,
   idPrefix,
   orientation,
-  attackOptions,
+  attackSettings,
   geometry,
 }: PieceAttackProps) {
   return (
@@ -21,12 +21,12 @@ export default function KingAttacks({
       axes={kingAttackAxes(
         position,
         piece.square,
-        attackOptions.xRayDecayFactor
+        attackSettings.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-king"
       stripe={geometry.kingRay}
       innerSquares={innerSquares(geometry)}
-      fullWidth={attackOptions.fullWidthDiagonalRays}
+      fullWidth={attackSettings.fullWidthDiagonalRays}
       idPrefix={idPrefix}
       orientation={orientation}
     />

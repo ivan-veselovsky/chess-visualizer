@@ -162,7 +162,7 @@ export default function ChallengeDialog({
 
       {/*
         One question — where does this game start — and one control for it.
-        Odds and a game taken up are alternatives, not two settings that happen
+        Odds and a game taken up are alternatives, not two choices that happen
         to conflict: both answer it, and the object refuses to be told twice.
       */}
       <div className="board-controls">

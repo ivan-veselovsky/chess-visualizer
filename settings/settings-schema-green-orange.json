@@ -1,5 +1,5 @@
 {
-  "optionsSchemaVersion": 27,
+  "schemaVersion": 27,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {

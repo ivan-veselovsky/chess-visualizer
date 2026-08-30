@@ -4,7 +4,9 @@
 
 Love chess but hate missing the obvious?
 
-**Put your right brain to work alongside your left.** Chess Visualizer reveals the structure of a position at a glance: critical, weak, and contested squares—and how pieces attack, support, and constrain one another.
+### Put your right brain to work alongside your left. 
+
+Chess Visualizer reveals the structure of a position at a glance: critical, weak, and contested squares—and how pieces attack, support, and constrain one another.
 
 ### Features
 
@@ -24,11 +26,13 @@ Love chess but hate missing the obvious?
 
 - **And plenty more** — share a position or a game as a link, read the material balance off the captured-pieces bar, and put a game aside in the stash while you look at another.
 
-[Try Chess Visualizer online](https://chess-visualizer.ivan-a87.workers.dev).
+Learn. Play. Enjoy.
+
+**Give it a try and share your thoughts!**
+
+### [Try Chess Visualizer online](https://chess-visualizer.ivan-a87.workers.dev).
 
 Chess Visualizer is open source and released under the [MIT License](LICENSE).
-
-Give it a try, share your thoughts, and enjoy the game!
 
 Like this project? You can [♥$ support](https://github.com/sponsors/ivan-veselovsky) the developer.
 

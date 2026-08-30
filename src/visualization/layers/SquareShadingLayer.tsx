@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Chess, type Color, type Square } from "chess.js";
 import { mix, readRgb, toHex } from "../color";
 import { FILES, RANKS, squareBox, type Orientation } from "../geometry";
-import type { SquareShading } from "../options";
+import type { SquareShading } from "../settings";
 
 interface SquareShadingLayerProps {
   position: Chess;

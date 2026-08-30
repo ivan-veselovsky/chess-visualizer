@@ -1,19 +1,26 @@
-import { OPTIONS_SCHEMA_VERSION, type Options } from "./options";
+/*
+  Written with its extension, unlike the imports elsewhere. This module is
+  exercised by `tests/unit.mjs`, which node runs straight from the TypeScript
+  with no bundler to guess at extensions — and the version it reads files
+  against is a value rather than a type, so it has to resolve at run time.
+  `allowImportingTsExtensions` is on for exactly this.
+*/
+import { SETTINGS_SCHEMA_VERSION, type Settings } from "./settings.ts";
 
 export const SETTINGS_FILE_NAME = "chess-visualizer-settings.json";
 
 /**
- * Settings as they are written to a file: the whole `Options` object, schema
+ * Settings as they are written to a file: the whole `Settings` object, schema
  * version and all. Nothing is stripped — a file that omitted anything would
  * import as a partial object, which is what the version is there to prevent.
  */
-export function settingsToJson(options: Options): string {
-  return `${JSON.stringify(options, null, 2)}\n`;
+export function settingsToJson(settings: Settings): string {
+  return `${JSON.stringify(settings, null, 2)}\n`;
 }
 
 /** Hands the browser a settings file to save. */
-export function downloadSettings(options: Options): void {
-  const blob = new Blob([settingsToJson(options)], {
+export function downloadSettings(settings: Settings): void {
+  const blob = new Blob([settingsToJson(settings)], {
     type: "application/json",
   });
   const url = URL.createObjectURL(blob);
@@ -25,7 +32,7 @@ export function downloadSettings(options: Options): void {
 }
 
 export interface ImportResult {
-  options: Options | null;
+  settings: Settings | null;
   /** Why the file was rejected, when it was. */
   error: string | null;
 }
@@ -55,26 +62,33 @@ export function parseSettings(text: string): ImportResult {
   try {
     raw = JSON.parse(text);
   } catch {
-    return { options: null, error: "That file is not valid JSON." };
+    return { settings: null, error: "That file is not valid JSON." };
   }
 
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-    return { options: null, error: "That file does not hold a settings object." };
+    return { settings: null, error: "That file does not hold a settings object." };
   }
 
   const candidate = raw as Record<string, unknown>;
-  const version = candidate.optionsSchemaVersion;
+  /*
+    The field was called `optionsSchemaVersion` while the settings were called
+    options, and files written then are still on people's disks. Read either
+    name, and there is no need to raise the version over it: the shape those
+    files hold is the shape this build reads, and only the label on the door
+    has changed.
+  */
+  const version = candidate.schemaVersion ?? candidate.optionsSchemaVersion;
 
   if (typeof version !== "number") {
     return {
-      options: null,
-      error: `No schema version in that file; this build reads ${OPTIONS_SCHEMA_VERSION}.`,
+      settings: null,
+      error: `No schema version in that file; this build reads ${SETTINGS_SCHEMA_VERSION}.`,
     };
   }
-  if (version !== OPTIONS_SCHEMA_VERSION) {
+  if (version !== SETTINGS_SCHEMA_VERSION) {
     return {
-      options: null,
-      error: `Those settings are version ${version}; this build reads ${OPTIONS_SCHEMA_VERSION}.`,
+      settings: null,
+      error: `Those settings are version ${version}; this build reads ${SETTINGS_SCHEMA_VERSION}.`,
     };
   }
 
@@ -84,10 +98,17 @@ export function parseSettings(text: string): ImportResult {
   const missing = REQUIRED_KEYS.filter((key) => !(key in candidate));
   if (missing.length > 0) {
     return {
-      options: null,
+      settings: null,
       error: `Those settings are missing: ${missing.join(", ")}.`,
     };
   }
 
-  return { options: candidate as unknown as Options, error: null };
+  /*
+    Handed back under the modern name whichever it arrived under, so that
+    nothing downstream has to know there were ever two, and so that exporting a
+    file that was read from an old one writes the new name.
+  */
+  const settings = { ...candidate, schemaVersion: version } as unknown as Settings;
+  delete (settings as unknown as Record<string, unknown>).optionsSchemaVersion;
+  return { settings, error: null };
 }

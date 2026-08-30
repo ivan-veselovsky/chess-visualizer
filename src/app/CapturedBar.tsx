@@ -7,7 +7,7 @@ import {
 } from "../chess/captures";
 import { PIECE_GLYPHS } from "../chess/model";
 import type { Orientation } from "../visualization/geometry";
-import type { AttackOptions, PieceTint } from "../visualization/options";
+import type { AttackSettings, PieceTint } from "../visualization/settings";
 import { pieceVars } from "../visualization/pieceVars";
 
 interface CapturedBarProps {
@@ -15,7 +15,7 @@ interface CapturedBarProps {
   /** Which army is at the bottom of the board, and so whose end is whose. */
   orientation: Orientation;
   pieceTint: PieceTint;
-  attacks: AttackOptions;
+  attacks: AttackSettings;
 }
 
 const NAMES: Record<PieceSymbol, [string, string]> = {

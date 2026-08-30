@@ -1,12 +1,12 @@
-import type { Options } from "../options";
+import type { Settings } from "../settings";
 import { parseSettings } from "../settingsFile";
-import defaults from "./default-options.json";
+import defaults from "./default-settings.json";
 
 /**
  * The settings the app starts on, and the baseline every Reset button restores.
  *
  * Kept as JSON in exactly the shape "Export settings" writes, so a set of
- * options tuned in the browser can be exported and dropped in here as the new
+ * settings tuned in the browser can be exported and dropped in here as the new
  * default with no translation step. That is the whole reason it is not a
  * TypeScript object: the file is meant to be interchangeable with an exported
  * one.
@@ -20,8 +20,8 @@ import defaults from "./default-options.json";
  */
 const parsed = parseSettings(JSON.stringify(defaults));
 
-if (parsed.options === null) {
-  throw new Error(`default-options.json is unusable: ${parsed.error}`);
+if (parsed.settings === null) {
+  throw new Error(`default-settings.json is unusable: ${parsed.error}`);
 }
 
-export const DEFAULT_OPTIONS: Options = parsed.options;
+export const DEFAULT_SETTINGS: Settings = parsed.settings;

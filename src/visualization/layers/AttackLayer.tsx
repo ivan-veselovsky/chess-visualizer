@@ -7,7 +7,7 @@ import {
   type Orientation,
   type SettingsSide,
 } from "../geometry";
-import type { AttackOptions } from "../options";
+import type { AttackSettings } from "../settings";
 import BishopAttacks from "./attacks/BishopAttacks";
 import KingAttacks from "./attacks/KingAttacks";
 import KnightAttacks from "./attacks/KnightAttacks";
@@ -34,7 +34,7 @@ const ATTACK_RENDERERS: Partial<
 interface AttackLayerProps {
   position: Chess;
   pieces: PlacedPiece[];
-  attackOptions: AttackOptions;
+  attackSettings: AttackSettings;
   /**
    * Square whose piece is in hand — dragged, or picked out by a click. Its
    * marks are left out either way: the board is being read to choose a move,
@@ -49,7 +49,7 @@ interface AttackLayerProps {
 export default function AttackLayer({
   position,
   pieces,
-  attackOptions,
+  attackSettings,
   lifted = null,
   orientation = "white",
 }: AttackLayerProps) {
@@ -57,13 +57,13 @@ export default function AttackLayer({
   const idPrefix = `attack-${useId().replace(/:/g, "")}`;
   const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
   const opacityFor = (side: SettingsSide) =>
-    clamp(attackOptions.rayOpacity[side]);
+    clamp(attackSettings.rayOpacity[side]);
 
   // One filter per side, each emitted only if that side's outline is wanted.
   const sides = (["me", "opponent"] as const).map((side) => ({
     side,
     id: `${idPrefix}-outline-${side}`,
-    width: Math.max(attackOptions.outlineWidths[side], 0) * SQUARE_SIZE,
+    width: Math.max(attackSettings.outlineWidths[side], 0) * SQUARE_SIZE,
   }));
   const outlineFor = (side: SettingsSide) =>
     sides.find((entry) => entry.side === side && entry.width > 0);
@@ -116,7 +116,7 @@ export default function AttackLayer({
             />
             <feFlood
               className={`attack-outline-ink-${entry.side}`}
-              floodOpacity={clamp(attackOptions.outlineOpacity[entry.side])}
+              floodOpacity={clamp(attackSettings.outlineOpacity[entry.side])}
               result="ink"
             />
             <feComposite in="ink" in2="ring" operator="in" result="outline" />
@@ -138,7 +138,7 @@ export default function AttackLayer({
         // Which settings this piece draws with: its end of the board, not its
         // colour, so flipping hands the near-side look to the other army.
         const side = settingsSide(piece.color, orientation);
-        if (!attackOptions.showAttacks[side]) {
+        if (!attackSettings.showAttacks[side]) {
           return null;
         }
         const outline = outlineFor(side);
@@ -156,8 +156,8 @@ export default function AttackLayer({
                 piece={piece}
                 idPrefix={`${idPrefix}-${piece.square}`}
                 orientation={orientation}
-                attackOptions={attackOptions}
-                geometry={attackOptions.geometry[side]}
+                attackSettings={attackSettings}
+                geometry={attackSettings.geometry[side]}
               />
             </g>
           </g>

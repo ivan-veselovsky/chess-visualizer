@@ -1,5 +1,5 @@
 import { SQUARE_SIZE } from "../../geometry";
-import type { RayStyle } from "../../options";
+import type { RayStyle } from "../../settings";
 
 /** One band of a stripe: how far off the centre line, and how thick. */
 export interface Band {

@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { AttackOptions, PieceTint } from "./options";
+import type { AttackSettings, PieceTint } from "./settings";
 
 /** A 0..1 fraction as a CSS percentage. */
 function percent(fraction: number): string {
@@ -18,7 +18,7 @@ function percent(fraction: number): string {
  */
 export function pieceVars(
   pieceTint: PieceTint,
-  attacks: AttackOptions,
+  attacks: AttackSettings,
 ): CSSProperties {
   return {
     // One per piece per side. Which of each pair applies is decided by a class

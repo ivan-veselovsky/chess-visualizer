@@ -3,10 +3,10 @@ import ColorDialog from "./ColorDialog";
 import NumberInput from "./NumberInput";
 import {
   type AttackColors,
-  type AttackOptions,
+  type AttackSettings,
   type AttackGeometry,
   type RayStyle,
-} from "./options";
+} from "./settings";
 
 type Side = "me" | "opponent";
 
@@ -24,8 +24,8 @@ const OUTLINE_HINT =
   "The outline traced around this side's marks, to tell them from the other side's: its colour, and its width in square sides. A hairline is a hundredth or so; zero draws none.";
 
 interface AttackTableProps {
-  attacks: AttackOptions;
-  onChange: (patch: Partial<AttackOptions>) => void;
+  attacks: AttackSettings;
+  onChange: (patch: Partial<AttackSettings>) => void;
 }
 
 /** One editable number in the table. */
@@ -354,7 +354,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
         })();
 
   return (
-    <section className="options-group">
+    <section className="settings-group">
       <table className="stripe-table stripe-table-wide">
         {/*
           Widths have to be declared here. Under `table-layout: fixed` the

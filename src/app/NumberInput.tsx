@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { parseNumber } from "./options";
+import { parseNumber } from "./settings";
 
 interface NumberInputProps {
   id: string;

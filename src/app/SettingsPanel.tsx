@@ -7,32 +7,32 @@ import NumberField from "./NumberField";
 import SelectField from "./SelectField";
 import ToggleField from "./ToggleField";
 import type {
-  AttackOptions,
+  AttackSettings,
   BoardColors,
   KnightGeometry,
-  Options,
+  Settings,
   OutlineOpacity,
   RayOpacity,
   PieceTint,
   SquareShading,
-} from "./options";
+} from "./settings";
 import { downloadSettings, parseSettings } from "./settingsFile";
 
-interface OptionsPanelProps {
-  options: Options;
+interface SettingsPanelProps {
+  settings: Settings;
   /**
    * What Reset restores to. Passed in rather than imported so the panel resets
    * to whichever preset is in force, not to one hard-coded set.
    */
-  defaults: Options;
-  onChange: (options: Options) => void;
+  defaults: Settings;
+  onChange: (settings: Settings) => void;
 }
 
-export default function OptionsPanel({
-  options,
+export default function SettingsPanel({
+  settings,
   defaults,
   onChange,
-}: OptionsPanelProps) {
+}: SettingsPanelProps) {
   /** Asked when shading goes on and the board is still a checkerboard. */
   const [askPlainBoard, setAskPlainBoard] = useState(false);
 
@@ -40,7 +40,7 @@ export default function OptionsPanel({
   const [importError, setImportError] = useState<string | null>(null);
 
   async function readSettingsFile(file: File) {
-    const { options: loaded, error } = parseSettings(await file.text());
+    const { settings: loaded, error } = parseSettings(await file.text());
     setImportError(error);
     if (loaded !== null) {
       onChange(loaded);
@@ -49,34 +49,34 @@ export default function OptionsPanel({
 
   function updateBoardColors(patch: Partial<BoardColors>) {
     onChange({
-      ...options,
-      boardColors: { ...options.boardColors, ...patch },
+      ...settings,
+      boardColors: { ...settings.boardColors, ...patch },
     });
   }
 
   function updatePieceTint(patch: Partial<PieceTint>) {
-    onChange({ ...options, pieceTint: { ...options.pieceTint, ...patch } });
+    onChange({ ...settings, pieceTint: { ...settings.pieceTint, ...patch } });
   }
 
-  function updateAttacks(patch: Partial<AttackOptions>) {
-    onChange({ ...options, attacks: { ...options.attacks, ...patch } });
+  function updateAttacks(patch: Partial<AttackSettings>) {
+    onChange({ ...settings, attacks: { ...settings.attacks, ...patch } });
   }
 
   function updateRayOpacity(patch: Partial<RayOpacity>) {
     updateAttacks({
-      rayOpacity: { ...options.attacks.rayOpacity, ...patch },
+      rayOpacity: { ...settings.attacks.rayOpacity, ...patch },
     });
   }
 
   function updateOutlineOpacity(patch: Partial<OutlineOpacity>) {
     updateAttacks({
-      outlineOpacity: { ...options.attacks.outlineOpacity, ...patch },
+      outlineOpacity: { ...settings.attacks.outlineOpacity, ...patch },
     });
   }
 
   function updateShading(patch: Partial<SquareShading>) {
     updateAttacks({
-      squareShading: { ...options.attacks.squareShading, ...patch },
+      squareShading: { ...settings.attacks.squareShading, ...patch },
     });
     /*
       Shading colours whole squares, and a checkerboard underneath gives every
@@ -87,59 +87,59 @@ export default function OptionsPanel({
     */
     if (
       (patch.showMine === true || patch.showOpponent === true) &&
-      options.boardColors.darkSquare !== options.boardColors.lightSquare
+      settings.boardColors.darkSquare !== settings.boardColors.lightSquare
     ) {
       setAskPlainBoard(true);
     }
   }
 
   return (
-    <aside className="options-panel" aria-label="Options">
+    <aside className="settings-panel" aria-label="Settings">
       <ConfirmDialog
         open={askPlainBoard}
         question="Make both board squares the same colour?"
-        detail={`Shading colours the squares themselves, and a checkerboard under it gives each colour two readings. This sets the dark squares to ${options.boardColors.lightSquare}, the colour the light ones already are.`}
+        detail={`Shading colours the squares themselves, and a checkerboard under it gives each colour two readings. This sets the dark squares to ${settings.boardColors.lightSquare}, the colour the light ones already are.`}
         confirmLabel="Make them plain"
         dismissLabel="Keep the checkerboard"
         onConfirm={() =>
-          updateBoardColors({ darkSquare: options.boardColors.lightSquare })
+          updateBoardColors({ darkSquare: settings.boardColors.lightSquare })
         }
         onClose={() => setAskPlainBoard(false)}
       />
 
-      <section className="options-group">
+      <section className="settings-group">
         <div className="field-row field-row-apart">
           <ToggleField
             id="dark-theme"
             label="Dark theme"
-            checked={options.theme === "dark"}
+            checked={settings.theme === "dark"}
             onChange={(dark) =>
-              onChange({ ...options, theme: dark ? "dark" : "light" })
+              onChange({ ...settings, theme: dark ? "dark" : "light" })
             }
           />
           <ColorField
             id="dark-theme-text"
             label="Dark theme text color"
-            value={options.darkThemeTextColor}
+            value={settings.darkThemeTextColor}
             onChange={(color) =>
-              onChange({ ...options, darkThemeTextColor: color })
+              onChange({ ...settings, darkThemeTextColor: color })
             }
           />
         </div>
       </section>
 
-      <section className="options-group">
+      <section className="settings-group">
         <div className="field-row">
           <ColorField
             id="light-square"
             label="Light board squares"
-            value={options.boardColors.lightSquare}
+            value={settings.boardColors.lightSquare}
             onChange={(lightSquare) => updateBoardColors({ lightSquare })}
           />
           <ColorField
             id="dark-square"
             label="Dark board squares"
-            value={options.boardColors.darkSquare}
+            value={settings.boardColors.darkSquare}
             onChange={(darkSquare) => updateBoardColors({ darkSquare })}
           />
         </div>
@@ -147,19 +147,19 @@ export default function OptionsPanel({
           <ColorField
             id="last-move-color"
             label="Last move highlight color"
-            value={options.lastMoveColor}
-            onChange={(lastMoveColor) => onChange({ ...options, lastMoveColor })}
+            value={settings.lastMoveColor}
+            onChange={(lastMoveColor) => onChange({ ...settings, lastMoveColor })}
           />
           <NumberField
             id="last-move-opacity"
             inline
             label="Last move highlight opacity"
-            value={options.lastMoveOpacity}
+            value={settings.lastMoveOpacity}
             step={0.05}
             max={1}
             allowZero
             onChange={(lastMoveOpacity) =>
-              onChange({ ...options, lastMoveOpacity })
+              onChange({ ...settings, lastMoveOpacity })
             }
           />
         </div>
@@ -167,34 +167,34 @@ export default function OptionsPanel({
           <ToggleField
             id="show-grid"
             label="Show grid"
-            checked={options.showGrid}
-            onChange={(showGrid) => onChange({ ...options, showGrid })}
+            checked={settings.showGrid}
+            onChange={(showGrid) => onChange({ ...settings, showGrid })}
           />
           <ColorField
             id="grid-color"
             label="Grid color"
-            value={options.gridColor}
-            onChange={(gridColor) => onChange({ ...options, gridColor })}
+            value={settings.gridColor}
+            onChange={(gridColor) => onChange({ ...settings, gridColor })}
           />
         </div>
         <ToggleField
           id="show-taken-pieces"
           label="Show taken pieces"
-          checked={options.showTakenPieces}
+          checked={settings.showTakenPieces}
           onChange={(showTakenPieces) =>
-            onChange({ ...options, showTakenPieces })
+            onChange({ ...settings, showTakenPieces })
           }
         />
       </section>
 
-      <section className="options-group">
+      <section className="settings-group">
         <div className="field-row">
           <NumberField
             id="piece-lighten"
             inline
             hint="How far each side is pulled from its attack colour: 0 keeps the colour exactly, 1 bleaches it to white or black."
             label="Lighten white pieces"
-            value={options.pieceTint.lightenWhite}
+            value={settings.pieceTint.lightenWhite}
             step={0.05}
             max={1}
             allowZero
@@ -205,7 +205,7 @@ export default function OptionsPanel({
             inline
             hint="How far each side is pulled from its attack colour: 0 keeps the colour exactly, 1 bleaches it to white or black."
             label="Darken black pieces"
-            value={options.pieceTint.darkenBlack}
+            value={settings.pieceTint.darkenBlack}
             step={0.05}
             max={1}
             allowZero
@@ -214,15 +214,15 @@ export default function OptionsPanel({
         </div>
       </section>
 
-      <AttackTable attacks={options.attacks} onChange={updateAttacks} />
+      <AttackTable attacks={settings.attacks} onChange={updateAttacks} />
 
-      <section className="options-group">
+      <section className="settings-group">
         <div className="field-row">
           <NumberField
             id="my-ray-opacity"
             inline
             label="My attack ray opacity"
-            value={options.attacks.rayOpacity.me}
+            value={settings.attacks.rayOpacity.me}
             step={0.05}
             max={1}
             allowZero
@@ -232,7 +232,7 @@ export default function OptionsPanel({
             id="opponent-ray-opacity"
             inline
             label="Opponent attack ray opacity"
-            value={options.attacks.rayOpacity.opponent}
+            value={settings.attacks.rayOpacity.opponent}
             step={0.05}
             max={1}
             allowZero
@@ -245,7 +245,7 @@ export default function OptionsPanel({
             inline
             hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
             label="My outline opacity"
-            value={options.attacks.outlineOpacity.me}
+            value={settings.attacks.outlineOpacity.me}
             step={0.05}
             max={1}
             allowZero
@@ -256,7 +256,7 @@ export default function OptionsPanel({
             inline
             hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
             label="Opponent outline opacity"
-            value={options.attacks.outlineOpacity.opponent}
+            value={settings.attacks.outlineOpacity.opponent}
             step={0.05}
             max={1}
             allowZero
@@ -268,7 +268,7 @@ export default function OptionsPanel({
           inline
           label="X-ray decay factor"
           suffix="× (0 = no x-ray)"
-          value={options.attacks.xRayDecayFactor}
+          value={settings.attacks.xRayDecayFactor}
           allowZero
           max={1}
           onChange={(xRayDecayFactor) => updateAttacks({ xRayDecayFactor })}
@@ -277,7 +277,7 @@ export default function OptionsPanel({
           id="knight-geometry"
           label="Knight attack geometry"
           hint="How the knight's ring is finished off on each square: cut between two radii, or cut by the square with a tail pointing back at the knight — along the board's lines, or along the radius."
-          value={options.attacks.knightGeometry}
+          value={settings.attacks.knightGeometry}
           choices={[
             { value: "arc", label: "Arc" },
             { value: "gamma-1", label: "Gamma 1" },
@@ -292,7 +292,7 @@ export default function OptionsPanel({
           hint="What the straight-ray geometry's marks are drawn at where they only pass through, on the way to the square they reach — as a factor on that side's attack ray opacity, not an opacity of its own."
           label="Knight straight ray opacity decay"
           suffix="× ray opacity"
-          value={options.attacks.straightRayOpacityDecay}
+          value={settings.attacks.straightRayOpacityDecay}
           step={0.05}
           max={1}
           allowZero
@@ -304,7 +304,7 @@ export default function OptionsPanel({
           id="full-rays"
             hint="Keep diagonal rays at full width through the corners where their squares meet, spilling onto the squares to either side."
           label="Full-width diagonal rays"
-          checked={options.attacks.fullWidthDiagonalRays}
+          checked={settings.attacks.fullWidthDiagonalRays}
           onChange={(fullWidthDiagonalRays) => updateAttacks({ fullWidthDiagonalRays })}
         />
         <div className="field-row field-row-halves">
@@ -312,13 +312,13 @@ export default function OptionsPanel({
             id="show-pins"
             hint="Ring any piece that cannot leave the line it stands on without exposing its own king."
             label="Show pins"
-            checked={options.attacks.showPins}
+            checked={settings.attacks.showPins}
             onChange={(showPins) => updateAttacks({ showPins })}
           />
           <ColorField
             id="pin-ring-color"
             label="Pin ring color"
-            value={options.attacks.pinRingColor}
+            value={settings.attacks.pinRingColor}
             onChange={(pinRingColor) => updateAttacks({ pinRingColor })}
           />
         </div>
@@ -327,7 +327,7 @@ export default function OptionsPanel({
           inline
           label="Pin ring diameter"
           suffix="squares"
-          value={options.attacks.pinRingDiameter}
+          value={settings.attacks.pinRingDiameter}
           allowZero
           onChange={(pinRingDiameter) => updateAttacks({ pinRingDiameter })}
         />
@@ -336,13 +336,13 @@ export default function OptionsPanel({
             id="show-check"
             hint="Tint the king's own glyph when it stands in check."
             label="Show check"
-            checked={options.attacks.showCheck}
+            checked={settings.attacks.showCheck}
             onChange={(showCheck) => updateAttacks({ showCheck })}
           />
           <ColorField
             id="check-color"
             label="Check color"
-            value={options.attacks.checkColor}
+            value={settings.attacks.checkColor}
             onChange={(checkColor) => updateAttacks({ checkColor })}
           />
         </div>
@@ -351,13 +351,13 @@ export default function OptionsPanel({
             id="show-checkmate"
             hint="Tint the king's own glyph when it is mated. Takes precedence over check, mate being one as well."
             label="Show checkmate"
-            checked={options.attacks.showCheckmate}
+            checked={settings.attacks.showCheckmate}
             onChange={(showCheckmate) => updateAttacks({ showCheckmate })}
           />
           <ColorField
             id="checkmate-color"
             label="Checkmate color"
-            value={options.attacks.checkmateColor}
+            value={settings.attacks.checkmateColor}
             onChange={(checkmateColor) => updateAttacks({ checkmateColor })}
           />
         </div>
@@ -370,9 +370,9 @@ export default function OptionsPanel({
         than a setting for the marks on it, and grouping it with them would
         suggest it were one more of them.
       */}
-      <hr className="options-divider" />
+      <hr className="settings-divider" />
 
-      <section className="options-group">
+      <section className="settings-group">
         {/* A different question from the rays, and shown independently: the
             rays say where a piece can go, this says how contested a square is.
             Each side has a switch of its own: both together say who holds a
@@ -385,14 +385,14 @@ export default function OptionsPanel({
             id="shade-mine"
             hint="Colour every square my men cover, more strongly where more of them cover it."
             label="Shade squares attacked by my pieces"
-            checked={options.attacks.squareShading.showMine}
+            checked={settings.attacks.squareShading.showMine}
             onChange={(showMine) => updateShading({ showMine })}
           />
           <ToggleField
             id="shade-theirs"
             hint="The same for the other end of the board. With both on, a square takes a blend of the two, weighted by how many attackers each side has."
             label="Shade squares attacked by opponent"
-            checked={options.attacks.squareShading.showOpponent}
+            checked={settings.attacks.squareShading.showOpponent}
             onChange={(showOpponent) => updateShading({ showOpponent })}
           />
         </div>
@@ -400,13 +400,13 @@ export default function OptionsPanel({
           <ColorField
             id="shade-me"
             label="My shading color"
-            value={options.attacks.squareShading.me}
+            value={settings.attacks.squareShading.me}
             onChange={(me) => updateShading({ me })}
           />
           <ColorField
             id="shade-opponent"
             label="Opponent's shading color"
-            value={options.attacks.squareShading.opponent}
+            value={settings.attacks.squareShading.opponent}
             onChange={(opponent) => updateShading({ opponent })}
           />
         </div>
@@ -415,7 +415,7 @@ export default function OptionsPanel({
           inline
           hint="How much colour one attacker lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid."
           label="Shading strength"
-          value={options.attacks.squareShading.strength}
+          value={settings.attacks.squareShading.strength}
           step={0.02}
           max={1}
           allowZero
@@ -425,13 +425,13 @@ export default function OptionsPanel({
 
       {/* One reset for the lot. Per-section buttons meant the panel could sit in
           a state no preset describes, half restored and half not. */}
-      <div className="options-footer">
+      <div className="settings-footer">
         <button
           type="button"
           className="reset-button"
           onClick={() => {
             setImportError(null);
-            downloadSettings(options);
+            downloadSettings(settings);
           }}
         >
           Export settings
@@ -445,7 +445,7 @@ export default function OptionsPanel({
         </button>
         <button
           type="button"
-          className="reset-button options-footer-end"
+          className="reset-button settings-footer-end"
           onClick={() => {
             setImportError(null);
             onChange(defaults);

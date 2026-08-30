@@ -3,11 +3,11 @@ import type { Chess, Square } from "chess.js";
 import { pinnedSquares } from "../../chess/pins";
 import { readPieces } from "../../chess/model";
 import { SQUARE_SIZE, squareCenter, type Orientation } from "../geometry";
-import type { AttackOptions } from "../options";
+import type { AttackSettings } from "../settings";
 
 interface PinLayerProps {
   position: Chess;
-  attackOptions: AttackOptions;
+  attackSettings: AttackSettings;
   /** Square whose piece is being dragged; its ring would hang in mid-air. */
   lifted?: Square | null;
   orientation?: Orientation;
@@ -23,12 +23,12 @@ interface PinLayerProps {
  */
 export default function PinLayer({
   position,
-  attackOptions,
+  attackSettings,
   lifted = null,
   orientation = "white",
 }: PinLayerProps) {
   const pinned = useMemo(() => new Set(pinnedSquares(position)), [position]);
-  const radius = (Math.max(attackOptions.pinRingDiameter, 0) * SQUARE_SIZE) / 2;
+  const radius = (Math.max(attackSettings.pinRingDiameter, 0) * SQUARE_SIZE) / 2;
   if (pinned.size === 0 || radius === 0) {
     return null;
   }

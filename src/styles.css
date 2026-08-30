@@ -873,7 +873,7 @@ body {
 
 /* --- Options panel ------------------------------------------------------ */
 
-.options-panel {
+.settings-panel {
   /* A block in the side column now: `flex` here would size its height. */
   width: 100%;
   padding: 1rem;
@@ -884,7 +884,7 @@ body {
 
 /* Unlabelled and unruled, so spacing alone separates one group from the next:
    noticeably wider than the gap between fields within a group. */
-.options-group + .options-group {
+.settings-group + .settings-group {
   margin-top: 1rem;
 }
 
@@ -999,7 +999,7 @@ input[type="color"]::-moz-color-swatch {
   cursor: pointer;
 }
 
-.options-footer {
+.settings-footer {
   margin-top: 1.9rem;
   display: flex;
   flex-wrap: wrap;
@@ -1011,7 +1011,7 @@ input[type="color"]::-moz-color-swatch {
   margin rather than space-between, which would spread all three across the row,
   and rather than :last-child, which is the error message when there is one.
 */
-.options-footer-end {
+.settings-footer-end {
   margin-left: auto;
 }
 
@@ -1815,7 +1815,7 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* Between the settings for the marks and the one that colours the board. */
-.options-divider {
+.settings-divider {
   margin: 1.4rem 0 1.1rem;
   border: none;
   border-top: 1px solid var(--panel-border);

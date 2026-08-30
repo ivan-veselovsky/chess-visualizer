@@ -1,5 +1,5 @@
 import { SQUARE_SIZE } from "../../geometry";
-import type { AttackGeometry } from "../../options";
+import type { AttackGeometry } from "../../settings";
 
 /** The two inner squares as half-sides, in board units. */
 export interface InnerSquares {

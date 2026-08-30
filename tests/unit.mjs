@@ -7,6 +7,10 @@
  * step between what is written and what is checked.
  */
 import { toPgn } from "../src/chess/pgn.ts";
+import { parseSettings, settingsToJson } from "../src/app/settingsFile.ts";
+import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
+import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
+const DEFAULT_SETTINGS = DEFAULT_SETTINGS_JSON;
 import { lineOf as lineFromHistory } from "../src/chess/history.ts";
 import {
   describeHandicap,
@@ -212,6 +216,39 @@ console.log("\nShading colours mixed as light\n");
     toHex(mix(readRgb("#ff0080"), readRgb("#00ff80"), 0.5)));
   check("short hex is read as the long form",
     toHex(readRgb("#f80")) === "#ff8800", toHex(readRgb("#f80")));
+}
+
+console.log("\nSettings files, old and new\n");
+{
+  const now = JSON.parse(settingsToJson(DEFAULT_SETTINGS));
+  check("what this build writes carries the modern name",
+    now.schemaVersion === SETTINGS_SCHEMA_VERSION &&
+    now.optionsSchemaVersion === undefined,
+    JSON.stringify(Object.keys(now).slice(0, 2)));
+
+  check("and reads back what it wrote",
+    parseSettings(JSON.stringify(now)).settings?.schemaVersion ===
+      SETTINGS_SCHEMA_VERSION);
+
+  // A file from when the settings were called options.
+  const { schemaVersion, ...rest } = now;
+  const legacy = { optionsSchemaVersion: schemaVersion, ...rest };
+  const read = parseSettings(JSON.stringify(legacy));
+  check("a file written under the old name is still read",
+    read.settings !== null, read.error ?? "");
+  check("and comes back under the new one, with the old one gone",
+    read.settings?.schemaVersion === SETTINGS_SCHEMA_VERSION &&
+    read.settings?.optionsSchemaVersion === undefined,
+    JSON.stringify(read.settings && Object.keys(read.settings).slice(0, 2)));
+  check("so exporting it again writes the new name",
+    JSON.parse(settingsToJson(read.settings)).optionsSchemaVersion === undefined);
+
+  // Neither name at all is still a file this build will not touch.
+  const nameless = { ...rest };
+  check("a file with no version at all is refused",
+    parseSettings(JSON.stringify(nameless)).settings === null);
+  check("and one from another revision too",
+    parseSettings(JSON.stringify({ ...now, schemaVersion: 999 })).settings === null);
 }
 
 console.log("\nSeats, and the games they are at\n");

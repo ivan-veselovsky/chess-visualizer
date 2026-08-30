@@ -1,7 +1,7 @@
 import type { Chess } from "chess.js";
 import type { PlacedPiece } from "../../../chess/model";
 import type { Orientation } from "../../geometry";
-import type { AttackOptions, AttackGeometry } from "../../options";
+import type { AttackSettings, AttackGeometry } from "../../settings";
 
 /**
  * What every per-piece attack renderer receives. Keeping one shared shape lets
@@ -15,7 +15,7 @@ export interface PieceAttackProps {
   idPrefix: string;
   orientation: Orientation;
   /** User-tunable shape parameters shared by both sides. */
-  attackOptions: AttackOptions;
-  /** The shapes for this piece's side, already picked out of the options. */
+  attackSettings: AttackSettings;
+  /** The shapes for this piece's side, already picked out of the settings. */
   geometry: AttackGeometry;
 }

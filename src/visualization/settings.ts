@@ -2,11 +2,11 @@
  * The shape of everything the visualization can be told to draw — types only.
  *
  * They live here rather than next to the UI so the drawing code does not depend
- * on the app layer. `app/options.ts` composes them into the full user-facing
- * `Options`, and `app/presets/` holds the values.
+ * on the app layer. `app/settings.ts` composes them into the full user-facing
+ * `Settings`, and `app/presets/` holds the values.
  *
  * No defaults are declared in this file. A value belongs to a preset, and every
- * preset is a complete `Options`, so there is one place to read a setting from
+ * preset is a complete `Settings`, so there is one place to read a setting from
  * and no way for a half-filled object to exist.
  */
 
@@ -36,7 +36,7 @@ export interface PieceTint {
  * squares sit at sqrt(5) ~ 2.236 square sides from the knight, so useful radii
  * straddle that distance.
  */
-export interface KnightRingOptions {
+export interface KnightRingSettings {
   innerRadius: number;
   outerRadius: number;
   /**
@@ -206,7 +206,7 @@ export interface AttackGeometry {
   queenRay: RayStyle;
   rookRay: RayStyle;
   bishopRay: RayStyle;
-  knightRing: KnightRingOptions;
+  knightRing: KnightRingSettings;
   pawnRay: RayStyle;
 }
 
@@ -215,7 +215,7 @@ export interface SideGeometry {
   opponent: AttackGeometry;
 }
 
-export interface AttackOptions {
+export interface AttackSettings {
   showAttacks: AttackVisibility;
   /**
    * Whether a piece pinned against its own king is ringed.

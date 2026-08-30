@@ -97,7 +97,7 @@ export default function KnightAttacks({
   piece,
   idPrefix,
   orientation,
-  attackOptions,
+  attackSettings,
   geometry,
 }: PieceAttackProps) {
   const clipId = `${idPrefix}-ring`;
@@ -118,7 +118,7 @@ export default function KnightAttacks({
   const thickness = outer - inner;
   const center = squareCenter(piece.square, orientation);
   const targets = knightAttackedSquares(piece.square);
-  const gamma = attackOptions.knightGeometry;
+  const gamma = attackSettings.knightGeometry;
 
   if (gamma === "straight-ray") {
     /*
@@ -176,7 +176,7 @@ export default function KnightAttacks({
 
         <g
           clipPath={`url(#${idPrefix}-passing)`}
-          fillOpacity={attackOptions.straightRayOpacityDecay}
+          fillOpacity={attackSettings.straightRayOpacityDecay}
         >
           {rays.map(({ target, d }) => (
             <path

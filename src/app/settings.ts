@@ -1,16 +1,16 @@
 import type { Orientation } from "../visualization/geometry";
 import type {
-  AttackOptions,
+  AttackSettings,
   BoardColors,
   PieceTint,
-} from "../visualization/options";
+} from "../visualization/settings";
 
 export type {
   AttackColors,
-  AttackOptions,
+  AttackSettings,
   BoardColors,
   KnightGeometry,
-  KnightRingOptions,
+  KnightRingSettings,
   AttackGeometry,
   PieceTint,
   SideGeometry,
@@ -20,17 +20,17 @@ export type {
   OutlineWidths,
   RayOpacity,
   RayStyle,
-} from "../visualization/options";
+} from "../visualization/settings";
 
 /**
  * Which palette the page itself uses. It reaches the frame behind everything,
- * the options panel, and the board's coordinate labels — nothing that the board
- * colour and piece options already decide, so a board looks the same either way.
+ * the settings panel, and the board's coordinate labels — nothing that the board
+ * colour and piece settings already decide, so a board looks the same either way.
  */
 export type Theme = "light" | "dark";
 
 /**
- * What `Options` currently looks like: a whole number, raised by one whenever
+ * What `Settings` currently looks like: a whole number, raised by one whenever
  * the shape changes in a way an older saved object would not survive — a field
  * renamed, removed, or given a different meaning.
  *
@@ -39,22 +39,22 @@ export type Theme = "light" | "dark";
  * plain integer both compares and orders correctly, which a dotted string does
  * not without a parser.
  *
- * Carried inside `Options` itself, not just declared here, so it travels with
+ * Carried inside `Settings` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const OPTIONS_SCHEMA_VERSION = 27;
+export const SETTINGS_SCHEMA_VERSION = 27;
 
 /**
  * Central description of everything the user can tweak: one object holding
  * every setting, with no partial or optional members.
  *
  * A new group is added here, given a value in every preset under `presets/`,
- * and rendered in OptionsPanel. Values themselves live in the presets, never
+ * and rendered in SettingsPanel. Values themselves live in the presets, never
  * here — so there is exactly one place a setting can come from.
  */
-export interface Options {
+export interface Settings {
   /** Which revision of this shape the object was written against. */
-  optionsSchemaVersion: number;
+  schemaVersion: number;
   theme: Theme;
   /**
    * Text colour under the dark theme. Reaches everything the theme does — the
@@ -84,7 +84,7 @@ export interface Options {
    */
   lastMoveColor: string;
   lastMoveOpacity: number;
-  attacks: AttackOptions;
+  attacks: AttackSettings;
 }
 
 /**
