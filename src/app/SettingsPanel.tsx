@@ -171,7 +171,7 @@ export default function SettingsPanel({
           <ToggleField
             id="last-move-negative"
             label="Negative square color circle"
-            hint="Mark the last move's two squares with the other square colour — dark on a light square, light on a dark one. A bishop's two squares then match; a pawn's are opposites."
+            hint="Mark the last move’s two squares with the other square colour — dark on a light square, light on a dark one. A bishop’s two squares then match; a pawn’s are opposites. With “Use light square color for dark squares” on, every circle is the dark square colour, there being only one colour left for it to be the opposite of."
             checked={settings.lastMove.negative}
             onChange={(negative) => updateLastMove({ negative })}
           />
