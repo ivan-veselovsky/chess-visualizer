@@ -45,7 +45,8 @@ import GitHubIcon from "./GitHubIcon";
 import ShareIcon from "./ShareIcon";
 import SponsorIcon from "./SponsorIcon";
 import StepIcon from "./StepIcon";
-import SettingsPanel from "./SettingsPanel";
+import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
+import TabBar, { type Tab } from "./TabBar";
 import CapturedBar from "./CapturedBar";
 import ConfirmDialog from "./ConfirmDialog";
 import PgnDialog from "./PgnDialog";
@@ -65,6 +66,26 @@ import PlayerName from "./friend/PlayerName";
 import { useFriendGame } from "./friend/useFriendGame";
 import type { Heatmap, Settings } from "./settings";
 import { DEFAULT_SETTINGS } from "./presets";
+
+/**
+ * What the right-hand column can show. The game comes first and opens by
+ * default: it is what the page is for, and the rest is how it looks.
+ */
+type PanelTab = "game" | SettingsGroup;
+
+const TABS: readonly Tab<PanelTab>[] = [
+  { id: "game", label: "Game", name: "Game and view" },
+  { id: "board", label: "Board" },
+  { id: "pieces", label: "Pieces" },
+  { id: "rays", label: "Rays", name: "Attack rays" },
+  { id: "heatmap", label: "Heatmap", name: "Attack heatmap" },
+  { id: "check", label: "Checkmate", name: "Check and checkmate" },
+  { id: "pins", label: "Pin", name: "Pins" },
+  // Marked rather than named: it holds the settings themselves — the file they
+  // are written to and read from — rather than any setting, and a gear says
+  // that in the space a word would need.
+  { id: "manage", label: <GearIcon />, name: "Manage settings" },
+];
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -94,7 +115,7 @@ export default function App() {
       setAskPlainBoard(true);
     }
   }
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tab, setTab] = useState<PanelTab>("game");
   /*
     What the page opens on. A link may name a position; read once, at the first
     render, so that stepping away from it afterwards is not undone by a later
@@ -614,16 +635,6 @@ export default function App() {
           <GitHubIcon />
           Source on GitHub
         </a>
-        <button
-          type="button"
-          className="gear-button"
-          aria-label="Settings"
-          aria-expanded={settingsOpen}
-          title="Settings"
-          onClick={() => setSettingsOpen((open) => !open)}
-        >
-          <GearIcon />
-        </button>
       </header>
 
       <div className="app-body">
@@ -699,312 +710,357 @@ export default function App() {
 
         {/* Right: everything else, stacked, in the order it is reached for. */}
         <div className="side-column">
-          {/* Offering a game, and taking one up. */}
-          <div className="board-controls">
-            <button
-              type="button"
-              className="reset-button"
-              disabled={inGame !== null}
-              title={inGame ?? undefined}
-              onClick={friend.start}
-            >
-              Challenge a friend {"\u2026"}
-            </button>
-            <button
-              type="button"
-              className="reset-button"
-              disabled={inGame !== null}
-              title={inGame ?? "Enter the id somebody read out to you"}
-              onClick={() => setJoining(true)}
-            >
-              Join a game {"\u2026"}
-            </button>
-          </div>
+          {/* Strip and panel are one thing, so they are wrapped as one: as
+              separate children of the column the flex gap would put a space
+              between the selected tab and what it opens. */}
+          <div className="tabbed">
+          {/*
+            One column, six tabs. The panel was a single column of everything
+            at once, which made the setting being looked for a question of how
+            far down it was, and pushed the game's own controls off the screen
+            whenever the settings were open.
+          */}
+          <TabBar
+            tabs={TABS}
+            active={tab}
+            label="Game and settings"
+            onSelect={setTab}
+          />
 
           {/*
-            Older than the game it is in, and nothing it does will work until
-            it is reloaded. Said where every other thing about the game is
-            said, and shown whether or not a game is on — the page is what is
-            out of date, not the game.
+            Hidden rather than unmounted: this panel holds half-typed FENs and a
+            move list scrolled to where the reader left it, and a glance at the
+            settings should not throw either away.
           */}
-          {friend.outdated && (
-            <aside className="invite-panel" role="alert">
-              <p className="invite-heading">This page is out of date</p>
-              <p className="invite-note">
-                It was opened before the version now running, and the two no
-                longer understand each other. Reloading picks up the new one.
-              </p>
-              <div className="pgn-dialog-actions">
-                <button
-                  type="button"
-                  className="reset-button"
-                  onClick={() => window.location.reload()}
-                >
-                  Reload
-                </button>
-              </div>
-            </aside>
-          )}
-
-          {/* Only when this tab is at no game: a tab that is at one says so in
-              its address, and the panel below is about that game. */}
-          {friend.phase.kind === "idle" && (
-            <SavedGames games={friend.games} onOpen={friend.rejoin} />
-          )}
-
-          <InvitePanel
-            phase={friend.phase}
-            link={friend.link}
-            myName={friend.name}
-            canTakeBack={takeback.can}
-            takebackReason={takeback.why}
-            onTakeBack={friend.takeBack}
-            onLeave={friend.leave}
-            onResign={friend.resign}
-            onOfferDraw={friend.offerDraw}
-            onAnswerDraw={friend.answerDraw}
-            notice={friend.notice}
-            onDismissNotice={friend.dismissNotice}
-          />
-
-          {/* Which way round the board is, and the way back to the start: the
-              two that set a board up rather than move through one. */}
-          <div className="board-controls">
-            <ToggleField
-              id="flip-board"
-              label="Black at bottom"
-              checked={settings.orientation === "black"}
-              onChange={(flipped) =>
-                setSettings({
-                  ...settings,
-                  orientation: flipped ? "black" : "white",
-                })
-              }
-            />
-            <button
-              type="button"
-              className="reset-button controls-end"
-              disabled={inGame !== null}
-              title={inGame ?? undefined}
-              onClick={() => setPosition(DEFAULT_POSITION)}
-            >
-              Reset to initial position
-            </button>
-          </div>
-
-          {/* Stepping through the line, and jumping anywhere in it. */}
-          <div className="board-controls move-nav">
-            <div className="step-buttons">
-              <button
-                type="button"
-                className="reset-button step-button step-button-end"
-                title="First position"
-                aria-label="First position"
-                disabled={!canGoPrevious(history)}
-                onClick={() => stepHistory("first")}
-              >
-                <StepIcon direction="first" />
-              </button>
-              <button
-                type="button"
-                className="reset-button step-button"
-                aria-label="Previous position"
-                disabled={!canGoPrevious(history)}
-                title="Previous position"
-                onClick={() => stepHistory("previous")}
-              >
-                <StepIcon direction="previous" />
-              </button>
-              <button
-                type="button"
-                className="reset-button step-button"
-                title="Next position"
-                aria-label="Next position"
-                disabled={!canGoNext(history)}
-                onClick={() => stepHistory("next")}
-              >
-                <StepIcon direction="next" />
-              </button>
-              <button
-                type="button"
-                className="reset-button step-button step-button-end"
-                title="Last position"
-                aria-label="Last position"
-                disabled={!canGoNext(history)}
-                onClick={() => stepHistory("last")}
-              >
-                <StepIcon direction="last" />
-              </button>
-            </div>
-            <MovesSelect
-              entries={history.entries}
-              current={history.current}
-              onSelect={(index) => {
-                const moved = goToPosition(history, index);
-                setHistory(moved);
-                setFen(currentPosition(moved));
-              }}
-            />
-          </div>
-
-          {/* Second row: what a whole game can be done with. */}
-          {/* Still readable while a game is on — it is worth copying — but
-              not a way to put another position on the board. */}
-          <FenField
-            value={fen}
-            error={error}
-            readOnly={inGame}
-            onChange={enterPosition}
-          />
-
-          {/* The two that move a game in and out of PGN, and the link to it. */}
-          <div className="board-controls">
-            <span className="field-with-help">
+          <div
+            className="tab-panel tab-panel-flush"
+            role="tabpanel"
+            id="panel-game"
+            aria-labelledby="tab-game"
+            hidden={tab !== "game"}
+          >
+            {/* Offering a game, and taking one up. */}
+            <div className="board-controls">
               <button
                 type="button"
                 className="reset-button"
-                aria-describedby="import-pgn-help"
                 disabled={inGame !== null}
                 title={inGame ?? undefined}
-                onClick={() => setPgnOpen(true)}
+                onClick={friend.start}
               >
-                Import game (PGN)
+                Challenge a friend {"\u2026"}
               </button>
-              <PgnHelp id="import-pgn-help" />
-            </span>
-            <span className="field-with-help">
               <button
                 type="button"
                 className="reset-button"
-                aria-describedby="export-pgn-help"
-                onClick={() => setPgnExportOpen(true)}
+                disabled={inGame !== null}
+                title={inGame ?? "Enter the id somebody read out to you"}
+                onClick={() => setJoining(true)}
               >
-                Export game (PGN)
+                Join a game {"\u2026"}
               </button>
-              <PgnHelp id="export-pgn-help" fromEnd />
-            </span>
-            <div className="controls-end">
-              <CopyButton
-                label="Share game"
-                icon={<ShareIcon />}
-                title="Copy a link that opens this game at its first position"
-                text={() => {
-                  const pgn = sharablePgn();
-                  return pgn === null ? null : gameLink(pgn);
+            </div>
+
+            {/*
+              Older than the game it is in, and nothing it does will work until
+              it is reloaded. Said where every other thing about the game is
+              said, and shown whether or not a game is on — the page is what is
+              out of date, not the game.
+            */}
+            {friend.outdated && (
+              <aside className="invite-panel" role="alert">
+                <p className="invite-heading">This page is out of date</p>
+                <p className="invite-note">
+                  It was opened before the version now running, and the two no
+                  longer understand each other. Reloading picks up the new one.
+                </p>
+                <div className="pgn-dialog-actions">
+                  <button
+                    type="button"
+                    className="reset-button"
+                    onClick={() => window.location.reload()}
+                  >
+                    Reload
+                  </button>
+                </div>
+              </aside>
+            )}
+
+            {/* Only when this tab is at no game: a tab that is at one says so in
+                its address, and the panel below is about that game. */}
+            {friend.phase.kind === "idle" && (
+              <SavedGames games={friend.games} onOpen={friend.rejoin} />
+            )}
+
+            <InvitePanel
+              phase={friend.phase}
+              link={friend.link}
+              myName={friend.name}
+              canTakeBack={takeback.can}
+              takebackReason={takeback.why}
+              onTakeBack={friend.takeBack}
+              onLeave={friend.leave}
+              onResign={friend.resign}
+              onOfferDraw={friend.offerDraw}
+              onAnswerDraw={friend.answerDraw}
+              notice={friend.notice}
+              onDismissNotice={friend.dismissNotice}
+            />
+
+            {/* Which way round the board is, and the way back to the start: the
+                two that set a board up rather than move through one. */}
+            <div className="board-controls">
+              <ToggleField
+                id="flip-board"
+                label="Black at bottom"
+                checked={settings.orientation === "black"}
+                onChange={(flipped) =>
+                  setSettings({
+                    ...settings,
+                    orientation: flipped ? "black" : "white",
+                  })
+                }
+              />
+              <button
+                type="button"
+                className="reset-button controls-end"
+                disabled={inGame !== null}
+                title={inGame ?? undefined}
+                onClick={() => setPosition(DEFAULT_POSITION)}
+              >
+                Reset to initial position
+              </button>
+            </div>
+
+            {/* Stepping through the line, and jumping anywhere in it. */}
+            <div className="board-controls move-nav">
+              <div className="step-buttons">
+                <button
+                  type="button"
+                  className="reset-button step-button step-button-end"
+                  title="First position"
+                  aria-label="First position"
+                  disabled={!canGoPrevious(history)}
+                  onClick={() => stepHistory("first")}
+                >
+                  <StepIcon direction="first" />
+                </button>
+                <button
+                  type="button"
+                  className="reset-button step-button"
+                  aria-label="Previous position"
+                  disabled={!canGoPrevious(history)}
+                  title="Previous position"
+                  onClick={() => stepHistory("previous")}
+                >
+                  <StepIcon direction="previous" />
+                </button>
+                <button
+                  type="button"
+                  className="reset-button step-button"
+                  title="Next position"
+                  aria-label="Next position"
+                  disabled={!canGoNext(history)}
+                  onClick={() => stepHistory("next")}
+                >
+                  <StepIcon direction="next" />
+                </button>
+                <button
+                  type="button"
+                  className="reset-button step-button step-button-end"
+                  title="Last position"
+                  aria-label="Last position"
+                  disabled={!canGoNext(history)}
+                  onClick={() => stepHistory("last")}
+                >
+                  <StepIcon direction="last" />
+                </button>
+              </div>
+              <MovesSelect
+                entries={history.entries}
+                current={history.current}
+                onSelect={(index) => {
+                  const moved = goToPosition(history, index);
+                  setHistory(moved);
+                  setFen(currentPosition(moved));
                 }}
               />
             </div>
-          </div>
 
-          {/* Putting a game aside, and taking one back. */}
-          <div className="board-controls">
-            <button
-              type="button"
-              className="reset-button"
-              disabled={stashName === null}
-              title={
-                stashName === null
-                  ? "Stash game as \u2026 first, to give the game a name"
-                  : `Put this game back under \u201c${stashName}\u201d`
-              }
-              onClick={() => {
-                if (stashName !== null) {
-                  stashHere(stashName);
+            {/* Second row: what a whole game can be done with. */}
+            {/* Still readable while a game is on — it is worth copying — but
+                not a way to put another position on the board. */}
+            <FenField
+              value={fen}
+              error={error}
+              readOnly={inGame}
+              onChange={enterPosition}
+            />
+
+            {/* The two that move a game in and out of PGN, and the link to it. */}
+            <div className="board-controls">
+              <span className="field-with-help">
+                <button
+                  type="button"
+                  className="reset-button"
+                  aria-describedby="import-pgn-help"
+                  disabled={inGame !== null}
+                  title={inGame ?? undefined}
+                  onClick={() => setPgnOpen(true)}
+                >
+                  Import game (PGN)
+                </button>
+                <PgnHelp id="import-pgn-help" />
+              </span>
+              <span className="field-with-help">
+                <button
+                  type="button"
+                  className="reset-button"
+                  aria-describedby="export-pgn-help"
+                  onClick={() => setPgnExportOpen(true)}
+                >
+                  Export game (PGN)
+                </button>
+                <PgnHelp id="export-pgn-help" fromEnd />
+              </span>
+              <div className="controls-end">
+                <CopyButton
+                  label="Share game"
+                  icon={<ShareIcon />}
+                  title="Copy a link that opens this game at its first position"
+                  text={() => {
+                    const pgn = sharablePgn();
+                    return pgn === null ? null : gameLink(pgn);
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Putting a game aside, and taking one back. */}
+            <div className="board-controls">
+              <button
+                type="button"
+                className="reset-button"
+                disabled={stashName === null}
+                title={
+                  stashName === null
+                    ? "Stash game as \u2026 first, to give the game a name"
+                    : `Put this game back under \u201c${stashName}\u201d`
                 }
-              }}
+                onClick={() => {
+                  if (stashName !== null) {
+                    stashHere(stashName);
+                  }
+                }}
+              >
+                Stash game
+              </button>
+              <button
+                type="button"
+                className="reset-button"
+                title="Put this game aside under a name"
+                onClick={() => setStashDialogOpen(true)}
+              >
+                Stash game as {"\u2026"}
+              </button>
+              <StashedGames
+                stash={stash}
+                value={stashName}
+                locked={inGame}
+                onSelect={loadStashedGame}
+              />
+            </div>
+
+            <div className="board-controls">
+              <GameLibrary
+                value={libraryGame}
+                error={libraryGameError}
+                locked={inGame}
+                onSelect={loadLibraryGame}
+              />
+            </div>
+
+            {/* The four switches below answer a different question from
+                everything above them — not which game is on the board, but what
+                is drawn over it — so a rule marks where one ends. */}
+            <hr className="panel-divider" />
+
+            {/*
+              Out here rather than in the settings panel: turning a side's marks
+              off is part of reading the board, not of setting it up, and is
+              reached for as often as the board is flipped.
+            */}
+            <div className="field-row field-row-halves">
+              <ToggleField
+                id="show-my-attacks"
+                label="Show my attack rays"
+                checked={settings.attacks.showAttacks.me}
+                onChange={(me) =>
+                  setSettings({
+                    ...settings,
+                    attacks: {
+                      ...settings.attacks,
+                      showAttacks: { ...settings.attacks.showAttacks, me },
+                    },
+                  })
+                }
+              />
+              <ToggleField
+                id="show-opponent-attacks"
+                label="Show opponent's attack rays"
+                checked={settings.attacks.showAttacks.opponent}
+                onChange={(opponent) =>
+                  setSettings({
+                    ...settings,
+                    attacks: {
+                      ...settings.attacks,
+                      showAttacks: { ...settings.attacks.showAttacks, opponent },
+                    },
+                  })
+                }
+              />
+            </div>
+
+            {/* Out here for the same reason, and in the same two columns: the
+                heatmap answers "who holds this square", which is a question
+                asked while reading a position, not while setting one up. Its
+                colours and strength stay in the settings panel — those are
+                chosen once, whereas these two are flicked on and off. */}
+            <div className="field-row field-row-halves">
+              <ToggleField
+                id="heatmap-mine"
+                hint="Colour every square my men cover, more strongly where more of them cover it."
+                label="Show my attack heatmap"
+                checked={settings.attacks.heatmap.showMine}
+                onChange={(showMine) => showHeatmap({ showMine })}
+              />
+              <ToggleField
+                id="heatmap-theirs"
+                hint="The same for the other end of the board. With both on, a square takes a blend of the two, weighted by how many attackers each side has."
+                label="Show opponent's attack heatmap"
+                checked={settings.attacks.heatmap.showOpponent}
+                onChange={(showOpponent) => showHeatmap({ showOpponent })}
+              />
+            </div>
+
+          </div>
+
+          {tab !== "game" && (
+            <div
+              className="tab-panel"
+              role="tabpanel"
+              id={`panel-${tab}`}
+              aria-labelledby={`tab-${tab}`}
             >
-              Stash game
-            </button>
-            <button
-              type="button"
-              className="reset-button"
-              title="Put this game aside under a name"
-              onClick={() => setStashDialogOpen(true)}
-            >
-              Stash game as {"\u2026"}
-            </button>
-            <StashedGames
-              stash={stash}
-              value={stashName}
-              locked={inGame}
-              onSelect={loadStashedGame}
-            />
-          </div>
-
-          <div className="board-controls">
-            <GameLibrary
-              value={libraryGame}
-              error={libraryGameError}
-              locked={inGame}
-              onSelect={loadLibraryGame}
-            />
-          </div>
-
-          {/*
-            Out here rather than in the settings panel: turning a side's marks
-            off is part of reading the board, not of setting it up, and is
-            reached for as often as the board is flipped.
-          */}
-          <div className="field-row field-row-halves">
-            <ToggleField
-              id="show-my-attacks"
-              label="Show my attack rays"
-              checked={settings.attacks.showAttacks.me}
-              onChange={(me) =>
-                setSettings({
-                  ...settings,
-                  attacks: {
-                    ...settings.attacks,
-                    showAttacks: { ...settings.attacks.showAttacks, me },
-                  },
-                })
-              }
-            />
-            <ToggleField
-              id="show-opponent-attacks"
-              label="Show opponent's attack rays"
-              checked={settings.attacks.showAttacks.opponent}
-              onChange={(opponent) =>
-                setSettings({
-                  ...settings,
-                  attacks: {
-                    ...settings.attacks,
-                    showAttacks: { ...settings.attacks.showAttacks, opponent },
-                  },
-                })
-              }
-            />
-          </div>
-
-          {/* Out here for the same reason, and in the same two columns: the
-              heatmap answers "who holds this square", which is a question
-              asked while reading a position, not while setting one up. Its
-              colours and strength stay in the settings panel — those are
-              chosen once, whereas these two are flicked on and off. */}
-          <div className="field-row field-row-halves">
-            <ToggleField
-              id="heatmap-mine"
-              hint="Colour every square my men cover, more strongly where more of them cover it."
-              label="Show my attack heatmap"
-              checked={settings.attacks.heatmap.showMine}
-              onChange={(showMine) => showHeatmap({ showMine })}
-            />
-            <ToggleField
-              id="heatmap-theirs"
-              hint="The same for the other end of the board. With both on, a square takes a blend of the two, weighted by how many attackers each side has."
-              label="Show opponent's attack heatmap"
-              checked={settings.attacks.heatmap.showOpponent}
-              onChange={(showOpponent) => showHeatmap({ showOpponent })}
-            />
-          </div>
-
-          {settingsOpen && (
-            <SettingsPanel
-              settings={settings}
-              defaults={DEFAULT_SETTINGS}
-              onChange={setSettings}
-            />
+              <SettingsPanel
+                group={tab}
+                settings={settings}
+                defaults={DEFAULT_SETTINGS}
+                onChange={setSettings}
+              />
+            </div>
           )}
+          </div>
         </div>
       </div>
 
