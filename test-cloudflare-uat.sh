@@ -56,6 +56,11 @@ for _ in $(seq 1 20); do
   sleep 0.5
 done
 
+# What `cleanup` reads to decide whether the deployed worker is deleted, and
+# so the answer to "did the tests pass?" while they have not yet been asked.
+# It starts at "no": deleting the worker takes its logs with it and cannot be
+# undone, whereas leaving one up costs the printed `wrangler delete` below.
+# Between two unequal mistakes, this makes the recoverable one.
 STATUS=1
 cleanup() {
   # The whole group: `npx` is a wrapper around a wrapper, and killing the pid
@@ -78,6 +83,18 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-STATUS=0
-npm run test:ws || STATUS=$?
+# Only a run that finished and passed lowers STATUS, so an interrupted run is
+# left where it started — with the failures, which is where it belongs: it has
+# not passed, and the worker it was testing is worth keeping.
+#
+# Setting it to 0 up here instead would have meant a Ctrl-C during the tests —
+# the long part of the script, and the likeliest moment to interrupt — reading
+# as a pass, and the worker being deleted with its logs.
+if npm run test:ws; then
+  STATUS=0
+else
+  # The suites' own exit code, not merely "something failed", so that what
+  # this script exits with is what they said.
+  STATUS=$?
+fi
 exit "${STATUS}"
