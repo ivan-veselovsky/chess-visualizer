@@ -308,16 +308,15 @@ export default function Board({
     >
       <g transform={`translate(${BOARD_ORIGIN.x}, ${BOARD_ORIGIN.y})`}>
         <SquareLayer orientation={orientation} />
-        {/* Over the squares and under everything else: it colours the board
-            rather than marking anything on it. */}
-        {(attacks.heatmap.showMine || attacks.heatmap.showOpponent) && (
-          <HeatmapLayer
-            position={position}
-            heatmap={attacks.heatmap}
-            lifted={inHand?.from ?? null}
-            orientation={orientation}
-          />
-        )}
+        {/* First of all the layers, so that it belongs to the board rather than
+            sitting on it: every wash laid down later goes over it, and the mark
+            takes their colour along with the square it is on.
+
+            It matters because the two ways of drawing it have different alpha.
+            The coloured disc is semi-transparent and a heatmap above or below
+            it would tint it either way; the negative disc is fully opaque, and
+            drawn last it would punch a hole in the heatmap — the one square the
+            heatmap had nothing to say about being the one the move landed on. */}
         <HighlightLayer
           squares={[
             ...(lastMove === null ? [] : [lastMove.from, lastMove.to]),
@@ -326,6 +325,16 @@ export default function Board({
           mark={lastMoveMark}
           orientation={orientation}
         />
+        {/* Over the squares and the last-move mark, and under everything else:
+            it colours the board rather than marking anything on it. */}
+        {(attacks.heatmap.showMine || attacks.heatmap.showOpponent) && (
+          <HeatmapLayer
+            position={position}
+            heatmap={attacks.heatmap}
+            lifted={inHand?.from ?? null}
+            orientation={orientation}
+          />
+        )}
         {showGrid && <GridLayer />}
         <AttackLayer
           position={position}
