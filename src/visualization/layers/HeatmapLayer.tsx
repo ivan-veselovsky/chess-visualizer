@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { Chess, type Color, type Square } from "chess.js";
 import { mix, readRgb, toHex } from "../color";
 import { FILES, RANKS, squareBox, type Orientation } from "../geometry";
-import type { SquareShading } from "../settings";
+import type { Heatmap } from "../settings";
 
-interface SquareShadingLayerProps {
+interface HeatmapLayerProps {
   position: Chess;
-  shading: SquareShading;
+  heatmap: Heatmap;
   /** A piece picked up and not yet put down, which is not on the board. */
   lifted?: Square | null;
   orientation?: Orientation;
@@ -30,18 +30,18 @@ interface SquareShadingLayerProps {
  * of what is left rather than a fixed step, so the difference between one
  * attacker and two is plain while five and six still differ a little and
  * nothing ever reaches full opacity. That keeps the board readable underneath,
- * which is the point of shading it rather than painting it.
+ * which is the point of heatmap it rather than painting it.
  *
  * Every attacker counts the same, pawn and queen alike. Weighing them by value
  * is a truer picture of a position and a worse picture of *this* — the thing
  * being shown here is how many eyes are on a square.
  */
-export default function SquareShadingLayer({
+export default function HeatmapLayer({
   position,
-  shading,
+  heatmap,
   lifted = null,
   orientation = "white",
-}: SquareShadingLayerProps) {
+}: HeatmapLayerProps) {
   const mine: Color = orientation === "black" ? "b" : "w";
   const theirs: Color = mine === "w" ? "b" : "w";
 
@@ -81,28 +81,28 @@ export default function SquareShadingLayer({
     return found;
   }, [position, lifted, mine, theirs]);
 
-  const strength = Math.min(Math.max(shading.strength, 0), 1);
-  if (strength === 0 || (!shading.showMine && !shading.showOpponent)) {
+  const strength = Math.min(Math.max(heatmap.strength, 0), 1);
+  if (strength === 0 || (!heatmap.showMine && !heatmap.showOpponent)) {
     return null;
   }
-  const ours = readRgb(shading.me);
-  const others = readRgb(shading.opponent);
+  const ours = readRgb(heatmap.myColor);
+  const others = readRgb(heatmap.opponentColor);
 
   const shown = squares
     .map(({ square, mine: ourCount, theirs: theirCount }) => ({
       square,
-      mine: shading.showMine ? ourCount : 0,
-      theirs: shading.showOpponent ? theirCount : 0,
+      mine: heatmap.showMine ? ourCount : 0,
+      theirs: heatmap.showOpponent ? theirCount : 0,
     }))
     .filter(({ mine: ourCount, theirs: theirCount }) => ourCount + theirCount > 0);
 
   return (
-    <g className="square-shading-layer">
+    <g className="heatmap-layer">
       {shown.map(({ square, mine: ourCount, theirs: theirCount }) => {
         const total = ourCount + theirCount;
         const color = toHex(mix(ours, others, ourCount / total));
         // Each attacker takes a share of what transparency is left, so the
-        // shading deepens without ever closing over the square underneath.
+        // heatmap deepens without ever closing over the square underneath.
         const opacity = 1 - (1 - strength) ** total;
         return (
           <rect
@@ -110,7 +110,7 @@ export default function SquareShadingLayer({
             {...squareBox(square, orientation)}
             fill={color}
             fillOpacity={opacity}
-            className="square-shading"
+            className="heatmap-square"
           />
         );
       })}

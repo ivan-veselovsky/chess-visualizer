@@ -47,6 +47,7 @@ import SponsorIcon from "./SponsorIcon";
 import StepIcon from "./StepIcon";
 import SettingsPanel from "./SettingsPanel";
 import CapturedBar from "./CapturedBar";
+import ConfirmDialog from "./ConfirmDialog";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
@@ -62,11 +63,37 @@ import { describeEnding } from "./friend/ending";
 import { friendlyGameName } from "./friend/gameName";
 import PlayerName from "./friend/PlayerName";
 import { useFriendGame } from "./friend/useFriendGame";
-import type { Settings } from "./settings";
+import type { Heatmap, Settings } from "./settings";
 import { DEFAULT_SETTINGS } from "./presets";
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  /** Asked when the heatmap goes on and the board is still a checkerboard. */
+  const [askPlainBoard, setAskPlainBoard] = useState(false);
+
+  function showHeatmap(patch: Partial<Heatmap>) {
+    setSettings({
+      ...settings,
+      attacks: {
+        ...settings.attacks,
+        heatmap: { ...settings.attacks.heatmap, ...patch },
+      },
+    });
+    /*
+      The heatmap colours whole squares, and a checkerboard underneath gives
+      every shade two readings. Worth offering to flatten — and worth asking
+      rather than doing, since the board's colours are the reader's own setting.
+      Either side going on raises the question; both being off again does not
+      put the board back, the reader having answered it once.
+    */
+    if (
+      (patch.showMine === true || patch.showOpponent === true) &&
+      !settings.boardColors.useLightForDark &&
+      settings.boardColors.darkSquare !== settings.boardColors.lightSquare
+    ) {
+      setAskPlainBoard(true);
+    }
+  }
   const [settingsOpen, setSettingsOpen] = useState(false);
   /*
     What the page opens on. A link may name a position; read once, at the first
@@ -605,7 +632,7 @@ export default function App() {
           {shown !== null && (
             <div
               className={
-                settings.showTakenPieces
+                settings.showCapturedPiecesBar
                   ? "board-and-players"
                   : "board-and-players board-and-players-bare"
               }
@@ -642,13 +669,10 @@ export default function App() {
                   (history.current !== 0 || !friend.link.mine)
                 }
                 lastMove={lastMove}
-                lastMoveColor={settings.lastMoveColor}
-                lastMoveOpacity={settings.lastMoveOpacity}
-                lastMoveNegative={settings.lastMoveNegative}
-                lastMoveNegativeDiameter={settings.lastMoveNegativeDiameter}
+                lastMoveMark={settings.lastMove}
                 orientation={settings.orientation}
               />
-                {settings.showTakenPieces && (
+                {settings.showCapturedPiecesBar && (
                   <CapturedBar
                     captures={captures}
                     orientation={settings.orientation}
@@ -952,6 +976,28 @@ export default function App() {
             />
           </div>
 
+          {/* Out here for the same reason, and in the same two columns: the
+              heatmap answers "who holds this square", which is a question
+              asked while reading a position, not while setting one up. Its
+              colours and strength stay in the settings panel — those are
+              chosen once, whereas these two are flicked on and off. */}
+          <div className="field-row field-row-halves">
+            <ToggleField
+              id="heatmap-mine"
+              hint="Colour every square my men cover, more strongly where more of them cover it."
+              label="Show my attack heatmap"
+              checked={settings.attacks.heatmap.showMine}
+              onChange={(showMine) => showHeatmap({ showMine })}
+            />
+            <ToggleField
+              id="heatmap-theirs"
+              hint="The same for the other end of the board. With both on, a square takes a blend of the two, weighted by how many attackers each side has."
+              label="Show opponent's attack heatmap"
+              checked={settings.attacks.heatmap.showOpponent}
+              onChange={(showOpponent) => showHeatmap({ showOpponent })}
+            />
+          </div>
+
           {settingsOpen && (
             <SettingsPanel
               settings={settings}
@@ -961,6 +1007,26 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={askPlainBoard}
+        question="Draw the board in one colour?"
+        detail={
+          "The heatmap colours the squares themselves, and a checkerboard under it " +
+          "gives every shade two readings. This turns on \u201CUse light square " +
+          "color for dark squares\u201D, which can be turned off again \u2014 the dark " +
+          "colour is kept, not overwritten."
+        }
+        confirmLabel="Use one colour"
+        dismissLabel="Keep the checkerboard"
+        onConfirm={() =>
+          setSettings({
+            ...settings,
+            boardColors: { ...settings.boardColors, useLightForDark: true },
+          })
+        }
+        onClose={() => setAskPlainBoard(false)}
+      />
 
       <JoinDialog
         open={joining}

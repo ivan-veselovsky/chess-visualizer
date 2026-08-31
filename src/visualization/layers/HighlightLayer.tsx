@@ -1,5 +1,6 @@
 import type { Square } from "chess.js";
 import { fileIndex, rankIndex } from "../../chess/model";
+import type { LastMoveMark } from "../settings";
 import {
   isLightSquare,
   SQUARE_SIZE,
@@ -16,19 +17,8 @@ export interface LastMove {
 interface HighlightLayerProps {
   /** Squares to mark. Repeats are harmless; the same wash is laid down twice. */
   squares: Square[];
-  /** The wash laid over them. */
-  color: string;
-  /** How much of it, from 0 to 1. Zero draws nothing. */
-  opacity: number;
-  /**
-   * Mark the squares with the colour of the other kind of square instead —
-   * dark on a light square, light on a dark one — and leave the wash alone.
-   */
-  negative: boolean;
-  /** Across, in squares — the same measure the pin ring and check disc take. */
-  diameter: number;
-  /** What the negative circle measures instead, when that is what is drawn. */
-  negativeDiameter: number;
+  /** How to mark them: a wash of a colour, or the squares' colours turned round. */
+  mark: LastMoveMark;
   orientation?: Orientation;
 }
 
@@ -56,16 +46,11 @@ interface HighlightLayerProps {
  */
 export default function HighlightLayer({
   squares,
-  color,
-  opacity,
-  negative,
-  diameter,
-  negativeDiameter,
+  mark: { color, opacity, negative, diameter },
   orientation = "white",
 }: HighlightLayerProps) {
   const strength = negative ? 1 : Math.min(Math.max(opacity, 0), 1);
-  const across = negative ? negativeDiameter : diameter;
-  const radius = (Math.max(across, 0) * SQUARE_SIZE) / 2;
+  const radius = (Math.max(diameter, 0) * SQUARE_SIZE) / 2;
   if (squares.length === 0 || strength === 0 || radius === 0) {
     return null;
   }
@@ -95,7 +80,7 @@ export default function HighlightLayer({
             cy={y}
             r={radius}
             className={
-              negative ? (light ? "square-dark" : "square-light") : undefined
+              negative ? (light ? "mark-on-light" : "mark-on-dark") : undefined
             }
           />
         );

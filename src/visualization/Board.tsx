@@ -19,7 +19,8 @@ import {
   type Orientation,
   type Point,
 } from "./geometry";
-import type { AttackSettings, BoardColors, PieceTint } from "./settings";
+import type {
+  LastMoveMark, AttackSettings, BoardColors, PieceTint } from "./settings";
 import { pieceVars } from "./pieceVars";
 import AttackLayer from "./layers/AttackLayer";
 import BorderLayer from "./layers/BorderLayer";
@@ -29,7 +30,7 @@ import CheckLayer, { type KingAlert } from "./layers/CheckLayer";
 import PieceLayer from "./layers/PieceLayer";
 import PinLayer from "./layers/PinLayer";
 import SquareLayer from "./layers/SquareLayer";
-import SquareShadingLayer from "./layers/SquareShadingLayer";
+import HeatmapLayer from "./layers/HeatmapLayer";
 
 interface BoardProps {
   position: Chess;
@@ -58,12 +59,8 @@ interface BoardProps {
   /** The move that reached this position, to shade the squares it used. */
   lastMove?: LastMove | null;
   /** The wash laid over those two squares, and how much of it. */
-  lastMoveColor?: string;
-  lastMoveOpacity?: number;
-  /** Mark the two squares with the other square colour instead of a wash. */
-  lastMoveNegative?: boolean;
-  /** How far across that mark is, in squares. */
-  lastMoveNegativeDiameter?: number;
+  /** How the last move's squares are marked; omitted, they are not marked. */
+  lastMoveMark?: LastMoveMark;
   orientation?: Orientation;
 }
 
@@ -97,10 +94,12 @@ export default function Board({
   playable = null,
   frozen = false,
   lastMove = null,
-  lastMoveColor = "#000000",
-  lastMoveOpacity = 0,
-  lastMoveNegative = false,
-  lastMoveNegativeDiameter = 0.76,
+  lastMoveMark = {
+    color: "#000000",
+    opacity: 0,
+    negative: false,
+    diameter: 0,
+  },
   orientation = "white",
 }: BoardProps) {
   const pieces = readPieces(position);
@@ -128,22 +127,39 @@ export default function Board({
       return null;
     }
     const mate = position.isCheckmate();
-    if (mate ? !attacks.showCheckmate : !attacks.showCheck) {
+    if (mate ? !attacks.checkAndCheckmate.showCheckmate : !attacks.checkAndCheckmate.showCheck) {
       return null;
     }
     const [square] = position.findPiece({ type: "k", color: position.turn() });
     return square === undefined
       ? null
       : { square, kind: mate ? "checkmate" : "check" };
-  }, [position, attacks.showCheck, attacks.showCheckmate]);
+  }, [position, attacks.checkAndCheckmate.showCheck, attacks.checkAndCheckmate.showCheckmate]);
 
   const themeVars = {
     "--square-light": colors.lightSquare,
-    "--square-dark": colors.darkSquare,
+    "--square-dark": colors.useLightForDark
+      ? colors.lightSquare
+      : colors.darkSquare,
+    /*
+      What the negative last-move mark is filled with, by the kind of square it
+      sits on. The other square's colour, from the two that were chosen rather
+      than the two being drawn — on a board drawn in one colour those are not
+      the same thing, and a mark taking the drawn colour would be a circle of
+      the board's own colour on the board, which is no mark at all.
+
+      So on a flat board every mark is the dark colour: still visible, though
+      it can no longer say whether the move stayed on one colour, there being
+      only one to stay on.
+    */
+    "--mark-on-light": colors.darkSquare,
+    "--mark-on-dark": colors.useLightForDark
+      ? colors.darkSquare
+      : colors.lightSquare,
     "--grid-line": gridColor,
-    "--pin-ring": attacks.pinRingColor,
-    "--check-color": attacks.checkColor,
-    "--checkmate-color": attacks.checkmateColor,
+    "--pin-ring": attacks.pins.ringColor,
+    "--check-color": attacks.checkAndCheckmate.checkColor,
+    "--checkmate-color": attacks.checkAndCheckmate.checkmateColor,
     "--attack-outline-me": attacks.outlineColors.me,
     "--attack-outline-opponent": attacks.outlineColors.opponent,
     // The piece palette and the tints, shared with the bar of taken men.
@@ -294,10 +310,10 @@ export default function Board({
         <SquareLayer orientation={orientation} />
         {/* Over the squares and under everything else: it colours the board
             rather than marking anything on it. */}
-        {(attacks.squareShading.showMine || attacks.squareShading.showOpponent) && (
-          <SquareShadingLayer
+        {(attacks.heatmap.showMine || attacks.heatmap.showOpponent) && (
+          <HeatmapLayer
             position={position}
-            shading={attacks.squareShading}
+            heatmap={attacks.heatmap}
             lifted={inHand?.from ?? null}
             orientation={orientation}
           />
@@ -307,12 +323,8 @@ export default function Board({
             ...(lastMove === null ? [] : [lastMove.from, lastMove.to]),
             ...(inHand === null ? [] : [inHand.from]),
           ]}
-          color={lastMoveColor}
-          opacity={lastMoveOpacity}
-          negative={lastMoveNegative}
-          negativeDiameter={lastMoveNegativeDiameter}
+          mark={lastMoveMark}
           orientation={orientation}
-          diameter={attacks.pinRingDiameter}
         />
         {showGrid && <GridLayer />}
         <AttackLayer
@@ -326,7 +338,7 @@ export default function Board({
         />
         <BorderLayer orientation={orientation} />
         {/* Under the glyphs: the ring frames a piece rather than covering it. */}
-        {attacks.showPins && (
+        {attacks.pins.show && (
           <PinLayer
             position={position}
             attackSettings={attacks}
@@ -336,7 +348,7 @@ export default function Board({
         )}
         <CheckLayer
           alert={alert}
-          diameter={attacks.pinRingDiameter}
+          diameter={attacks.pins.ringDiameter}
           lifted={drag?.from ?? null}
           orientation={orientation}
         />

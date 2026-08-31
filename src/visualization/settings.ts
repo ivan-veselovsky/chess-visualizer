@@ -13,6 +13,65 @@
 export interface BoardColors {
   lightSquare: string;
   darkSquare: string;
+  /**
+   * Draw the dark squares in the light squares' colour, leaving the board one
+   * flat surface.
+   *
+   * For shading, which colours whole squares: a checkerboard underneath gives
+   * every shade two readings, and a reader comparing two squares cannot tell
+   * how much of the difference is the heatmap and how much is the board.
+   *
+   * A switch rather than setting the two colours the same, so that the
+   * checkerboard is still there to come back to — the dark colour is kept, not
+   * overwritten, and turning this off restores the board as it was.
+   */
+  useLightForDark: boolean;
+}
+
+/**
+ * The mark laid on the two squares the last move used — and on the square a
+ * piece has been lifted from, which is the same question asked a moment
+ * earlier.
+ *
+ * Grouped, because these four are one decision. Three of them describe a mark
+ * that is either a wash of a chosen colour or the squares' own colours turned
+ * round, and choosing between those two is the fourth; flat in `Settings` they
+ * read as four unrelated knobs, and two of them are dead whenever the third is
+ * set one way.
+ */
+export interface LastMoveMark {
+  /**
+   * The wash laid over them, and how much of it from 0 to 1.
+   *
+   * One colour for both kinds of square: a wash moves each of them towards the
+   * same hue while leaving the difference between them showing underneath,
+   * which taking a fixed share off their brightness does not — that pulls the
+   * light square down towards the dark one until the board stops reading as a
+   * board.
+   *
+   * Neither is used while `negative` is set.
+   */
+  color: string;
+  opacity: number;
+  /**
+   * Mark them with the other kind of square's colour instead — dark on a light
+   * square, light on a dark one.
+   *
+   * A rule rather than a colour, which is why it takes the place of the two
+   * above rather than sitting beside them: there is nothing to choose and
+   * nothing to fade, since a mark that is half the other colour is not the
+   * other colour.
+   *
+   * What it shows is the move's shape. A bishop's two squares are the same
+   * colour and so are marked alike; a knight's never are. The board says what
+   * kind of move it was before the pieces are read.
+   */
+  negative: boolean;
+  /**
+   * How far across the mark is, in square sides — the same either way it is
+   * coloured, since it is one mark drawn two ways.
+   */
+  diameter: number;
 }
 
 /**
@@ -105,7 +164,7 @@ export interface OutlineOpacity {
  * say where one piece can go, this says how contested a square is. They are
  * shown independently because a board can want either without the other.
  */
-export interface SquareShading {
+export interface Heatmap {
   /**
    * Whether each side's attackers colour the squares they cover. They are
    * separate questions rather than one: a board shaded by both ends at once
@@ -119,8 +178,8 @@ export interface SquareShading {
   showMine: boolean;
   showOpponent: boolean;
   /** What a square attacked only by this end of the board is tinted with. */
-  me: string;
-  opponent: string;
+  myColor: string;
+  opponentColor: string;
   /**
    * How much colour a single attacker lays down, from 0 to 1. Each attacker
    * after it takes the same share of whatever transparency is left.
@@ -215,6 +274,44 @@ export interface SideGeometry {
   opponent: AttackGeometry;
 }
 
+/**
+ * The ring drawn round a piece that cannot leave the line it stands on.
+ *
+ * One setting for both sides, unlike the rays: a pin is a fact about the
+ * position rather than about whose reach is being read, and being able to see
+ * one side's pins but not the other's would only mislead.
+ */
+export interface PinMarks {
+  show: boolean;
+  /** What the ring is drawn in. One colour, as the flag above is one flag. */
+  ringColor: string;
+  /**
+   * How far across it is, in square sides. It stands clear of the piece rather
+   * than framing anything else on the square, so it is given a size of its own
+   * instead of borrowing the one the rays are measured against.
+   */
+  ringDiameter: number;
+}
+
+/**
+ * The disc laid under a king that is in check, or mated.
+ *
+ * Under the glyph rather than over it, and never into it: the king keeps its
+ * own colour exactly, and only its surroundings say what has happened. The
+ * disc is part transparent so that it reads as the square tinted; the colours
+ * themselves are solid, a colour input having no way to carry an alpha.
+ *
+ * The two live together because they are one question asked at two
+ * severities — is this king in trouble, and is it over — and a reader who has
+ * turned one off has almost certainly formed a view about the other.
+ */
+export interface CheckMarks {
+  showCheck: boolean;
+  checkColor: string;
+  showCheckmate: boolean;
+  checkmateColor: string;
+}
+
 export interface AttackSettings {
   showAttacks: AttackVisibility;
   /**
@@ -227,7 +324,7 @@ export interface AttackSettings {
   /** One choice for both sides: it is a shape, not a way of telling them apart. */
   knightGeometry: KnightGeometry;
   /** Colouring every square by who attacks it, and how often. */
-  squareShading: SquareShading;
+  heatmap: Heatmap;
   /**
    * What the straight-ray geometry's marks are drawn at where they are only
    * passing through — the knight's own square, and the ones between it and the
@@ -239,28 +336,8 @@ export interface AttackSettings {
    * length alike; zero shows only where each move arrives.
    */
   straightRayOpacityDecay: number;
-  showPins: boolean;
-  /** What that ring is drawn in. One colour, as the setting above is one flag. */
-  pinRingColor: string;
-  /**
-   * How far across that ring is, in square sides. It stands clear of the piece
-   * rather than framing anything else on the square, so it is given a size of
-   * its own instead of borrowing the one the rays are measured against.
-   */
-  pinRingDiameter: number;
-  /**
-   * Whether the king in check, and the king mated, are shown by a disc laid
-   * under the glyph — as wide across as the pin ring, so the two marks agree.
-   *
-   * Under it rather than over it, and never into it: the king keeps its own
-   * colour exactly, and only its surroundings say what has happened. The disc
-   * is part transparent so that it reads as the square tinted; the colours
-   * themselves are solid, a colour input having no way to carry an alpha.
-   */
-  showCheck: boolean;
-  showCheckmate: boolean;
-  checkColor: string;
-  checkmateColor: string;
+  pins: PinMarks;
+  checkAndCheckmate: CheckMarks;
   colors: SideAttackColors;
   outlineWidths: OutlineWidths;
   outlineColors: OutlineColors;

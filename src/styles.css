@@ -675,6 +675,20 @@ body {
   fill: var(--square-dark);
 }
 
+/*
+  The negative last-move mark, named for the square it lies on rather than for
+  its own colour: on a light square it is the dark one, and the other way
+  about. Both come from <Board>, which knows whether the board is being drawn
+  in one colour and what the second colour was before it was.
+*/
+.mark-on-light {
+  fill: var(--mark-on-light);
+}
+
+.mark-on-dark {
+  fill: var(--mark-on-dark);
+}
+
 .grid-line {
   stroke: var(--grid-line);
   stroke-width: 1;
@@ -1213,22 +1227,22 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
-  The two shading colours face each other across their row, under the switches
+  The two heatmap colours face each other across their row, under the switches
   that turn them on: mine at the left edge, the opponent's at the right. The
   second is laid out backwards for it — well first, label outermost — so the
   row reads outwards from the middle rather than twice from the left.
 */
-.field-row-shade-colors > .color-field {
+.field-row-heatmap-colors > .color-field {
   flex: 1 1 0;
 }
 
-.field-row-shade-colors > .color-field:last-of-type {
+.field-row-heatmap-colors > .color-field:last-of-type {
   flex-direction: row-reverse;
 }
 
 /* And no colon on that one: a colon points at the control it labels, and this
    label has the well behind it rather than ahead. */
-.field-row-shade-colors > .color-field:last-of-type > label::after {
+.field-row-heatmap-colors > .color-field:last-of-type > label::after {
   content: "";
 }
 

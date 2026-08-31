@@ -328,19 +328,23 @@ export default function InvitePanel({
           )}
 
           {/*
-            A finished game is not left, it is put away — there is nothing to
-            leave, it ended. At the far end of the last row, where every other
-            way out in this app sits.
+            A finished game is not left, it is dismissed — there is nothing to
+            leave, it ended. "Dismiss" rather than "Close" because the panel is
+            not all that goes: both seats at the game are given up with it, and
+            a word that only promised to shut a panel would be promising less
+            than it does. What stays is the game itself, on the board and in
+            the PGN. At the far end of the last row, where every other way out
+            in this app sits.
           */}
           {phase.over !== null && (
             <div className="pgn-dialog-actions">
               <button
                 type="button"
                 className="reset-button"
-                title="Put this game away"
+                title="Forget this game. It stays on the board and in the PGN, but it is no longer one of yours to come back to."
                 onClick={onLeave}
               >
-                Close
+                Dismiss
               </button>
             </div>
           )}
@@ -355,8 +359,13 @@ export default function InvitePanel({
               : "Your invite was declined."}
           </p>
           <div className="pgn-dialog-actions">
-            <button type="button" className="reset-button" onClick={onLeave}>
-              Close
+            <button
+              type="button"
+              className="reset-button"
+              title="Forget this game"
+              onClick={onLeave}
+            >
+              Dismiss
             </button>
           </div>
         </>
@@ -366,8 +375,13 @@ export default function InvitePanel({
         <>
           <p className="invite-heading">{phase.reason}</p>
           <div className="pgn-dialog-actions">
-            <button type="button" className="reset-button" onClick={onLeave}>
-              Close
+            <button
+              type="button"
+              className="reset-button"
+              title="Forget this game"
+              onClick={onLeave}
+            >
+              Dismiss
             </button>
           </div>
         </>

@@ -1,19 +1,22 @@
 {
-  "schemaVersion": 29,
+  "schemaVersion": 34,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
     "lightSquare": "#ccdccc",
-    "darkSquare": "#bfbfbf"
+    "darkSquare": "#bfbfbf",
+    "useLightForDark": false
   },
-  "lastMoveColor": "#dbd524",
-  "lastMoveOpacity": 0.6,
-  "lastMoveNegative": false,
-  "lastMoveNegativeDiameter": 0.74,
   "orientation": "white",
+  "lastMove": {
+    "color": "#dbd524",
+    "opacity": 0.6,
+    "negative": true,
+    "diameter": 0.75
+  },
   "showGrid": false,
   "gridColor": "#5e5e5e",
-  "showTakenPieces": true,
+  "showCapturedPiecesBar": true,
   "pieceTint": {
     "lightenWhite": 0.9,
     "darkenBlack": 0.8
@@ -24,21 +27,25 @@
       "opponent": true
     },
     "knightGeometry": "arc",
-    "squareShading": {
+    "heatmap": {
       "showMine": false,
       "showOpponent": false,
-      "me": "#1100ff",
-      "opponent": "#ff5900",
+      "myColor": "#1100ff",
+      "opponentColor": "#ff5900",
       "strength": 0.16
     },
     "straightRayOpacityDecay": 0.25,
-    "showPins": true,
-    "pinRingColor": "#616161",
-    "pinRingDiameter": 0.85,
-    "showCheck": true,
-    "showCheckmate": true,
-    "checkColor": "#ff4929",
-    "checkmateColor": "#a30000",
+    "pins": {
+      "show": true,
+      "ringColor": "#616161",
+      "ringDiameter": 0.85
+    },
+    "checkAndCheckmate": {
+      "showCheck": true,
+      "checkColor": "#ff4929",
+      "showCheckmate": true,
+      "checkmateColor": "#a30000"
+    },
     "colors": {
       "me": {
         "king": "#0040ff",

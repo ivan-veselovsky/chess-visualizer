@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
-import ConfirmDialog from "./ConfirmDialog";
 import NumberField from "./NumberField";
 import SelectField from "./SelectField";
 import ToggleField from "./ToggleField";
@@ -14,7 +13,10 @@ import type {
   OutlineOpacity,
   RayOpacity,
   PieceTint,
-  SquareShading,
+  LastMoveMark,
+  PinMarks,
+  CheckMarks,
+  Heatmap,
 } from "./settings";
 import { downloadSettings, parseSettings } from "./settingsFile";
 
@@ -33,9 +35,6 @@ export default function SettingsPanel({
   defaults,
   onChange,
 }: SettingsPanelProps) {
-  /** Asked when shading goes on and the board is still a checkerboard. */
-  const [askPlainBoard, setAskPlainBoard] = useState(false);
-
   const fileInput = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -58,6 +57,20 @@ export default function SettingsPanel({
     onChange({ ...settings, pieceTint: { ...settings.pieceTint, ...patch } });
   }
 
+  function updatePins(patch: Partial<PinMarks>) {
+    updateAttacks({ pins: { ...settings.attacks.pins, ...patch } });
+  }
+
+  function updateCheckMarks(patch: Partial<CheckMarks>) {
+    updateAttacks({
+      checkAndCheckmate: { ...settings.attacks.checkAndCheckmate, ...patch },
+    });
+  }
+
+  function updateLastMove(patch: Partial<LastMoveMark>) {
+    onChange({ ...settings, lastMove: { ...settings.lastMove, ...patch } });
+  }
+
   function updateAttacks(patch: Partial<AttackSettings>) {
     onChange({ ...settings, attacks: { ...settings.attacks, ...patch } });
   }
@@ -74,39 +87,14 @@ export default function SettingsPanel({
     });
   }
 
-  function updateShading(patch: Partial<SquareShading>) {
+  function updateHeatmap(patch: Partial<Heatmap>) {
     updateAttacks({
-      squareShading: { ...settings.attacks.squareShading, ...patch },
+      heatmap: { ...settings.attacks.heatmap, ...patch },
     });
-    /*
-      Shading colours whole squares, and a checkerboard underneath gives every
-      colour two readings. Worth offering to flatten — and worth asking rather
-      than doing, since the board's colours are the reader's own setting. Either
-      side going on raises the question; both being off again does not put the
-      board back, the reader having answered it once.
-    */
-    if (
-      (patch.showMine === true || patch.showOpponent === true) &&
-      settings.boardColors.darkSquare !== settings.boardColors.lightSquare
-    ) {
-      setAskPlainBoard(true);
-    }
   }
 
   return (
     <aside className="settings-panel" aria-label="Settings">
-      <ConfirmDialog
-        open={askPlainBoard}
-        question="Make both board squares the same colour?"
-        detail={`Shading colours the squares themselves, and a checkerboard under it gives each colour two readings. This sets the dark squares to ${settings.boardColors.lightSquare}, the colour the light ones already are.`}
-        confirmLabel="Make them plain"
-        dismissLabel="Keep the checkerboard"
-        onConfirm={() =>
-          updateBoardColors({ darkSquare: settings.boardColors.lightSquare })
-        }
-        onClose={() => setAskPlainBoard(false)}
-      />
-
       <section className="settings-group">
         <div className="field-row field-row-apart">
           <ToggleField
@@ -153,32 +141,30 @@ export default function SettingsPanel({
           <ColorField
             id="last-move-color"
             label="Last move highlight color"
-            value={settings.lastMoveColor}
-            disabled={settings.lastMoveNegative}
+            value={settings.lastMove.color}
+            disabled={settings.lastMove.negative}
             hint={
-              settings.lastMoveNegative
+              settings.lastMove.negative
                 ? "Not used: the negative circle takes its colour from the squares themselves."
                 : undefined
             }
-            onChange={(lastMoveColor) => onChange({ ...settings, lastMoveColor })}
+            onChange={(color) => updateLastMove({ color })}
           />
           <NumberField
             id="last-move-opacity"
             inline
             label="Last move highlight opacity"
-            value={settings.lastMoveOpacity}
+            value={settings.lastMove.opacity}
             step={0.05}
             max={1}
             allowZero
-            disabled={settings.lastMoveNegative}
+            disabled={settings.lastMove.negative}
             hint={
-              settings.lastMoveNegative
+              settings.lastMove.negative
                 ? "Not used: a circle half the other square's colour is not the other square's colour."
                 : undefined
             }
-            onChange={(lastMoveOpacity) =>
-              onChange({ ...settings, lastMoveOpacity })
-            }
+            onChange={(opacity) => updateLastMove({ opacity })}
           />
         </div>
         <div className="field-row field-row-halves">
@@ -186,28 +172,19 @@ export default function SettingsPanel({
             id="last-move-negative"
             label="Negative square color circle"
             hint="Mark the last move's two squares with the other square colour — dark on a light square, light on a dark one. A bishop's two squares then match; a pawn's are opposites."
-            checked={settings.lastMoveNegative}
-            onChange={(lastMoveNegative) =>
-              onChange({ ...settings, lastMoveNegative })
-            }
+            checked={settings.lastMove.negative}
+            onChange={(negative) => updateLastMove({ negative })}
           />
           <NumberField
-            id="last-move-negative-diameter"
+            id="last-move-circle-diameter"
             inline
-            label="Negative circle diameter"
+            label="Last move circle diameter"
             suffix="squares"
-            value={settings.lastMoveNegativeDiameter}
+            value={settings.lastMove.diameter}
             step={0.02}
             allowZero
-            disabled={!settings.lastMoveNegative}
-            hint={
-              settings.lastMoveNegative
-                ? "How much of the square the mark covers."
-                : "Not used until the negative circle is switched on."
-            }
-            onChange={(lastMoveNegativeDiameter) =>
-              onChange({ ...settings, lastMoveNegativeDiameter })
-            }
+            hint="How much of the square the mark covers, coloured either way."
+            onChange={(diameter) => updateLastMove({ diameter })}
           />
         </div>
         <div className="field-row field-row-apart">
@@ -227,9 +204,9 @@ export default function SettingsPanel({
         <ToggleField
           id="show-taken-pieces"
           label="Show taken pieces"
-          checked={settings.showTakenPieces}
-          onChange={(showTakenPieces) =>
-            onChange({ ...settings, showTakenPieces })
+          checked={settings.showCapturedPiecesBar}
+          onChange={(showCapturedPiecesBar) =>
+            onChange({ ...settings, showCapturedPiecesBar })
           }
         />
       </section>
@@ -359,14 +336,14 @@ export default function SettingsPanel({
             id="show-pins"
             hint="Ring any piece that cannot leave the line it stands on without exposing its own king."
             label="Show pins"
-            checked={settings.attacks.showPins}
-            onChange={(showPins) => updateAttacks({ showPins })}
+            checked={settings.attacks.pins.show}
+            onChange={(show) => updatePins({ show })}
           />
           <ColorField
             id="pin-ring-color"
             label="Pin ring color"
-            value={settings.attacks.pinRingColor}
-            onChange={(pinRingColor) => updateAttacks({ pinRingColor })}
+            value={settings.attacks.pins.ringColor}
+            onChange={(ringColor) => updatePins({ ringColor })}
           />
         </div>
         <NumberField
@@ -374,23 +351,23 @@ export default function SettingsPanel({
           inline
           label="Pin ring diameter"
           suffix="squares"
-          value={settings.attacks.pinRingDiameter}
+          value={settings.attacks.pins.ringDiameter}
           allowZero
-          onChange={(pinRingDiameter) => updateAttacks({ pinRingDiameter })}
+          onChange={(ringDiameter) => updatePins({ ringDiameter })}
         />
         <div className="field-row field-row-halves">
           <ToggleField
             id="show-check"
             hint="Tint the king's own glyph when it stands in check."
             label="Show check"
-            checked={settings.attacks.showCheck}
-            onChange={(showCheck) => updateAttacks({ showCheck })}
+            checked={settings.attacks.checkAndCheckmate.showCheck}
+            onChange={(showCheck) => updateCheckMarks({ showCheck })}
           />
           <ColorField
             id="check-color"
             label="Check color"
-            value={settings.attacks.checkColor}
-            onChange={(checkColor) => updateAttacks({ checkColor })}
+            value={settings.attacks.checkAndCheckmate.checkColor}
+            onChange={(checkColor) => updateCheckMarks({ checkColor })}
           />
         </div>
         <div className="field-row field-row-halves">
@@ -398,14 +375,14 @@ export default function SettingsPanel({
             id="show-checkmate"
             hint="Tint the king's own glyph when it is mated. Takes precedence over check, mate being one as well."
             label="Show checkmate"
-            checked={settings.attacks.showCheckmate}
-            onChange={(showCheckmate) => updateAttacks({ showCheckmate })}
+            checked={settings.attacks.checkAndCheckmate.showCheckmate}
+            onChange={(showCheckmate) => updateCheckMarks({ showCheckmate })}
           />
           <ColorField
             id="checkmate-color"
             label="Checkmate color"
-            value={settings.attacks.checkmateColor}
-            onChange={(checkmateColor) => updateAttacks({ checkmateColor })}
+            value={settings.attacks.checkAndCheckmate.checkmateColor}
+            onChange={(checkmateColor) => updateCheckMarks({ checkmateColor })}
           />
         </div>
       </section>
@@ -420,53 +397,43 @@ export default function SettingsPanel({
       <hr className="settings-divider" />
 
       <section className="settings-group">
-        {/* A different question from the rays, and shown independently: the
-            rays say where a piece can go, this says how contested a square is.
-            Each side has a switch of its own: both together say who holds a
-            square, one alone says how far that side reaches.
+        {/* The heatmap's own switches sit under the board, beside the rays':
+            they are read with a position. What is left here is how it looks —
+            chosen once and then left alone.
 
-            Laid out in two columns, mine and the opponent's, so that each
-            side's switch and the colour it lays down read as one thing. */}
-        <div className="field-row field-row-halves">
-          <ToggleField
-            id="shade-mine"
-            hint="Colour every square my men cover, more strongly where more of them cover it."
-            label="Shade squares attacked by my pieces"
-            checked={settings.attacks.squareShading.showMine}
-            onChange={(showMine) => updateShading({ showMine })}
-          />
-          <ToggleField
-            id="shade-theirs"
-            hint="The same for the other end of the board. With both on, a square takes a blend of the two, weighted by how many attackers each side has."
-            label="Shade squares attacked by opponent"
-            checked={settings.attacks.squareShading.showOpponent}
-            onChange={(showOpponent) => updateShading({ showOpponent })}
-          />
-        </div>
-        <div className="field-row field-row-shade-colors">
+            The two colours are laid out in two columns, mine and the
+            opponent's, matching the order of the switches out there. */}
+        <ToggleField
+          id="use-light-for-dark"
+          label="Use light square color for dark squares"
+          hint="Draw the whole board in the light squares' colour, so a shade means the same thing on every square. The dark colour is kept and comes back when this is turned off."
+          checked={settings.boardColors.useLightForDark}
+          onChange={(useLightForDark) => updateBoardColors({ useLightForDark })}
+        />
+        <div className="field-row field-row-heatmap-colors">
           <ColorField
-            id="shade-me"
-            label="My shading color"
-            value={settings.attacks.squareShading.me}
-            onChange={(me) => updateShading({ me })}
+            id="heatmap-me"
+            label="My heatmap color"
+            value={settings.attacks.heatmap.myColor}
+            onChange={(myColor) => updateHeatmap({ myColor })}
           />
           <ColorField
-            id="shade-opponent"
-            label="Opponent's shading color"
-            value={settings.attacks.squareShading.opponent}
-            onChange={(opponent) => updateShading({ opponent })}
+            id="heatmap-opponent"
+            label="Opponent's heatmap color"
+            value={settings.attacks.heatmap.opponentColor}
+            onChange={(opponentColor) => updateHeatmap({ opponentColor })}
           />
         </div>
         <NumberField
-          id="shade-strength"
+          id="heatmap-strength"
           inline
           hint="How much colour one attacker lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid."
-          label="Shading strength"
-          value={settings.attacks.squareShading.strength}
+          label="Heatmap strength"
+          value={settings.attacks.heatmap.strength}
           step={0.02}
           max={1}
           allowZero
-          onChange={(strength) => updateShading({ strength })}
+          onChange={(strength) => updateHeatmap({ strength })}
         />
       </section>
 

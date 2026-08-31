@@ -28,7 +28,7 @@ export default function PinLayer({
   orientation = "white",
 }: PinLayerProps) {
   const pinned = useMemo(() => new Set(pinnedSquares(position)), [position]);
-  const radius = (Math.max(attackSettings.pinRingDiameter, 0) * SQUARE_SIZE) / 2;
+  const radius = (Math.max(attackSettings.pins.ringDiameter, 0) * SQUARE_SIZE) / 2;
   if (pinned.size === 0 || radius === 0) {
     return null;
   }
