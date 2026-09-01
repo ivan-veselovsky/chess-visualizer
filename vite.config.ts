@@ -10,6 +10,10 @@ import react from "@vitejs/plugin-react";
  * branch, so git no longer knows which branch was meant. The build environment
  * does know, and says so in one variable or another, so it is asked first.
  *
+ * Cloudflare appears twice because Pages and Workers Builds are two products
+ * and name their variable differently — a build on the second was answering
+ * with no branch at all while only the first was listed.
+ *
  * Failing that, a local or remote branch pointing at this very commit is a good
  * guess — though a shallow CI clone often carries no such ref either, which is
  * why null is a possible answer. The line simply leaves the branch out then.
@@ -19,7 +23,8 @@ function branchName(ask: (...args: string[]) => string | null): string | null {
     process.env.GITHUB_HEAD_REF || // a pull request's source branch
     process.env.GITHUB_REF_NAME || // GitHub Actions otherwise
     process.env.VERCEL_GIT_COMMIT_REF ||
-    process.env.CF_PAGES_BRANCH ||
+    process.env.CF_PAGES_BRANCH || // Cloudflare Pages
+    process.env.WORKERS_CI_BRANCH || // Cloudflare Workers Builds
     process.env.CI_COMMIT_REF_NAME || // GitLab
     process.env.CIRCLE_BRANCH ||
     process.env.BRANCH; // Netlify
