@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 34,
+  "schemaVersion": 39,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -14,25 +14,28 @@
     "negative": false,
     "diameter": 0.76
   },
-  "showGrid": false,
-  "gridColor": "#5e5e5e",
+  "grid": {
+    "show": false,
+    "color": "#5e5e5e"
+  },
   "showCapturedPiecesBar": true,
   "pieceTint": {
     "lightenWhite": 0.9,
     "darkenBlack": 0.8
   },
   "attacks": {
-    "showAttacks": {
-      "me": true,
-      "opponent": true
-    },
     "knightGeometry": "arc",
     "heatmap": {
-      "showMine": false,
-      "showOpponent": false,
       "myColor": "#1d9f2c",
       "opponentColor": "#fa5700",
-      "strength": 0.18
+      "strength": {
+        "me": 0.18,
+        "opponent": 0.18
+      },
+      "intensity": {
+        "me": 0,
+        "opponent": 0
+      }
     },
     "straightRayOpacityDecay": 0.25,
     "pins": {
@@ -141,6 +144,18 @@
           "gapWidth": 0
         }
       }
-    }
+    },
+    "rayIntensity": {
+      "me": 1,
+      "opponent": 1
+    },
+    "linkedIntensity": false
+  },
+  "hedge": {
+    "show": false,
+    "angle": 45,
+    "step": 0.14,
+    "orthogonal": false,
+    "color": "#8a8a8a"
   }
 }

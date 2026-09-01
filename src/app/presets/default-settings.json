@@ -1,11 +1,11 @@
 {
-  "schemaVersion": 34,
+  "schemaVersion": 39,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
     "lightSquare": "#ccdccc",
-    "darkSquare": "#bfbfbf",
-    "useLightForDark": false
+    "darkSquare": "#949494",
+    "useLightForDark": true
   },
   "orientation": "white",
   "lastMove": {
@@ -14,30 +14,33 @@
     "negative": true,
     "diameter": 0.75
   },
-  "showGrid": false,
-  "gridColor": "#5e5e5e",
+  "grid": {
+    "show": true,
+    "color": "#8a8a8a"
+  },
   "showCapturedPiecesBar": true,
   "pieceTint": {
-    "lightenWhite": 0.9,
-    "darkenBlack": 0.8
+    "lightenWhite": 0.7,
+    "darkenBlack": 0.6
   },
   "attacks": {
-    "showAttacks": {
-      "me": true,
-      "opponent": true
-    },
     "knightGeometry": "arc",
     "heatmap": {
-      "showMine": false,
-      "showOpponent": false,
       "myColor": "#1100ff",
       "opponentColor": "#ff5900",
-      "strength": 0.16
+      "strength": {
+        "me": 0.4,
+        "opponent": 0.4
+      },
+      "intensity": {
+        "me": 0.56,
+        "opponent": 0.68
+      }
     },
     "straightRayOpacityDecay": 0.25,
     "pins": {
       "show": true,
-      "ringColor": "#616161",
+      "ringColor": "#292929",
       "ringDiameter": 0.85
     },
     "checkAndCheckmate": {
@@ -73,8 +76,8 @@
       "opponent": "#000000"
     },
     "rayOpacity": {
-      "me": 0.45,
-      "opponent": 0.45
+      "me": 0.7,
+      "opponent": 0.7
     },
     "outlineOpacity": {
       "me": 1,
@@ -87,28 +90,28 @@
         "smallInnerSquare": 0.55,
         "largeInnerSquare": 0.7,
         "kingRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         },
         "queenRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         },
         "rookRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         },
         "bishopRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         },
         "knightRing": {
           "innerRadius": 2.25,
-          "outerRadius": 2.45,
+          "outerRadius": 2.4,
           "gapWidth": 0
         },
         "pawnRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         }
       },
@@ -116,31 +119,43 @@
         "smallInnerSquare": 0.55,
         "largeInnerSquare": 0.7,
         "kingRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         },
         "queenRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         },
         "rookRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         },
         "bishopRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         },
         "knightRing": {
           "innerRadius": 2.25,
-          "outerRadius": 2.45,
+          "outerRadius": 2.4,
           "gapWidth": 0
         },
         "pawnRay": {
-          "rayWidth": 0.2,
+          "rayWidth": 0.16,
           "gapWidth": 0
         }
       }
-    }
+    },
+    "rayIntensity": {
+      "me": 0.77,
+      "opponent": 0.82
+    },
+    "linkedIntensity": false
+  },
+  "hedge": {
+    "show": false,
+    "angle": 45,
+    "step": 0.06,
+    "orthogonal": true,
+    "color": "#8a8a8a"
   }
 }

@@ -56,6 +56,17 @@ export default function AttackLayer({
   // useId() yields ids like ":r0:"; the colons are awkward inside url(#...).
   const idPrefix = `attack-${useId().replace(/:/g, "")}`;
   const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
+  /*
+    The configured opacity alone. The fraction the reader has asked for is not
+    applied here at all: it reaches the marks as a CSS variable published by the
+    board, so that turning it up and down never invalidates any of this.
+
+    That matters because everything below is derived from the position — which
+    squares each piece reaches, where every ray starts and stops — and working
+    that out for thirty-two pieces takes several frames. Kept out of the render,
+    the fraction costs a style recalculation instead, and the geometry is
+    computed once per position rather than once per pointer move.
+  */
   const opacityFor = (side: SettingsSide) =>
     clamp(attackSettings.rayOpacity[side]);
 
@@ -138,17 +149,18 @@ export default function AttackLayer({
         // Which settings this piece draws with: its end of the board, not its
         // colour, so flipping hands the near-side look to the other army.
         const side = settingsSide(piece.color, orientation);
-        if (!attackSettings.showAttacks[side]) {
-          return null;
-        }
         const outline = outlineFor(side);
         return (
           <g
             key={piece.square}
-            className={`attack-side-${side}`}
-            // Where a filter runs, it has already applied both transparencies
-            // and an opacity here would scale them a second time.
-            opacity={outline ? undefined : opacityFor(side)}
+            /*
+              Marked as outlined where a filter runs, because the filter has
+              already applied both transparencies and the stylesheet must not
+              scale them again. That path keeps its opacity as an attribute, and
+              so is still redrawn when the reader's fraction changes; the plain
+              path, which is what every preset uses, is not.
+            */
+            className={`attack-side-${side}${outline ? " attack-outlined" : ""}`}
           >
             <g filter={outline ? `url(#${outline.id})` : undefined}>
               <Renderer

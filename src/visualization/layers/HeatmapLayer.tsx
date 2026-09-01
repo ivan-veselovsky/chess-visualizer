@@ -81,29 +81,60 @@ export default function HeatmapLayer({
     return found;
   }, [position, lifted, mine, theirs]);
 
-  const strength = Math.min(Math.max(heatmap.strength, 0), 1);
-  if (strength === 0 || (!heatmap.showMine && !heatmap.showOpponent)) {
+  const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
+  // What one attacker of each side lays down: that side's configured strength,
+  // scaled by the share of it the reader has asked for.
+  const ourStrength =
+    clamp(heatmap.strength.me) * clamp(heatmap.intensity.me);
+  const theirStrength =
+    clamp(heatmap.strength.opponent) * clamp(heatmap.intensity.opponent);
+  if (ourStrength === 0 && theirStrength === 0) {
     return null;
   }
   const ours = readRgb(heatmap.myColor);
   const others = readRgb(heatmap.opponentColor);
 
+  /*
+    How much colour a side lays on a square: each attacker takes the same share
+    of whatever transparency the ones before it left, so the wash deepens
+    towards opaque without ever reaching it.
+  */
+  const inkOf = (sideStrength: number, count: number) =>
+    1 - (1 - sideStrength) ** count;
+
   const shown = squares
     .map(({ square, mine: ourCount, theirs: theirCount }) => ({
       square,
-      mine: heatmap.showMine ? ourCount : 0,
-      theirs: heatmap.showOpponent ? theirCount : 0,
+      ourInk: inkOf(ourStrength, ourCount),
+      theirInk: inkOf(theirStrength, theirCount),
     }))
-    .filter(({ mine: ourCount, theirs: theirCount }) => ourCount + theirCount > 0);
+    .filter(({ ourInk, theirInk }) => ourInk + theirInk > 0);
 
   return (
     <g className="heatmap-layer">
-      {shown.map(({ square, mine: ourCount, theirs: theirCount }) => {
-        const total = ourCount + theirCount;
-        const color = toHex(mix(ours, others, ourCount / total));
-        // Each attacker takes a share of what transparency is left, so the
-        // heatmap deepens without ever closing over the square underneath.
-        const opacity = 1 - (1 - strength) ** total;
+      {shown.map(({ square, ourInk, theirInk }) => {
+        /*
+          The hue goes by how much colour each side actually lays down, not by
+          how many attackers it has.
+
+          By attacker count, a side's hue arrives at full weight the moment its
+          strength leaves nought: a side laying down a hundredth of a wash would
+          still claim half the colour of a square the two share. That is a step,
+          not a slope — the square is one colour at nought and a blend at the
+          least touch above it, so a chooser moved a hair off its corner throws
+          the whole board into a mixture it never comes out of.
+
+          By ink the two agree at the ends and pass smoothly between: a side
+          laying down nothing takes none of the hue, and a side laying down
+          twice as much as the other takes twice the share. Where the two are at
+          the same strength this is what counting them gave, near enough.
+        */
+        const color = toHex(mix(ours, others, ourInk / (ourInk + theirInk)));
+        /*
+          The two washes laid over one another: what is left of the square after
+          each has taken its share.
+        */
+        const opacity = 1 - (1 - ourInk) * (1 - theirInk);
         return (
           <rect
             key={square}

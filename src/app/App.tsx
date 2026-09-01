@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess, DEFAULT_POSITION, type Color, type Square } from "chess.js";
 import {
   canGoNext,
@@ -41,6 +41,8 @@ import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
 import MovesSelect from "./MovesSelect";
 import GearIcon from "./GearIcon";
+import IntensityChooser from "./IntensityChooser";
+import LinkIcon from "./LinkIcon";
 import GitHubIcon from "./GitHubIcon";
 import ShareIcon from "./ShareIcon";
 import SponsorIcon from "./SponsorIcon";
@@ -48,7 +50,6 @@ import StepIcon from "./StepIcon";
 import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
 import CapturedBar from "./CapturedBar";
-import ConfirmDialog from "./ConfirmDialog";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
@@ -66,20 +67,29 @@ import PlayerName from "./friend/PlayerName";
 import { useFriendGame } from "./friend/useFriendGame";
 import type { Heatmap, Settings } from "./settings";
 import { DEFAULT_SETTINGS } from "./presets";
+import type { SideIntensity } from "../visualization/settings";
+import {
+  heatOver,
+  meanColor,
+  raysOver,
+} from "../visualization/intensityField";
 
 /**
  * What the right-hand column can show. The game comes first and opens by
  * default: it is what the page is for, and the rest is how it looks.
  */
-type PanelTab = "game" | SettingsGroup;
+type PanelTab = "game" | "balance" | SettingsGroup;
 
 const TABS: readonly Tab<PanelTab>[] = [
   { id: "game", label: "Game", name: "Game and view" },
+  // Short because the strip has to stay on one line: nine tabs that wrap cost
+  // the selected one its join to the panel, which is what makes it a tab.
+  { id: "balance", label: "Balance", name: "Colour balance" },
   { id: "board", label: "Board" },
   { id: "pieces", label: "Pieces" },
   { id: "rays", label: "Rays", name: "Attack rays" },
   { id: "heatmap", label: "Heatmap", name: "Attack heatmap" },
-  { id: "check", label: "Checkmate", name: "Check and checkmate" },
+  { id: "check", label: "Check", name: "Check and checkmate" },
   { id: "pins", label: "Pin", name: "Pins" },
   // Marked rather than named: it holds the settings themselves — the file they
   // are written to and read from — rather than any setting, and a gear says
@@ -89,32 +99,105 @@ const TABS: readonly Tab<PanelTab>[] = [
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  /** Asked when the heatmap goes on and the board is still a checkerboard. */
-  const [askPlainBoard, setAskPlainBoard] = useState(false);
 
-  function showHeatmap(patch: Partial<Heatmap>) {
+  /*
+    One colour speaks for a side's rays, though the settings keep one per piece
+    kind: their mean. They are the same colour today, and the mean stays honest
+    if they are ever parted.
+  */
+  const rayColors = useMemo(
+    () => ({
+      mine: meanColor(Object.values(settings.attacks.colors.me)),
+      theirs: meanColor(Object.values(settings.attacks.colors.opponent)),
+    }),
+    [settings.attacks.colors]
+  );
+
+  // The board the fields are painted on: a light square, which is what the
+  // marks are read against.
+  const square = settings.boardColors.lightSquare;
+
+  const rayFieldColor = useCallback(
+    (mine: number, opponent: number) =>
+      raysOver(
+        square,
+        rayColors.mine,
+        rayColors.theirs,
+        mine * settings.attacks.rayOpacity.me,
+        opponent * settings.attacks.rayOpacity.opponent
+      ),
+    [square, rayColors, settings.attacks.rayOpacity]
+  );
+
+  /*
+    What a whole one comes to, for the far corner of each chooser.
+
+    The corners say nought and one, which is true of the fraction but says
+    nothing about what a whole one is worth — and that is the number the reader
+    is actually setting. The rays have an opacity apiece, so the pair is written
+    out when they differ and once when they do not: two identical numbers side
+    by side would read as though they were about to be told apart.
+  */
+  const rayFull = {
+    mine: settings.attacks.rayOpacity.me,
+    opponent: settings.attacks.rayOpacity.opponent,
+  };
+  const heatFull = {
+    mine: settings.attacks.heatmap.strength.me,
+    opponent: settings.attacks.heatmap.strength.opponent,
+  };
+
+  const heatFieldColor = useCallback(
+    (mine: number, opponent: number) =>
+      heatOver(
+        square,
+        settings.attacks.heatmap.myColor,
+        settings.attacks.heatmap.opponentColor,
+        mine * settings.attacks.heatmap.strength.me,
+        opponent * settings.attacks.heatmap.strength.opponent
+      ),
+    [
+      square,
+      settings.attacks.heatmap.myColor,
+      settings.attacks.heatmap.opponentColor,
+      settings.attacks.heatmap.strength,
+    ]
+  );
+
+  /**
+   * Moving one or both choosers. Linked, whichever was moved carries the other
+   * with it; parted, each keeps its own.
+   */
+  function setIntensity(moved: { rays?: SideIntensity; heatmap?: SideIntensity }) {
+    const linked = settings.attacks.linkedIntensity;
+    const next = moved.rays ?? moved.heatmap;
+    const rays = linked ? next! : moved.rays ?? settings.attacks.rayIntensity;
+    const heat = linked ? next! : moved.heatmap ?? settings.attacks.heatmap.intensity;
     setSettings({
       ...settings,
       attacks: {
         ...settings.attacks,
-        heatmap: { ...settings.attacks.heatmap, ...patch },
+        rayIntensity: rays,
+        heatmap: { ...settings.attacks.heatmap, intensity: heat },
       },
     });
-    /*
-      The heatmap colours whole squares, and a checkerboard underneath gives
-      every shade two readings. Worth offering to flatten — and worth asking
-      rather than doing, since the board's colours are the reader's own setting.
-      Either side going on raises the question; both being off again does not
-      put the board back, the reader having answered it once.
-    */
-    if (
-      (patch.showMine === true || patch.showOpponent === true) &&
-      !settings.boardColors.useLightForDark &&
-      settings.boardColors.darkSquare !== settings.boardColors.lightSquare
-    ) {
-      setAskPlainBoard(true);
-    }
   }
+
+  /** Joining the two, which takes the rays' setting for both, or parting them. */
+  function linkIntensity(linked: boolean) {
+    const heat = linked
+      ? settings.attacks.rayIntensity
+      : settings.attacks.heatmap.intensity;
+    setSettings({
+      ...settings,
+      attacks: {
+        ...settings.attacks,
+        linkedIntensity: linked,
+        heatmap: { ...settings.attacks.heatmap, intensity: heat },
+      },
+    });
+  }
+
   const [tab, setTab] = useState<PanelTab>("game");
   /*
     What the page opens on. A link may name a position; read once, at the first
@@ -664,11 +747,11 @@ export default function App() {
                 <Board
                 position={shown}
                 colors={settings.boardColors}
+              hedge={settings.hedge}
                 pieceTint={settings.pieceTint}
                 attacks={settings.attacks}
                 onMove={handleMove}
-                showGrid={settings.showGrid}
-                gridColor={settings.gridColor}
+                grid={settings.grid}
                 playable={
                   friend.phase.kind === "playing" ? friend.phase.you : null
                 }
@@ -980,72 +1063,69 @@ export default function App() {
               />
             </div>
 
-            {/* The four switches below answer a different question from
-                everything above them — not which game is on the board, but what
-                is drawn over it — so a rule marks where one ends. */}
-            <hr className="panel-divider" />
-
-            {/*
-              Out here rather than in the settings panel: turning a side's marks
-              off is part of reading the board, not of setting it up, and is
-              reached for as often as the board is flipped.
-            */}
-            <div className="field-row field-row-halves">
-              <ToggleField
-                id="show-my-attacks"
-                label="Show my attack rays"
-                checked={settings.attacks.showAttacks.me}
-                onChange={(me) =>
-                  setSettings({
-                    ...settings,
-                    attacks: {
-                      ...settings.attacks,
-                      showAttacks: { ...settings.attacks.showAttacks, me },
-                    },
-                  })
-                }
-              />
-              <ToggleField
-                id="show-opponent-attacks"
-                label="Show opponent's attack rays"
-                checked={settings.attacks.showAttacks.opponent}
-                onChange={(opponent) =>
-                  setSettings({
-                    ...settings,
-                    attacks: {
-                      ...settings.attacks,
-                      showAttacks: { ...settings.attacks.showAttacks, opponent },
-                    },
-                  })
-                }
-              />
-            </div>
-
-            {/* Out here for the same reason, and in the same two columns: the
-                heatmap answers "who holds this square", which is a question
-                asked while reading a position, not while setting one up. Its
-                colours and strength stay in the settings panel — those are
-                chosen once, whereas these two are flicked on and off. */}
-            <div className="field-row field-row-halves">
-              <ToggleField
-                id="heatmap-mine"
-                hint="Colour every square my men cover, more strongly where more of them cover it."
-                label="Show my attack heatmap"
-                checked={settings.attacks.heatmap.showMine}
-                onChange={(showMine) => showHeatmap({ showMine })}
-              />
-              <ToggleField
-                id="heatmap-theirs"
-                hint="The same for the other end of the board. With both on, a square takes a blend of the two, weighted by how many attackers each side has."
-                label="Show opponent's attack heatmap"
-                checked={settings.attacks.heatmap.showOpponent}
-                onChange={(showOpponent) => showHeatmap({ showOpponent })}
-              />
-            </div>
-
           </div>
 
-          {tab !== "game" && (
+          {tab === "balance" && (
+            <div
+              className="tab-panel"
+              role="tabpanel"
+              id="panel-balance"
+              aria-labelledby="tab-balance"
+            >
+              {/*
+                Out here rather than in the settings panel: how much of each
+                side's marks to draw is part of reading the board, not of setting
+                it up, and is reached for as often as the board is flipped. What
+                the marks are made of — their colours, their full opacity, the
+                heatmap's strength — stays in the settings, and these two say what
+                fraction of it to show.
+              */}
+              <div className="intensity-row">
+                <IntensityChooser
+                  id="ray-intensity"
+                  label="Attack rays:"
+                  value={settings.attacks.rayIntensity}
+                  colorAt={rayFieldColor}
+                  full={rayFull}
+                  onChange={(rayIntensity) => setIntensity({ rays: rayIntensity })}
+                />
+                {/* Held in a column shaped like a chooser's, so it comes to
+                    rest level with the two squares rather than with the row. */}
+                <div className="intensity-link-holder">
+                  <span className="intensity-label" aria-hidden="true">
+                    {"\u00a0"}
+                  </span>
+                  <div className="intensity-link-middle">
+                    <button
+                      type="button"
+                      className="intensity-link"
+                      aria-pressed={settings.attacks.linkedIntensity}
+                      title={
+                        settings.attacks.linkedIntensity
+                          ? "Rays and heatmap move together. Press to part them."
+                          : "Rays and heatmap move separately. Press to hold them equal, at the rays' setting."
+                      }
+                      onClick={() =>
+                        linkIntensity(!settings.attacks.linkedIntensity)
+                      }
+                    >
+                      <LinkIcon closed={settings.attacks.linkedIntensity} />
+                    </button>
+                  </div>
+                </div>
+                <IntensityChooser
+                  id="heatmap-intensity"
+                  label="Heatmap:"
+                  value={settings.attacks.heatmap.intensity}
+                  colorAt={heatFieldColor}
+                  full={heatFull}
+                  onChange={(intensity) => setIntensity({ heatmap: intensity })}
+                />
+              </div>
+            </div>
+          )}
+
+          {tab !== "game" && tab !== "balance" && (
             <div
               className="tab-panel"
               role="tabpanel"
@@ -1063,26 +1143,6 @@ export default function App() {
           </div>
         </div>
       </div>
-
-      <ConfirmDialog
-        open={askPlainBoard}
-        question="Draw the board in one colour?"
-        detail={
-          "The heatmap colours the squares themselves, and a checkerboard under it " +
-          "gives every shade two readings. This turns on \u201CUse light square " +
-          "color for dark squares\u201D, which can be turned off again \u2014 the dark " +
-          "colour is kept, not overwritten."
-        }
-        confirmLabel="Use one colour"
-        dismissLabel="Keep the checkerboard"
-        onConfirm={() =>
-          setSettings({
-            ...settings,
-            boardColors: { ...settings.boardColors, useLightForDark: true },
-          })
-        }
-        onClose={() => setAskPlainBoard(false)}
-      />
 
       <JoinDialog
         open={joining}

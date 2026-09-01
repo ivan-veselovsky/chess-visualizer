@@ -43,7 +43,7 @@ const REQUIRED_KEYS = [
   "darkThemeTextColor",
   "boardColors",
   "orientation",
-  "showGrid",
+  "grid",
   "pieceTint",
   "attacks",
 ] as const;

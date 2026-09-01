@@ -14,6 +14,7 @@ import type {
   RayOpacity,
   PieceTint,
   LastMoveMark,
+  HedgeLines,
   PinMarks,
   CheckMarks,
   Heatmap,
@@ -103,6 +104,10 @@ export default function SettingsPanel({
     });
   }
 
+  function updateHedge(patch: Partial<HedgeLines>) {
+    onChange({ ...settings, hedge: { ...settings.hedge, ...patch } });
+  }
+
   function updateHeatmap(patch: Partial<Heatmap>) {
     updateAttacks({
       heatmap: { ...settings.attacks.heatmap, ...patch },
@@ -151,6 +156,97 @@ export default function SettingsPanel({
               onChange={(darkSquare) => updateBoardColors({ darkSquare })}
             />
           </div>
+          {/*
+          {/*
+            Kept with the two colours it stands between, because that is what it
+            does: it draws the board in the light one throughout, leaving the
+            dark colour set but unused.
+          */}
+          <ToggleField
+            id="use-light-for-dark"
+            label="Use light square color for dark squares"
+            hint="Draw the whole board in the light squares' colour, so a shade means the same thing on every square. The dark colour is kept and comes back when this is turned off."
+            checked={settings.boardColors.useLightForDark}
+            onChange={(useLightForDark) => updateBoardColors({ useLightForDark })}
+          />
+
+          <hr className="panel-divider" />
+
+          {/*
+            Hatching over the dark squares: a way of telling the two colours
+            apart without a second colour. It earns its place when the board is
+            drawn in one — a heatmap wash over a checkerboard reads as two
+            different washes, while hatching under the wash leaves it alone and
+            still says which squares are which.
+          */}
+          <div className="field-row field-row-apart">
+            <ToggleField
+              id="hedge-dark"
+              label="Hedge dark squares"
+              hint="Rule the dark squares with fine parallel lines, so they can be told from the light ones without being a different colour."
+              checked={settings.hedge.show}
+              onChange={(show) => updateHedge({ show })}
+            />
+            <ColorField
+              id="hedge-color"
+              label="Hedging color"
+              value={settings.hedge.color}
+              onChange={(color) => updateHedge({ color })}
+            />
+          </div>
+          <div className="field-row">
+            <NumberField
+              id="hedge-angle"
+              inline
+              label="Hedging angle"
+              suffix="degrees"
+              hint="Which way the lines run: nought and a hundred and eighty both lie flat, ninety stands upright, and the half turn between them covers every slope there is."
+              value={settings.hedge.angle}
+              step={5}
+              max={180}
+              allowZero
+              onChange={(angle) => updateHedge({ angle })}
+            />
+            <NumberField
+              id="hedge-step"
+              inline
+              label="Hedging step"
+              suffix="squares"
+              hint="The gap from one line to the next, as a fraction of a square. Nought draws none."
+              value={settings.hedge.step}
+              step={0.02}
+              max={1}
+              allowZero
+              onChange={(step) => updateHedge({ step })}
+            />
+          </div>
+          <ToggleField
+            id="hedge-orthogonal"
+            label="Orthogonal"
+            hint="Rule a second set of lines across the first, square to it and at the same spacing, so the squares are cross-hatched rather than hatched."
+            checked={settings.hedge.orthogonal}
+            onChange={(orthogonal) => updateHedge({ orthogonal })}
+          />
+          <div className="field-row field-row-apart">
+            <ToggleField
+              id="show-grid"
+              label="Show grid"
+              checked={settings.grid.show}
+              onChange={(show) =>
+                onChange({ ...settings, grid: { ...settings.grid, show } })
+              }
+            />
+            <ColorField
+              id="grid-color"
+              label="Grid color"
+              value={settings.grid.color}
+              onChange={(color) =>
+                onChange({ ...settings, grid: { ...settings.grid, color } })
+              }
+            />
+          </div>
+          <hr className="panel-divider" />
+
           {/*
             The negative mark takes the place of the colour and the wash rather
             than sitting beside them, so both are shown greyed while it is on and
@@ -205,22 +301,6 @@ export default function SettingsPanel({
               allowZero
               hint="How much of the square the mark covers, coloured either way."
               onChange={(diameter) => updateLastMove({ diameter })}
-            />
-          </div>
-          <hr className="panel-divider" />
-
-          <div className="field-row field-row-apart">
-            <ToggleField
-              id="show-grid"
-              label="Show grid"
-              checked={settings.showGrid}
-              onChange={(showGrid) => onChange({ ...settings, showGrid })}
-            />
-            <ColorField
-              id="grid-color"
-              label="Grid color"
-              value={settings.gridColor}
-              onChange={(gridColor) => onChange({ ...settings, gridColor })}
             />
           </div>
         </section>
@@ -394,19 +474,17 @@ export default function SettingsPanel({
 
       {group === "heatmap" && (
         <section className="settings-group">
-          {/* The heatmap's own switches sit under the board, beside the rays':
-              they are read with a position. What is left here is how it looks —
-              chosen once and then left alone.
+          {/* The heatmap's own pair sits on the balance tab, where it is read
+              with a position. What is left here is how it looks — chosen once
+              and then left alone.
+
+              Drawing the board in one colour used to stand here too, since it
+              is the heatmap that most wants it. It has gone to the board's own
+              tab, beside the two colours it chooses between, and the balance
+              tab can turn it on and off by itself.
 
               The two colours are laid out in two columns, mine and the
-              opponent's, matching the order of the switches out there. */}
-          <ToggleField
-            id="use-light-for-dark"
-            label="Use light square color for dark squares"
-            hint="Draw the whole board in the light squares' colour, so a shade means the same thing on every square. The dark colour is kept and comes back when this is turned off."
-            checked={settings.boardColors.useLightForDark}
-            onChange={(useLightForDark) => updateBoardColors({ useLightForDark })}
-          />
+              opponent's, matching the order of the choosers out there. */}
           <div className="field-row field-row-heatmap-colors">
             <ColorField
               id="heatmap-me"
@@ -421,17 +499,40 @@ export default function SettingsPanel({
               onChange={(opponentColor) => updateHeatmap({ opponentColor })}
             />
           </div>
-          <NumberField
-            id="heatmap-strength"
-            inline
-            hint="How much colour one attacker lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid."
-            label="Heatmap strength"
-            value={settings.attacks.heatmap.strength}
-            step={0.02}
-            max={1}
-            allowZero
-            onChange={(strength) => updateHeatmap({ strength })}
-          />
+          {/* One apiece, laid out as the rays' opacities are: the two ends of
+              the board are not always worth reading at the same weight. */}
+          <div className="field-row">
+            <NumberField
+              id="my-heatmap-strength"
+              inline
+              hint="How much colour one of my attackers lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid."
+              label="My heatmap strength"
+              value={settings.attacks.heatmap.strength.me}
+              step={0.02}
+              max={1}
+              allowZero
+              onChange={(me) =>
+                updateHeatmap({
+                  strength: { ...settings.attacks.heatmap.strength, me },
+                })
+              }
+            />
+            <NumberField
+              id="opponent-heatmap-strength"
+              inline
+              hint="The same for the other end of the board."
+              label="Opponent's heatmap strength"
+              value={settings.attacks.heatmap.strength.opponent}
+              step={0.02}
+              max={1}
+              allowZero
+              onChange={(opponent) =>
+                updateHeatmap({
+                  strength: { ...settings.attacks.heatmap.strength, opponent },
+                })
+              }
+            />
+          </div>
         </section>
       )}
 

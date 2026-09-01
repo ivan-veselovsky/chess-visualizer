@@ -20,11 +20,18 @@ import {
   type Point,
 } from "./geometry";
 import type {
-  LastMoveMark, AttackSettings, BoardColors, PieceTint } from "./settings";
+  AttackSettings,
+  BoardColors,
+  GridLines,
+  HedgeLines,
+  LastMoveMark,
+  PieceTint,
+} from "./settings";
 import { pieceVars } from "./pieceVars";
 import AttackLayer from "./layers/AttackLayer";
 import BorderLayer from "./layers/BorderLayer";
 import GridLayer from "./layers/GridLayer";
+import HedgeLayer from "./layers/HedgeLayer";
 import HighlightLayer, { type LastMove } from "./layers/HighlightLayer";
 import CheckLayer, { type KingAlert } from "./layers/CheckLayer";
 import PieceLayer from "./layers/PieceLayer";
@@ -33,6 +40,8 @@ import SquareLayer from "./layers/SquareLayer";
 import HeatmapLayer from "./layers/HeatmapLayer";
 
 interface BoardProps {
+  /** Hatching over the dark squares. */
+  hedge: HedgeLines;
   position: Chess;
   colors: BoardColors;
   pieceTint: PieceTint;
@@ -53,9 +62,8 @@ interface BoardProps {
    * a board with no side is not.
    */
   frozen?: boolean;
-  showGrid?: boolean;
-  /** What the grid's lines are drawn in. */
-  gridColor?: string;
+  /** Thin lines on the square edges, and what they are drawn in. */
+  grid: GridLines;
   /** The move that reached this position, to shade the squares it used. */
   lastMove?: LastMove | null;
   /** The wash laid over those two squares, and how much of it. */
@@ -84,13 +92,13 @@ interface Drag {
  * handed the position that follows.
  */
 export default function Board({
+  hedge,
   position,
   colors,
   pieceTint,
   attacks,
   onMove,
-  showGrid = true,
-  gridColor = "#000000",
+  grid,
   playable = null,
   frozen = false,
   lastMove = null,
@@ -102,7 +110,9 @@ export default function Board({
   },
   orientation = "white",
 }: BoardProps) {
-  const pieces = readPieces(position);
+  /* Held from render to render, so that everything derived from it can be too:
+     a fresh array each time would tell every memo below that the men had moved. */
+  const pieces = useMemo(() => readPieces(position), [position]);
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   /*
@@ -136,6 +146,7 @@ export default function Board({
       : { square, kind: mate ? "checkmate" : "check" };
   }, [position, attacks.checkAndCheckmate.showCheck, attacks.checkAndCheckmate.showCheckmate]);
 
+  const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
   const themeVars = {
     "--square-light": colors.lightSquare,
     "--square-dark": colors.useLightForDark
@@ -156,7 +167,21 @@ export default function Board({
     "--mark-on-dark": colors.useLightForDark
       ? colors.darkSquare
       : colors.lightSquare,
-    "--grid-line": gridColor,
+    /*
+      What each side's rays are drawn at: the opacity chosen for that side,
+      times the fraction the reader is holding. Published here rather than set
+      on the marks so that moving that fraction restyles them instead of
+      rebuilding them — the geometry is the expensive part, and it does not
+      depend on either number.
+    */
+    "--ray-opacity-me": String(
+      clamp01(attacks.rayOpacity.me) * clamp01(attacks.rayIntensity.me)
+    ),
+    "--ray-opacity-opponent": String(
+      clamp01(attacks.rayOpacity.opponent) *
+        clamp01(attacks.rayIntensity.opponent)
+    ),
+    "--grid-line": grid.color,
     "--pin-ring": attacks.pins.ringColor,
     "--check-color": attacks.checkAndCheckmate.checkColor,
     "--checkmate-color": attacks.checkAndCheckmate.checkmateColor,
@@ -291,6 +316,51 @@ export default function Board({
   */
   const inHand = drag ?? selected;
 
+  const lifted = inHand?.from ?? null;
+  /*
+    The rays, kept from one render to the next.
+
+    Everything in them is worked out from the position — which squares each
+    piece reaches, where each ray starts and stops — and for a full board that
+    is several frames' work. It is redone only when something it actually
+    depends on changes, which the key below states: the position, the men on it,
+    the piece being lifted, which way round the board is, and how the marks are
+    shaped and coloured.
+
+    The two things deliberately left out are the reader's own fractions, which
+    reach the marks as CSS variables instead. Without that, dragging a chooser
+    would rebuild every ray on the board for each pointer move — which it did,
+    at about seventy milliseconds a move against a sixteen millisecond frame.
+
+    The key is stringified rather than listed field by field: it is a small
+    object, and comparing it costs a fraction of what redrawing costs. Held as
+    text, adding a setting cannot quietly leave a stale board behind either.
+  */
+  const rayLook = JSON.stringify({
+    ...attacks,
+    rayIntensity: null,
+    heatmap: null,
+    linkedIntensity: null,
+  });
+  const attackLayer = useMemo(
+    () => (
+      <AttackLayer
+        position={position}
+        pieces={pieces}
+        attackSettings={attacks}
+        // Whichever way the piece was taken up: a move is being weighed, and
+        // its own reach is the one thing not being weighed against.
+        lifted={lifted}
+        orientation={orientation}
+      />
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `rayLook` stands
+    // for the parts of `attacks` these marks are made of; the rest cannot change
+    // them.
+    [position, pieces, lifted, orientation, rayLook]
+  );
+
+
   return (
     <svg
       ref={svgRef}
@@ -308,6 +378,9 @@ export default function Board({
     >
       <g transform={`translate(${BOARD_ORIGIN.x}, ${BOARD_ORIGIN.y})`}>
         <SquareLayer orientation={orientation} />
+        {/* Part of the board rather than a mark on it, so it goes on directly
+            after the squares and everything else is laid over it. */}
+        <HedgeLayer hedge={hedge} orientation={orientation} />
         {/* First of all the layers, so that it belongs to the board rather than
             sitting on it: every wash laid down later goes over it, and the mark
             takes their colour along with the square it is on.
@@ -327,7 +400,8 @@ export default function Board({
         />
         {/* Over the squares and the last-move mark, and under everything else:
             it colours the board rather than marking anything on it. */}
-        {(attacks.heatmap.showMine || attacks.heatmap.showOpponent) && (
+        {(attacks.heatmap.intensity.me > 0 ||
+          attacks.heatmap.intensity.opponent > 0) && (
           <HeatmapLayer
             position={position}
             heatmap={attacks.heatmap}
@@ -335,16 +409,8 @@ export default function Board({
             orientation={orientation}
           />
         )}
-        {showGrid && <GridLayer />}
-        <AttackLayer
-          position={position}
-          pieces={pieces}
-          attackSettings={attacks}
-          // Whichever way the piece was taken up: a move is being weighed, and
-          // its own reach is the one thing not being weighed against.
-          lifted={inHand?.from ?? null}
-          orientation={orientation}
-        />
+        {grid.show && <GridLayer />}
+        {attackLayer}
         <BorderLayer orientation={orientation} />
         {/* Under the glyphs: the ring frames a piece rather than covering it. */}
         {attacks.pins.show && (

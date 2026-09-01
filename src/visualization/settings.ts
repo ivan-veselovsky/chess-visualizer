@@ -139,6 +139,12 @@ export interface RayStyle {
  * way of telling one side's marks from the other's, without touching the hue
  * that ties a mark to its piece.
  */
+/** What one attacker of each side lays down, before the reader's fraction. */
+export interface HeatmapStrength {
+  me: number;
+  opponent: number;
+}
+
 export interface RayOpacity {
   me: number;
   opponent: number;
@@ -166,25 +172,30 @@ export interface OutlineOpacity {
  */
 export interface Heatmap {
   /**
-   * Whether each side's attackers colour the squares they cover. They are
-   * separate questions rather than one: a board shaded by both ends at once
-   * says which of them holds a square, and a board shaded by one says how far
-   * that one reaches, which is not the same thing and is sometimes the thing
-   * being looked for.
+   * What fraction of `strength` each side's attackers lay down.
    *
-   * A side turned off is not counted either, so the other side's picture is the
-   * same whether it is shown alone or beside its opponent's.
+   * Separate fractions rather than one: a board coloured by both ends at once
+   * says which of them holds a square, and a board coloured by one says how far
+   * that one reaches, which is not the same thing and is sometimes the thing
+   * being looked for. Zero leaves a
+   * side out of the count entirely rather than merely drawing it faintly: a
+   * side that lays down no colour has no say in the blend either, so the other
+   * side's picture is the same whether it is shown alone or beside its
+   * opponent's.
    */
-  showMine: boolean;
-  showOpponent: boolean;
+  intensity: SideIntensity;
   /** What a square attacked only by this end of the board is tinted with. */
   myColor: string;
   opponentColor: string;
   /**
    * How much colour a single attacker lays down, from 0 to 1. Each attacker
    * after it takes the same share of whatever transparency is left.
+   *
+   * One for each side, as the rays have an opacity each: the two ends of the
+   * board are not always worth reading at the same weight, and a single number
+   * made it impossible to say so.
    */
-  strength: number;
+  strength: HeatmapStrength;
 }
 
 /**
@@ -206,9 +217,52 @@ export type KnightGeometry = "arc" | "gamma-1" | "gamma-2" | "straight-ray";
  * board as any other program shows it, which is worth being able to get back
  * to: the marks are there to be compared against the plain position.
  */
-export interface AttackVisibility {
-  me: boolean;
-  opponent: boolean;
+/**
+ * How much of a side's marks is drawn, as a fraction of what its own settings
+ * ask for: 1 draws them as configured, 0 not at all, and the values between
+ * scale what is configured rather than replacing it.
+ *
+ * A fraction rather than an opacity of its own because it is the reader's
+ * moment-to-moment control — turned down to glance past the marks and back up
+ * again — while the settings it scales are chosen once and left. Both sides on
+ * one scale, so the two can be held equal.
+ */
+/** Thin lines on the square edges, readable even with identical colours. */
+export interface GridLines {
+  show: boolean;
+  color: string;
+}
+
+/**
+ * Hatching over the dark squares.
+ *
+ * A way of telling the two square colours apart without a second colour, which
+ * matters most when the board is drawn in one: a wash laid over a checkerboard
+ * reads as two different washes, but hatching sits under it without changing
+ * what it is, and still says which squares are which.
+ */
+export interface HedgeLines {
+  show: boolean;
+  /**
+   * Which way the lines run, in degrees, from flat round to flat again: 0 and
+   * 180 both lie flat, 90 stands upright, and the half turn between them covers
+   * every slope there is — a line has no front and back, so turning it further
+   * only repeats what has already been drawn.
+   */
+  angle: number;
+  /** The gap between one line and the next, in square sides. */
+  step: number;
+  /**
+   * Whether a second set of lines is drawn across the first, square to it and
+   * at the same spacing — hatching one way, cross-hatching both.
+   */
+  orthogonal: boolean;
+  color: string;
+}
+
+export interface SideIntensity {
+  me: number;
+  opponent: number;
 }
 
 /** The colour each side's outline is traced in, when it has any width. */
@@ -313,7 +367,13 @@ export interface CheckMarks {
 }
 
 export interface AttackSettings {
-  showAttacks: AttackVisibility;
+  /** What fraction of `rayOpacity` each side's rays are actually drawn at. */
+  rayIntensity: SideIntensity;
+  /**
+   * Whether the two intensities are held equal to the heatmap's. Kept here
+   * rather than beside either of them: it is a fact about the pair.
+   */
+  linkedIntensity: boolean;
   /**
    * Whether a piece pinned against its own king is ringed.
    *

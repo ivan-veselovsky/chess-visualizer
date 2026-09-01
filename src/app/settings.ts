@@ -2,6 +2,8 @@ import type { Orientation } from "../visualization/geometry";
 import type {
   AttackSettings,
   BoardColors,
+  GridLines,
+  HedgeLines,
   LastMoveMark,
   PieceTint,
 } from "../visualization/settings";
@@ -10,6 +12,8 @@ export type {
   AttackColors,
   AttackSettings,
   BoardColors,
+  GridLines,
+  HedgeLines,
   KnightGeometry,
   LastMoveMark,
   KnightRingSettings,
@@ -17,6 +21,7 @@ export type {
   PieceTint,
   SideGeometry,
   Heatmap,
+  HeatmapStrength,
   PinMarks,
   CheckMarks,
   OutlineColors,
@@ -46,7 +51,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Settings` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const SETTINGS_SCHEMA_VERSION = 34;
+export const SETTINGS_SCHEMA_VERSION = 39;
 
 /**
  * Central description of everything the user can tweak: one object holding
@@ -71,13 +76,13 @@ export interface Settings {
   orientation: Orientation;
   pieceTint: PieceTint;
   /** Thin lines on the square edges, readable even with identical colours. */
-  showGrid: boolean;
-  /** What those lines are drawn in, when they are drawn at all. */
-  gridColor: string;
+  grid: GridLines;
   /** The bar of captured men beside the board. */
   showCapturedPiecesBar: boolean;
   /** The mark on the two squares the last move used. */
   lastMove: LastMoveMark;
+  /** Hatching over the dark squares, which tells them apart without a colour. */
+  hedge: HedgeLines;
   attacks: AttackSettings;
 }
 

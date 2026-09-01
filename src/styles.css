@@ -161,7 +161,9 @@ body {
 .app-body {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  /* The side column runs to the foot of the board rather than stopping at its
+     own last control, so what is below it can be given to the choosers. */
+  align-items: stretch;
   gap: 1rem;
 }
 
@@ -874,6 +876,361 @@ body {
 /* --- Options panel ------------------------------------------------------ */
 
 /*
+  What each side's rays are drawn at, from the board's own variables rather than
+  from an attribute on the marks. A style change costs a recalculation; an
+  attribute change costs the whole layer, which is thirty-two pieces of geometry
+  worked out from the position.
+
+  Not where a filter runs: there the transparencies are inside the filter, and
+  an opacity here would apply them twice.
+*/
+.attack-side-me:not(.attack-outlined) {
+  opacity: var(--ray-opacity-me, 1);
+}
+
+.attack-side-opponent:not(.attack-outlined) {
+  opacity: var(--ray-opacity-opponent, 1);
+}
+
+/*
+  The two intensity choosers, with the button that holds them equal between.
+
+  Each square is turned on its corner, so that its diagonals — not its sides —
+  are what a drag follows: left to right takes both sides up and down together,
+  top to bottom trades one for the other. The frame around it is the square's
+  diagonal, which is why it is wider than the square is.
+*/
+.intensity-row {
+  display: flex;
+  align-items: stretch;
+  /* Everything the panel has left over, which is why it comes last — and
+     nothing at all when there is nothing left, rather than pushing the column
+     past the board. */
+  flex: 1;
+  min-height: 0;
+  /* Together in the middle, with the link between them: they are read as a
+     pair, and spread to the panel's edges they would not be. */
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.intensity-chooser {
+  align-items: center;
+  /*
+    The handle's width, and how far past its edge the frame may paint it.
+
+    The second is not simply half the first. It is capped at the panel's own
+    padding: whatever a clip paints into still counts against the panel around
+    it, so painting further than the panel's border would put a scrollbar there.
+    Half of this handle is a little more than that, so its outermost sliver is
+    shaved at the two extreme corners — which is cheaper than the height the
+    alternative costs, and all but invisible on an arc.
+
+    `overflow-clip-margin` takes no `calc()`, so this is written out rather than
+    worked out. Widen the handle and this may stay as it is.
+  */
+  --handle: 2.55rem;
+  --handle-clip: 1rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  /*
+    Bounded by the row rather than by its own contents. A chooser is a square,
+    so left to itself its height follows its width and the row's line grows to
+    hold it — stretching the items but never shrinking them. Held to the row's
+    height, the square gives up width instead, which is the way round that keeps
+    the page from lengthening.
+  */
+  min-height: 0;
+  max-height: 100%;
+}
+
+.intensity-label {
+  /* A little above the readings around the square, which it names. */
+  font-size: 1.05em;
+  /* Clear of the "Opponent" reading, which hangs off the square's top corner
+     in the space between the two — and which is the larger of the two texts. */
+  margin-bottom: 2rem;
+}
+
+/*
+  Room for the turned square's corners, and for the words at them: a square of
+  side s stands 1.414s tall once it is turned, and the words need a line above
+  and below that.
+*/
+/*
+  What is left of the column once the label above it is drawn. The words at the
+  corners stand beside them rather than above and below, so none of this height
+  is spent on text.
+*/
+.intensity-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  /*
+    Sides: for the 0 and the 1, which hang off the box's left and right edges.
+    Without it the two choosers grow until their numbers meet in the middle,
+    over the button between them.
+
+    Top and bottom: for the words at those two corners, which stand beyond them.
+    The handle, which also reaches past a corner, is let out rather than made
+    room for — see the clip below.
+  */
+  /*
+    More on the right than the left: the left corner says nought, which is one
+    character, while the right says what a whole one is worth — up to a pair of
+    numbers when the two sides differ, which wants some three times the room.
+  */
+  padding: 1.5rem 1.05rem;
+  /*
+    `clip` rather than `hidden`, and with a margin: the frame paints half a
+    handle beyond its edge, so nothing of the circle is lost, and then stops.
+    What is painted past a clip is not scrollable overflow, so the corners no
+    longer ask the panel to grow — which is the whole reason the height can go
+    to the square instead.
+  */
+  overflow: clip;
+  /* As far as the panel around it can absorb; see `--handle-clip`. */
+  overflow-clip-margin: var(--handle-clip);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* So the square below can be measured against this frame's height as well as
+     its width. */
+  container-type: size;
+}
+
+/*
+  The largest square that fits, taken as the smaller of the two sides the frame
+  offers: `100cqh` is the frame's height, `100%` its width.
+
+  Stated this way round on purpose. Giving it a width and capping its height
+  instead does not work — the cap shortens the box without narrowing it, and a
+  square told to be 363 wide and 107 tall is a rectangle, with a squashed rhombus
+  inside it. Choosing the side first leaves nothing to contradict.
+*/
+.intensity-box {
+  position: relative;
+  /* The frame's height less what the title above it takes, so that where height
+     is the binding side the square does not push the title out of the frame. */
+  width: min(100%, calc(100cqh - 3.9rem));
+  aspect-ratio: 1;
+  /* No auto margin: in a column it would swallow the free space and push the
+     title back to the top, which is the thing the frame centres them to avoid. */
+  flex: none;
+}
+
+.intensity-square {
+  position: absolute;
+  /* The square whose diagonal is the box: inset by (100 - 100/root 2) / 2 on
+     every side, so its four corners touch the box's four edges. */
+  inset: 14.645%;
+  transform: rotate(45deg);
+  cursor: crosshair;
+  touch-action: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+}
+
+.intensity-square:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Painted a cell per point and stretched: the field is a picture of what the
+   board would do, so it is smoothed rather than drawn as steps. */
+.intensity-field {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 2px;
+}
+
+/*
+  The handle: a ring wide enough to take hold of anywhere inside it, with the
+  value marked at its centre. Hollow, so the field it stands on shows through
+  and can still be read at the point being chosen.
+*/
+.intensity-marker {
+  position: absolute;
+  width: var(--handle);
+  height: var(--handle);
+  /* Half its width, each way: the point it marks is its centre. */
+  margin: calc(var(--handle) / -2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  /*
+    Light against dark, both, so it reads on any point of the field. The field
+    is made of board colours rather than the page's, so it is pale under either
+    theme and a handle in the theme's own ink would be lost on part of it.
+  */
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.55);
+  /*
+    Turned back against the field's quarter turn. It looks identical either way,
+    being a circle — but the box the browser measures is the element's square,
+    and turned it is half again as wide as the circle inside it. Those empty
+    corners count as overflow and ask the page for room the circle never needs.
+  */
+  transform: rotate(-45deg);
+  cursor: grab;
+}
+
+.intensity-marker:active {
+  cursor: grabbing;
+}
+
+.intensity-marker-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.8);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+  /* The ring is the thing being dragged; the dot is only where it points. */
+  pointer-events: none;
+}
+
+.intensity-corner {
+  position: absolute;
+  /* The size ordinary text is set at throughout the settings, which is nine
+     tenths of the panel's own — this column does not inherit that, so it is
+     said here rather than left to chance. */
+  font-size: 0.9em;
+  opacity: 0.7;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/*
+  Beside the top and bottom corners rather than beyond them. The square is at
+  its narrowest there — a point — so the space to the left of each is free, and
+  putting the words in it costs no height at all.
+*/
+/*
+  Beyond the two corners rather than beside them, which is what the frame's
+  padding is kept for. Centred on the point each names.
+*/
+.intensity-corner-top {
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.25rem;
+}
+
+.intensity-corner-bottom {
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 0.25rem;
+}
+
+/* Hung off the box's own edges, so they follow it as it grows. */
+.intensity-corner-left {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 0.3rem;
+}
+
+/*
+  What a whole one is worth, written along the side of the square its axis runs
+  down. Both are hung off the right corner and turned about it: mine a quarter
+  turn one way, the opponent's a quarter turn the other, so each lies parallel
+  to its own edge and reads outward from the corner they share.
+
+  The last translate is in the label's own turned frame — x back along the edge,
+  y out from it — which is why the same pair of numbers serves both, with only
+  the sign of the outward step changing.
+*/
+.intensity-full {
+  right: 0;
+  top: 50%;
+  transform-origin: 100% 50%;
+}
+
+/*
+  Each on the edge its own axis runs along, which is what decides the slope.
+
+  Mine is x, and x runs from the left corner across to the bottom one and from
+  the top corner across to the right — so at this corner it is the upper edge,
+  which falls to the right: "\". The opponent's is y, which runs up the lower
+  edge to the same corner: "/". Set the other way about, each number would sit
+  on the edge along which it does not change.
+*/
+/*
+  Drawn in towards the corner and pushed a little further off the edge: the
+  first translate runs back along the side, the second out from it.
+*/
+.intensity-full-mine {
+  transform: translateY(-50%) rotate(45deg) translate(-0.4rem, -0.75rem);
+}
+
+.intensity-full-opponent {
+  transform: translateY(-50%) rotate(-45deg) translate(-0.4rem, 0.75rem);
+}
+
+.intensity-readout {
+  font-size: 0.75em;
+  opacity: 0.7;
+}
+
+/*
+  The button is held in a column built like a chooser's — a title's worth of
+  height, then the rest — so that it comes to rest at the same height the two
+  squares do. Centred on the row instead, it would sit a half-title too high:
+  the row's middle is not the squares' middle, because each square has a word
+  standing above it.
+*/
+.intensity-link-holder {
+  display: flex;
+  flex-direction: column;
+}
+
+.intensity-link-middle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.intensity-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Wide rather than tall: it stands between the two choosers and reads as the
+     span joining them. */
+  padding: 0.4rem 2.1rem;
+  color: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+/* Half again the size of the glyph it was drawn at, to match the button. */
+.intensity-link svg {
+  width: 2.1em;
+  height: 2.1em;
+}
+
+.intensity-link:hover {
+  opacity: 1;
+}
+
+.intensity-link[aria-pressed="true"] {
+  border-color: var(--panel-border);
+  opacity: 1;
+}
+
+/*
   The tab strip over the side column.
 
   One outline runs around the strip and the panel together: up the side of the
@@ -891,6 +1248,21 @@ body {
 .tabbed {
   display: flex;
   flex-direction: column;
+  /* Down to the foot of the column. `min-height: 0` so the panel may be shorter
+     than its contents ask for, which is what lets the choosers be measured
+     against what is left rather than against what they would like. */
+  flex: 1;
+  min-height: 0;
+  /*
+    And no further than the board's own ceiling.
+
+    Without this the column grows without bound, by a loop: a chooser is square,
+    so its height follows its width; a shorter window makes the board smaller;
+    a smaller board leaves the column wider; a wider column makes the choosers
+    taller — and the page grows rather than the board setting the limit. Held
+    here, the choosers are measured against the height that is left instead.
+  */
+  max-height: var(--board-cap);
 }
 
 .tab-bar {
@@ -1020,7 +1392,7 @@ body {
   row: wrapping costs the selected tab its join to the panel, which is worth
   more than a point of type.
 */
-@container (max-width: 33rem) {
+@container (max-width: 35rem) {
   .tab {
     font-size: 0.8em;
     padding-left: 0.4em;
@@ -1033,6 +1405,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--panel-gap);
+  flex: 1;
+  min-height: 0;
+  /* If even the controls do not fit the height the board allows, the panel
+     scrolls within itself rather than lengthening the page. */
+  overflow-y: auto;
   padding: 1rem;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
