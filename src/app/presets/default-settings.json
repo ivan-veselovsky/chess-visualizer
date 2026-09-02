@@ -15,7 +15,7 @@
     "diameter": 0.75
   },
   "move": {
-    "speed": 4
+    "speed": 5
   },
   "grid": {
     "show": true,
