@@ -14,7 +14,17 @@ import { Chess, type Color, type Square } from "chess.js";
 export function pinnedSquares(position: Chess): Square[] {
   // One scratch board for the lot. `remove` and `put` mutate, and building a
   // board per piece is thirty-odd FEN parses for a thing drawn every frame.
-  const board = new Chess(position.fen());
+  /*
+    A board mid-move has a piece lifted off it, and if that piece is a king the
+    FEN will not read back at all. Nothing is pinned against a king that is in
+    the air, so the honest answer then is none.
+  */
+  let board: Chess;
+  try {
+    board = new Chess(position.fen());
+  } catch {
+    return [];
+  }
   const kings = new Map<Color, Square>();
   for (const color of ["w", "b"] as const) {
     const [square] = board.findPiece({ type: "k", color });

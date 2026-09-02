@@ -1,10 +1,10 @@
 {
-  "schemaVersion": 39,
+  "schemaVersion": 40,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
     "lightSquare": "#ccdccc",
-    "darkSquare": "#949494",
+    "darkSquare": "#878787",
     "useLightForDark": true
   },
   "orientation": "white",
@@ -13,6 +13,9 @@
     "opacity": 0.6,
     "negative": true,
     "diameter": 0.75
+  },
+  "move": {
+    "speed": 4
   },
   "grid": {
     "show": true,

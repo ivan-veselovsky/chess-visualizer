@@ -303,6 +303,7 @@ export default function SettingsPanel({
               onChange={(diameter) => updateLastMove({ diameter })}
             />
           </div>
+
         </section>
         </>
       )}
@@ -333,6 +334,28 @@ export default function SettingsPanel({
               onChange={(darkenBlack) => updatePieceTint({ darkenBlack })}
             />
           </div>
+          <hr className="panel-divider" />
+
+          {/*
+            A speed rather than a duration: a knight's hop and a rook's run down
+            the board then travel at one rate, and the long move simply takes
+            longer. Given as a duration, the two would look like different
+            weights of piece.
+          */}
+          <NumberField
+            id="move-speed"
+            inline
+            label="Playback move speed"
+            suffix="squares/sec"
+            hint="How fast a piece travels to the square it is played to. Nought puts it down without moving it, which is why there is no switch beside this; the journey is held between a tenth and a third of a second however far it goes."
+            value={settings.move.speed}
+            step={0.5}
+            allowZero
+            onChange={(speed) => onChange({ ...settings, move: { speed } })}
+          />
+
+          <hr className="panel-divider" />
+
           <ToggleField
             id="show-taken-pieces"
             label="Show taken pieces"

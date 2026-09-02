@@ -4,6 +4,7 @@ import type {
   BoardColors,
   GridLines,
   HedgeLines,
+  MoveMotion,
   LastMoveMark,
   PieceTint,
 } from "../visualization/settings";
@@ -14,6 +15,7 @@ export type {
   BoardColors,
   GridLines,
   HedgeLines,
+  MoveMotion,
   KnightGeometry,
   LastMoveMark,
   KnightRingSettings,
@@ -51,7 +53,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Settings` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const SETTINGS_SCHEMA_VERSION = 39;
+export const SETTINGS_SCHEMA_VERSION = 40;
 
 /**
  * Central description of everything the user can tweak: one object holding
@@ -81,6 +83,8 @@ export interface Settings {
   showCapturedPiecesBar: boolean;
   /** The mark on the two squares the last move used. */
   lastMove: LastMoveMark;
+  /** How a piece travels between squares when a move is played. */
+  move: MoveMotion;
   /** Hatching over the dark squares, which tells them apart without a colour. */
   hedge: HedgeLines;
   attacks: AttackSettings;

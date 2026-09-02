@@ -227,6 +227,22 @@ export type KnightGeometry = "arc" | "gamma-1" | "gamma-2" | "straight-ray";
  * again — while the settings it scales are chosen once and left. Both sides on
  * one scale, so the two can be held equal.
  */
+/**
+ * How a piece travels from one square to the next.
+ *
+ * A speed rather than a duration, so that a knight's hop and a rook's run down
+ * the board move at the same rate and the long one simply takes longer. A fixed
+ * duration would make the two look like different weights of piece.
+ *
+ * Bounded at both ends: below the floor a short move is a flicker nobody reads
+ * as movement, and above the ceiling a long one holds the board up. Nought for
+ * the speed turns it off, and the piece appears where it lands.
+ */
+export interface MoveMotion {
+  /** Squares a second. Zero puts the piece down without moving it. */
+  speed: number;
+}
+
 /** Thin lines on the square edges, readable even with identical colours. */
 export interface GridLines {
   show: boolean;

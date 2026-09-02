@@ -63,9 +63,15 @@ export default function HeatmapLayer({
       lifted === null || position.get(lifted) === undefined
         ? position
         : (() => {
-            const without = new Chess(position.fen());
-            without.remove(lifted);
-            return without;
+            try {
+              const without = new Chess(position.fen());
+              without.remove(lifted);
+              return without;
+            } catch {
+              // A board with a king already in the air cannot be copied this
+              // way. Counting it as it stands is a better answer than none.
+              return position;
+            }
           })();
     const found: { square: Square; mine: number; theirs: number }[] = [];
     for (const file of FILES) {

@@ -34,6 +34,9 @@ import GridLayer from "./layers/GridLayer";
 import HedgeLayer from "./layers/HedgeLayer";
 import HighlightLayer, { type LastMove } from "./layers/HighlightLayer";
 import CheckLayer, { type KingAlert } from "./layers/CheckLayer";
+import MovingPieceLayer, {
+  type Flight,
+} from "./layers/MovingPieceLayer";
 import PieceLayer from "./layers/PieceLayer";
 import PinLayer from "./layers/PinLayer";
 import SquareLayer from "./layers/SquareLayer";
@@ -42,12 +45,28 @@ import HeatmapLayer from "./layers/HeatmapLayer";
 interface BoardProps {
   /** Hatching over the dark squares. */
   hedge: HedgeLines;
+  /** A move on its way across the board, if one is being played out. */
+  flight?: Flight | null;
+  /**
+   * The position to draw, when it differs from the one being played on.
+   *
+   * While a move is in the air the board shows everything as it was, less what
+   * is travelling — so the piece's rays leave with it and come back where it
+   * lands. What may legally be played still comes from `position`: the move has
+   * already happened, and only the picture is behind.
+   */
+  showing?: Chess | null;
   position: Chess;
   colors: BoardColors;
   pieceTint: PieceTint;
   attacks: AttackSettings;
   /** Omit to make the board read-only. */
-  onMove?: (from: Square, to: Square) => void;
+  /**
+   * A move the reader has made. `dragged` says whether the piece was carried
+   * there by hand, which is the one case not worth animating: it has already
+   * travelled, under the pointer.
+   */
+  onMove?: (from: Square, to: Square, dragged: boolean) => void;
   /**
    * The one army this board may move, when it may only move one — a game
    * against somebody else, where the other side is theirs to play. Omitted for
@@ -93,6 +112,8 @@ interface Drag {
  */
 export default function Board({
   hedge,
+  flight = null,
+  showing = null,
   position,
   colors,
   pieceTint,
@@ -112,7 +133,10 @@ export default function Board({
 }: BoardProps) {
   /* Held from render to render, so that everything derived from it can be too:
      a fresh array each time would tell every memo below that the men had moved. */
-  const pieces = useMemo(() => readPieces(position), [position]);
+  /* What the layers draw, which is the position on the board except while a
+     move is crossing it. */
+  const drawn = showing ?? position;
+  const pieces = useMemo(() => readPieces(drawn), [drawn]);
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   /*
@@ -133,7 +157,14 @@ export default function Board({
     twice would let the milder colour win on a position that is over.
   */
   const alert = useMemo<KingAlert | null>(() => {
-    if (!position.isCheck()) {
+    /*
+      Nothing while a move is crossing the board. Asking the position on the
+      board would mark the check before the piece delivering it had arrived;
+      asking the one being drawn would be worse, since a board with a piece
+      lifted off it can show its own king in check from a line that piece was
+      standing in. It waits, and arrives with the piece.
+    */
+    if (showing !== null || !position.isCheck()) {
       return null;
     }
     const mate = position.isCheckmate();
@@ -144,7 +175,12 @@ export default function Board({
     return square === undefined
       ? null
       : { square, kind: mate ? "checkmate" : "check" };
-  }, [position, attacks.checkAndCheckmate.showCheck, attacks.checkAndCheckmate.showCheckmate]);
+  }, [
+    position,
+    showing,
+    attacks.checkAndCheckmate.showCheck,
+    attacks.checkAndCheckmate.showCheckmate,
+  ]);
 
   const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
   const themeVars = {
@@ -230,7 +266,7 @@ export default function Board({
       if (from !== null && selected.targets.includes(from)) {
         event.preventDefault();
         setSelected(null);
-        onMove(selected.from, from);
+        onMove(selected.from, from, false);
         return;
       }
       setSelected(null);
@@ -291,7 +327,7 @@ export default function Board({
     const to = at === null ? null : squareAtPoint(at, orientation);
     setDrag(null);
     if (to !== null && drag.targets.includes(to)) {
-      onMove?.(drag.from, to);
+      onMove?.(drag.from, to, true);
       return;
     }
     /*
@@ -345,7 +381,7 @@ export default function Board({
   const attackLayer = useMemo(
     () => (
       <AttackLayer
-        position={position}
+        position={drawn}
         pieces={pieces}
         attackSettings={attacks}
         // Whichever way the piece was taken up: a move is being weighed, and
@@ -403,7 +439,7 @@ export default function Board({
         {(attacks.heatmap.intensity.me > 0 ||
           attacks.heatmap.intensity.opponent > 0) && (
           <HeatmapLayer
-            position={position}
+            position={drawn}
             heatmap={attacks.heatmap}
             lifted={inHand?.from ?? null}
             orientation={orientation}
@@ -415,7 +451,7 @@ export default function Board({
         {/* Under the glyphs: the ring frames a piece rather than covering it. */}
         {attacks.pins.show && (
           <PinLayer
-            position={position}
+            position={drawn}
             attackSettings={attacks}
             lifted={drag?.from ?? null}
             orientation={orientation}
@@ -427,6 +463,11 @@ export default function Board({
           lifted={drag?.from ?? null}
           orientation={orientation}
         />
+        {/* Above the board and below the hand: a piece being carried is still
+            the one the reader is holding. */}
+        {flight !== null && (
+          <MovingPieceLayer flight={flight} orientation={orientation} />
+        )}
         <PieceLayer
           pieces={pieces}
           lifted={drag?.from ?? null}

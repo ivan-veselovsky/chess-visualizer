@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Chess, DEFAULT_POSITION, type Color, type Square } from "chess.js";
 import {
   canGoNext,
@@ -33,6 +40,12 @@ import {
   type GameStash,
 } from "../chess/stash";
 import { parseFen } from "../chess/position";
+import { boardDuring, moveBetween, travellersOf } from "../chess/flight";
+import {
+  flightTime,
+  squaresApart,
+  type Flight,
+} from "../visualization/layers/MovingPieceLayer";
 import CopyButton from "./CopyButton";
 import { gameLink, openingFromLocation } from "./sharing";
 import Board from "../visualization/Board";
@@ -450,6 +463,147 @@ export default function App() {
     }
   }, [history]);
 
+  /*
+    The move being played out, if one is.
+
+    Worked out from the two positions rather than from what was just done: a
+    move arrives by several routes — played here, played by an opponent, stepped
+    forward through a game — and they are all the same thing to watch. What is
+    deliberately excluded is a move made by dragging, since the piece has
+    already crossed the board under the pointer, and anything more than a single
+    move apart, which is a jump rather than a journey.
+
+    Two moments, and only two:
+
+      the piece leaves    its rays and its share of the heatmap go with it,
+                          both squares of the move are marked, and it sets off
+
+      it arrives          everything else at once — whatever it took goes, that
+                          piece's rays and heatmap go with it, the mover takes
+                          the square, and its own rays and heatmap appear there
+
+    A third moment, when the piece first touches the square it is going to, was
+    tried and taken out. It falls a fraction of a second before the landing, and
+    two changes of highlighting that close together read as a flicker rather
+    than as two events. Held to the landing, the piece is seen to settle onto
+    what it takes, and the board changes hands once.
+
+    The board is shown a position of its own throughout: everything as it was,
+    less whatever is in the air. Without that the rays would already be drawn
+    from the square the piece has not reached yet, which is what made the first
+    version read as a jump with a glyph sliding after it.
+  */
+  const [flight, setFlight] = useState<Flight | null>(null);
+  const [during, setDuring] = useState<Chess | null>(null);
+  const shownFen = useRef<string | null>(null);
+  const draggedTo = useRef<Square | null>(null);
+  /*
+    Before the paint, not after it.
+
+    An ordinary effect is not promised to run before the browser draws, so the
+    frame showing the finished position — the piece already arrived, its rays
+    already drawn from where it lands — could reach the screen first and be
+    taken away again a moment later. That is a flash of the answer before the
+    question, and it is what a reader sees as a flicker at the start of a move.
+
+    A layout effect runs after the DOM is updated and before anything is shown,
+    so the board being held back is the first thing drawn. The price is that
+    everything below stands between the click and the screen, which is why
+    `moveBetween` was made to work on one board rather than thirty.
+  */
+  useLayoutEffect(() => {
+    const before = shownFen.current;
+    const after = currentPosition(history);
+    shownFen.current = after;
+    const dragged = draggedTo.current;
+    draggedTo.current = null;
+    if (
+      before === null ||
+      before === after ||
+      settings.move.speed <= 0 ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    /*
+      Which way the board went. Forward is a move played from what was shown;
+      backward is the same move seen from the other end — the position now shown
+      is the one that move was played from.
+
+      A takeback is worth watching as much as a move is, and watching it undone
+      is how a reader checks what it did. So it is played in reverse: the piece
+      goes back the way it came, and whatever it took is put back on the board
+      as it clears the square.
+    */
+    const forward = moveBetween(before, after);
+    const backward = forward === null ? moveBetween(after, before) : null;
+    const move = forward ?? backward;
+    if (move === null || (forward !== null && move.to === dragged)) {
+      return;
+    }
+    const { travellers: played } = travellersOf(move);
+    // Going back, each piece retraces its own journey.
+    const travellers =
+      forward !== null
+        ? played
+        : played.map((piece) => ({ ...piece, from: piece.to, to: piece.from }));
+    /*
+      Timed by the longest journey the move contains, not by the king's.
+
+      Castling sends two pieces at once and they have to arrive together, being
+      one move. Queenside the rook goes three squares to the king's two, so
+      timing the pair by the king made the rook cover half as much ground again
+      in the same time — faster than the speed that was asked for. Taking the
+      longest instead, nothing ever exceeds it and the shorter piece simply
+      travels more gently.
+    */
+    const ms = flightTime(
+      Math.max(
+        ...travellers.map((piece) =>
+          squaresApart(piece.from, piece.to, settings.orientation)
+        )
+      ),
+      settings.move.speed
+    );
+    if (ms <= 0) {
+      return;
+    }
+
+    /*
+      What the board shows while the piece is in the air, in the two stages the
+      journey has.
+
+      Forward: everything as it was before the move, less the piece travelling.
+      What it takes stays until it is reached — that is what makes the arrival
+      read as a capture — and goes at the moment of touching.
+
+      Backward: everything as it is now, less the piece travelling, and less
+      what it took as well, since that square is the one being left. The taken
+      piece comes back as the square is cleared, which is the same moment in
+      the journey seen from the other end.
+    */
+    /*
+      One board for the whole journey: the position the move was played from,
+      less whatever is in the air. Going forward that position is what was on
+      screen a moment ago; going back it is what is on screen now. Either way
+      the piece taken stays where it stands, and the mover is off the board
+      until it lands.
+    */
+    const stood = forward !== null ? before : after;
+    const held = boardDuring(stood, played, []);
+    if (held === null) {
+      return;
+    }
+
+    setFlight({ travellers, ms });
+    setDuring(held);
+    const landed = window.setTimeout(() => {
+      setFlight(null);
+      setDuring(null);
+    }, ms);
+    return () => window.clearTimeout(landed);
+  }, [history, settings.move.speed, settings.orientation]);
+
   /** Everything taken on the way to the position on the board. */
   const captures = useMemo(() => capturesUpTo(history), [history]);
 
@@ -662,9 +816,17 @@ export default function App() {
 
   /** Moves come back from the board as squares; the position that follows is
    *  a new FEN, so editing by hand and playing by hand feed the same state. */
-  function handleMove(from: Square, to: Square) {
+  function handleMove(from: Square, to: Square, dragged = false) {
     if (shown === null) {
       return;
+    }
+    /*
+      Noted for the flight below, which skips a move the hand has already made:
+      a dragged piece crossed the board under the pointer and is put down where
+      it was let go, so playing the journey again would be showing it twice.
+    */
+    if (dragged) {
+      draggedTo.current = to;
     }
     const next = applyMove(shown, from, to);
     if (next === null) {
@@ -751,6 +913,8 @@ export default function App() {
                 pieceTint={settings.pieceTint}
                 attacks={settings.attacks}
                 onMove={handleMove}
+                flight={flight}
+                showing={during}
                 grid={settings.grid}
                 playable={
                   friend.phase.kind === "playing" ? friend.phase.you : null

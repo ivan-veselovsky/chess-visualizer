@@ -1231,6 +1231,16 @@ body {
 }
 
 /*
+  A piece on its way from one square to another. The travelling itself is set
+  going in the layer, which states both ends of the journey outright — a
+  transition here could not, an element born holding its final transform having
+  no earlier value to move from.
+*/
+.piece-moving {
+  pointer-events: none;
+}
+
+/*
   The tab strip over the side column.
 
   One outline runs around the strip and the panel together: up the side of the
