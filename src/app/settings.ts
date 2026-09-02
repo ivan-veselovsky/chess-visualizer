@@ -53,7 +53,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Settings` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const SETTINGS_SCHEMA_VERSION = 40;
+export const SETTINGS_SCHEMA_VERSION = 42;
 
 /**
  * Central description of everything the user can tweak: one object holding

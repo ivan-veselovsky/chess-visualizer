@@ -1,21 +1,22 @@
 {
-  "schemaVersion": 40,
+  "schemaVersion": 42,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
     "lightSquare": "#ccdccc",
-    "darkSquare": "#878787",
+    "darkSquare": "#bfbfbf",
     "useLightForDark": true
   },
   "orientation": "white",
   "lastMove": {
-    "color": "#dbd524",
-    "opacity": 0.6,
-    "negative": true,
+    "color": "#949494",
+    "negative": false,
     "diameter": 0.75
   },
   "move": {
-    "speed": 5
+    "speed": 9,
+    "time": 0.6,
+    "blend": 0.93
   },
   "grid": {
     "show": true,

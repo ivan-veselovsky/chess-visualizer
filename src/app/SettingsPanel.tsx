@@ -3,7 +3,9 @@ import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
 import NumberField from "./NumberField";
+import SectionRule from "./SectionRule";
 import SelectField from "./SelectField";
+import SliderField from "./SliderField";
 import ToggleField from "./ToggleField";
 import type {
   AttackSettings,
@@ -118,6 +120,8 @@ export default function SettingsPanel({
     <div className="settings-panel">
       {group === "board" && (
         <>
+          <SectionRule name="Theme" />
+
         <section className="settings-group">
           <div className="field-row field-row-apart">
             <ToggleField
@@ -139,7 +143,8 @@ export default function SettingsPanel({
           </div>
         </section>
 
-        <hr className="panel-divider" />
+          <SectionRule name="Squares" />
+
 
         <section className="settings-group">
           <div className="field-row">
@@ -170,7 +175,53 @@ export default function SettingsPanel({
             onChange={(useLightForDark) => updateBoardColors({ useLightForDark })}
           />
 
-          <hr className="panel-divider" />
+          <SectionRule name="Last move" />
+
+
+          {/*
+            The negative mark takes the place of the colour and the wash rather
+            than sitting beside them, so both are shown greyed while it is on and
+            say why on hover. Greyed rather than gone: a setting that vanishes
+            leaves the reader wondering whether they imagined it.
+          */}
+          <div className="field-row">
+            <ColorField
+              id="last-move-color"
+              label="Last move highlight color"
+              value={settings.lastMove.color}
+              disabled={settings.lastMove.negative}
+              hint={
+                settings.lastMove.negative
+                  ? "Not used: the negative circle takes its colour from the squares themselves."
+                  : undefined
+              }
+              onChange={(color) => updateLastMove({ color })}
+            />
+          </div>
+          <div className="field-row field-row-halves">
+            <ToggleField
+              id="last-move-negative"
+              label="Negative square color circle"
+              hint="Mark the last move’s two squares with the other square colour — dark on a light square, light on a dark one. A bishop’s two squares then match; a pawn’s are opposites. With “Use light square color for dark squares” on, every circle is the dark square colour, there being only one colour left for it to be the opposite of."
+              checked={settings.lastMove.negative}
+              onChange={(negative) => updateLastMove({ negative })}
+            />
+            <NumberField
+              id="last-move-circle-diameter"
+              inline
+              label="Last move circle diameter"
+              suffix="squares"
+              value={settings.lastMove.diameter}
+              step={0.02}
+              allowZero
+              hint="How much of the square the mark covers, coloured either way."
+              onChange={(diameter) => updateLastMove({ diameter })}
+            />
+          </div>
+
+        </section>
+          <SectionRule name="Hedging" />
+
 
           {/*
             Hatching over the dark squares: a way of telling the two colours
@@ -227,10 +278,13 @@ export default function SettingsPanel({
             checked={settings.hedge.orthogonal}
             onChange={(orthogonal) => updateHedge({ orthogonal })}
           />
+          <SectionRule name="Checkerboard grid" />
+
+
           <div className="field-row field-row-apart">
             <ToggleField
               id="show-grid"
-              label="Show grid"
+              label="Show checkerboard grid"
               checked={settings.grid.show}
               onChange={(show) =>
                 onChange({ ...settings, grid: { ...settings.grid, show } })
@@ -238,73 +292,13 @@ export default function SettingsPanel({
             />
             <ColorField
               id="grid-color"
-              label="Grid color"
+              label="Checkerboard grid color"
               value={settings.grid.color}
               onChange={(color) =>
                 onChange({ ...settings, grid: { ...settings.grid, color } })
               }
             />
           </div>
-          <hr className="panel-divider" />
-
-          {/*
-            The negative mark takes the place of the colour and the wash rather
-            than sitting beside them, so both are shown greyed while it is on and
-            say why on hover. Greyed rather than gone: a setting that vanishes
-            leaves the reader wondering whether they imagined it.
-          */}
-          <div className="field-row">
-            <ColorField
-              id="last-move-color"
-              label="Last move highlight color"
-              value={settings.lastMove.color}
-              disabled={settings.lastMove.negative}
-              hint={
-                settings.lastMove.negative
-                  ? "Not used: the negative circle takes its colour from the squares themselves."
-                  : undefined
-              }
-              onChange={(color) => updateLastMove({ color })}
-            />
-            <NumberField
-              id="last-move-opacity"
-              inline
-              label="Last move highlight opacity"
-              value={settings.lastMove.opacity}
-              step={0.05}
-              max={1}
-              allowZero
-              disabled={settings.lastMove.negative}
-              hint={
-                settings.lastMove.negative
-                  ? "Not used: a circle half the other square's colour is not the other square's colour."
-                  : undefined
-              }
-              onChange={(opacity) => updateLastMove({ opacity })}
-            />
-          </div>
-          <div className="field-row field-row-halves">
-            <ToggleField
-              id="last-move-negative"
-              label="Negative square color circle"
-              hint="Mark the last move’s two squares with the other square colour — dark on a light square, light on a dark one. A bishop’s two squares then match; a pawn’s are opposites. With “Use light square color for dark squares” on, every circle is the dark square colour, there being only one colour left for it to be the opposite of."
-              checked={settings.lastMove.negative}
-              onChange={(negative) => updateLastMove({ negative })}
-            />
-            <NumberField
-              id="last-move-circle-diameter"
-              inline
-              label="Last move circle diameter"
-              suffix="squares"
-              value={settings.lastMove.diameter}
-              step={0.02}
-              allowZero
-              hint="How much of the square the mark covers, coloured either way."
-              onChange={(diameter) => updateLastMove({ diameter })}
-            />
-          </div>
-
-        </section>
         </>
       )}
 
@@ -334,34 +328,65 @@ export default function SettingsPanel({
               onChange={(darkenBlack) => updatePieceTint({ darkenBlack })}
             />
           </div>
-          <hr className="panel-divider" />
+          <SectionRule name="Captured pieces" />
+
+          <ToggleField
+            id="show-taken-pieces"
+            label="Show captured pieces"
+            checked={settings.showCapturedPiecesBar}
+            onChange={(showCapturedPiecesBar) =>
+              onChange({ ...settings, showCapturedPiecesBar })
+            }
+          />
+
+          <SectionRule name="Moves" />
 
           {/*
-            A speed rather than a duration: a knight's hop and a rook's run down
-            the board then travel at one rate, and the long move simply takes
-            longer. Given as a duration, the two would look like different
-            weights of piece.
+            How a piece crosses the board when a move is played.
+
+            Two rates and a slider between them, because neither alone reads
+            well: at one speed a one-square move is over before it registers
+            while a rook's run is a wait, and at one time a short move crawls.
+            The slider says how much of each, and a little of the second pulls
+            both ends towards the middle.
           */}
           <NumberField
             id="move-speed"
             inline
-            label="Playback move speed"
+            narrow
+            label="Move speed"
             suffix="squares/sec"
-            hint="How fast a piece travels to the square it is played to. Nought puts it down without moving it, which is why there is no switch beside this; the journey is held between a tenth and a third of a second however far it goes."
+            hint="How fast a piece travels when speed is what is held. Nought puts it down without moving it, which is why there is no switch beside this."
             value={settings.move.speed}
             step={0.5}
             allowZero
-            onChange={(speed) => onChange({ ...settings, move: { speed } })}
+            onChange={(speed) =>
+              onChange({ ...settings, move: { ...settings.move, speed } })
+            }
           />
-
-          <hr className="panel-divider" />
-
-          <ToggleField
-            id="show-taken-pieces"
-            label="Show taken pieces"
-            checked={settings.showCapturedPiecesBar}
-            onChange={(showCapturedPiecesBar) =>
-              onChange({ ...settings, showCapturedPiecesBar })
+          <NumberField
+            id="move-time"
+            inline
+            narrow
+            label="Move time"
+            suffix="seconds"
+            hint="How long a move takes when time is what is held, whatever distance it covers."
+            value={settings.move.time}
+            step={0.1}
+            allowZero
+            onChange={(time) =>
+              onChange({ ...settings, move: { ...settings.move, time } })
+            }
+          />
+          <SliderField
+            id="move-blend"
+            from="Constant move speed"
+            to="Constant move time"
+            value={settings.move.blend}
+            ticks={[0, 0.5, 1]}
+            hint="Which of the two above is held. At the left every move goes at the same rate, so a long one takes longer; at the right every move takes the same time, however far it goes."
+            onChange={(blend) =>
+              onChange({ ...settings, move: { ...settings.move, blend } })
             }
           />
         </section>

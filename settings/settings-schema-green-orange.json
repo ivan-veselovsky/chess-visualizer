@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 40,
+  "schemaVersion": 42,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -10,12 +10,13 @@
   "orientation": "white",
   "lastMove": {
     "color": "#fff70a",
-    "opacity": 0.25,
     "negative": false,
     "diameter": 0.76
   },
   "move": {
-    "speed": 7
+    "speed": 7,
+    "time": 1.1,
+    "blend": 0.5
   },
   "grid": {
     "show": false,

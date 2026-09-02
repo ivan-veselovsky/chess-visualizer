@@ -913,6 +913,12 @@ body {
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.75rem;
+  /*
+    The panel is padded thinly at the top and fully at the bottom, so the middle
+    of what it holds is not the middle of the panel. The difference, taken above,
+    puts the squares' centres on the panel's own middle.
+  */
+  margin-top: calc(var(--panel-pad, 1rem) - var(--panel-pad-top, 1rem));
 }
 
 .intensity-chooser {
@@ -947,12 +953,28 @@ body {
   max-height: 100%;
 }
 
-.intensity-label {
-  /* A little above the readings around the square, which it names. */
+/*
+  Out of the flow, at the top of the frame. In it, the frame centred the title
+  and the square together and the square's own centre came to rest half a title
+  below the middle — which is the one place it must not be, being the value the
+  whole panel is read off. The room it stands in is reserved by the square's
+  height instead; see `.intensity-box`.
+*/
+.intensity-frame > .intensity-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
   font-size: 1.05em;
-  /* Clear of the "Opponent" reading, which hangs off the square's top corner
-     in the space between the two — and which is the larger of the two texts. */
-  margin-bottom: 2rem;
+  /*
+    Held above the square rather than at the top of the frame: half a square up
+    from the middle the square is centred on, and then clear of the "Opponent"
+    reading that hangs off its top corner. The square's own side is written the
+    same way it is in `.intensity-box`, in the frame's units — the frame is a
+    size container, so `100cqw` is the width the square takes and `100cqh` the
+    height it is held to.
+  */
+  bottom: calc(50% + min(100cqw, 100cqh - 3.9rem) / 2 + 2.4rem);
 }
 
 /*
@@ -1231,6 +1253,161 @@ body {
 }
 
 /*
+  A setting that is a place between two ways of doing something. The two ends
+  are named where they are, and the numbers sit under the track they belong to.
+*/
+.slider-field {
+  /* The handle's width, which the rail and the figures below are inset by.
+     The same as the balance choosers' `--handle`: it is the same mark, and two
+     handles of nearly the same size read as a mistake rather than a distinction. */
+  --slider-handle: 2.55rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 0.6rem;
+  row-gap: 0.1rem;
+}
+
+/*
+  The rail is drawn by the field rather than by the input, and inset by half a
+  handle at each end. A handle runs inside the track it belongs to, so a rail
+  drawn edge to edge leaves the handle's centre half a handle short of it at
+  either extreme; inset, the rail begins and ends where that centre does. The
+  travel itself is untouched — only where the line is painted.
+*/
+.slider-field::before {
+  content: "";
+  grid-area: 2 / 2;
+  align-self: center;
+  margin: 0 calc(var(--slider-handle) / 2);
+  height: 0.35rem;
+  border-radius: 0.2rem;
+  background: color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.slider-end {
+  font-size: 0.9em;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.slider-track {
+  grid-area: 2 / 2;
+  min-width: 4rem;
+  /* Drawn rather than taken as it comes: the handle is a ring with a dot at its
+     centre, the same mark the balance choosers carry, and a browser's own thumb
+     is both too small to take hold of and nothing like it. */
+  -webkit-appearance: none;
+  appearance: none;
+  height: var(--slider-handle);
+  background: none;
+}
+
+/*
+  One rule apiece, not a list. A selector list is thrown away whole if any part
+  of it is unknown, so pairing a -webkit- pseudo-element with a -moz- one leaves
+  neither browser drawing a track at all.
+*/
+.slider-track::-webkit-slider-runnable-track {
+  height: 0.35rem;
+  background: none;
+}
+
+.slider-track::-moz-range-track {
+  height: 0.35rem;
+  background: none;
+}
+
+/*
+  Light against dark, both, so it reads on either theme — and hollow, so the
+  track shows through it the way the choosers' handle shows the field.
+*/
+.slider-track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--slider-handle);
+  height: var(--slider-handle);
+  margin-top: calc((0.35rem - var(--slider-handle)) / 2);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(0, 0, 0, 0.8) 0 1.5px,
+      rgba(255, 255, 255, 0.85) 1.5px 2.5px,
+      transparent 2.5px
+    );
+  cursor: grab;
+}
+
+.slider-track::-moz-range-thumb {
+  width: var(--slider-handle);
+  height: var(--slider-handle);
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(0, 0, 0, 0.8) 0 1.5px,
+      rgba(255, 255, 255, 0.85) 1.5px 2.5px,
+      transparent 2.5px
+    );
+  cursor: grab;
+}
+
+.slider-track:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+/*
+  Under the track and across the same width, each figure centred on the place it
+  marks — so the middle one sits at the middle of the travel rather than in the
+  middle of the row.
+*/
+/*
+  Every cell placed outright rather than left to fall where it may: a grid fills
+  itself in source order, so adding the reading at the front pushed the row of
+  names and the track one place along each.
+*/
+.slider-value {
+  grid-area: 1 / 2;
+  text-align: center;
+  font-size: 0.9em;
+}
+
+.slider-from {
+  grid-area: 2 / 1;
+}
+
+.slider-to {
+  grid-area: 2 / 3;
+}
+
+.slider-ticks {
+  /* The track's own column, so the figures sit under the travel itself — and
+     inset by half a handle at each end, because a handle stays inside the track
+     it runs along: at nought its centre is already half its width in, and a
+     figure at the very edge would sit beside the handle rather than under it. */
+  grid-area: 3 / 2;
+  margin: 0 calc(var(--slider-handle) / 2);
+  position: relative;
+  height: 1em;
+  font-size: 0.75em;
+  opacity: 0.6;
+}
+
+.slider-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+/*
   A piece on its way from one square to another. The travelling itself is set
   going in the layer, which states both ends of the journey outright — a
   transition here could not, an element born holding its final transform having
@@ -1420,7 +1597,17 @@ body {
   /* If even the controls do not fit the height the board allows, the panel
      scrolls within itself rather than lengthening the page. */
   overflow-y: auto;
-  padding: 1rem;
+  /*
+    Thin at the top: the strip above already stands the contents off the page,
+    and a full 1rem there read as a gap over the first section's name rather
+    than as the panel's own margin. Enough is left that the border does not
+    crowd the letters.
+  */
+  --panel-pad: 1rem;
+  /* The same as the rest by default; thin only where the tab opens with a
+     section's name, which see. */
+  --panel-pad-top: var(--panel-pad);
+  padding: var(--panel-pad-top) var(--panel-pad) var(--panel-pad);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   background: none;
@@ -1434,6 +1621,18 @@ body {
   border-top-left-radius: 0;
 }
 
+/*
+  Thin at the top where the first thing in the panel is a section's name. A
+  named rule is a heading, and a heading held a full pad below the tab it hangs
+  from reads as a gap rather than as the start of the panel. Where the panel
+  opens with a field instead, the full pad stands the controls off the strip —
+  without it they crowd the tabs.
+*/
+.tab-panel:has(> .settings-panel > .section-rule:first-child),
+.tab-panel-tight {
+  --panel-pad-top: 0.3rem;
+}
+
 .tab-panel[hidden] {
   display: none;
 }
@@ -1441,6 +1640,20 @@ body {
 .settings-panel {
   /* Inside the tab panel, which draws the border and the background. */
   width: 100%;
+  /*
+    The space under a field. Kept in one place because it sets the panel's whole
+    vertical rhythm: a tab that runs longer than the board is tall grows a
+    scrollbar, and the fields' own spacing is what decides that.
+  */
+  --field-gap: 0.5rem;
+}
+
+/*
+  Nothing under the last field of a group: what separates a group from the next
+  section's name is that name's own space above it, not the two added together.
+*/
+.settings-group > :last-child {
+  margin-bottom: 0;
 }
 
 /* Unlabelled and unruled, so spacing alone separates one group from the next:
@@ -1475,6 +1688,15 @@ body {
 .field-inline > .number-field-inputs {
   flex: 1 1 0;
   min-width: 0;
+}
+
+/* Wide enough for a decimal and no wider; the rest of the row is left alone. */
+.field-narrow > .number-field-inputs {
+  flex: 0 0 auto;
+}
+
+.field-narrow .number-input {
+  width: 5em;
 }
 
 .color-field {
@@ -1737,7 +1959,7 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .number-field {
-  margin-bottom: 0.85rem;
+  margin-bottom: var(--field-gap, 0.85rem);
 }
 
 /*
@@ -1753,7 +1975,7 @@ input[type="color"]::-moz-color-swatch {
      not, rather than one field overlapping the other. */
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-bottom: 0.85rem;
+  margin-bottom: var(--field-gap, 0.85rem);
 }
 
 /*
@@ -1762,7 +1984,9 @@ input[type="color"]::-moz-color-swatch {
   separation changes — the row is otherwise an ordinary one.
 */
 .field-row-apart {
-  gap: 5em;
+  /* Across only. Set both ways, the same 5em opens up between the lines when
+     the pair is too wide to share one — which is a gap where a wrap should be. */
+  column-gap: 5em;
 }
 
 /*
@@ -1770,9 +1994,16 @@ input[type="color"]::-moz-color-swatch {
   second starts at the halfway mark whatever the first one's label measures.
   Named on both classes to outrank the shrink-to-fit rule below.
 */
-.field-row.field-row-halves > .toggle-field {
+.field-row.field-row-halves > .toggle-field,
+.field-row.field-row-halves > .number-field,
+.field-row.field-row-halves > .color-field {
   flex: 1 1 0;
-  min-width: 0;
+  /*
+    Never narrower than its own longest word. At nought the field beside it —
+    which sizes itself from its content — took the whole row, and the label
+    left in a 23px box ran out over the top of it rather than wrapping.
+  */
+  min-width: min-content;
 }
 
 /*
@@ -1853,7 +2084,7 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.85rem;
+  margin-bottom: var(--field-gap, 0.85rem);
 }
 
 .toggle-field input[type="checkbox"] {
@@ -2416,6 +2647,55 @@ input[type="color"]::-moz-color-swatch {
   margin: 0;
   border: none;
   border-top: 1px solid var(--panel-border);
+}
+
+/*
+  A named rule: the word, then the line running out to the edge. The line takes
+  whatever the word leaves, so a long name simply shortens it.
+*/
+.section-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  /*
+    Above only. A heading belongs to what follows it, so the space goes between
+    it and the section before — putting space below as well pushed every group
+    away from its own name.
+  */
+  margin: 0.5em 0 0;
+}
+
+/* The first one opens the panel, and has nothing to be held away from. */
+.settings-panel > .section-rule:first-child {
+  margin-top: 0;
+}
+
+/*
+  Set as the rays table sets its column headers, and for the same reason: both
+  are names over a group of settings rather than settings themselves, and read
+  as headings only if they are lettered unlike the rows beneath them.
+*/
+.section-rule-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  /* Fainter than the table's own headers: these stand over the whole panel
+     rather than over one table, and are read once on the way past. */
+  opacity: 0.4;
+  white-space: nowrap;
+}
+
+/* Its own spacing is the group's, so the rule inside adds none of its own. */
+.section-rule .panel-divider {
+  flex: 1;
+  margin: 0;
+}
+
+/* The stub before the name: a fixed length, since it is there to start the line
+   rather than to fill anything. */
+.section-rule .section-rule-lead {
+  flex: 0 0 1.4em;
 }
 
 .settings-panel .panel-divider {

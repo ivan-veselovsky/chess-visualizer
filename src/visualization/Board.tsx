@@ -125,7 +125,6 @@ export default function Board({
   lastMove = null,
   lastMoveMark = {
     color: "#000000",
-    opacity: 0,
     negative: false,
     diameter: 0,
   },

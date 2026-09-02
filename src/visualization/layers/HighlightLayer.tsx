@@ -46,12 +46,21 @@ interface HighlightLayerProps {
  */
 export default function HighlightLayer({
   squares,
-  mark: { color, opacity, negative, diameter },
+  mark: { color, negative, diameter },
   orientation = "white",
 }: HighlightLayerProps) {
-  const strength = negative ? 1 : Math.min(Math.max(opacity, 0), 1);
+  /*
+    Laid on outright, not washed over.
+
+    Both ways of marking now put a disc of one flat colour on the square: the
+    negative one takes the other square's colour, this one takes the colour that
+    was chosen. A wash was the older idea — a hue moved towards while the light
+    and dark squares still showed through — but it left the mark reading as a
+    tint of the square rather than as a thing on it, and the two ways of marking
+    behaving differently was the worse half of that.
+  */
   const radius = (Math.max(diameter, 0) * SQUARE_SIZE) / 2;
-  if (squares.length === 0 || strength === 0 || radius === 0) {
+  if (squares.length === 0 || radius === 0) {
     return null;
   }
 
@@ -59,7 +68,6 @@ export default function HighlightLayer({
     <g
       className="highlight-layer"
       fill={negative ? undefined : color}
-      fillOpacity={strength}
     >
       {squares.map((square) => {
         const { x, y } = squareCenter(square, orientation);

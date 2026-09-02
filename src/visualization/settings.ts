@@ -49,10 +49,9 @@ export interface LastMoveMark {
    * light square down towards the dark one until the board stops reading as a
    * board.
    *
-   * Neither is used while `negative` is set.
+   * Not used while `negative` is set, which takes the colour from the board.
    */
   color: string;
-  opacity: number;
   /**
    * Mark them with the other kind of square's colour instead — dark on a light
    * square, light on a dark one.
@@ -241,6 +240,20 @@ export type KnightGeometry = "arc" | "gamma-1" | "gamma-2" | "straight-ray";
 export interface MoveMotion {
   /** Squares a second. Zero puts the piece down without moving it. */
   speed: number;
+  /** Seconds a move takes when time is what is being held, rather than speed. */
+  time: number;
+  /**
+   * Which of the two is held, from 0 for the speed to 1 for the time.
+   *
+   *   v = speed · (1 − blend) + blend · pi · L / (2 · time)
+   *
+   * At nought every move travels at the same rate, so a rook's run down the
+   * board takes four times a knight's hop. At one the rate is chosen to make
+   * every move take the same time, however far it goes. Between them the two
+   * are mixed, which is the useful part: short moves stop being a flicker and
+   * long ones stop being a wait, without either being wholly given up.
+   */
+  blend: number;
 }
 
 /** Thin lines on the square edges, readable even with identical colours. */

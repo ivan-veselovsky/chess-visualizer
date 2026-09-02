@@ -41,6 +41,7 @@ import {
 } from "../chess/stash";
 import { parseFen } from "../chess/position";
 import { boardDuring, moveBetween, travellersOf } from "../chess/flight";
+import { moveSpeed } from "../visualization/moveSpeed";
 import {
   flightTime,
   squaresApart,
@@ -557,14 +558,12 @@ export default function App() {
       longest instead, nothing ever exceeds it and the shorter piece simply
       travels more gently.
     */
-    const ms = flightTime(
-      Math.max(
-        ...travellers.map((piece) =>
-          squaresApart(piece.from, piece.to, settings.orientation)
-        )
-      ),
-      settings.move.speed
+    const squares = Math.max(
+      ...travellers.map((piece) =>
+        squaresApart(piece.from, piece.to, settings.orientation)
+      )
     );
+    const ms = flightTime(squares, moveSpeed(settings.move, squares));
     if (ms <= 0) {
       return;
     }
@@ -1253,12 +1252,9 @@ export default function App() {
                   full={rayFull}
                   onChange={(rayIntensity) => setIntensity({ rays: rayIntensity })}
                 />
-                {/* Held in a column shaped like a chooser's, so it comes to
-                    rest level with the two squares rather than with the row. */}
+                {/* Level with the two squares, which now sit on the middle of
+                    the panel — as this does, the holder being full height. */}
                 <div className="intensity-link-holder">
-                  <span className="intensity-label" aria-hidden="true">
-                    {"\u00a0"}
-                  </span>
                   <div className="intensity-link-middle">
                     <button
                       type="button"
@@ -1291,7 +1287,11 @@ export default function App() {
 
           {tab !== "game" && tab !== "balance" && (
             <div
-              className="tab-panel"
+              /* The rays are the longest of the settings groups and open with a
+                 row of their own rather than with a name, so they keep the thin
+                 top the named panels have: the height is worth more there than
+                 the margin is. */
+              className={`tab-panel${tab === "rays" ? " tab-panel-tight" : ""}`}
               role="tabpanel"
               id={`panel-${tab}`}
               aria-labelledby={`tab-${tab}`}
