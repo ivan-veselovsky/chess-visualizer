@@ -1,8 +1,6 @@
 interface PgnHelpProps {
   /** Referenced by the button it describes, so the text reaches a reader too. */
   id: string;
-  /** Open leftwards, for a button too far along the row to open rightwards. */
-  fromEnd?: boolean;
 }
 
 /**
@@ -12,12 +10,12 @@ interface PgnHelpProps {
  * a title is one plain string, and the notation being described would be
  * indistinguishable from the prose describing it.
  */
-export default function PgnHelp({ id, fromEnd = false }: PgnHelpProps) {
+export default function PgnHelp({ id }: PgnHelpProps) {
   return (
     <span
       id={id}
       role="tooltip"
-      className={fromEnd ? "field-help field-help-end" : "field-help"}
+      className="field-help"
     >
       A <strong>PGN (Portable Game Notation)</strong> document describes one or
       more complete chess games using two main sections:{" "}

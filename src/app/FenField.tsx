@@ -1,4 +1,5 @@
 import FenHelp from "./FenHelp";
+import FieldWithHelp from "./FieldWithHelp";
 
 interface FenFieldProps {
   value: string;
@@ -26,10 +27,10 @@ export default function FenField({
       <div className="board-controls fen-row">
         {/* The label carries the explanation: hovering the field itself would
             put a panel over what is being typed. */}
-        <span className="field-with-help">
+        <FieldWithHelp>
           <label htmlFor="fen">Position (FEN)</label>
           <FenHelp id="fen-help" />
-        </span>
+        </FieldWithHelp>
         <input
           id="fen"
           type="text"

@@ -53,13 +53,16 @@ import Board from "../visualization/Board";
 import type { LastMove } from "../visualization/layers/HighlightLayer";
 import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
+import FieldWithHelp from "./FieldWithHelp";
 import MovesSelect from "./MovesSelect";
+import NumberField from "./NumberField";
 import GearIcon from "./GearIcon";
 import IntensityChooser from "./IntensityChooser";
 import LinkIcon from "./LinkIcon";
 import GitHubIcon from "./GitHubIcon";
 import ShareIcon from "./ShareIcon";
 import SponsorIcon from "./SponsorIcon";
+import PlayIcon from "./PlayIcon";
 import StepIcon from "./StepIcon";
 import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
@@ -225,6 +228,13 @@ export default function App() {
       ? startHistory(opening?.fen ?? DEFAULT_POSITION)
       : historyFromLine(opening.entries),
   );
+  /*
+    Playing a game back on its own. The period is how long each position is
+    left standing, in seconds — the reader's pace through the game rather than
+    a piece's pace across the board, which is the moves' own setting.
+  */
+  const [playing, setPlaying] = useState(false);
+  const [period, setPeriod] = useState(4);
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
   // one would not load, if ever one does not.
@@ -430,11 +440,35 @@ export default function App() {
    * Whether each is available is `canGoPrevious` / `canGoNext`: reaching an end
    * of the list needs something in that direction, exactly as a step does.
    */
-  function stepHistory(direction: "first" | "previous" | "next" | "last") {
-    const walk = { first: goFirst, previous: goPrevious, next: goNext, last: goLast };
-    const moved = walk[direction](history);
+  function showHistory(moved: PositionHistory) {
     setHistory(moved);
     setFen(currentPosition(moved));
+  }
+
+  function stepHistory(direction: "first" | "previous" | "next" | "last") {
+    /* A hand on the controls takes the game back off the clock: whoever is
+       stepping through it themselves has stopped watching it play. */
+    setPlaying(false);
+    const walk = { first: goFirst, previous: goPrevious, next: goNext, last: goLast };
+    showHistory(walk[direction](history));
+  }
+
+  /**
+   * Sets the game running, or stops it.
+   *
+   * A game already at its last position has nothing ahead of it, so pressing
+   * play there starts it again from the beginning rather than doing nothing —
+   * which is what "play" means with the end already on the board.
+   */
+  function playOrStop() {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    if (!canGoNext(history)) {
+      showHistory(goFirst(history));
+    }
+    setPlaying(true);
   }
 
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
@@ -715,6 +749,44 @@ export default function App() {
     friend.phase.kind === "playing" && friend.phase.over === null
       ? "Playing a game with a friend — finish it first"
       : null;
+
+  /*
+    One position at a time, each left standing for its period.
+
+    The timer is set again on every change of position, which is what makes the
+    game walk forward: each step changes `history`, this runs again, and the
+    next step is booked. It ends itself at the last position — there is nothing
+    to step to, and a game that has played to its end has stopped.
+  */
+  useEffect(() => {
+    if (!playing) {
+      return;
+    }
+    /* A game with a friend is played, not watched: the moves arrive as they are
+       made, and walking the line on a timer would take the board away from
+       whoever is waiting to move on it. */
+    if (inGame !== null) {
+      setPlaying(false);
+      return;
+    }
+    if (!canGoNext(history)) {
+      setPlaying(false);
+      return;
+    }
+    /*
+      A quarter of the period on the opening position. A game nearly always
+      starts from the same board, and holding the one position every reader
+      already knows for as long as the ones they are watching for makes the
+      start of every playback a wait.
+    */
+    const share = canGoPrevious(history) ? 1 : 0.25;
+    const wait = Math.max(period, 0.1) * 1000 * share;
+    const next = window.setTimeout(() => showHistory(goNext(history)), wait);
+    return () => window.clearTimeout(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `showHistory`
+    // only sets state; taking it as a dependency would book a fresh timer on
+    // every render and the game would never reach the end of a period.
+  }, [playing, history, period, inGame]);
 
   /*
     Whether a takeback can be asked for, and when it cannot, why not.
@@ -1094,9 +1166,12 @@ export default function App() {
               </button>
             </div>
 
-            {/* Stepping through the line, and jumping anywhere in it. */}
-            <div className="board-controls move-nav">
-              <div className="step-buttons">
+            {/* Stepping through the line, letting it play itself, and jumping
+                anywhere in it — a row apiece, in that order: the two ways of
+                going one position at a time stand together, and the list of
+                every position stands under both. */}
+            <div className="move-nav">
+              <div className="board-controls step-buttons">
                 <button
                   type="button"
                   className="reset-button step-button step-button-end"
@@ -1138,15 +1213,49 @@ export default function App() {
                   <StepIcon direction="last" />
                 </button>
               </div>
-              <MovesSelect
-                entries={history.entries}
-                current={history.current}
-                onSelect={(index) => {
-                  const moved = goToPosition(history, index);
-                  setHistory(moved);
-                  setFen(currentPosition(moved));
-                }}
-              />
+              <div className="board-controls play-row">
+                <button
+                  type="button"
+                  className="reset-button play-button"
+                  title={
+                    inGame ??
+                    (playing
+                      ? "Stop the game where it is"
+                      : "Play the game through, a position at a time")
+                  }
+                  aria-pressed={playing}
+                  disabled={inGame !== null || history.entries.length < 2}
+                  onClick={playOrStop}
+                >
+                  <PlayIcon playing={playing} />
+                  {playing ? "Stop" : "Play"}
+                </button>
+                <NumberField
+                  id="play-period"
+                  inline
+                  narrow
+                  label="Period per position"
+                  suffix="seconds"
+                  step={0.5}
+                  value={period}
+                  disabled={inGame !== null}
+                  hint={
+                    inGame ??
+                    "How long each position is left on the board while the game plays."
+                  }
+                  onChange={setPeriod}
+                />
+              </div>
+              <div className="board-controls">
+                <MovesSelect
+                  entries={history.entries}
+                  current={history.current}
+                  onSelect={(index) => {
+                    setPlaying(false);
+                    showHistory(goToPosition(history, index));
+                  }}
+                />
+              </div>
             </div>
 
             {/* Second row: what a whole game can be done with. */}
@@ -1161,7 +1270,7 @@ export default function App() {
 
             {/* The two that move a game in and out of PGN, and the link to it. */}
             <div className="board-controls">
-              <span className="field-with-help">
+              <FieldWithHelp>
                 <button
                   type="button"
                   className="reset-button"
@@ -1173,8 +1282,8 @@ export default function App() {
                   Import game (PGN)
                 </button>
                 <PgnHelp id="import-pgn-help" />
-              </span>
-              <span className="field-with-help">
+              </FieldWithHelp>
+              <FieldWithHelp>
                 <button
                   type="button"
                   className="reset-button"
@@ -1183,8 +1292,8 @@ export default function App() {
                 >
                   Export game (PGN)
                 </button>
-                <PgnHelp id="export-pgn-help" fromEnd />
-              </span>
+                <PgnHelp id="export-pgn-help" />
+              </FieldWithHelp>
               <div className="controls-end">
                 <CopyButton
                   label="Share game"
