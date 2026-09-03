@@ -42,6 +42,14 @@ interface AttackLayerProps {
    * judged against.
    */
   lifted?: Square | null;
+  /**
+   * Squares whose piece is in the air. Its marks are left out as a lifted
+   * piece's are — but it is still on the board given above, so every ray that
+   * ran into it still stops there. That is the whole difference between a piece
+   * being carried and a piece in mid-move: one has left the board, the other
+   * has only left its square.
+   */
+  flying?: Square[];
   orientation?: Orientation;
 }
 
@@ -51,6 +59,7 @@ export default function AttackLayer({
   pieces,
   attackSettings,
   lifted = null,
+  flying = [],
   orientation = "white",
 }: AttackLayerProps) {
   // useId() yields ids like ":r0:"; the colons are awkward inside url(#...).
@@ -143,7 +152,11 @@ export default function AttackLayer({
 
       {pieces.map((piece) => {
         const Renderer = ATTACK_RENDERERS[piece.type];
-        if (Renderer === undefined || piece.square === lifted) {
+        if (
+          Renderer === undefined ||
+          piece.square === lifted ||
+          flying.includes(piece.square)
+        ) {
           return null;
         }
         // Which settings this piece draws with: its end of the board, not its

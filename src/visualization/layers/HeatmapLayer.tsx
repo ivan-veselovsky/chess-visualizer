@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Chess, type Color, type Square } from "chess.js";
+import type { Chess, Color, Square } from "chess.js";
+import { attackersOn } from "../../chess/flight";
 import { mix, readRgb, toHex } from "../color";
 import { FILES, RANKS, squareBox, type Orientation } from "../geometry";
 import type { Heatmap } from "../settings";
@@ -9,6 +10,12 @@ interface HeatmapLayerProps {
   heatmap: Heatmap;
   /** A piece picked up and not yet put down, which is not on the board. */
   lifted?: Square | null;
+  /**
+   * Squares whose piece is in the air. Unlike a lifted piece it is still on the
+   * board — it goes on shutting the lines it stands in, and only stops counting
+   * as an attacker of anything. A piece between two squares covers neither.
+   */
+  flying?: Square[];
   orientation?: Orientation;
 }
 
@@ -40,6 +47,7 @@ export default function HeatmapLayer({
   position,
   heatmap,
   lifted = null,
+  flying = [],
   orientation = "white",
 }: HeatmapLayerProps) {
   const mine: Color = orientation === "black" ? "b" : "w";
@@ -55,37 +63,33 @@ export default function HeatmapLayer({
     /*
       A piece being carried is counted out, as its rays are: the board is being
       read to decide where to put it down, and what it covers from the square it
-      has left is the wrong answer to that question. Lifting it also opens the
-      lines it was standing in, which is the other half of what the reader wants
-      to see.
+      has left is the wrong answer to that question.
+
+      Counted out, though, and not taken off. It was taken off here once, so
+      that picking a piece up also opened the lines it stood in — which showed a
+      board that no move produces: a queen's file swept clear behind a pawn that
+      is still in front of it, and will still be in front of it wherever it goes
+      down that file. A piece not yet put down is exactly a piece in the air:
+      it attacks nothing, and shadows everything it shadowed before.
     */
-    const board =
-      lifted === null || position.get(lifted) === undefined
-        ? position
-        : (() => {
-            try {
-              const without = new Chess(position.fen());
-              without.remove(lifted);
-              return without;
-            } catch {
-              // A board with a king already in the air cannot be copied this
-              // way. Counting it as it stands is a better answer than none.
-              return position;
-            }
-          })();
+    const silent = lifted === null ? flying : [...flying, lifted];
+    const board = position;
     const found: { square: Square; mine: number; theirs: number }[] = [];
     for (const file of FILES) {
       for (const rank of RANKS) {
         const square = `${file}${rank}` as Square;
-        const ours = board.attackers(square, mine).length;
-        const others = board.attackers(square, theirs).length;
+        const ours = attackersOn(board, square, mine, silent).length;
+        const others = attackersOn(board, square, theirs, silent).length;
         if (ours > 0 || others > 0) {
           found.push({ square, mine: ours, theirs: others });
         }
       }
     }
     return found;
-  }, [position, lifted, mine, theirs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `flying` is
+    // compared by its contents; a fresh array of the same squares is the same
+    // board to count.
+  }, [position, lifted, flying.join(), mine, theirs]);
 
   const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
   // What one attacker of each side lays down: that side's configured strength,

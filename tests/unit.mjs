@@ -13,6 +13,12 @@ import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" wit
 const DEFAULT_SETTINGS = DEFAULT_SETTINGS_JSON;
 import { lineOf as lineFromHistory } from "../src/chess/history.ts";
 import {
+  attackersOn,
+  boardDuring,
+  moveBetween,
+  travellersOf,
+} from "../src/chess/flight.ts";
+import {
   describeHandicap,
   positionWithHandicap,
 } from "../src/chess/handicap.ts";
@@ -447,6 +453,77 @@ console.log("\nA line, as it travels\n");
   const line = lineFromHistory({ entries: [{ fen: board.fen(), move: null }], current: 0 });
   check("a board nobody has moved on is a line of no moves",
     line.moves.length === 0 && line.initialFEN === board.fen());
+}
+
+console.log("\nA piece in the air\n");
+{
+  // 1.d4, caught halfway: the pawn has left d2 and not yet reached d4.
+  const start = new Chess();
+  const before = start.fen();
+  const move = moveBetween(before, (() => {
+    const played = new Chess(before);
+    played.move("d4");
+    return played.fen();
+  })());
+  check("the move is read back off the two positions",
+    move !== null && move.from === "d2" && move.to === "d4",
+    move === null ? "none" : `${move.from}${move.to}`);
+  const flying = travellersOf(move).travellers.map((piece) => piece.from);
+  check("and the piece it sends is the one that left d2",
+    flying.join() === "d2", flying.join());
+
+  const held = boardDuring(before);
+  check("the travelling piece is still on the board",
+    held !== null && held.get("d2") !== undefined);
+  check("so the queen's file stays shut behind it",
+    attackersOn(held, "d4", "w", flying).length === 0,
+    attackersOn(held, "d4", "w", flying).join());
+  const gone = new Chess(before);
+  gone.remove("d2");
+  check("where taking it off the board would have opened it",
+    gone.attackers("d4", "w").join() === "d1",
+    gone.attackers("d4", "w").join());
+  check("but the piece in the air attacks nothing itself",
+    attackersOn(held, "e3", "w", flying).join() === "f2",
+    attackersOn(held, "e3", "w", flying).join());
+  check("while it stands there for everyone else",
+    attackersOn(held, "e3", "w", []).sort().join() === "d2,f2",
+    attackersOn(held, "e3", "w", []).sort().join());
+}
+{
+  // The same pawn picked up and not yet put down: the landing square is not
+  // chosen, so nothing about the board has changed except what the pawn covers.
+  const board = new Chess();
+  const lifted = ["d2"];
+  check("a piece picked up stops attacking",
+    attackersOn(board, "e3", "w", lifted).join() === "f2",
+    attackersOn(board, "e3", "w", lifted).join());
+  check("but it does not open the queen's file",
+    attackersOn(board, "d4", "w", lifted).length === 0 &&
+      attackersOn(board, "d3", "w", lifted).sort().join() === "c2,e2",
+    attackersOn(board, "d3", "w", lifted).sort().join());
+  check("nor the bishop's diagonal behind it",
+    attackersOn(board, "f4", "w", lifted).length === 0 &&
+      attackersOn(board, "g5", "w", lifted).length === 0);
+  check("and its own square is still covered by whoever covered it",
+    attackersOn(board, "d2", "w", lifted).sort().join() === "b1,c1,d1,e1",
+    attackersOn(board, "d2", "w", lifted).sort().join());
+}
+{
+  // Castling sends the king as well, and a board is still a board without one.
+  const board = new Chess("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
+  const before = board.fen();
+  board.move("O-O");
+  const move = moveBetween(before, board.fen());
+  const flying = travellersOf(move).travellers.map((piece) => piece.from);
+  check("castling sends two pieces, from e1 and h1",
+    flying.sort().join() === "e1,h1", flying.sort().join());
+  const held = boardDuring(before);
+  check("and the board it is drawn from still reads",
+    held !== null && held.get("e1") !== undefined && held.get("h1") !== undefined);
+  check("with neither of them attacking while they travel",
+    attackersOn(held, "f1", "w", flying).length === 0,
+    attackersOn(held, "f1", "w", flying).join());
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

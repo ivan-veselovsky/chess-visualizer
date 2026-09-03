@@ -10,6 +10,10 @@ interface PinLayerProps {
   attackSettings: AttackSettings;
   /** Square whose piece is being dragged; its ring would hang in mid-air. */
   lifted?: Square | null;
+  /** Squares whose piece is in the air, where a ring would hang over nothing.
+      What such a piece pins is another matter: it is still standing in the
+      line, so the ring on the piece it holds is still true. */
+  flying?: Square[];
   orientation?: Orientation;
 }
 
@@ -25,6 +29,7 @@ export default function PinLayer({
   position,
   attackSettings,
   lifted = null,
+  flying = [],
   orientation = "white",
 }: PinLayerProps) {
   const pinned = useMemo(() => new Set(pinnedSquares(position)), [position]);
@@ -36,7 +41,12 @@ export default function PinLayer({
   return (
     <g className="pin-layer">
       {readPieces(position)
-        .filter((piece) => pinned.has(piece.square) && piece.square !== lifted)
+        .filter(
+          (piece) =>
+            pinned.has(piece.square) &&
+            piece.square !== lifted &&
+            !flying.includes(piece.square)
+        )
         .map((piece) => {
           const { x, y } = squareCenter(piece.square, orientation);
           return (

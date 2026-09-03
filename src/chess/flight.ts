@@ -1,4 +1,4 @@
-import { Chess, type Move, type Square } from "chess.js";
+import { Chess, type Color, type Move, type Square } from "chess.js";
 import type { Traveller } from "../visualization/layers/MovingPieceLayer";
 
 /**
@@ -45,27 +45,26 @@ export function travellersOf(move: Move): { travellers: Traveller[] } {
 }
 
 /**
- * The board as it looks while the move is being made: everything as it was,
- * less whatever is in the air.
+ * The board as it looks while the move is being made: the position the move was
+ * played from, exactly as it stands.
  *
- * This is what makes the order of things readable. The moving piece is off the
- * board for the length of its journey, so its rays and its share of the heatmap
- * go with it and come back at the other end; the piece being taken stays until
- * the taker reaches it, because it is still there until then.
+ * Nothing is taken off it, the travelling piece included. A piece in the air is
+ * not attacking anything — it has left one square and not yet reached the next
+ * — but it is still *in the way*: the lines it was standing in stay shut until
+ * it lands, and the piece it is about to take is still on its square. Lifting
+ * it off the board opened those lines for the length of the journey, showing a
+ * queen's file swept clear behind a pawn that was still in front of it — a
+ * picture of the board that no move ever produces.
+ *
+ * So the piece stays, and what has to go is only what it does: its own rays,
+ * its own share of the heatmap, its ring, and the glyph standing on its square,
+ * which the flight draws instead. Those are the layers' business — each is told
+ * which squares hold a piece that is in the air, and passes it over.
+ *
+ * See `attackersOn` for the same rule where the counting is chess.js's.
  */
-export function boardDuring(
-  before: string,
-  travellers: Traveller[],
-  without: Square[]
-): Chess | null {
+export function boardDuring(before: string): Chess | null {
   try {
-    const board = new Chess(before);
-    for (const piece of travellers) {
-      board.remove(piece.from);
-    }
-    for (const square of without) {
-      board.remove(square);
-    }
     /*
       The board itself, not its FEN.
 
@@ -75,10 +74,30 @@ export function boardDuring(
       therefore threw on every castle. Nothing needs the round trip: what the
       layers want is a board to look at, and this is one.
     */
-    return board;
+    return new Chess(before);
   } catch {
     return null;
   }
+}
+
+/**
+ * Who attacks `square` for `color`, less anyone in the air.
+ *
+ * chess.js counts attackers from the board, and the board still holds the
+ * travelling piece — which is right for what it blocks and wrong for what it
+ * covers. The difference is one filter, and it is written here rather than in
+ * the layer so that the rule is stated once and can be checked.
+ */
+export function attackersOn(
+  board: Chess,
+  square: Square,
+  color: Color,
+  flying: readonly Square[] = []
+): Square[] {
+  const found = board.attackers(square, color);
+  return flying.length === 0
+    ? found
+    : found.filter((from) => !flying.includes(from));
 }
 
 /**

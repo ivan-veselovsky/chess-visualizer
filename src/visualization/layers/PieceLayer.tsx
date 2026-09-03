@@ -6,8 +6,9 @@ interface PieceLayerProps {
   pieces: PlacedPiece[];
   /** Square whose piece is being dragged, and so drawn under the pointer. */
   lifted?: Square | null;
-  /** Squares a piece is still travelling to, and so is not yet standing on. */
-  landing?: Square[];
+  /** Squares whose piece is in the air, and so is drawn by the flight instead
+      of here — it is still on the board, being still in everything's way. */
+  flying?: Square[];
   orientation?: Orientation;
 }
 
@@ -20,13 +21,13 @@ interface PieceLayerProps {
 export default function PieceLayer({
   pieces,
   lifted = null,
-  landing = [],
+  flying = [],
   orientation = "white",
 }: PieceLayerProps) {
   return (
     <g className="piece-layer">
       {pieces.map((piece) => {
-        if (piece.square === lifted || landing.includes(piece.square)) {
+        if (piece.square === lifted || flying.includes(piece.square)) {
           return null;
         }
         const { x, y } = squareCenter(piece.square, orientation);

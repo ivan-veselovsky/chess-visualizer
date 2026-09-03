@@ -495,7 +495,16 @@ export default function App() {
     version read as a jump with a glyph sliding after it.
   */
   const [flight, setFlight] = useState<Flight | null>(null);
-  const [during, setDuring] = useState<Chess | null>(null);
+  /*
+    The board shown while a move is crossing it, and the squares whose pieces
+    are making the crossing. The two travel together because neither is any use
+    alone: the board still holds the travelling piece, so that it goes on
+    blocking, and the list is what tells the layers to draw nothing of it.
+  */
+  const [during, setDuring] = useState<{
+    board: Chess;
+    flying: Square[];
+  } | null>(null);
   const shownFen = useRef<string | null>(null);
   const draggedTo = useRef<Square | null>(null);
   /*
@@ -589,13 +598,19 @@ export default function App() {
       until it lands.
     */
     const stood = forward !== null ? before : after;
-    const held = boardDuring(stood, played, []);
+    const held = boardDuring(stood);
     if (held === null) {
       return;
     }
 
     setFlight({ travellers, ms });
-    setDuring(held);
+    /*
+      The squares the travelling pieces stand on in that position — which is the
+      one the move was played from either way, forward or back, so it is always
+      the move's own `from`. They stay on the board and go on blocking; what
+      they no longer do is attack, and that is what naming them here withholds.
+    */
+    setDuring({ board: held, flying: played.map((piece) => piece.from) });
     const landed = window.setTimeout(() => {
       setFlight(null);
       setDuring(null);
@@ -913,7 +928,8 @@ export default function App() {
                 attacks={settings.attacks}
                 onMove={handleMove}
                 flight={flight}
-                showing={during}
+                showing={during?.board ?? null}
+                flying={during?.flying ?? []}
                 grid={settings.grid}
                 playable={
                   friend.phase.kind === "playing" ? friend.phase.you : null

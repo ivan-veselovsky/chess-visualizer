@@ -50,12 +50,20 @@ interface BoardProps {
   /**
    * The position to draw, when it differs from the one being played on.
    *
-   * While a move is in the air the board shows everything as it was, less what
-   * is travelling — so the piece's rays leave with it and come back where it
-   * lands. What may legally be played still comes from `position`: the move has
-   * already happened, and only the picture is behind.
+   * While a move is in the air the board shows everything as it was, the
+   * travelling piece included: it is still in the way of everything it was in
+   * the way of. What may legally be played still comes from `position`: the
+   * move has already happened, and only the picture is behind.
    */
   showing?: Chess | null;
+  /**
+   * Squares whose piece is in the air.
+   *
+   * They are still standing on `showing`, so they still block — but they are
+   * not drawn, they cast no rays, they colour no squares and they wear no ring.
+   * A piece between two squares attacks neither.
+   */
+  flying?: Square[];
   position: Chess;
   colors: BoardColors;
   pieceTint: PieceTint;
@@ -114,6 +122,7 @@ export default function Board({
   hedge,
   flight = null,
   showing = null,
+  flying = [],
   position,
   colors,
   pieceTint,
@@ -386,13 +395,14 @@ export default function Board({
         // Whichever way the piece was taken up: a move is being weighed, and
         // its own reach is the one thing not being weighed against.
         lifted={lifted}
+        flying={flying}
         orientation={orientation}
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `rayLook` stands
     // for the parts of `attacks` these marks are made of; the rest cannot change
     // them.
-    [position, pieces, lifted, orientation, rayLook]
+    [position, pieces, lifted, flying.join(), orientation, rayLook]
   );
 
 
@@ -441,6 +451,7 @@ export default function Board({
             position={drawn}
             heatmap={attacks.heatmap}
             lifted={inHand?.from ?? null}
+            flying={flying}
             orientation={orientation}
           />
         )}
@@ -453,6 +464,7 @@ export default function Board({
             position={drawn}
             attackSettings={attacks}
             lifted={drag?.from ?? null}
+            flying={flying}
             orientation={orientation}
           />
         )}
@@ -470,6 +482,7 @@ export default function Board({
         <PieceLayer
           pieces={pieces}
           lifted={drag?.from ?? null}
+          flying={flying}
           orientation={orientation}
         />
 
