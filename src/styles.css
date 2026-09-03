@@ -2749,6 +2749,18 @@ input[type="color"]::-moz-color-swatch {
   padding-right: 1.7rem;
 }
 
+/* The switch and the button it governs, together at the end of the row: what
+   the link will do, and the link. */
+.share-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.share-actions > .toggle-field {
+  margin-bottom: 0;
+}
+
 /* The two ways into a game, spaced as the two ways out of one are: they are
    the same kind of pair, and the same distance apart reads as much. */
 .match-actions {

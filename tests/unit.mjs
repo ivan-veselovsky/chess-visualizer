@@ -12,6 +12,7 @@ import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
 import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
 const DEFAULT_SETTINGS = DEFAULT_SETTINGS_JSON;
 import { lineOf as lineFromHistory } from "../src/chess/history.ts";
+import { openingFromUrl } from "../src/app/sharing.ts";
 import {
   attackersOn,
   boardDuring,
@@ -453,6 +454,22 @@ console.log("\nA line, as it travels\n");
   const line = lineFromHistory({ entries: [{ fen: board.fen(), move: null }], current: 0 });
   check("a board nobody has moved on is a line of no moves",
     line.moves.length === 0 && line.initialFEN === board.fen());
+}
+
+console.log("\nWhat a shared link asks for\n");
+{
+  const pgn = encodeURIComponent("1. e4 e5 2. Nf3 *");
+  const played = openingFromUrl(`?game=${pgn}&autoplay=1`);
+  check("a game arrives with its moves",
+    played !== null && played.entries !== null && played.entries.length === 4,
+    played === null ? "nothing" : String(played.entries?.length));
+  check("and the flag is read off the link", played?.autoplay === true);
+  const quiet = openingFromUrl(`?game=${pgn}`);
+  check("a link without it asks for nothing of the kind", quiet?.autoplay === false);
+  const spot = openingFromUrl("?position=rnbqkbnr%2Fpppppppp%2F8%2F8%2F8%2F8%2FPPPPPPPP%2FRNBQKBNR+w+KQkq+-+0+1&autoplay=1");
+  check("a position alone never plays, whatever the link says",
+    spot !== null && spot.entries === null && spot.autoplay === false,
+    JSON.stringify(spot));
 }
 
 console.log("\nA piece in the air\n");

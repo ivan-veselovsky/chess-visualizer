@@ -1,16 +1,32 @@
+/*
+  Written with their extensions, unlike the imports elsewhere — the same reason
+  `settingsFile.ts` gives: this module is exercised by `tests/unit.mjs`, which
+  node runs straight from the TypeScript with no bundler to guess at them, and
+  these two are values rather than types, so they have to resolve at run time.
+*/
 import type { HistoryEntry } from "../chess/history";
-import { parsePgn } from "../chess/pgn";
-import { parseFen } from "../chess/position";
+import { parsePgn } from "../chess/pgn.ts";
+import { parseFen } from "../chess/position.ts";
 
 /** The query parameters a link can carry. */
 export const POSITION_PARAM = "position";
 export const GAME_PARAM = "game";
+/** Whether the game a link carries should play itself once it is open. */
+export const AUTOPLAY_PARAM = "autoplay";
 
 /** What a link asked the page to open. */
 export interface Opening {
   /** A whole line, newest first, or null when only a position was named. */
   entries: HistoryEntry[] | null;
   fen: string;
+  /**
+   * Whether the link asked for the game to play itself through.
+   *
+   * How fast it plays is not carried with it: that is the reader's own setting,
+   * and a link that overrode it would be telling somebody else's browser how
+   * fast they are allowed to read.
+   */
+  autoplay: boolean;
 }
 
 /**
@@ -36,7 +52,11 @@ export function openingFromUrl(search: string): Opening | null {
         this is the last move's position. The list runs newest first, so that
         is its head.
       */
-      return { entries, fen: entries[0].fen };
+      return {
+        entries,
+        fen: entries[0].fen,
+        autoplay: asked.get(AUTOPLAY_PARAM) === "1",
+      };
     }
   }
 
@@ -44,7 +64,9 @@ export function openingFromUrl(search: string): Opening | null {
   if (position !== null) {
     const wanted = position.trim();
     if (parseFen(wanted).position !== null) {
-      return { entries: null, fen: wanted };
+      // Nothing to play: a position is one board, and there is no line for it
+      // to walk.
+      return { entries: null, fen: wanted, autoplay: false };
     }
   }
   return null;
@@ -68,4 +90,16 @@ function link(parameter: string, value: string): string {
   return url.toString();
 }
 
-export const gameLink = (pgn: string): string => link(GAME_PARAM, pgn);
+/**
+ * A link that opens this game, and — where asked — sets it playing.
+ *
+ * The flag is written only when it is on: a link is read by people as well as
+ * by browsers, and one that says nothing is one thing less to wonder about.
+ */
+export function gameLink(pgn: string, autoplay = false): string {
+  const url = new URL(link(GAME_PARAM, pgn));
+  if (autoplay) {
+    url.searchParams.set(AUTOPLAY_PARAM, "1");
+  }
+  return url.toString();
+}

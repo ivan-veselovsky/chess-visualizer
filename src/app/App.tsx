@@ -240,6 +240,8 @@ export default function App() {
   */
   const [playing, setPlaying] = useState(false);
   const [period, setPeriod] = useState(4);
+  /* Whether a shared link should set the game playing for whoever opens it. */
+  const [shareAutoplay, setShareAutoplay] = useState(true);
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
   // one would not load, if ever one does not.
@@ -663,6 +665,25 @@ export default function App() {
     }, ms);
     return () => window.clearTimeout(landed);
   }, [history, settings.move.speed, settings.orientation]);
+
+  /*
+    A link that asked for the game to play itself.
+
+    Once, on arrival, and only when the link brought a line to play. The board
+    opens at the end of the game — which is where a game read rather than
+    watched should open — so this winds it back to the beginning first, and the
+    pace is whatever this reader's own settings say.
+  */
+  useEffect(() => {
+    if (opening?.autoplay !== true || opening.entries === null) {
+      return;
+    }
+    showHistory(goFirst(history));
+    setPlaying(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the opening is
+    // read once, at the address the page was opened at; nothing later changes
+    // what it asked for.
+  }, []);
 
   /** Everything taken on the way to the position on the board. */
   const captures = useMemo(() => capturesUpTo(history), [history]);
@@ -1246,14 +1267,25 @@ export default function App() {
                 </button>
                 <PgnHelp id="export-pgn-help" />
               </FieldWithHelp>
-              <div className="controls-end">
+              <div className="controls-end share-actions">
+                <ToggleField
+                  id="share-autoplay"
+                  label="With autoplay"
+                  hint="The link sets the game playing from its first position, at whatever pace the reader's own settings say."
+                  checked={shareAutoplay}
+                  onChange={setShareAutoplay}
+                />
                 <CopyButton
                   label="Share game"
                   icon={<ShareIcon />}
-                  title="Copy a link that opens this game at its first position"
+                  title={
+                    shareAutoplay
+                      ? "Copy a link that plays this game through from its first position"
+                      : "Copy a link that opens this game at its first position"
+                  }
                   text={() => {
                     const pgn = sharablePgn();
-                    return pgn === null ? null : gameLink(pgn);
+                    return pgn === null ? null : gameLink(pgn, shareAutoplay);
                   }}
                 />
               </div>
