@@ -14,8 +14,8 @@
     "diameter": 0.75
   },
   "move": {
-    "speed": 9,
-    "time": 0.6,
+    "speed": 10,
+    "time": 0.4,
     "blend": 0.93
   },
   "grid": {
