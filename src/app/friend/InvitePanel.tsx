@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import CopyButton from "../CopyButton";
 import DrawIcon from "../DrawIcon";
 import FlagIcon from "../FlagIcon";
@@ -6,6 +7,8 @@ import TakebackIcon from "../TakebackIcon";
 import { describeHandicap } from "../../chess/handicap";
 import { endingOf } from "./ending";
 import { OPPONENT_CHOOSES } from "../../../worker/protocol";
+import { gameLink } from "./connection";
+import InviteDetails from "./InviteDetails";
 import { spellGameId } from "./storage";
 import type { Link, Phase } from "./useFriendGame";
 
@@ -88,6 +91,29 @@ export default function InvitePanel({
   notice,
   onDismissNotice,
 }: InvitePanelProps) {
+  /*
+    Whether the game's link and number are being shown again. Held here rather
+    than in the app: nothing outside this panel opens it, and the button that
+    does is a few lines below.
+
+    Both hooks stand ahead of the early return: a component may not call fewer
+    of them on one render than on another, and this one draws nothing at all
+    for half the phases there are.
+  */
+  const [showingLink, setShowingLink] = useState(false);
+  const linkDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = linkDialog.current;
+    if (element === null) {
+      return;
+    }
+    if (showingLink && !element.open) {
+      element.showModal();
+    } else if (!showingLink && element.open) {
+      element.close();
+    }
+  }, [showingLink]);
+
   if (
     phase.kind === "idle" ||
     phase.kind === "challenging" ||
@@ -112,37 +138,7 @@ export default function InvitePanel({
         <>
           <p className="invite-heading">Waiting for your opponent…</p>
 
-          <div className="board-controls">
-            <label htmlFor="invite-link">Invite link</label>
-            <input
-              id="invite-link"
-              type="text"
-              className="fen-input"
-              readOnly
-              value={phase.link}
-              onFocus={(event) => event.target.select()}
-            />
-            <CopyButton
-              label="Copy"
-              icon={<ShareIcon />}
-              title="Copy the invite link"
-              text={() => phase.link}
-            />
-          </div>
-
-          <div className="board-controls">
-            <label htmlFor="invite-number">Game id</label>
-            {/* Said aloud as often as it is pasted, so it is shown the way it
-                would be read: in threes. */}
-            <output id="invite-number" className="invite-number">
-              {spellGameId(phase.gameId)}
-            </output>
-            <CopyButton
-              label="Copy"
-              title="Copy the game id"
-              text={() => phase.gameId}
-            />
-          </div>
+          <InviteDetails gameId={phase.gameId} link={phase.link} />
 
           <p className="invite-note">
             {terms([
@@ -175,11 +171,55 @@ export default function InvitePanel({
           {/* What game this is, first: everything under it is about this game,
               and the reader who has two of them open needs to know which one
               they are looking at before they read a control. */}
-          <p className="invite-heading">
-            {phase.over === null
-              ? `Playing ${phase.opponent} — you are ${phase.you === "w" ? "White" : "Black"}`
-              : endingOf(phase.over, phase.you)}
-          </p>
+          <div className="invite-heading-row">
+            <p className="invite-heading">
+              {phase.over === null
+                ? `Playing ${phase.opponent} — you are ${phase.you === "w" ? "White" : "Black"}`
+                : endingOf(phase.over, phase.you)}
+            </p>
+            {/* The link and the number, which the invite showed and then took
+                away with it. Wanted again more often than one would think: an
+                opponent whose browser has fallen over needs the link a second
+                time, and the number is otherwise nowhere on the page — it is
+                in the address bar, which is no place to read anything from. */}
+            <button
+              type="button"
+              className="reset-button"
+              title="Show this game's link and id again"
+              onClick={() => setShowingLink(true)}
+            >
+              <ShareIcon />
+              Link
+            </button>
+          </div>
+
+          <dialog
+            ref={linkDialog}
+            className="pgn-dialog"
+            onClose={() => setShowingLink(false)}
+          >
+            <h2 className="challenge-title">This game</h2>
+            <InviteDetails
+              gameId={phase.gameId}
+              link={gameLink(phase.gameId)}
+              idPrefix="playing-invite"
+            />
+            <p className="invite-note">
+              The same link the invite carried. Anyone opening it takes the seat
+              this game is still holding — which is your opponent's, and nobody
+              else's, so a browser that has fallen over comes back to the game
+              it left.
+            </p>
+            <div className="pgn-dialog-actions">
+              <button
+                type="button"
+                className="reset-button"
+                onClick={() => setShowingLink(false)}
+              >
+                Close
+              </button>
+            </div>
+          </dialog>
 
           {/*
             The line, drawn as it is: two hops, each with a light on it. The
@@ -318,7 +358,9 @@ export default function InvitePanel({
               the reader can see them. What is left to spend cannot be seen on
               the board, so that is what this line is for. */}
           {phase.terms.takebacks > 0 && (
-            <p className="invite-note">
+            /* Under the button it counts for, which stands at the far end of
+               the row above it. */
+            <p className="invite-note invite-tally">
               {`Takebacks: me ${
                 phase.takebacksLeft?.[phase.you] ?? 0
               }, ${phase.opponent} ${

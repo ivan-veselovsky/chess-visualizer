@@ -89,10 +89,21 @@ body {
 .app {
   /* Only a game with a friend puts names round the board. */
   --player-names: 0rem;
-  --board-reserve: calc(7rem + var(--player-names));
+  /* What the page keeps for itself around the board, whatever else is on. */
+  --page-reserve: 7rem;
+  --board-reserve: calc(var(--page-reserve) + var(--player-names));
   --board-cap: calc((100vh - var(--board-reserve)) * var(--board-zoom));
   /* Excludes mobile browser chrome; ignored where unsupported. */
   --board-cap: calc((100dvh - var(--board-reserve)) * var(--board-zoom));
+  /*
+    The column beside the board has its own ceiling, and the names are no part
+    of it: they stand above and below the board, so it is the board that gives
+    up their height. Held to the board's cap as well, the panel lost that
+    height twice over — a game starting shortened the settings beside it, which
+    have nothing to do with the game.
+  */
+  --panel-cap: calc((100vh - var(--page-reserve)) * var(--board-zoom));
+  --panel-cap: calc((100dvh - var(--page-reserve)) * var(--board-zoom));
   --board-max: min(100%, var(--board-cap));
   max-width: 1500px;
   margin: 0 auto;
@@ -259,10 +270,6 @@ body {
 */
 .fen-field {
   width: 100%;
-  /* The break in the panel: everything above says where this board stands, and
-     everything below is about whole games — importing one, stashing one, taking
-     one out of the library. */
-  margin-bottom: 0.5em;
 }
 
 .fen-row > .field-with-help {
@@ -338,6 +345,12 @@ body {
 
 .board-controls .reset-button {
   white-space: nowrap;
+}
+
+/* Clear of the game it stands under: what it does is turn the board round,
+   which is nothing to do with the match being played on it. */
+.match-view {
+  margin-top: 0.9rem;
 }
 
 /* Icon and word together, as one thing to press. */
@@ -1494,8 +1507,11 @@ body {
     a smaller board leaves the column wider; a wider column makes the choosers
     taller — and the page grows rather than the board setting the limit. Held
     here, the choosers are measured against the height that is left instead.
+
+    The board's ceiling less the players' names, which shorten the board and
+    not this: see `--panel-cap`.
   */
-  max-height: var(--board-cap);
+  max-height: var(--panel-cap);
 }
 
 .tab-bar {
@@ -1624,8 +1640,14 @@ body {
   Where the column is pinched, the tabs give up a little size rather than a
   row: wrapping costs the selected tab its join to the panel, which is worth
   more than a point of type.
+
+  The width is where ten tabs at full size stop fitting — measured at some
+  617px, gaps counted. It was 35rem when there were nine, which left a band of
+  widths just above it where the strip wrapped: a game with a friend narrows
+  the board and widens this column into exactly that band, so starting a game
+  broke the strip in two.
 */
-@container (max-width: 35rem) {
+@container (max-width: 39rem) {
   .tab {
     font-size: 0.8em;
     padding-left: 0.4em;
@@ -2467,7 +2489,23 @@ input[type="color"]::-moz-color-swatch {
   friend to answer takes as long as it takes them to read a message, and the
   board stays usable throughout.
 */
+/*
+  No frame of its own. It had one when it stood among the position's controls,
+  where it needed to read as a thing apart; on a tab of its own it is the whole
+  of what the tab is about, and a panel drawn inside a panel is one border too
+  many.
+*/
 .invite-panel {
+  padding: 0;
+  border: 0;
+  background: none;
+  /* Stood off from the two buttons above it: those offer a game, this one is a
+     game, and at the panel's own spacing the two ran together. */
+  margin-top: 0.7rem;
+}
+
+/* Except a warning, which is a thing apart wherever it stands. */
+.invite-alert {
   padding: 0.75rem 0.9rem;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
@@ -2478,6 +2516,34 @@ input[type="color"]::-moz-color-swatch {
   margin: 0 0 0.6rem;
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+/*
+  The heading with the game's link beside it — beside it, not at the far end of
+  the row. Held out at the right margin the button was a long way from the words
+  it belongs to, in a corner the eye has no reason to visit; a few ems after
+  them it is read as part of the same line.
+*/
+.invite-heading-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5rem;
+}
+
+.invite-heading-row > .reset-button {
+  /* Wider than its one word asks for: it is the only thing on this line that
+     can be pressed, and a button the size of the word reads as a label. */
+  min-width: 8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+}
+
+/* The count of what a button has left, set under that button rather than at
+   the start of the line — the button it belongs to is held at the far end. */
+.invite-tally {
+  text-align: right;
 }
 
 .invite-note {
@@ -2501,7 +2567,11 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   align-items: center;
   gap: 0.4em;
-  margin: 0 0 0.7rem;
+  /* Two ems clear at both ends — the page's ems, not this row's: it sets its
+     own text smaller, and an em here would be that smaller one. It is a picture
+     rather than a control, and set tight against the heading above and the
+     buttons below it read as a caption on one and a label on the other. */
+  margin: 2rem 0;
   font-size: 0.85rem;
   color: color-mix(in srgb, currentColor 75%, transparent);
 }
@@ -2663,6 +2733,58 @@ input[type="color"]::-moz-color-swatch {
   margin-bottom: 0.55rem;
 }
 
+/*
+  Giving the game up is the one thing on this row that cannot be undone, so it
+  is drawn as the largest thing on it and held well away from the button beside
+  it: four ems, where the row's own gap is three quarters of one. A slip of the
+  mouse between the two should not be able to end a game.
+*/
+/*
+  An em of air on each side of the draw offer, over the 0.7rem every button
+  has: it sits between the two that cannot be undone and is the one most often
+  aimed at, so it is given a little more to aim at.
+*/
+.invite-actions > button:nth-child(2) {
+  padding-left: 1.7rem;
+  padding-right: 1.7rem;
+}
+
+/* The two ways into a game, spaced as the two ways out of one are: they are
+   the same kind of pair, and the same distance apart reads as much. */
+.match-actions {
+  column-gap: 4rem;
+}
+
+/* Their contents centred, not left where the words end: these are the widest
+   buttons on the panel and set flush left the mark and the word sat in one
+   corner of a box with nothing in the rest of it. */
+.invite-actions > button {
+  justify-content: center;
+}
+
+/*
+  One width for the two that offer something rather than do it — the draw and
+  the takeback. They are asked for in the same way and answered in the same way,
+  and two boxes of different sizes made them look like different kinds of thing.
+*/
+.invite-actions {
+  --offer-width: 10.3rem;
+}
+
+.invite-actions > button:nth-child(2),
+.invite-actions > button:nth-child(3) {
+  min-width: var(--offer-width);
+}
+
+.invite-actions > button:first-child {
+  /* Half again as wide as its words ask for — 89px of text, held at 160. */
+  min-width: 10rem;
+  /* Four ems between the two, of which the row's own gap gives three quarters
+     of one. Written in root ems, which is what the four means: the button sets
+     its own text smaller, and an em here would be that smaller one. */
+  margin-right: calc(4rem - 0.75rem);
+}
+
 /* A refusal, said where the game is and gone as soon as anything happens. */
 .invite-notice {
   margin: 0.5rem 0 0;
@@ -2720,8 +2842,34 @@ input[type="color"]::-moz-color-swatch {
     Above only. A heading belongs to what follows it, so the space goes between
     it and the section before — putting space below as well pushed every group
     away from its own name.
+
+    The figure is what is left to set: the rows above and below bring leading of
+    their own, and it is the sum of the two that is read as the gap. It is set
+    here to bring that sum to about forty pixels.
   */
-  margin: 0.5em 0 0;
+  margin: 1.4em 0 0;
+}
+
+/*
+  The same spacing where a rule stands directly in a tab panel rather than in a
+  settings panel: half an em above, nothing below. The panel is a flex column
+  with a gap of its own, and a gap is not a margin — it cannot collapse — so
+  each side is written as what is wanted less what the gap already gives.
+*/
+.tab-panel > .section-rule {
+  /* An em above, half an em below — which is what the settings panel comes to
+     once the rows there have added their own leading, and what keeps a heading
+     nearer the thing it names than the thing it follows. */
+  margin-top: calc(2em - var(--panel-gap));
+  /*
+    Half an em under the line as well, which is not what the settings panel
+    says — but is what it looks like. There the rule is followed by a group
+    whose first row carries a label with leading of its own, and the line ends
+    up some 16 to 22 pixels clear of what it names; here it is followed by a row
+    of buttons whose box edge is the first thing under it, and the same nought
+    left the line sitting on them.
+  */
+  margin-bottom: calc(0.5em - var(--panel-gap));
 }
 
 /* The first one opens the panel, and has nothing to be held away from. */

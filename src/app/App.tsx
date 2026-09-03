@@ -63,6 +63,7 @@ import GitHubIcon from "./GitHubIcon";
 import ShareIcon from "./ShareIcon";
 import SponsorIcon from "./SponsorIcon";
 import PlayIcon from "./PlayIcon";
+import SectionRule from "./SectionRule";
 import StepIcon from "./StepIcon";
 import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
@@ -95,10 +96,14 @@ import {
  * What the right-hand column can show. The game comes first and opens by
  * default: it is what the page is for, and the rest is how it looks.
  */
-type PanelTab = "game" | "balance" | SettingsGroup;
+type PanelTab = "game" | "match" | "balance" | SettingsGroup;
 
 const TABS: readonly Tab<PanelTab>[] = [
   { id: "game", label: "Game", name: "Game and view" },
+  // A game against another person, which is a different thing from the game on
+  // the board: it is arranged, joined, and given up, and none of that has
+  // anything to say about the position or the way it is drawn.
+  { id: "match", label: "Match", name: "Play against a friend" },
   // Short because the strip has to stay on one line: nine tabs that wrap cost
   // the selected one its join to the panel, which is what makes it a tab.
   { id: "balance", label: "Balance", name: "Colour balance" },
@@ -454,21 +459,14 @@ export default function App() {
   }
 
   /**
-   * Sets the game running, or stops it.
+   * Sets the game running, or holds it where it stands.
    *
-   * A game already at its last position has nothing ahead of it, so pressing
-   * play there starts it again from the beginning rather than doing nothing —
-   * which is what "play" means with the end already on the board.
+   * A game at its last position has nothing to play, and the button is closed
+   * there rather than quietly starting again from the top: whoever wants that
+   * says so with the step buttons beside it.
    */
   function playOrStop() {
-    if (playing) {
-      setPlaying(false);
-      return;
-    }
-    if (!canGoNext(history)) {
-      showHistory(goFirst(history));
-    }
-    setPlaying(true);
+    setPlaying(!playing);
   }
 
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
@@ -1073,74 +1071,6 @@ export default function App() {
             aria-labelledby="tab-game"
             hidden={tab !== "game"}
           >
-            {/* Offering a game, and taking one up. */}
-            <div className="board-controls">
-              <button
-                type="button"
-                className="reset-button"
-                disabled={inGame !== null}
-                title={inGame ?? undefined}
-                onClick={friend.start}
-              >
-                Challenge a friend {"\u2026"}
-              </button>
-              <button
-                type="button"
-                className="reset-button"
-                disabled={inGame !== null}
-                title={inGame ?? "Enter the id somebody read out to you"}
-                onClick={() => setJoining(true)}
-              >
-                Join a game {"\u2026"}
-              </button>
-            </div>
-
-            {/*
-              Older than the game it is in, and nothing it does will work until
-              it is reloaded. Said where every other thing about the game is
-              said, and shown whether or not a game is on — the page is what is
-              out of date, not the game.
-            */}
-            {friend.outdated && (
-              <aside className="invite-panel" role="alert">
-                <p className="invite-heading">This page is out of date</p>
-                <p className="invite-note">
-                  It was opened before the version now running, and the two no
-                  longer understand each other. Reloading picks up the new one.
-                </p>
-                <div className="pgn-dialog-actions">
-                  <button
-                    type="button"
-                    className="reset-button"
-                    onClick={() => window.location.reload()}
-                  >
-                    Reload
-                  </button>
-                </div>
-              </aside>
-            )}
-
-            {/* Only when this tab is at no game: a tab that is at one says so in
-                its address, and the panel below is about that game. */}
-            {friend.phase.kind === "idle" && (
-              <SavedGames games={friend.games} onOpen={friend.rejoin} />
-            )}
-
-            <InvitePanel
-              phase={friend.phase}
-              link={friend.link}
-              myName={friend.name}
-              canTakeBack={takeback.can}
-              takebackReason={takeback.why}
-              onTakeBack={friend.takeBack}
-              onLeave={friend.leave}
-              onResign={friend.resign}
-              onOfferDraw={friend.offerDraw}
-              onAnswerDraw={friend.answerDraw}
-              notice={friend.notice}
-              onDismissNotice={friend.dismissNotice}
-            />
-
             {/* Which way round the board is, and the way back to the start: the
                 two that set a board up rather than move through one. */}
             <div className="board-controls">
@@ -1165,6 +1095,8 @@ export default function App() {
                 Reset to initial position
               </button>
             </div>
+
+            <SectionRule name="Moves and position" />
 
             {/* Stepping through the line, letting it play itself, and jumping
                 anywhere in it — a row apiece, in that order: the two ways of
@@ -1220,15 +1152,19 @@ export default function App() {
                   title={
                     inGame ??
                     (playing
-                      ? "Hold the game where it is"
+                      ? "Hold the game where it stands"
                       : "Play the game through, a position at a time — from wherever it stands")
                   }
                   aria-pressed={playing}
-                  disabled={inGame !== null || history.entries.length < 2}
+                  /* Nothing ahead of it is nothing to play: at the last
+                     position the button has no work to do, and saying so is
+                     better than starting the game again from the top under a
+                     word that promises to carry on. */
+                  disabled={inGame !== null || (!playing && !canGoNext(history))}
                   onClick={playOrStop}
                 >
                   <PlayIcon playing={playing} />
-                  {playing ? "Pause" : "Play / Resume"}
+                  {playing ? "Pause / Stop" : "Play / Resume"}
                 </button>
                 <NumberField
                   id="play-period"
@@ -1267,6 +1203,8 @@ export default function App() {
               readOnly={inGame}
               onChange={enterPosition}
             />
+
+            <SectionRule name="Import / export" />
 
             {/* The two that move a game in and out of PGN, and the link to it. */}
             <div className="board-controls">
@@ -1307,6 +1245,8 @@ export default function App() {
               </div>
             </div>
 
+            <SectionRule name="Stash" />
+
             {/* Putting a game aside, and taking one back. */}
             <div className="board-controls">
               <button
@@ -1342,6 +1282,8 @@ export default function App() {
               />
             </div>
 
+            <SectionRule name="Library" />
+
             <div className="board-controls">
               <GameLibrary
                 value={libraryGame}
@@ -1351,6 +1293,100 @@ export default function App() {
               />
             </div>
 
+          </div>
+
+          <div
+            className="tab-panel"
+            role="tabpanel"
+            id="panel-match"
+            aria-labelledby="tab-match"
+            hidden={tab !== "match"}
+          >
+                {/* Offering a game, and taking one up. */}
+              <div className="board-controls match-actions">
+                <button
+                  type="button"
+                  className="reset-button"
+                  disabled={inGame !== null}
+                  title={inGame ?? undefined}
+                  onClick={friend.start}
+                >
+                  Send a challenge {"\u2026"}
+                </button>
+                <button
+                  type="button"
+                  className="reset-button"
+                  disabled={inGame !== null}
+                  title={inGame ?? "Enter the id somebody read out to you"}
+                  onClick={() => setJoining(true)}
+                >
+                  Accept a challenge {"\u2026"}
+                </button>
+              </div>
+
+              {/*
+                Older than the game it is in, and nothing it does will work until
+                it is reloaded. Said where every other thing about the game is
+                said, and shown whether or not a game is on — the page is what is
+                out of date, not the game.
+              */}
+              {friend.outdated && (
+                <aside className="invite-panel invite-alert" role="alert">
+                  <p className="invite-heading">This page is out of date</p>
+                  <p className="invite-note">
+                    It was opened before the version now running, and the two no
+                    longer understand each other. Reloading picks up the new one.
+                  </p>
+                  <div className="pgn-dialog-actions">
+                    <button
+                      type="button"
+                      className="reset-button"
+                      onClick={() => window.location.reload()}
+                    >
+                      Reload
+                    </button>
+                  </div>
+                </aside>
+              )}
+
+              {/* Only when this tab is at no game: a tab that is at one says so in
+                  its address, and the panel below is about that game. */}
+              {friend.phase.kind === "idle" && (
+                <SavedGames games={friend.games} onOpen={friend.rejoin} />
+              )}
+
+              <InvitePanel
+                phase={friend.phase}
+                link={friend.link}
+                myName={friend.name}
+                canTakeBack={takeback.can}
+                takebackReason={takeback.why}
+                onTakeBack={friend.takeBack}
+                onLeave={friend.leave}
+                onResign={friend.resign}
+                onOfferDraw={friend.offerDraw}
+                onAnswerDraw={friend.answerDraw}
+                notice={friend.notice}
+                onDismissNotice={friend.dismissNotice}
+              />
+
+            {/* Here as well as on the game tab: whoever has just been given
+                Black wants the board turned round, and that is the moment they
+                are looking at this panel rather than that one. Stood off from
+                the game above it — it is about the view, not about the game. */}
+            <div className="board-controls match-view">
+              <ToggleField
+                id="flip-board-match"
+                label="Black at bottom"
+                checked={settings.orientation === "black"}
+                onChange={(flipped) =>
+                  setSettings({
+                    ...settings,
+                    orientation: flipped ? "black" : "white",
+                  })
+                }
+              />
+            </div>
           </div>
 
           {tab === "balance" && (
@@ -1410,7 +1446,7 @@ export default function App() {
             </div>
           )}
 
-          {tab !== "game" && tab !== "balance" && (
+          {tab !== "game" && tab !== "match" && tab !== "balance" && (
             <div
               /* The rays are the longest of the settings groups and open with a
                  row of their own rather than with a name, so they keep the thin
@@ -1462,7 +1498,16 @@ export default function App() {
       <InviteDialog
         phase={friend.phase}
         name={friend.name}
-        onAnswer={friend.answer}
+        onAnswer={(accept, name, color) => {
+          /* Taking a challenge up puts the reader in a game, and the panel that
+             says whose move it is — and what may be done about it — is the one
+             they now want in front of them. A challenge reached by its link
+             opens on whatever tab the page starts on, which is not that one. */
+          if (accept) {
+            setTab("match");
+          }
+          friend.answer(accept, name, color);
+        }}
         onClose={() =>
           friend.phase.kind === "invited" ? friend.leave() : undefined
         }
