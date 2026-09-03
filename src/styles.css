@@ -2009,6 +2009,19 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
+  A pair at opposite ends of a row rather than side by side: the two are
+  alternatives — one is held while the other gives way — and the space between
+  them is what says so. The control that weighs them stands under both.
+*/
+.field-row-ends {
+  justify-content: space-between;
+}
+
+.field-row.field-row-ends > .number-field {
+  flex: 0 0 auto;
+}
+
+/*
   Two related settings side by side, sharing the panel's width evenly.
 
   The spacing below belongs to the row, not to the fields in it: this is a flex

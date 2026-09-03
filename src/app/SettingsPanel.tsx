@@ -122,106 +122,104 @@ export default function SettingsPanel({
         <>
           <SectionRule name="Theme" />
 
-        <section className="settings-group">
-          <div className="field-row field-row-apart">
-            <ToggleField
-              id="dark-theme"
-              label="Dark theme"
-              checked={settings.theme === "dark"}
-              onChange={(dark) =>
-                onChange({ ...settings, theme: dark ? "dark" : "light" })
-              }
-            />
-            <ColorField
-              id="dark-theme-text"
-              label="Dark theme text color"
-              value={settings.darkThemeTextColor}
-              onChange={(color) =>
-                onChange({ ...settings, darkThemeTextColor: color })
-              }
-            />
-          </div>
-        </section>
+          <section className="settings-group">
+            <div className="field-row field-row-apart">
+              <ToggleField
+                id="dark-theme"
+                label="Dark theme"
+                checked={settings.theme === "dark"}
+                onChange={(dark) =>
+                  onChange({ ...settings, theme: dark ? "dark" : "light" })
+                }
+              />
+              <ColorField
+                id="dark-theme-text"
+                label="Dark theme text color"
+                value={settings.darkThemeTextColor}
+                onChange={(color) =>
+                  onChange({ ...settings, darkThemeTextColor: color })
+                }
+              />
+            </div>
+          </section>
 
           <SectionRule name="Squares" />
 
-
-        <section className="settings-group">
-          <div className="field-row">
-            <ColorField
-              id="light-square"
-              label="Light board squares"
-              value={settings.boardColors.lightSquare}
-              onChange={(lightSquare) => updateBoardColors({ lightSquare })}
-            />
-            <ColorField
-              id="dark-square"
-              label="Dark board squares"
-              value={settings.boardColors.darkSquare}
-              onChange={(darkSquare) => updateBoardColors({ darkSquare })}
-            />
-          </div>
-          {/*
+          <section className="settings-group">
+            <div className="field-row">
+              <ColorField
+                id="light-square"
+                label="Light board squares"
+                value={settings.boardColors.lightSquare}
+                onChange={(lightSquare) => updateBoardColors({ lightSquare })}
+              />
+              <ColorField
+                id="dark-square"
+                label="Dark board squares"
+                value={settings.boardColors.darkSquare}
+                onChange={(darkSquare) => updateBoardColors({ darkSquare })}
+              />
+            </div>
+            {/*
           {/*
             Kept with the two colours it stands between, because that is what it
             does: it draws the board in the light one throughout, leaving the
             dark colour set but unused.
           */}
-          <ToggleField
-            id="use-light-for-dark"
-            label="Use light square color for dark squares"
-            hint="Draw the whole board in the light squares' colour, so a shade means the same thing on every square. The dark colour is kept and comes back when this is turned off."
-            checked={settings.boardColors.useLightForDark}
-            onChange={(useLightForDark) => updateBoardColors({ useLightForDark })}
-          />
+            <ToggleField
+              id="use-light-for-dark"
+              label="Use light square color for dark squares"
+              hint="Draw the whole board in the light squares' colour, so a shade means the same thing on every square. The dark colour is kept and comes back when this is turned off."
+              checked={settings.boardColors.useLightForDark}
+              onChange={(useLightForDark) =>
+                updateBoardColors({ useLightForDark })
+              }
+            />
 
-          <SectionRule name="Last move" />
+            <SectionRule name="Last move" />
 
-
-          {/*
+            {/*
             The negative mark takes the place of the colour and the wash rather
             than sitting beside them, so both are shown greyed while it is on and
             say why on hover. Greyed rather than gone: a setting that vanishes
             leaves the reader wondering whether they imagined it.
           */}
-          <div className="field-row">
-            <ColorField
-              id="last-move-color"
-              label="Last move highlight color"
-              value={settings.lastMove.color}
-              disabled={settings.lastMove.negative}
-              hint={
-                settings.lastMove.negative
-                  ? "Not used: the negative circle takes its colour from the squares themselves."
-                  : undefined
-              }
-              onChange={(color) => updateLastMove({ color })}
-            />
-          </div>
-          <div className="field-row field-row-halves">
-            <ToggleField
-              id="last-move-negative"
-              label="Negative square color circle"
-              hint="Mark the last move’s two squares with the other square colour — dark on a light square, light on a dark one. A bishop’s two squares then match; a pawn’s are opposites. With “Use light square color for dark squares” on, every circle is the dark square colour, there being only one colour left for it to be the opposite of."
-              checked={settings.lastMove.negative}
-              onChange={(negative) => updateLastMove({ negative })}
-            />
-            <NumberField
-              id="last-move-circle-diameter"
-              inline
-              label="Last move circle diameter"
-              suffix="squares"
-              value={settings.lastMove.diameter}
-              step={0.02}
-              allowZero
-              hint="How much of the square the mark covers, coloured either way."
-              onChange={(diameter) => updateLastMove({ diameter })}
-            />
-          </div>
-
-        </section>
+            <div className="field-row">
+              <ColorField
+                id="last-move-color"
+                label="Last move highlight color"
+                value={settings.lastMove.color}
+                disabled={settings.lastMove.negative}
+                hint={
+                  settings.lastMove.negative
+                    ? "Not used: the negative circle takes its colour from the squares themselves."
+                    : undefined
+                }
+                onChange={(color) => updateLastMove({ color })}
+              />
+            </div>
+            <div className="field-row field-row-halves">
+              <ToggleField
+                id="last-move-negative"
+                label="Negative square color circle"
+                hint="Mark the last move’s two squares with the other square colour — dark on a light square, light on a dark one. A bishop’s two squares then match; a pawn’s are opposites. With “Use light square color for dark squares” on, every circle is the dark square colour, there being only one colour left for it to be the opposite of."
+                checked={settings.lastMove.negative}
+                onChange={(negative) => updateLastMove({ negative })}
+              />
+              <NumberField
+                id="last-move-circle-diameter"
+                inline
+                label="Last move circle diameter"
+                suffix="squares"
+                value={settings.lastMove.diameter}
+                step={0.02}
+                allowZero
+                hint="How much of the square the mark covers, coloured either way."
+                onChange={(diameter) => updateLastMove({ diameter })}
+              />
+            </div>
+          </section>
           <SectionRule name="Hedging" />
-
 
           {/*
             Hatching over the dark squares: a way of telling the two colours
@@ -279,7 +277,6 @@ export default function SettingsPanel({
             onChange={(orthogonal) => updateHedge({ orthogonal })}
           />
           <SectionRule name="Checkerboard grid" />
-
 
           <div className="field-row field-row-apart">
             <ToggleField
@@ -350,34 +347,38 @@ export default function SettingsPanel({
             The slider says how much of each, and a little of the second pulls
             both ends towards the middle.
           */}
-          <NumberField
-            id="move-speed"
-            inline
-            narrow
-            label="Move speed"
-            suffix="squares/sec"
-            hint="How fast a piece travels when speed is what is held. Nought puts it down without moving it, which is why there is no switch beside this."
-            value={settings.move.speed}
-            step={0.5}
-            allowZero
-            onChange={(speed) =>
-              onChange({ ...settings, move: { ...settings.move, speed } })
-            }
-          />
-          <NumberField
-            id="move-time"
-            inline
-            narrow
-            label="Move time"
-            suffix="seconds"
-            hint="How long a move takes when time is what is held, whatever distance it covers."
-            value={settings.move.time}
-            step={0.1}
-            allowZero
-            onChange={(time) =>
-              onChange({ ...settings, move: { ...settings.move, time } })
-            }
-          />
+          {/* The two rates at opposite ends of one row, with the slider that
+              weighs them against each other running the width of both. */}
+          <div className="field-row field-row-ends">
+            <NumberField
+              id="move-speed"
+              inline
+              narrow
+              label="Move speed"
+              suffix="squares/sec"
+              hint="How fast a piece travels when speed is what is held. Nought puts it down without moving it, which is why there is no switch beside this."
+              value={settings.move.speed}
+              step={0.5}
+              allowZero
+              onChange={(speed) =>
+                onChange({ ...settings, move: { ...settings.move, speed } })
+              }
+            />
+            <NumberField
+              id="move-time"
+              inline
+              narrow
+              label="Move time"
+              suffix="seconds"
+              hint="How long a move takes when time is what is held, whatever distance it covers."
+              value={settings.move.time}
+              step={0.1}
+              allowZero
+              onChange={(time) =>
+                onChange({ ...settings, move: { ...settings.move, time } })
+              }
+            />
+          </div>
           <SliderField
             id="move-blend"
             from="Constant move speed"
@@ -394,100 +395,102 @@ export default function SettingsPanel({
 
       {group === "rays" && (
         <>
-        <AttackTable attacks={settings.attacks} onChange={updateAttacks} />
+          <AttackTable attacks={settings.attacks} onChange={updateAttacks} />
 
-        <section className="settings-group">
-          <div className="field-row">
+          <section className="settings-group">
+            <div className="field-row">
+              <NumberField
+                id="my-ray-opacity"
+                inline
+                label="My attack ray opacity"
+                value={settings.attacks.rayOpacity.me}
+                step={0.05}
+                max={1}
+                allowZero
+                onChange={(me) => updateRayOpacity({ me })}
+              />
+              <NumberField
+                id="opponent-ray-opacity"
+                inline
+                label="Opponent attack ray opacity"
+                value={settings.attacks.rayOpacity.opponent}
+                step={0.05}
+                max={1}
+                allowZero
+                onChange={(opponent) => updateRayOpacity({ opponent })}
+              />
+            </div>
+            <div className="field-row">
+              <NumberField
+                id="my-outline-opacity"
+                inline
+                hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
+                label="My outline opacity"
+                value={settings.attacks.outlineOpacity.me}
+                step={0.05}
+                max={1}
+                allowZero
+                onChange={(me) => updateOutlineOpacity({ me })}
+              />
+              <NumberField
+                id="opponent-outline-opacity"
+                inline
+                hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
+                label="Opponent outline opacity"
+                value={settings.attacks.outlineOpacity.opponent}
+                step={0.05}
+                max={1}
+                allowZero
+                onChange={(opponent) => updateOutlineOpacity({ opponent })}
+              />
+            </div>
             <NumberField
-              id="my-ray-opacity"
+              id="decay-per-blocker"
               inline
-              label="My attack ray opacity"
-              value={settings.attacks.rayOpacity.me}
+              label="X-ray decay factor"
+              suffix="× (0 = no x-ray)"
+              value={settings.attacks.xRayDecayFactor}
+              allowZero
+              max={1}
+              onChange={(xRayDecayFactor) => updateAttacks({ xRayDecayFactor })}
+            />
+            <SelectField<KnightGeometry>
+              id="knight-geometry"
+              label="Knight attack geometry"
+              hint="How the knight's ring is finished off on each square: cut between two radii, or cut by the square with a tail pointing back at the knight — along the board's lines, or along the radius."
+              value={settings.attacks.knightGeometry}
+              choices={[
+                { value: "arc", label: "Arc" },
+                { value: "gamma-1", label: "Gamma 1" },
+                { value: "gamma-2", label: "Gamma 2" },
+                { value: "straight-ray", label: "Straight ray" },
+              ]}
+              onChange={(knightGeometry) => updateAttacks({ knightGeometry })}
+            />
+            <NumberField
+              id="straight-ray-opacity-decay"
+              inline
+              hint="What the straight-ray geometry's marks are drawn at where they only pass through, on the way to the square they reach — as a factor on that side's attack ray opacity, not an opacity of its own."
+              label="Knight straight ray opacity decay"
+              suffix="× ray opacity"
+              value={settings.attacks.straightRayOpacityDecay}
               step={0.05}
               max={1}
               allowZero
-              onChange={(me) => updateRayOpacity({ me })}
+              onChange={(straightRayOpacityDecay) =>
+                updateAttacks({ straightRayOpacityDecay })
+              }
             />
-            <NumberField
-              id="opponent-ray-opacity"
-              inline
-              label="Opponent attack ray opacity"
-              value={settings.attacks.rayOpacity.opponent}
-              step={0.05}
-              max={1}
-              allowZero
-              onChange={(opponent) => updateRayOpacity({ opponent })}
-            />
-          </div>
-          <div className="field-row">
-            <NumberField
-              id="my-outline-opacity"
-              inline
-              hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
-              label="My outline opacity"
-              value={settings.attacks.outlineOpacity.me}
-              step={0.05}
-              max={1}
-              allowZero
-              onChange={(me) => updateOutlineOpacity({ me })}
-            />
-            <NumberField
-              id="opponent-outline-opacity"
-              inline
-              hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
-              label="Opponent outline opacity"
-              value={settings.attacks.outlineOpacity.opponent}
-              step={0.05}
-              max={1}
-              allowZero
-              onChange={(opponent) => updateOutlineOpacity({ opponent })}
-            />
-          </div>
-          <NumberField
-            id="decay-per-blocker"
-            inline
-            label="X-ray decay factor"
-            suffix="× (0 = no x-ray)"
-            value={settings.attacks.xRayDecayFactor}
-            allowZero
-            max={1}
-            onChange={(xRayDecayFactor) => updateAttacks({ xRayDecayFactor })}
-          />
-          <SelectField<KnightGeometry>
-            id="knight-geometry"
-            label="Knight attack geometry"
-            hint="How the knight's ring is finished off on each square: cut between two radii, or cut by the square with a tail pointing back at the knight — along the board's lines, or along the radius."
-            value={settings.attacks.knightGeometry}
-            choices={[
-              { value: "arc", label: "Arc" },
-              { value: "gamma-1", label: "Gamma 1" },
-              { value: "gamma-2", label: "Gamma 2" },
-              { value: "straight-ray", label: "Straight ray" },
-            ]}
-            onChange={(knightGeometry) => updateAttacks({ knightGeometry })}
-          />
-          <NumberField
-            id="straight-ray-opacity-decay"
-            inline
-            hint="What the straight-ray geometry's marks are drawn at where they only pass through, on the way to the square they reach — as a factor on that side's attack ray opacity, not an opacity of its own."
-            label="Knight straight ray opacity decay"
-            suffix="× ray opacity"
-            value={settings.attacks.straightRayOpacityDecay}
-            step={0.05}
-            max={1}
-            allowZero
-            onChange={(straightRayOpacityDecay) =>
-              updateAttacks({ straightRayOpacityDecay })
-            }
-          />
-          <ToggleField
-            id="full-rays"
+            <ToggleField
+              id="full-rays"
               hint="Keep diagonal rays at full width through the corners where their squares meet, spilling onto the squares to either side."
-            label="Full-width diagonal rays"
-            checked={settings.attacks.fullWidthDiagonalRays}
-            onChange={(fullWidthDiagonalRays) => updateAttacks({ fullWidthDiagonalRays })}
-          />
-        </section>
+              label="Full-width diagonal rays"
+              checked={settings.attacks.fullWidthDiagonalRays}
+              onChange={(fullWidthDiagonalRays) =>
+                updateAttacks({ fullWidthDiagonalRays })
+              }
+            />
+          </section>
         </>
       )}
 
@@ -613,7 +616,9 @@ export default function SettingsPanel({
               id="checkmate-color"
               label="Checkmate color"
               value={settings.attacks.checkAndCheckmate.checkmateColor}
-              onChange={(checkmateColor) => updateCheckMarks({ checkmateColor })}
+              onChange={(checkmateColor) =>
+                updateCheckMarks({ checkmateColor })
+              }
             />
           </div>
         </section>
@@ -623,58 +628,58 @@ export default function SettingsPanel({
           a state no preset describes, half restored and half not. */}
       {group === "manage" && (
         <>
-        <div className="settings-footer">
-          <button
-            type="button"
-            className="reset-button"
-            onClick={() => {
-              setImportError(null);
-              downloadSettings(settings);
-            }}
-          >
-            Export settings
-          </button>
-          <button
-            type="button"
-            className="reset-button"
-            onClick={() => fileInput.current?.click()}
-          >
-            Import settings
-          </button>
-          <button
-            type="button"
-            className="reset-button settings-footer-end"
-            onClick={() => {
-              setImportError(null);
-              onChange(defaults);
-            }}
-          >
-            Reset to defaults
-          </button>
+          <div className="settings-footer">
+            <button
+              type="button"
+              className="reset-button"
+              onClick={() => {
+                setImportError(null);
+                downloadSettings(settings);
+              }}
+            >
+              Export settings
+            </button>
+            <button
+              type="button"
+              className="reset-button"
+              onClick={() => fileInput.current?.click()}
+            >
+              Import settings
+            </button>
+            <button
+              type="button"
+              className="reset-button settings-footer-end"
+              onClick={() => {
+                setImportError(null);
+                onChange(defaults);
+              }}
+            >
+              Reset to defaults
+            </button>
 
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              // Cleared so picking the same file twice fires onChange again.
-              event.target.value = "";
-              if (file !== undefined) {
-                void readSettingsFile(file);
-              }
-            }}
-          />
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                // Cleared so picking the same file twice fires onChange again.
+                event.target.value = "";
+                if (file !== undefined) {
+                  void readSettingsFile(file);
+                }
+              }}
+            />
 
-          {importError !== null && (
-            <p className="import-error" role="alert">
-              {importError}
-            </p>
-          )}
-        </div>
+            {importError !== null && (
+              <p className="import-error" role="alert">
+                {importError}
+              </p>
+            )}
+          </div>
 
-        <AboutBuild />
+          <AboutBuild />
         </>
       )}
     </div>
