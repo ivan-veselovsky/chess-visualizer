@@ -1220,15 +1220,15 @@ export default function App() {
                   title={
                     inGame ??
                     (playing
-                      ? "Stop the game where it is"
-                      : "Play the game through, a position at a time")
+                      ? "Hold the game where it is"
+                      : "Play the game through, a position at a time — from wherever it stands")
                   }
                   aria-pressed={playing}
                   disabled={inGame !== null || history.entries.length < 2}
                   onClick={playOrStop}
                 >
                   <PlayIcon playing={playing} />
-                  {playing ? "Stop" : "Play"}
+                  {playing ? "Pause" : "Play / Resume"}
                 </button>
                 <NumberField
                   id="play-period"
