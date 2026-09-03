@@ -559,6 +559,20 @@ export default function App() {
     shownFen.current = after;
     const dragged = draggedTo.current;
     draggedTo.current = null;
+    /*
+      Whatever was in the air comes down, before anything else is decided.
+
+      A journey is drawn towards one position, and this is a different one — so
+      it is over however it got here. Left standing it never ended: jumping to
+      the start of a game while a move was crossing the board took every other
+      route out of the code below, which sets a flight but had nothing to clear
+      one, and the travelling piece stayed hanging over the board for good. The
+      timer that would have landed it goes with the effect that booked it.
+    */
+    if (before !== after) {
+      setFlight(null);
+      setDuring(null);
+    }
     if (
       before === null ||
       before === after ||
