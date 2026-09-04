@@ -53,7 +53,7 @@ export type Theme = "light" | "dark";
  * Carried inside `Settings` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const SETTINGS_SCHEMA_VERSION = 42;
+export const SETTINGS_SCHEMA_VERSION = 46;
 
 /**
  * Central description of everything the user can tweak: one object holding
@@ -79,6 +79,30 @@ export interface Settings {
   pieceTint: PieceTint;
   /** Thin lines on the square edges, readable even with identical colours. */
   grid: GridLines;
+  /**
+   * How long a change to the board's colouring takes to cross, in
+   * milliseconds — every mark on it, by one clock: the wash on the squares,
+   * the rays, the check disc, the last move's spots, the pin rings.
+   *
+   * A position changes all of them at once, and drawn instantly that reads as a
+   * flash rather than as a board being redrawn; given a tenth of a second it
+   * reads as the board settling into what it now says.
+   *
+   * Both ends of its range are wrong in obvious ways — nought is the flash this
+   * was written to remove, and anything past a fifth of a second reads as a
+   * board slow to answer — so it is set in milliseconds rather than offered as
+   * a slider between two extremes nobody wants.
+   */
+  fadeTimeMs: number;
+  /**
+   * How long each position is left standing when a game plays itself, in
+   * seconds — counted from the moment a piece lands to the moment the next one
+   * sets off, so a move slower than this is never cut in half by the next.
+   *
+   * A reader's pace through a game rather than a piece's pace across the board,
+   * which is `move`'s business.
+   */
+  playPeriodPerPositionSec: number;
   /** The bar of captured men beside the board. */
   showCapturedPiecesBar: boolean;
   /** The mark on the two squares the last move used. */

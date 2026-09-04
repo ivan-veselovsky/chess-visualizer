@@ -1,5 +1,5 @@
 import { Chess, type Color, type Move, type Square } from "chess.js";
-import type { Traveller } from "../visualization/layers/MovingPieceLayer";
+import type { Traveller } from "../visualization/flightPath";
 
 /**
  * The pieces a move sets in motion, and the squares they are arriving on.

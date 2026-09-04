@@ -169,6 +169,12 @@ export interface OutlineOpacity {
  * say where one piece can go, this says how contested a square is. They are
  * shown independently because a board can want either without the other.
  */
+/** A colour per end of the board, for the wash on the squares. */
+export interface HeatmapColors {
+  me: string;
+  opponent: string;
+}
+
 export interface Heatmap {
   /**
    * What fraction of `strength` each side's attackers lay down.
@@ -183,9 +189,8 @@ export interface Heatmap {
    * opponent's.
    */
   intensity: SideIntensity;
-  /** What a square attacked only by this end of the board is tinted with. */
-  myColor: string;
-  opponentColor: string;
+  /** What a square attacked only by one end of the board is tinted with. */
+  color: HeatmapColors;
   /**
    * How much colour a single attacker lays down, from 0 to 1. Each attacker
    * after it takes the same share of whatever transparency is left.

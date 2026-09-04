@@ -210,11 +210,92 @@ body {
   gap: 0.9rem;
 }
 
-.board {
+/*
+  The board and whatever is drawn over it, in one box the size of the board
+  itself. Its size is the board's — `max-width` sits here rather than on the
+  `<svg>` — so a layer stretched across it is stretched across the squares.
+*/
+.board-holder {
+  position: relative;
   width: 100%;
   max-width: var(--board-max);
+  /* So the flight layer can be measured in units of the board's own width. */
+  container-type: inline-size;
+}
+
+.board {
+  width: 100%;
   height: auto;
   display: block;
+}
+
+/*
+  How the board's colouring changes: every mark on it fades rather than
+  switching, all of them by one clock — `--fade`, published by the board from
+  the setting of the same name.
+
+  A move remakes the lot at once, and drawn instantly they all changed together:
+  sixty-four squares, every ray, the check disc and the last move's spots
+  switching in a single frame reads as a flash rather than as a board being
+  redrawn. Given a tenth of a second to cross, the same change reads as the
+  board settling into what it now says.
+
+  Two mechanisms, because a mark has two halves to its life. One that stays and
+  changes colour is transitioned; one that arrives or leaves is animated, since
+  there is nothing to transition from or to. What leaves is kept on the page for
+  exactly this long by `useFading`, which is the only part of it the stylesheet
+  cannot do by itself.
+
+  None of it is composited and none of it needs to be: these are flat shapes,
+  and painting them is a trifle beside working out what they should say.
+*/
+.heatmap-square {
+  transition:
+    fill var(--fade-time, 0ms) linear,
+    fill-opacity var(--fade-time, 0ms) linear;
+}
+
+/*
+  Transitions, not animations, for the coming and going of a mark.
+
+  An animation always starts from its own beginning, and marks do not: a ray
+  group half faded in, told to leave, jumped to full strength before fading —
+  which read exactly as the blink it was, gone and back and gone. A transition
+  starts from wherever the value has got to, so an interrupted fade reverses
+  from there and the mark is never brighter than it already was.
+
+  `@starting-style` is what gives an arriving mark something to come from: an
+  element that has just been inserted has no previous value, and without it the
+  same transition would have nothing to cross.
+*/
+.mark-coming,
+.mark-going {
+  transition: opacity var(--fade-time, 0ms) linear;
+}
+
+.mark-going {
+  opacity: 0;
+  /* It is out of the position already — a ring on a piece that has moved, the
+     disc under a king no longer in check — so it answers nothing. */
+  pointer-events: none;
+}
+
+@starting-style {
+  .mark-coming {
+    opacity: 0;
+  }
+}
+
+/* Whoever asked for no motion is not asking for this either. */
+@media (prefers-reduced-motion: reduce) {
+  .heatmap-square {
+    transition: none;
+  }
+
+  .mark-coming,
+  .mark-going {
+    transition: none;
+  }
 }
 
 /* --- Dragging ----------------------------------------------------------- */
@@ -1461,6 +1542,12 @@ body {
   opacity: 0.6;
 }
 
+/* Clear of the figures under the slider above it, which end where the slider's
+   own box does and would otherwise sit on this row's label. */
+.slider-field + .number-field {
+  margin-top: 0.6rem;
+}
+
 .slider-ticks span {
   position: absolute;
   transform: translateX(-50%);
@@ -1472,6 +1559,60 @@ body {
   transition here could not, an element born holding its final transform having
   no earlier value to move from.
 */
+/*
+  The piece in the air, and the sheet it travels across.
+
+  Ordinary elements over the board rather than glyphs inside it, so that the
+  browser will give the moving piece a layer of its own and the GPU can carry it
+  while the main thread is busy; `FlightLayer` says why that matters. Everything
+  here is in `cqw` — hundredths of the board's own width — so the glyph sits on
+  its square at any board size without anything being measured, and the board's
+  536 units map straight onto it.
+*/
+.flight-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.flying-piece {
+  position: absolute;
+  /* One square, with the glyph in the middle of it: the square is what the
+     journey is measured in, and a box of that size can be placed by its corner
+     and still land centred. */
+  width: calc(100cqw * 64 / 536);
+  height: calc(100cqw * 64 / 536);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
+  font-size: calc(100cqw * 48 / 536);
+  /* The outline the board's own glyphs carry as an SVG stroke; text-stroke is
+     what an ordinary element has instead, at the same width. */
+  -webkit-text-stroke: calc(100cqw * 1.2 / 536) var(--piece-outline);
+  paint-order: stroke fill;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+  /* Said before the animation starts, so the layer is ready rather than being
+     promoted on the first frame of the journey. */
+  will-change: transform;
+}
+
+/*
+  Tinted as the board's glyphs are, but in `color`: those are painted with SVG's
+  `fill`, which means nothing here. The custom properties behind them are the
+  same ones, set by the classes the glyph carries.
+*/
+.flying-piece.piece-white {
+  color: color-mix(in srgb, var(--piece-color), white var(--piece-lighten));
+}
+
+.flying-piece.piece-black {
+  color: color-mix(in srgb, var(--piece-color), black var(--piece-darken));
+}
+
 .piece-moving {
   pointer-events: none;
 }
@@ -2223,7 +2364,7 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* Shrinks by the bar's width rather than pushing it out of the column. */
-.board-with-captured > .board {
+.board-with-captured > .board-holder {
   flex: 1 1 auto;
   min-width: 0;
 }

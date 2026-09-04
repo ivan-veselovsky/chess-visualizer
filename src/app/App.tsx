@@ -46,7 +46,7 @@ import {
   flightTime,
   squaresApart,
   type Flight,
-} from "../visualization/layers/MovingPieceLayer";
+} from "../visualization/flightPath";
 import CopyButton from "./CopyButton";
 import { gameLink, openingFromLocation } from "./sharing";
 import Board from "../visualization/Board";
@@ -173,15 +173,15 @@ export default function App() {
     (mine: number, opponent: number) =>
       heatOver(
         square,
-        settings.attacks.heatmap.myColor,
-        settings.attacks.heatmap.opponentColor,
+        settings.attacks.heatmap.color.me,
+        settings.attacks.heatmap.color.opponent,
         mine * settings.attacks.heatmap.strength.me,
         opponent * settings.attacks.heatmap.strength.opponent
       ),
     [
       square,
-      settings.attacks.heatmap.myColor,
-      settings.attacks.heatmap.opponentColor,
+      settings.attacks.heatmap.color.me,
+      settings.attacks.heatmap.color.opponent,
       settings.attacks.heatmap.strength,
     ]
   );
@@ -239,7 +239,9 @@ export default function App() {
     a piece's pace across the board, which is the moves' own setting.
   */
   const [playing, setPlaying] = useState(false);
-  const [period, setPeriod] = useState(4);
+  /* How long a position is held while a game plays itself: a setting, like the
+     pace a piece travels at, and kept in the same file. */
+  const period = settings.playPeriodPerPositionSec;
   /* Whether a shared link should set the game playing for whoever opens it. */
   const [shareAutoplay, setShareAutoplay] = useState(true);
   const [pgnOpen, setPgnOpen] = useState(false);
@@ -659,10 +661,20 @@ export default function App() {
       they no longer do is attack, and that is what naming them here withholds.
     */
     setDuring({ board: held, flying: played.map((piece) => piece.from) });
+    /*
+      A long stop, not the length of the journey.
+
+      What ends a flight is the piece arriving — the board says so, and `land`
+      below is what it says it to. This is only in case it never does: an
+      animation the browser refuses to run, a layer that never measured itself.
+      Timed at the journey's own length it was a race against it, and one the
+      board kept winning: the piece was taken off four fifths of the way there
+      and the rest of its journey became a jump.
+    */
     const landed = window.setTimeout(() => {
       setFlight(null);
       setDuring(null);
-    }, ms);
+    }, ms + 2000);
     return () => window.clearTimeout(landed);
   }, [history, settings.move.speed, settings.orientation]);
 
@@ -684,6 +696,16 @@ export default function App() {
     // read once, at the address the page was opened at; nothing later changes
     // what it asked for.
   }, []);
+
+  /*
+    The piece is down: the board can go back to drawing the position it was
+    handed. Said by the board itself, when the last of the travelling pieces
+    reaches its square.
+  */
+  function land() {
+    setFlight(null);
+    setDuring(null);
+  }
 
   /** Everything taken on the way to the position on the board. */
   const captures = useMemo(() => capturesUpTo(history), [history]);
@@ -790,6 +812,13 @@ export default function App() {
     game walk forward: each step changes `history`, this runs again, and the
     next step is booked. It ends itself at the last position — there is nothing
     to step to, and a game that has played to its end has stopped.
+
+    The period is the time a position stands still, and nothing else: it is
+    counted from the moment a piece lands to the moment the next one sets off,
+    so a move slower than the period is not cut in half by the next one. What a
+    move takes is the move's own business — the two settings then say what they
+    sound like, one how long a move takes and the other how long the board rests
+    between moves, rather than one silently eating the other.
   */
   useEffect(() => {
     if (!playing) {
@@ -806,6 +835,11 @@ export default function App() {
       setPlaying(false);
       return;
     }
+    /* Still travelling: the clock has not started. It starts when the board
+       says the piece is down, which clears this and runs it again. */
+    if (flight !== null) {
+      return;
+    }
     /*
       A quarter of the period on the opening position. A game nearly always
       starts from the same board, and holding the one position every reader
@@ -819,7 +853,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `showHistory`
     // only sets state; taking it as a dependency would book a fresh timer on
     // every render and the game would never reach the end of a period.
-  }, [playing, history, period, inGame]);
+  }, [playing, history, period, inGame, flight]);
 
   /*
     Whether a takeback can be asked for, and when it cannot, why not.
@@ -1031,8 +1065,10 @@ export default function App() {
               hedge={settings.hedge}
                 pieceTint={settings.pieceTint}
                 attacks={settings.attacks}
+                fadeTimeMs={settings.fadeTimeMs}
                 onMove={handleMove}
                 flight={flight}
+                onFlightLanded={land}
                 showing={during?.board ?? null}
                 flying={during?.flying ?? []}
                 grid={settings.grid}
@@ -1214,7 +1250,9 @@ export default function App() {
                     inGame ??
                     "How long each position is left on the board while the game plays."
                   }
-                  onChange={setPeriod}
+                  onChange={(playPeriodPerPositionSec) =>
+                    setSettings({ ...settings, playPeriodPerPositionSec })
+                  }
                 />
               </div>
               <div className="board-controls">

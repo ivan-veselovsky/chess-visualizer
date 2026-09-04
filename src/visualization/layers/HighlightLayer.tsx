@@ -1,4 +1,5 @@
 import type { Square } from "chess.js";
+import { useFading } from "../fading";
 import { fileIndex, rankIndex } from "../../chess/model";
 import type { LastMoveMark } from "../settings";
 import {
@@ -20,6 +21,8 @@ interface HighlightLayerProps {
   /** How to mark them: a wash of a colour, or the squares' colours turned round. */
   mark: LastMoveMark;
   orientation?: Orientation;
+  /** How long a spot takes to come and go, in milliseconds. */
+  fadeTimeMs?: number;
 }
 
 /**
@@ -47,6 +50,7 @@ interface HighlightLayerProps {
 export default function HighlightLayer({
   squares,
   mark: { color, negative, diameter },
+  fadeTimeMs = 0,
   orientation = "white",
 }: HighlightLayerProps) {
   /*
@@ -60,7 +64,15 @@ export default function HighlightLayer({
     behaving differently was the worse half of that.
   */
   const radius = (Math.max(diameter, 0) * SQUARE_SIZE) / 2;
-  if (squares.length === 0 || radius === 0) {
+  /* The spots of the move before are kept for the length of a fade, so the
+     mark is seen to move from one pair of squares to the next rather than to
+     be somewhere else the next time it is looked at. */
+  const spots = useFading(
+    radius === 0 ? [] : squares,
+    (square) => square,
+    fadeTimeMs
+  );
+  if (spots.length === 0) {
     return null;
   }
 
@@ -69,7 +81,7 @@ export default function HighlightLayer({
       className="highlight-layer"
       fill={negative ? undefined : color}
     >
-      {squares.map((square) => {
+      {spots.map(({ key, item: square, leaving }) => {
         const { x, y } = squareCenter(square, orientation);
         /*
           The other kind of square's colour, taken from the board's own two
@@ -83,13 +95,16 @@ export default function HighlightLayer({
         const light = isLightSquare(fileIndex(square), rankIndex(square));
         return (
           <circle
-            key={square}
+            key={key}
             cx={x}
             cy={y}
             r={radius}
-            className={
-              negative ? (light ? "mark-on-light" : "mark-on-dark") : undefined
-            }
+            className={[
+              negative ? (light ? "mark-on-light" : "mark-on-dark") : "",
+              leaving ? "mark-going" : "mark-coming",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           />
         );
       })}

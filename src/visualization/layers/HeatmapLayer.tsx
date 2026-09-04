@@ -78,11 +78,14 @@ export default function HeatmapLayer({
     for (const file of FILES) {
       for (const rank of RANKS) {
         const square = `${file}${rank}` as Square;
-        const ours = attackersOn(board, square, mine, silent).length;
-        const others = attackersOn(board, square, theirs, silent).length;
-        if (ours > 0 || others > 0) {
-          found.push({ square, mine: ours, theirs: others });
-        }
+        /* Every square, attacked or not: a square nobody attacks is drawn at
+           nothing rather than left out, so that the wash arriving on it has
+           something to arrive from. See the note by `shown`. */
+        found.push({
+          square,
+          mine: attackersOn(board, square, mine, silent).length,
+          theirs: attackersOn(board, square, theirs, silent).length,
+        });
       }
     }
     return found;
@@ -101,8 +104,8 @@ export default function HeatmapLayer({
   if (ourStrength === 0 && theirStrength === 0) {
     return null;
   }
-  const ours = readRgb(heatmap.myColor);
-  const others = readRgb(heatmap.opponentColor);
+  const ours = readRgb(heatmap.color.me);
+  const others = readRgb(heatmap.color.opponent);
 
   /*
     How much colour a side lays on a square: each attacker takes the same share
@@ -112,13 +115,21 @@ export default function HeatmapLayer({
   const inkOf = (sideStrength: number, count: number) =>
     1 - (1 - sideStrength) ** count;
 
-  const shown = squares
-    .map(({ square, mine: ourCount, theirs: theirCount }) => ({
-      square,
-      ourInk: inkOf(ourStrength, ourCount),
-      theirInk: inkOf(theirStrength, theirCount),
-    }))
-    .filter(({ ourInk, theirInk }) => ourInk + theirInk > 0);
+  /*
+    Every square, including the ones nobody attacks.
+
+    Drawn at nothing rather than left out. A square left out is a box that does
+    not exist, and a box that comes into existence has nothing to change from —
+    so the wash arriving on a square appeared all at once while the wash leaving
+    one faded, which is half a transition and reads worse than none. Sixty-four
+    rectangles of flat colour cost nothing to paint; what is expensive here is
+    working out who attacks what, and that is the same work either way.
+  */
+  const shown = squares.map(({ square, mine: ourCount, theirs: theirCount }) => ({
+    square,
+    ourInk: inkOf(ourStrength, ourCount),
+    theirInk: inkOf(theirStrength, theirCount),
+  }));
 
   return (
     <g className="heatmap-layer">
@@ -139,7 +150,15 @@ export default function HeatmapLayer({
           twice as much as the other takes twice the share. Where the two are at
           the same strength this is what counting them gave, near enough.
         */
-        const color = toHex(mix(ours, others, ourInk / (ourInk + theirInk)));
+        const color = toHex(
+          ourInk + theirInk === 0
+            ? // Nobody's: the colour is never seen, being drawn at nothing. It
+              // is the mixture of the two so that a square arriving from
+              // nowhere fades up in its own colour rather than through
+              // somebody else's.
+              mix(ours, others, 0.5)
+            : mix(ours, others, ourInk / (ourInk + theirInk))
+        );
         /*
           The two washes laid over one another: what is left of the square after
           each has taken its share.

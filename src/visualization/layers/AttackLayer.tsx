@@ -1,4 +1,6 @@
 import { useId, type ComponentType } from "react";
+import { reachSignature } from "../../chess/attacks";
+import { useFading } from "../fading";
 import type { Chess, PieceSymbol, Square } from "chess.js";
 import type { PlacedPiece } from "../../chess/model";
 import {
@@ -50,6 +52,8 @@ interface AttackLayerProps {
    * has only left its square.
    */
   flying?: Square[];
+  /** How long a piece's marks take to come and go, in milliseconds. */
+  fadeTimeMs?: number;
   orientation?: Orientation;
 }
 
@@ -60,6 +64,7 @@ export default function AttackLayer({
   attackSettings,
   lifted = null,
   flying = [],
+  fadeTimeMs = 0,
   orientation = "white",
 }: AttackLayerProps) {
   // useId() yields ids like ":r0:"; the colons are awkward inside url(#...).
@@ -78,6 +83,44 @@ export default function AttackLayer({
   */
   const opacityFor = (side: SettingsSide) =>
     clamp(attackSettings.rayOpacity[side]);
+
+  /*
+    The pieces whose marks are drawn, and the ones whose marks are on their way
+    out — a piece that has moved, been taken, or been picked up. A departing
+    piece's marks are drawn from the position as it stands now rather than as it
+    stood then, which is not quite what it had; over a tenth of a second, on
+    marks that are fading, the difference is not there to be seen.
+  */
+  /*
+    Each piece together with the board it is drawn from — not the piece alone.
+
+    A mark on its way out has to keep drawing what it drew: handed only the
+    piece, a departing group read the position as it now stands and redrew
+    itself in the new shape, so the old shape was never seen and the change was
+    a jump after all. The board is held with it, and the old marks stay the old
+    marks until they have faded.
+  */
+  const drawn = useFading(
+    pieces
+      .filter(
+        (piece) => piece.square !== lifted && !flying.includes(piece.square)
+      )
+      .map((piece) => ({ piece, board: position })),
+    /* What it draws, not merely which piece draws it: a rook whose line a move
+       has just opened is drawing something else, and a mark that changes shape
+       must count as a different mark or it will jump rather than cross. */
+    ({ piece }) =>
+      `${piece.square}-${piece.color}${piece.type}-${reachSignature(
+        position,
+        piece.square,
+        piece.type
+      )}`,
+    fadeTimeMs,
+    /* The piece itself, which outlives any one set of marks: when a line opens
+       or shuts, the marks it draws are replaced, and the old set must give way
+       as the new one arrives rather than after it. */
+    ({ piece }) => `${piece.square}-${piece.color}${piece.type}`
+  );
 
   // One filter per side, each emitted only if that side's outline is wanted.
   const sides = (["me", "opponent"] as const).map((side) => ({
@@ -150,13 +193,9 @@ export default function AttackLayer({
           </filter>
         ))}
 
-      {pieces.map((piece) => {
+      {drawn.map(({ key, item: { piece, board }, leaving }) => {
         const Renderer = ATTACK_RENDERERS[piece.type];
-        if (
-          Renderer === undefined ||
-          piece.square === lifted ||
-          flying.includes(piece.square)
-        ) {
+        if (Renderer === undefined) {
           return null;
         }
         // Which settings this piece draws with: its end of the board, not its
@@ -164,8 +203,16 @@ export default function AttackLayer({
         const side = settingsSide(piece.color, orientation);
         const outline = outlineFor(side);
         return (
+          /*
+            The fade is given a wrapper of its own rather than being put on the
+            group below, whose opacity is already spoken for: that group is held
+            at the reader's chosen strength by a rule of higher specificity, so a
+            fade written there never applied at all and the marks simply vanished
+            when their time was up. Wrapped, the two multiply — the fade takes
+            the marks from whatever strength they are drawn at down to nothing.
+          */
+          <g key={key} className={leaving ? "mark-going" : "mark-coming"}>
           <g
-            key={piece.square}
             /*
               Marked as outlined where a filter runs, because the filter has
               already applied both transparencies and the stylesheet must not
@@ -177,14 +224,35 @@ export default function AttackLayer({
           >
             <g filter={outline ? `url(#${outline.id})` : undefined}>
               <Renderer
-                position={position}
+                position={board}
                 piece={piece}
-                idPrefix={`${idPrefix}-${piece.square}`}
+                /*
+                  Named after this mark, not after the piece drawing it.
+
+                  A renderer defines clip paths of its own and refers to them by
+                  id, and where two marks of one piece are on the board at once —
+                  which is the whole of a crossing, the old shape going as the new
+                  one comes — naming them after the piece gave both sets the same
+                  ids. A duplicate id is not an error in SVG: every reference
+                  simply resolves to whichever came first in the document, and the
+                  one that came first was the mark on its way out. So the arriving
+                  ray was clipped to the departing stub's extent — a bishop's newly
+                  opened diagonal cut back to the one square it used to reach — and
+                  sprang to its full length only when the old mark was finally
+                  removed, a fade and a half after it should have been growing.
+                  Nothing about it was visible in the opacities, which were exact
+                  throughout; the ray was drawn faithfully and clipped away.
+
+                  The key is what distinguishes marks that differ in shape, so it
+                  is what the ids are built from.
+                */
+                idPrefix={`${idPrefix}-${key.replace(/[^A-Za-z0-9_-]/g, "_")}`}
                 orientation={orientation}
                 attackSettings={attackSettings}
                 geometry={attackSettings.geometry[side]}
               />
             </g>
+          </g>
           </g>
         );
       })}

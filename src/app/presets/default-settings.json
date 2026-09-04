@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 42,
+  "schemaVersion": 46,
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
@@ -15,13 +15,15 @@
   },
   "move": {
     "speed": 10,
-    "time": 0.4,
+    "time": 0.8,
     "blend": 0.93
   },
   "grid": {
     "show": true,
     "color": "#8a8a8a"
   },
+  "fadeTimeMs": 300,
+  "playPeriodPerPositionSec": 1,
   "showCapturedPiecesBar": true,
   "pieceTint": {
     "lightenWhite": 0.7,
@@ -30,8 +32,10 @@
   "attacks": {
     "knightGeometry": "arc",
     "heatmap": {
-      "myColor": "#1100ff",
-      "opponentColor": "#ff5900",
+      "color": {
+        "me": "#1100ff",
+        "opponent": "#ff5900"
+      },
       "strength": {
         "me": 0.4,
         "opponent": 0.4

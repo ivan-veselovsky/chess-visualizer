@@ -390,6 +390,21 @@ export default function SettingsPanel({
               onChange({ ...settings, move: { ...settings.move, blend } })
             }
           />
+          {/* Under the two rates and the slider that weighs them: it is not
+              about how a piece travels but about how the board catches up with
+              it, and it is the last thing on the tab for that reason. */}
+          <NumberField
+            id="fade-time"
+            inline
+            narrow
+            label="Fade time"
+            suffix="ms"
+            step={10}
+            allowZero
+            hint="How long a change to the board's colouring takes to cross: the wash on the squares, the rays, the check disc, the last move's spots, the pin rings. Nought draws every change in the frame it happens, which reads as a flash."
+            value={settings.fadeTimeMs}
+            onChange={(fadeTimeMs) => onChange({ ...settings, fadeTimeMs })}
+          />
         </section>
       )}
 
@@ -540,14 +555,22 @@ export default function SettingsPanel({
             <ColorField
               id="heatmap-me"
               label="My heatmap color"
-              value={settings.attacks.heatmap.myColor}
-              onChange={(myColor) => updateHeatmap({ myColor })}
+              value={settings.attacks.heatmap.color.me}
+              onChange={(me) =>
+                updateHeatmap({
+                  color: { ...settings.attacks.heatmap.color, me },
+                })
+              }
             />
             <ColorField
               id="heatmap-opponent"
               label="Opponent's heatmap color"
-              value={settings.attacks.heatmap.opponentColor}
-              onChange={(opponentColor) => updateHeatmap({ opponentColor })}
+              value={settings.attacks.heatmap.color.opponent}
+              onChange={(opponent) =>
+                updateHeatmap({
+                  color: { ...settings.attacks.heatmap.color, opponent },
+                })
+              }
             />
           </div>
           {/* One apiece, laid out as the rays' opacities are: the two ends of

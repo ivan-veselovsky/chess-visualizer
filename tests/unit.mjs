@@ -13,6 +13,7 @@ import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" wit
 const DEFAULT_SETTINGS = DEFAULT_SETTINGS_JSON;
 import { lineOf as lineFromHistory } from "../src/chess/history.ts";
 import { openingFromUrl } from "../src/app/sharing.ts";
+import { reachSignature } from "../src/chess/attacks.ts";
 import {
   attackersOn,
   boardDuring,
@@ -454,6 +455,25 @@ console.log("\nA line, as it travels\n");
   const line = lineFromHistory({ entries: [{ fen: board.fen(), move: null }], current: 0 });
   check("a board nobody has moved on is a line of no moves",
     line.moves.length === 0 && line.initialFEN === board.fen());
+}
+
+console.log("\nWhat a piece's marks come to\n");
+{
+  const board = new Chess();
+  const bishop = reachSignature(board, "f1", "b");
+  const queen = reachSignature(board, "d1", "q");
+  check("a knight draws the same marks wherever the men stand",
+    reachSignature(board, "g1", "n") === "" && reachSignature(board, "e1", "k") === "");
+  board.move("e4");
+  check("a bishop the move unblocks is drawing something else",
+    reachSignature(board, "f1", "b") !== bishop,
+    `${bishop} -> ${reachSignature(board, "f1", "b")}`);
+  check("and so is the queen behind the same pawn",
+    reachSignature(board, "d1", "q") !== queen,
+    `${queen} -> ${reachSignature(board, "d1", "q")}`);
+  check("while a rook the move did not touch is drawing what it was",
+    reachSignature(board, "a1", "r") === reachSignature(new Chess(), "a1", "r"),
+    reachSignature(board, "a1", "r"));
 }
 
 console.log("\nWhat a shared link asks for\n");

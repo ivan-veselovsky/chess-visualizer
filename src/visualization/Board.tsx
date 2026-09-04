@@ -34,9 +34,8 @@ import GridLayer from "./layers/GridLayer";
 import HedgeLayer from "./layers/HedgeLayer";
 import HighlightLayer, { type LastMove } from "./layers/HighlightLayer";
 import CheckLayer, { type KingAlert } from "./layers/CheckLayer";
-import MovingPieceLayer, {
-  type Flight,
-} from "./layers/MovingPieceLayer";
+import FlightLayer from "./FlightLayer";
+import { type Flight } from "./flightPath";
 import PieceLayer from "./layers/PieceLayer";
 import PinLayer from "./layers/PinLayer";
 import SquareLayer from "./layers/SquareLayer";
@@ -47,6 +46,8 @@ interface BoardProps {
   hedge: HedgeLines;
   /** A move on its way across the board, if one is being played out. */
   flight?: Flight | null;
+  /** Said when the pieces that move have arrived; see `FlightLayer`. */
+  onFlightLanded?: () => void;
   /**
    * The position to draw, when it differs from the one being played on.
    *
@@ -68,6 +69,11 @@ interface BoardProps {
   colors: BoardColors;
   pieceTint: PieceTint;
   attacks: AttackSettings;
+  /**
+   * How long a change to the board's colouring takes to cross, in
+   * milliseconds. Every mark on the board is timed by it; see `Settings.fade`.
+   */
+  fadeTimeMs?: number;
   /** Omit to make the board read-only. */
   /**
    * A move the reader has made. `dragged` says whether the piece was carried
@@ -121,12 +127,14 @@ interface Drag {
 export default function Board({
   hedge,
   flight = null,
+  onFlightLanded,
   showing = null,
   flying = [],
   position,
   colors,
   pieceTint,
   attacks,
+  fadeTimeMs = 0,
   onMove,
   grid,
   playable = null,
@@ -192,6 +200,9 @@ export default function Board({
 
   const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
   const themeVars = {
+    /* Published for the marks the stylesheet times on its own — the wash on the
+       squares, which transitions rather than being redrawn. */
+    "--fade-time": `${Math.max(fadeTimeMs, 0)}ms`,
     "--square-light": colors.lightSquare,
     "--square-dark": colors.useLightForDark
       ? colors.lightSquare
@@ -396,17 +407,26 @@ export default function Board({
         // its own reach is the one thing not being weighed against.
         lifted={lifted}
         flying={flying}
+        fadeTimeMs={fadeTimeMs}
         orientation={orientation}
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `rayLook` stands
     // for the parts of `attacks` these marks are made of; the rest cannot change
     // them.
-    [position, pieces, lifted, flying.join(), orientation, rayLook]
+    [position, pieces, lifted, flying.join(), fadeTimeMs, orientation, rayLook]
   );
 
 
   return (
+    /*
+      A box the size of the board, holding the board and whatever is drawn over
+      it. The travelling piece is over it rather than in it: only an element
+      outside the `<svg>` can be given a compositor layer of its own, which is
+      what keeps it moving while the main thread rebuilds the marks. See
+      `FlightLayer`.
+    */
+    <div className="board-holder">
     <svg
       ref={svgRef}
       className={drag === null ? "board" : "board board-dragging"}
@@ -436,6 +456,7 @@ export default function Board({
             drawn last it would punch a hole in the heatmap — the one square the
             heatmap had nothing to say about being the one the move landed on. */}
         <HighlightLayer
+          fadeTimeMs={fadeTimeMs}
           squares={[
             ...(lastMove === null ? [] : [lastMove.from, lastMove.to]),
             ...(inHand === null ? [] : [inHand.from]),
@@ -465,6 +486,7 @@ export default function Board({
             attackSettings={attacks}
             lifted={drag?.from ?? null}
             flying={flying}
+            fadeTimeMs={fadeTimeMs}
             orientation={orientation}
           />
         )}
@@ -472,13 +494,9 @@ export default function Board({
           alert={alert}
           diameter={attacks.pins.ringDiameter}
           lifted={drag?.from ?? null}
+          fadeTimeMs={fadeTimeMs}
           orientation={orientation}
         />
-        {/* Above the board and below the hand: a piece being carried is still
-            the one the reader is holding. */}
-        {flight !== null && (
-          <MovingPieceLayer flight={flight} orientation={orientation} />
-        )}
         <PieceLayer
           pieces={pieces}
           lifted={drag?.from ?? null}
@@ -518,5 +536,14 @@ export default function Board({
         )}
       </g>
     </svg>
+    {flight !== null && (
+      <FlightLayer
+        flight={flight}
+        orientation={orientation}
+        onLanded={onFlightLanded}
+        vars={themeVars}
+      />
+    )}
+    </div>
   );
 }

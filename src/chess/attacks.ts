@@ -1,5 +1,8 @@
-import type { Chess, Color, Square } from "chess.js";
-import { fileIndex, rankIndex, squareAt } from "./model";
+import type { Chess, Color, PieceSymbol, Square } from "chess.js";
+/* Written with its extension, unlike the imports elsewhere: this module is
+   exercised by `tests/unit.mjs`, which node runs straight from the TypeScript
+   with no bundler to guess at extensions. `settingsFile.ts` says more. */
+import { fileIndex, rankIndex, squareAt } from "./model.ts";
 
 /** A (file, rank) offset. */
 export type Direction = readonly [number, number];
@@ -29,6 +32,56 @@ export const BISHOP_AXES: readonly Direction[] = [
 
 export const QUEEN_AXES: readonly Direction[] = [...ROOK_AXES, ...BISHOP_AXES];
 
+
+/**
+ * What a sliding piece's marks come to, as a short string.
+ *
+ * Two positions in which a rook draws exactly the same stripes give the same
+ * answer here, and any change to what it draws gives a different one. That is
+ * all it is for: the marks of a piece that has not moved are still redrawn when
+ * a move opens or shuts a line it stands on, and a mark that changes shape has
+ * to count as a different mark if it is to be seen to change rather than to
+ * jump. Blocked distances along each direction are what the renderers work
+ * from, so they are what is recorded.
+ *
+ * Leapers — knight, king, pawn — draw the same marks wherever else the men
+ * stand, and answer with nothing.
+ */
+export function reachSignature(
+  chess: Chess,
+  square: Square,
+  type: PieceSymbol
+): string {
+  const axes =
+    type === "q"
+      ? QUEEN_AXES
+      : type === "r"
+        ? ROOK_AXES
+        : type === "b"
+          ? BISHOP_AXES
+          : null;
+  if (axes === null) {
+    return "";
+  }
+  const file = fileIndex(square);
+  const rank = rankIndex(square);
+  const along = (df: number, dr: number) => {
+    const met: number[] = [];
+    for (let step = 1; ; step += 1) {
+      const target = squareAt(file + df * step, rank + dr * step);
+      if (target === null) {
+        return met.join("");
+      }
+      if (chess.get(target) !== undefined) {
+        met.push(step);
+      }
+    }
+  };
+  /* Both ways along each axis: an axis is a line, and a line has two ends. */
+  return axes
+    .map(([df, dr]) => `${along(df, dr)}:${along(-df, -dr)}`)
+    .join("|");
+}
 
 /**
  * Squares a knight on `square` attacks. Like the king, it leaps, so nothing
