@@ -10,7 +10,9 @@
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { preview } from "vite";
 
 /*
   What every suite here says about what it found, said the same way.
@@ -134,11 +136,36 @@ export async function attach(port) {
  */
 export async function open({ port, debugPort, window = "1400,900" }) {
   const profile = mkdtempSync(join(tmpdir(), "chess-browser-test-"));
-  const preview = spawn(
-    "npx",
-    ["vite", "preview", "--port", String(port), "--strictPort"],
-    { stdio: "ignore" }
-  );
+
+  /*
+    Vite's own preview server, started here rather than as `npx vite preview`
+    in a child process.
+
+    The child was silent by design — its output went nowhere so that a suite's
+    own lines were all that was printed — and when it failed to start, all that
+    was left was this end saying "nothing serving", which is the symptom and
+    never the reason. On a CI runner that is the whole of what one gets to read.
+    Started in this process it either serves or throws, and what it throws says
+    which of the two it was.
+  */
+  const root = dirname(dirname(fileURLToPath(import.meta.url)));
+  let serving;
+  try {
+    serving = await preview({
+      root,
+      configFile: join(root, "vite.config.ts"),
+      /* The address the tests will ask for, said outright: left to itself a
+         preview server binds whatever `localhost` means on the machine, which
+         on some is the IPv6 one and on others both. */
+      preview: { host: "127.0.0.1", port, strictPort: true },
+    });
+  } catch (trouble) {
+    rmSync(profile, { recursive: true, force: true });
+    throw new Error(
+      `the built app could not be served on ${port}: ${trouble.message}`
+    );
+  }
+
   const browser = spawn(
     "google-chrome",
     [
@@ -159,7 +186,7 @@ export async function open({ port, debugPort, window = "1400,900" }) {
       return;
     }
     stopped = true;
-    preview.kill("SIGKILL");
+    void serving.close();
     browser.kill("SIGKILL");
     /* The browser is still writing its profile as it goes; what is left of a
        temporary directory is the operating system's business, not a failure. */
@@ -174,11 +201,17 @@ export async function open({ port, debugPort, window = "1400,900" }) {
   const app = `http://127.0.0.1:${port}/`;
   if (!(await waitFor(app))) {
     stop();
-    throw new Error(`nothing serving ${app} — is the app built?`);
+    throw new Error(
+      `${app} does not answer, though the server said it was listening`
+    );
   }
   if (!(await waitFor(`http://127.0.0.1:${debugPort}/json`))) {
     stop();
-    throw new Error("chrome did not come up");
+    throw new Error(
+      `chrome did not come up on ${debugPort}. It is started as ` +
+        `\`google-chrome\`; a machine that needs anything more said to it — ` +
+        `\`--no-sandbox\` on a CI runner — passes it in CHROME_FLAGS.`
+    );
   }
   const page = await attach(debugPort);
   return { page, app, stop };
