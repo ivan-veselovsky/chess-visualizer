@@ -32,9 +32,11 @@ jobs:
       # fails saying so.
       CHROME_FLAGS: --no-sandbox
     steps:
-      - uses: actions/checkout@v4
+      # v5 of each: the action's own runtime, not this project's. The fours run
+      # on Node 20, which the runners are dropping, and say so in every run.
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           # The tests read TypeScript directly, which needs 22 or newer.
           node-version: 22
