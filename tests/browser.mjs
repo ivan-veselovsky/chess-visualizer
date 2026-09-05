@@ -12,6 +12,48 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+/*
+  What every suite here says about what it found, said the same way.
+
+  Two files kept their own copy of this, differing in where the detail of a
+  failure went — one put it after the line and one under it — which is the kind
+  of difference that is invisible until two failures are read side by side. It
+  goes under when it is long enough to need the room, and after when it is not,
+  by measure rather than by which file it happened to be in.
+*/
+let passed = 0;
+let failed = 0;
+
+export function check(what, ok, detail = "") {
+  if (ok) {
+    passed += 1;
+    console.log(`  PASS  ${what}`);
+    return;
+  }
+  failed += 1;
+  const said =
+    detail === "" ? "" : detail.length > 48 ? `\n          ${detail}` : `  <- ${detail}`;
+  console.log(`  FAIL  ${what}${said}`);
+}
+
+/** The tally, and whether it is worth exiting cleanly on. */
+export function summary() {
+  console.log(`\n  ${passed} passed, ${failed} failed\n`);
+  return failed === 0;
+}
+
+/**
+ * Anything a particular machine needs to say to Chrome beyond the ordinary.
+ *
+ * Empty here, and `--no-sandbox` on a CI runner: Chrome's own sandbox wants
+ * unprivileged user namespaces, and the images these tests run on refuse them,
+ * so a browser started without it never comes up at all. Held in a variable
+ * rather than written into the suites, because the machine that needs it is the
+ * one that should be asking — the sandbox is worth having everywhere it works.
+ */
+export const extraChromeFlags = () =>
+  (process.env.CHROME_FLAGS ?? "").split(" ").filter((flag) => flag !== "");
+
 /** Waits for something to answer on a port, or gives up. */
 export async function waitFor(url, seconds = 30) {
   for (let tries = 0; tries < seconds * 4; tries += 1) {
@@ -105,6 +147,7 @@ export async function open({ port, debugPort, window = "1400,900" }) {
       `--user-data-dir=${profile}`,
       "--no-first-run",
       `--window-size=${window}`,
+      ...extraChromeFlags(),
       "about:blank",
     ],
     { stdio: "ignore" }

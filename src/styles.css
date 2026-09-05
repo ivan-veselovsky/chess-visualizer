@@ -2895,6 +2895,13 @@ input[type="color"]::-moz-color-swatch {
   color: #35b45a;
 }
 
+/* A seat at a game the server no longer has. Quieter than anything else in the
+   list: there is nothing to go to and nothing to wait for, only a row to tick
+   and be rid of. */
+.saved-game-mark.gone {
+  color: color-mix(in srgb, currentColor 45%, transparent);
+}
+
 .saved-game-mark.unconfirmed {
   color: #e04b3f;
 }

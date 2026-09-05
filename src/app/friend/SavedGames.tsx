@@ -7,8 +7,10 @@ import { OPPONENT_CHOOSES } from "../../../worker/protocol";
 
 interface SavedGamesProps {
   games: SavedGame[];
-  /** What the object last said about each of them, by seat. */
-  standings: Map<string, Standing>;
+  /** What the object last said about each of them, by seat. Null where it
+      answered that there is no such game: kept for a week after the last thing
+      that happened to it, and then swept away. */
+  standings: Map<string, Standing | null>;
   /** The seat the panel above is showing, which the list marks as this one. */
   showingSeat: string | null;
   /** Seats ticked for forgetting. */
@@ -25,8 +27,16 @@ interface SavedGamesProps {
 }
 
 /** How a game stands, in the fewest words that are true. */
-function standingOf(game: SavedGame, live: Standing | undefined): string {
+function standingOf(
+  game: SavedGame,
+  live: Standing | undefined | null
+): string {
   const you = game.you === OPPONENT_CHOOSES ? "w" : game.you;
+  if (live === null) {
+    /* Asked, and told there is no such game. What is left here is a seat at
+       nothing, which is a row to be rid of rather than a game to go to. */
+    return "No longer on the server";
+  }
   if (live !== undefined) {
     if (live.status === "planning") {
       return "Waiting for an answer";
@@ -52,9 +62,12 @@ function standingOf(game: SavedGame, live: Standing | undefined): string {
  */
 function markOf(
   game: SavedGame,
-  live: Standing | undefined
+  live: Standing | undefined | null
 ): { sign: string; says: string } {
   const you = game.you === OPPONENT_CHOOSES ? "w" : game.you;
+  if (live === null) {
+    return { sign: "·", says: "No longer on the server" };
+  }
   const over =
     live !== undefined
       ? live.status === "finished" && live.reason !== null
@@ -123,21 +136,29 @@ export default function SavedGames({
         */
         const unconfirmed =
           asked && live === undefined && game.ending === undefined;
+        /* Asked, and told there is no game there any more. */
+        const gone = live === null;
         /* A game still being played is a game something could happen in, so its
            mark says whether anyone could be asked: green while the object
            answers for it, red while it cannot be reached. A game that is over
            needs no such light — nothing can happen in it either way. */
         const playing =
-          live !== undefined
+          live != null
             ? live.status === "inProgress"
-            : game.ending === undefined && game.opponentName !== null;
+            : live === null
+              ? false
+              : game.ending === undefined && game.opponentName !== null;
         /* Only a game nobody can play on any more may be given up here. One
            still waiting for an answer can be, too — forgetting that is taking
            the challenge back, which the button below does at the object. */
+        /* A seat at a game that is no longer there is always worth being rid
+           of; otherwise, anything that cannot be played on any more. */
         const canForget =
-          live !== undefined
-            ? live.status !== "inProgress"
-            : game.ending !== undefined || game.opponentName === null;
+          live === null
+            ? true
+            : live !== undefined
+              ? live.status !== "inProgress"
+              : game.ending !== undefined || game.opponentName === null;
         return (
           <li key={seat} className={here ? "saved-game-row here" : "saved-game-row"}>
             <button
@@ -161,6 +182,7 @@ export default function SavedGames({
                 className={[
                   "saved-game-mark",
                   unconfirmed ? "unconfirmed" : "",
+                  gone ? "gone" : "",
                   playing && !unconfirmed ? "playing" : "",
                 ]
                   .filter(Boolean)

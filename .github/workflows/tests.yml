@@ -1,0 +1,52 @@
+# What a change has to be green on before it goes in.
+#
+# Everything that needs nothing but this checkout: the unit tests, the board's
+# behaviour in a real browser, and the picture it draws. The worker's own suites
+# are not here — they need a worker running to talk to, which is a service to
+# start rather than a file to run.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # So a run can be asked for without pushing anything.
+  workflow_dispatch:
+
+# A second push to the same branch makes the first run pointless; it is stopped
+# rather than left to finish saying something about code nobody has any more.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local:
+    name: Unit, board and rendering
+    runs-on: ubuntu-latest
+    # Generous against a hung browser, tight enough that one cannot sit there
+    # for an hour: the whole set takes well under a minute in the ordinary case.
+    timeout-minutes: 15
+    env:
+      # Chrome's sandbox wants unprivileged user namespaces, which these images
+      # refuse. Without this the browser never comes up and every browser suite
+      # fails saying so.
+      CHROME_FLAGS: --no-sandbox
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The tests read TypeScript directly, which needs 22 or newer.
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Said out loud, so a runner image that stops shipping Chrome fails here
+      # with one line rather than inside a suite with a timeout.
+      - name: Chrome
+        run: google-chrome --version
+
+      - name: Test
+        run: npm run test:all-local

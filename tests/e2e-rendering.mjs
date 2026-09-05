@@ -34,7 +34,7 @@
  * diff it makes is the review.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { HELPERS, open, pause } from "./browser.mjs";
+import { check, HELPERS, open, pause, summary } from "./browser.mjs";
 import { readPng } from "./png.mjs";
 
 const PORT = Number(process.env.PORT ?? 4179);
@@ -112,18 +112,6 @@ const BESIDE_FROM_MIDDLE = 0.34;
 const TOLERANCE = 16;
 /* How stale the frame standing for a moment may be. */
 const NEAR_ENOUGH = 0.1;
-
-let passed = 0;
-let failed = 0;
-function check(what, ok, detail = "") {
-  if (ok) {
-    passed += 1;
-    console.log(`  PASS  ${what}`);
-  } else {
-    failed += 1;
-    console.log(`  FAIL  ${what}${detail === "" ? "" : `\n          ${detail}`}`);
-  }
-}
 
 /* The stripe widths the app will be drawing with: its own defaults, read from
    the same file it ships, so that a change to them changes where this looks. */
@@ -359,12 +347,9 @@ try {
 
   lab.page.close();
 } catch (error) {
-  failed += 1;
-  console.log(`  FAIL  the rendering tests could not run  <- ${error.message}`);
+  check("the rendering tests could not run", false, error.message);
 }
 
-if (!UPDATE) {
-  console.log(`\n  ${passed} passed, ${failed} failed\n`);
-}
 lab.stop();
-process.exit(failed === 0 ? 0 : 1);
+/* Recording is not testing: it says what it wrote and leaves it at that. */
+process.exit(UPDATE || summary() ? 0 : 1);

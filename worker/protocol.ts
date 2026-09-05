@@ -136,6 +136,13 @@ export interface GameRecord {
    */
   startedAt: number | null;
   endedAt: number | null;
+  /**
+   * When the game was last written to, which is what it is kept by.
+   *
+   * Every change goes through one place and stamps this, so "nothing has
+   * happened here since" is a subtraction rather than a search.
+   */
+  touchedAt: number;
 }
 
 /**
@@ -426,6 +433,22 @@ export interface Terms {
  * A client that sends nothing here is older than the version that started
  * sending it, and is treated as a mismatch on those grounds.
  */
+/**
+ * How long a game is kept after nothing more happens to it.
+ *
+ * Untouched for this long, not created this long ago: a game being played is
+ * written to on every move, so the clock on it keeps going back to the start,
+ * and only a game nobody has come near for a week is one nobody is coming back
+ * to. A finished game is untouched from the moment it ends, which is the same
+ * thing said the other way.
+ *
+ * A week is a guess, and the only one that matters is that it be longer than a
+ * game left overnight and shorter than forever. It can be overridden per
+ * deployment with a `GAME_TTL_MS` variable, which is also how the tests give
+ * themselves a few seconds instead of a week.
+ */
+export const KEPT_FOR_MS = 7 * 24 * 60 * 60 * 1000;
+
 export const PROTOCOL_VERSION = 3;
 
 /**

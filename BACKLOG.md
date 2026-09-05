@@ -85,4 +85,6 @@ TODO:
 
 3. Time control in the game: 1st step: clock for each of the players on the top and bottom of the board in play mode.
 
-4. 
+4. --IMPORTANT: remove stale games by a TTL from server. 1 week would be reasonable--
+
+5.

@@ -8,6 +8,7 @@ import {
 } from "./protocol";
 import {
   canMoveTo,
+  KEPT_FOR_MS,
   OPPONENT_CHOOSES,
   PING,
   PONG,
@@ -84,8 +85,17 @@ interface Bound {
  * receive.
  */
 export class Game extends DurableObject {
+  /**
+   * How long this deployment keeps a game after the last thing that happened
+   * to it. A week unless a variable says otherwise, which is how a test gives
+   * itself a few seconds instead.
+   */
+  private readonly keptFor: number;
+
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never);
+    const asked = Number((env as { GAME_TTL_MS?: string })?.GAME_TTL_MS);
+    this.keptFor = Number.isFinite(asked) && asked > 0 ? asked : KEPT_FOR_MS;
     /*
       The heartbeat, answered by the runtime rather than by this object. A
       client asking every few seconds whether its line is still up would
@@ -324,6 +334,7 @@ export class Game extends DurableObject {
       createdAt: Date.now(),
       startedAt: null,
       endedAt: null,
+      touchedAt: Date.now(),
     };
     await this.write(record);
     this.bind(ws, message.token);
@@ -1108,8 +1119,72 @@ export class Game extends DurableObject {
     this.tell(ws, { type: "error", code, reason });
   }
 
+  /**
+   * The game, if there still is one.
+   *
+   * An alarm below is what actually clears an old game away, and this is the
+   * same question asked the other way round: a game that has outlived its keep
+   * is gone from the moment it did, whether or not the alarm that removes it
+   * has run yet. Without this, an object woken a moment before its alarm would
+   * hand out a game that is about to stop existing — and a client would have
+   * been told two different things a second apart.
+   */
   private async read(): Promise<GameRecord | null> {
-    return (await this.ctx.storage.get<GameRecord>("game")) ?? null;
+    const record = (await this.ctx.storage.get<GameRecord>("game")) ?? null;
+    if (record === null) {
+      return null;
+    }
+    if (this.pastKeeping(record)) {
+      await this.forget();
+      return null;
+    }
+    return record;
+  }
+
+  /** Whether nothing has happened to a game for longer than it is kept. */
+  private pastKeeping(record: GameRecord, now = Date.now()): boolean {
+    /* Records written before games were stamped have no last-touched time.
+       Rather than treat them as infinitely old — which would sweep away games
+       being played the moment this went out — they are counted from when they
+       were made. */
+    const last = record.touchedAt ?? record.createdAt ?? now;
+    return now - last > this.keptFor;
+  }
+
+  /**
+   * Everything this object holds, dropped.
+   *
+   * A Durable Object is its storage: emptied, it stops being anything, and the
+   * next request for that game finds nothing and says so — which is exactly
+   * what should be said about a game that is no longer kept. No one is told;
+   * there is nobody to tell, a week having passed.
+   */
+  private async forget(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+  }
+
+  /**
+   * The clock running out on a game.
+   *
+   * Set forward on every write, so it only ever fires for a game nothing has
+   * happened to since. If something has — a move landed while the alarm was
+   * pending — it is put off again rather than acted on, since the alarm is a
+   * statement about the game at the time it was set.
+   */
+  async alarm(): Promise<void> {
+    const record = (await this.ctx.storage.get<GameRecord>("game")) ?? null;
+    if (record === null) {
+      await this.forget();
+      return;
+    }
+    if (this.pastKeeping(record)) {
+      await this.forget();
+      return;
+    }
+    await this.ctx.storage.setAlarm(
+      (record.touchedAt ?? record.createdAt ?? Date.now()) + this.keptFor
+    );
   }
 
   /**
@@ -1131,8 +1206,11 @@ export class Game extends DurableObject {
       startedAt:
         record.startedAt ?? (record.status === "inProgress" ? now : null),
       endedAt: record.endedAt ?? (record.status === "finished" ? now : null),
+      touchedAt: now,
     };
     await this.ctx.storage.put("game", stamped);
+    /* And the clock on it back to the start. */
+    await this.ctx.storage.setAlarm(now + this.keptFor);
     return stamped;
   }
 

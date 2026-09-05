@@ -196,9 +196,10 @@ export function gameInUrl(): string | null {
  * kind wanted taken, and the line dropped. The game being played keeps its own
  * connection throughout; this borrows nothing from it.
  *
- * Null for anything that is not an answer: a line that will not open, an object
- * that no longer knows the token, or a silence longer than the wait. The caller
- * shows what it last knew and says that it could not ask.
+ * Null for a question that got no answer at all: a line that will not open, or
+ * a silence longer than the wait. A refusal is an answer and comes back as
+ * itself — "there is no such game" and "nobody could be reached" are different
+ * things to say about a game, and only the first of them is final.
  */
 export function askGame(
   gameId: string,
@@ -222,10 +223,8 @@ export function askGame(
     connection = openGame(
       gameId,
       (message) => {
-        if (want.includes(message.type)) {
+        if (want.includes(message.type) || message.type === "error") {
           finish(message);
-        } else if (message.type === "error") {
-          finish(null);
         }
       },
       () => finish(null)

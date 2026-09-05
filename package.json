@@ -13,7 +13,8 @@
     "test:unit": "node --experimental-strip-types tests/unit.mjs",
     "test": "npm run test:unit",
     "test:board": "npm run build && node tests/board.mjs",
-    "test:e2e-rendering": "npm run build && node tests/e2e-rendering.mjs"
+    "test:e2e-rendering": "npm run build && node tests/e2e-rendering.mjs",
+    "test:all-local": "node tests/all-local.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",

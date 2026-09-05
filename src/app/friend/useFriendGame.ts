@@ -311,7 +311,12 @@ export function useFriendGame(listeners: FriendListeners) {
     was last known and said to be out of date, rather than quietly presented as
     the truth.
   */
-  const [standings, setStandings] = useState<Map<string, Standing>>(new Map());
+  /* Null against a seat means the object was asked and said there is no such
+     game: a game swept away after its week, rather than one nobody could ask
+     about. */
+  const [standings, setStandings] = useState<Map<string, Standing | null>>(
+    new Map()
+  );
   const [reading, setReading] = useState(false);
   const [reachedThem, setReachedThem] = useState(true);
   /* Whether the games have been asked at all since the page opened. Before
@@ -1008,7 +1013,7 @@ export function useFriendGame(listeners: FriendListeners) {
   const readGames = useCallback(async () => {
     const seats = savedGames();
     setReading(true);
-    const found = new Map<string, Standing>();
+    const found = new Map<string, Standing | null>();
     let answers = 0;
     const AT_ONCE = 5;
     for (let from = 0; from < seats.length; from += AT_ONCE) {
@@ -1019,6 +1024,17 @@ export function useFriendGame(listeners: FriendListeners) {
             { type: "standing", v: PROTOCOL_VERSION, token: game.token },
             ["state"]
           );
+          if (said !== null && said.type === "error") {
+            /* The object answered, so the line is up; what it said was that
+               this game is not there. A game is kept for a week after the last
+               thing that happened to it and then swept away, so a seat can
+               outlive the game it is at. */
+            answers += 1;
+            if (said.code === "noSuchGame" || said.code === "unknownToken") {
+              found.set(seatOf(game.gameId, game.role), null);
+            }
+            return;
+          }
           if (said === null || said.type !== "state") {
             return;
           }
@@ -1080,10 +1096,12 @@ export function useFriendGame(listeners: FriendListeners) {
           continue;
         }
         const standing = standings.get(dropping);
+        /* A game the object no longer has cannot be taken back at it, and one
+           nobody could ask about is taken back on what this browser knew. */
         const waiting =
           standing === undefined
             ? saved.ending === undefined && saved.opponentName === null
-            : standing.status === "planning";
+            : standing !== null && standing.status === "planning";
         if (waiting) {
           await askGame(
             saved.gameId,

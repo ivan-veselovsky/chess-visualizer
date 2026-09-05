@@ -16,10 +16,7 @@
  * It drives the built app rather than the sources: this is about what is
  * shipped, and the dev server's own machinery has no business in it.
  */
-import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { check, HELPERS, open, pause, summary } from "./browser.mjs";
 
 /*
    One frame of slack, and no more. The two halves of a crossing are settled in
@@ -32,161 +29,32 @@ const ONE_FRAME = 34;
 
 const PORT = Number(process.env.PORT ?? 4178);
 const DEBUG_PORT = Number(process.env.CDP_PORT ?? 9422);
-const APP = `http://127.0.0.1:${PORT}/`;
 
-let passed = 0;
-let failed = 0;
-function check(what, ok, detail = "") {
-  if (ok) {
-    passed += 1;
-    console.log(`  PASS  ${what}`);
-  } else {
-    failed += 1;
-    console.log(`  FAIL  ${what}${detail === "" ? "" : `  <- ${detail}`}`);
-  }
-}
-
-/** Waits for something to answer on a port, or gives up. */
-async function waitFor(url, seconds = 30) {
-  for (let tries = 0; tries < seconds * 4; tries += 1) {
-    try {
-      await fetch(url);
-      return true;
-    } catch {
-      await new Promise((done) => setTimeout(done, 250));
-    }
-  }
-  return false;
-}
-
-/** A thin CDP client: enough to evaluate in the page and to click on it. */
-async function attach(port) {
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-  const page = targets.find((t) => t.type === "page");
-  const socket = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((open) => socket.addEventListener("open", open));
-  let next = 0;
-  const waiting = new Map();
-  socket.addEventListener("message", (event) => {
-    const message = JSON.parse(event.data);
-    if (message.id && waiting.has(message.id)) {
-      waiting.get(message.id)(message);
-      waiting.delete(message.id);
-    }
-  });
-  const send = (method, params = {}) => {
-    const id = (next += 1);
-    socket.send(JSON.stringify({ id, method, params }));
-    return new Promise((done) => waiting.set(id, done));
-  };
-  const run = async (code) => {
-    const answer = await send("Runtime.evaluate", {
-      expression: `(async () => { const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); ${code} })()`,
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    if (answer.result?.exceptionDetails) {
-      throw new Error(JSON.stringify(answer.result.exceptionDetails.exception));
-    }
-    return answer.result.result.value;
-  };
-  const click = async (x, y) => {
-    for (const type of ["mousePressed", "mouseReleased"]) {
-      await send("Input.dispatchMouseEvent", {
-        type,
-        x,
-        y,
-        button: "left",
-        clickCount: 1,
-      });
-    }
-  };
-  return { send, run, click, close: () => socket.close() };
-}
-
-const profile = mkdtempSync(join(tmpdir(), "chess-board-test-"));
-const preview = spawn(
-  "npx",
-  ["vite", "preview", "--port", String(PORT), "--strictPort"],
-  { stdio: "ignore" }
-);
-const browser = spawn(
-  "google-chrome",
-  [
-    "--headless=new",
-    `--remote-debugging-port=${DEBUG_PORT}`,
-    `--user-data-dir=${profile}`,
-    "--no-first-run",
-    "--window-size=1400,900",
-    "about:blank",
-  ],
-  { stdio: "ignore" }
-);
-
-let stopped = false;
-function stop() {
-  if (stopped) {
-    return;
-  }
-  stopped = true;
-  preview.kill("SIGKILL");
-  browser.kill("SIGKILL");
-  /* The browser is still writing its profile as it goes; what is left of a
-     temporary directory is the operating system's business, not a failure. */
-  try {
-    rmSync(profile, { recursive: true, force: true });
-  } catch {
-    /* left for /tmp to clear */
-  }
-}
-process.on("exit", stop);
+/* The app served from `dist`, a browser pointed at it, and the plumbing to
+   drive both: all of it in `browser.mjs`, which the rendering suite uses too. */
+const lab = await open({ port: PORT, debugPort: DEBUG_PORT });
+const page = lab.page;
 
 try {
-  if (!(await waitFor(APP))) {
-    throw new Error(`nothing serving ${APP} — is the app built?`);
-  }
-  if (!(await waitFor(`http://127.0.0.1:${DEBUG_PORT}/json`))) {
-    throw new Error("chrome did not come up");
-  }
-  const page = await attach(DEBUG_PORT);
   await page.send("Page.enable");
-  await page.send("Page.navigate", { url: APP });
-  await new Promise((done) => setTimeout(done, 2500));
+  await page.send("Page.navigate", { url: lab.app });
+  await pause(2500);
 
   /*
     A slow move and a long fade, so that everything below has room to be seen.
     Both are settings, and setting them is how a reader would.
   */
   await page.run(`
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-    const type = (id, value) => {
-      const field = document.querySelector(id);
-      set.call(field, value);
-      field.dispatchEvent(new Event("input", { bubbles: true }));
-    };
-    const tab = (name) =>
-      [...document.querySelectorAll('[role="tab"]')].find((t) => t.textContent.trim() === name).click();
-    tab("Pieces");
+    ${HELPERS}
+    window.__tab("Pieces");
     await sleep(400);
-    type("#fade-time", "400");
-    type("#move-time", "1.2");
+    window.__set("#fade-time", "400");
+    window.__set("#move-time", "1.2");
     await sleep(200);
-    tab("Game");
+    window.__tab("Game");
     await sleep(400);
     const flip = document.querySelector("#flip-board");
     if (flip && flip.checked) { flip.click(); await sleep(300); }
-
-    window.__sq = (name) => {
-      const rects = [...document.querySelectorAll(".square-layer rect")];
-      const xs = rects.map((r) => +r.getAttribute("x"));
-      const x0 = Math.min(...xs), step = (Math.max(...xs) - x0) / 7;
-      const y0 = Math.min(...rects.map((r) => +r.getAttribute("y")));
-      const hit = rects.find((r) =>
-        Math.abs(+r.getAttribute("x") - (x0 + (name.charCodeAt(0) - 97) * step)) < 1 &&
-        Math.abs(+r.getAttribute("y") - (y0 + (8 - +name[1]) * step)) < 1);
-      const b = hit.getBoundingClientRect();
-      return { cx: Math.round(b.x + b.width / 2), cy: Math.round(b.y + b.height / 2) };
-    };
     /* Every piece's marks: what is drawn, how large the drawing is, and how
        opaque — enough to tell a fade from a jump. */
     /* Each drawing is stamped the first time it is seen, so that the same
@@ -459,10 +327,8 @@ try {
 
   page.close();
 } catch (error) {
-  failed += 1;
-  console.log(`  FAIL  the browser tests could not run  <- ${error.message}`);
+  check("the browser tests could not run", false, error.message);
 }
 
-console.log(`\n  ${passed} passed, ${failed} failed\n`);
-stop();
-process.exit(failed === 0 ? 0 : 1);
+lab.stop();
+process.exit(summary() ? 0 : 1);

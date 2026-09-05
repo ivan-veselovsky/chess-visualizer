@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const suites = ["reach", "invite", "edges", "position", "status", "resume", "handicap", "collision", "openColor", "moves", "courtesies", "cancel", "continued", "presence", "version", "times", "standing"];
+const suites = ["reach", "invite", "edges", "position", "status", "resume", "handicap", "collision", "openColor", "moves", "courtesies", "cancel", "continued", "presence", "version", "times", "standing", "keeping"];
 const base = process.env.WS_BASE ?? "ws://127.0.0.1:8787";
 
 console.log(`\nTesting ${base}\n${"=".repeat(40)}`);
