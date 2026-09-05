@@ -64,3 +64,25 @@ filter with `color-interpolation-filters="linearRGB"`, at a filter's cost per
 piece — and the two are not the same operation anyway: `mix` averages two opaque
 colours, while overlapping rays are a stack of translucent ones, whose result
 depends on their order.
+
+
+TODO: 
+
+1. ~~In Match tab, it is possible to see the following:~~ **Done.**
+![alt text](image.png) 
+   -- a game of same id mentioned twice.
+
+   Not two records of one seat: two seats at one game. A browser can sit at both
+   ends — `seatOf` writes `-<id>` for the side that offered the game and `<id>`
+   for the side that took it up — so both rows were true, each from its own
+   side, and neither said which side that was. The names were already on the
+   records; the list was not showing them. It now reads
+   `829 115 739  Bob (you) – Alice  — You lost by resignation.`, which is also
+   how a PGN names them.
+
+   
+2. Separate takebacks for me and the opponent.
+
+3. Time control in the game: 1st step: clock for each of the players on the top and bottom of the board in play mode.
+
+4. 

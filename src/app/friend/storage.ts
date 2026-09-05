@@ -1,4 +1,5 @@
 import type {
+  Color,
   ColorChoice,
   EndReason,
   GameResult,
@@ -43,6 +44,34 @@ export interface SavedGame {
    * moves in memory are gone.
    */
   ending?: { result: GameResult; reason: EndReason };
+}
+
+/**
+ * Who is playing the game at this seat, White first, and which of them holds
+ * this seat.
+ *
+ * Both names are already here — the one this browser plays under and the one it
+ * was told — and which of them is White follows from the side the seat holds.
+ * Nothing is written twice for it: a stored pair would be a second account of
+ * what `you` already settles, and two accounts of one fact are two chances to
+ * disagree.
+ *
+ * Null while a challenge is still out. There is no opponent then, and no side
+ * either, so there is no pair to name.
+ */
+export function playersOf(
+  game: SavedGame
+): { white: string; black: string; yours: Color } | null {
+  /* Asked as "is there a side yet" rather than by naming the state where there
+     is not: the two colours are what this needs, and either of them will do. */
+  if (game.opponentName === null || (game.you !== "w" && game.you !== "b")) {
+    return null;
+  }
+  return {
+    white: game.you === "w" ? game.myName : game.opponentName,
+    black: game.you === "b" ? game.myName : game.opponentName,
+    yours: game.you,
+  };
 }
 
 const PREFIX = "cv.game.";

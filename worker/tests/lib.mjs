@@ -31,6 +31,7 @@ export async function connect(game, label = "client") {
       message.type === "create" ||
       message.type === "answer" ||
       message.type === "peek" ||
+      message.type === "standing" ||
       message.type === "resume";
     ws.send(
       JSON.stringify(

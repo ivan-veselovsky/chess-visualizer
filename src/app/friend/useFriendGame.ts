@@ -6,6 +6,7 @@ import type {
   EndReason,
   ErrorCode,
   GameResult,
+  GameStatus,
   Tally,
   Terms,
 } from "../../../worker/protocol";
@@ -20,6 +21,7 @@ import {
   forgetGameInUrl,
   gameInUrl,
   gameLink,
+  askGame,
   openGame,
   showGameInUrl,
   type Connection,
@@ -55,7 +57,7 @@ function explain(code: ErrorCode): string {
     case "colorNeeded":
       return "Choose a side before accepting.";
     case "gameExists":
-      return "That game id is taken. Try creating the invite again.";
+      return "That game id is taken. Try sending the challenge again.";
     case "noSuchGame":
       return "Game not found.";
     case "alreadyAnswered":
@@ -63,7 +65,7 @@ function explain(code: ErrorCode): string {
     case "gameOver":
       return "That game is over.";
     case "ownInvite":
-      return "This is your own invite — send it to a friend instead.";
+      return "This is your own challenge — send it to a friend instead.";
     case "unknownToken":
       return "This browser is not one of the players in that game.";
     case "versionMismatch":
@@ -89,9 +91,9 @@ function explain(code: ErrorCode): string {
     case "noDrawOffered":
       return "There is no draw on offer to you.";
     case "challengeCancelled":
-      return "That invite was taken back.";
+      return "That challenge was taken back.";
     case "notYourInvite":
-      return "That invite is not yours to take back.";
+      return "That challenge is not yours to take back.";
     case "badMessage":
       return "Something went wrong talking to the server.";
   }
@@ -220,10 +222,40 @@ export type Phase =
       drawOffered: Color | null;
       /** How it ended, once it has; the game stays on screen either way. */
       over: { result: GameResult; reason: EndReason } | null;
+      /**
+       * When the game began and when it finished, as the object has them.
+       *
+       * Its clock and not this one's: two players in different places have two
+       * clocks and one game, and the times a game is described by should be the
+       * same for both of them. Null until the object has said — a game ending
+       * while it is being watched is stamped from here, and corrected by the
+       * object's own answer the next time this comes back to it.
+       */
+      startedAt: number | null;
+      endedAt: number | null;
     }
   /** Over before it began: turned down by one side or the other. */
   | { kind: "declined"; mine: boolean }
   | { kind: "error"; reason: string };
+
+/**
+ * What the object says about a seat, as of the last time the list was read.
+ *
+ * Held apart from the saved record rather than written into it: the record is
+ * what this browser knows on its own, and this is what the game itself says.
+ * When the two disagree it is this one that is right, and the record is brought
+ * up to date behind it.
+ */
+export interface Standing {
+  status: GameStatus;
+  result: GameResult;
+  reason: EndReason | null;
+  opponent: string | null;
+  /** How far the game has got, in plies. */
+  moves: number;
+  startedAt: number | null;
+  endedAt: number | null;
+}
 
 /**
  * The friendly-game side of the app: one connection, one phase, and the moves
@@ -273,6 +305,19 @@ export function useFriendGame(listeners: FriendListeners) {
     through a phase change, so that is when to look again.
   */
   const [games, setGames] = useState<SavedGame[]>(savedGames);
+  /*
+    What each of those games says about itself, by seat, and whether the object
+    could be reached at all to ask. A list nobody could refresh is shown as it
+    was last known and said to be out of date, rather than quietly presented as
+    the truth.
+  */
+  const [standings, setStandings] = useState<Map<string, Standing>>(new Map());
+  const [reading, setReading] = useState(false);
+  const [reachedThem, setReachedThem] = useState(true);
+  /* Whether the games have been asked at all since the page opened. Before
+     that, a row saying "in play" is this browser's own memory and is not
+     claiming to be more. */
+  const [beenAsked, setBeenAsked] = useState(false);
   const connection = useRef<Connection | null>(null);
   /*
     Held in a ref and refreshed every render. The socket's handler is set up
@@ -414,6 +459,14 @@ export function useFriendGame(listeners: FriendListeners) {
                     message.status === "finished" && message.reason !== null
                       ? { result: message.result, reason: message.reason }
                       : current.over,
+                  /* Stamped here, because a move carries no time: it is
+                     happening now, and now is accurate to the millisecond it
+                     took to arrive. The object's own stamp replaces this the
+                     next time the game is come back to. */
+                  endedAt:
+                    message.status === "finished"
+                      ? (current.endedAt ?? Date.now())
+                      : current.endedAt,
                 }
               : current
           );
@@ -443,6 +496,7 @@ export function useFriendGame(listeners: FriendListeners) {
                   ...current,
                   drawOffered: null,
                   over: { result: message.result, reason: message.reason },
+                  endedAt: message.at,
                 }
               : current
           );
@@ -473,7 +527,7 @@ export function useFriendGame(listeners: FriendListeners) {
             gameId,
             token: token.current ?? "",
             you: message.you,
-            myName: name,
+            myName: nameAt(seat.current),
             opponentName: message.opponent,
             role: "opponent",
           });
@@ -486,6 +540,8 @@ export function useFriendGame(listeners: FriendListeners) {
             takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
             drawOffered: null,
             over: null,
+            startedAt: message.startedAt,
+            endedAt: message.endedAt,
           });
           break;
         case "answered":
@@ -502,7 +558,7 @@ export function useFriendGame(listeners: FriendListeners) {
               gameId,
               token: token.current,
               you: message.you,
-              myName: name,
+              myName: nameAt(seat.current),
               opponentName: message.opponent,
               role: "challenger",
             });
@@ -537,6 +593,8 @@ export function useFriendGame(listeners: FriendListeners) {
                   },
                   drawOffered: null,
                   over: null,
+                  startedAt: message.startedAt,
+                  endedAt: message.endedAt,
                 }
               : { kind: "declined", mine: false }
           );
@@ -564,7 +622,7 @@ export function useFriendGame(listeners: FriendListeners) {
               gameId,
               token: token.current,
               you: message.you,
-              myName: name,
+              myName: nameAt(seat.current),
               opponentName: message.opponent,
               /*
                 Read off the seat this tab came back to, not looked up by the
@@ -611,6 +669,8 @@ export function useFriendGame(listeners: FriendListeners) {
                     message.status === "finished" && message.reason !== null
                       ? { result: message.result, reason: message.reason }
                       : null,
+                  startedAt: message.startedAt,
+                  endedAt: message.endedAt,
                 }
           );
           break;
@@ -893,6 +953,299 @@ export function useFriendGame(listeners: FriendListeners) {
 
   const start = useCallback(() => setPhase({ kind: "challenging" }), []);
 
+  /**
+   * The name a seat was taken under, which is not always the name this browser
+   * goes by now.
+   *
+   * Somebody who played a game as Bob and has since renamed themselves is still
+   * Bob in that game — it is what the other player saw, what the object holds,
+   * and what a PGN of it says. Written afresh on every rejoin, the record was
+   * quietly restating the game's history in the present tense, and a list that
+   * names its rows by their players was the first thing to show it.
+   */
+  const nameAt = useCallback(
+    (where: string | null) =>
+      (where === null ? null : loadGame(where)?.myName) ?? name,
+    [name]
+  );
+
+  /**
+   * Remembers the name to play under, whether or not a game comes of it.
+   *
+   * Naming yourself is naming yourself: somebody who types a name and then
+   * thinks better of the game has still said what they are called, and being
+   * asked again by the next dialog — with the old name in the field — is being
+   * told the first answer was not listened to. Answering a challenge and
+   * offering one both already keep it; this is the same thing for the ways out
+   * that are not a game.
+   */
+  const remember = useCallback((typed: string) => {
+    const named = typed.trim();
+    if (named === "") {
+      return;
+    }
+    setName(named);
+    saveName(named);
+  }, []);
+
+  /**
+   * Asks every game this browser holds a seat at how it stands.
+   *
+   * The list is only as true as its last answer, and the object is the only
+   * thing that knows: a game left this morning may have been resigned since,
+   * and nothing would have said so to a browser that was looking elsewhere. So
+   * the list asks, whenever it is opened and whenever the reader asks it to.
+   *
+   * A few at a time rather than all at once: thirty games is thirty sockets,
+   * and a browser that opens thirty at once spends longer on the last of them
+   * than on all the rest. Each is asked with `standing`, which reads the game
+   * without joining it, so no opponent sees a light blink for this.
+   *
+   * What comes back is also written into the records, since a game that has
+   * ended since it was last seen should still say so if the next refresh
+   * cannot reach anyone.
+   */
+  const readGames = useCallback(async () => {
+    const seats = savedGames();
+    setReading(true);
+    const found = new Map<string, Standing>();
+    let answers = 0;
+    const AT_ONCE = 5;
+    for (let from = 0; from < seats.length; from += AT_ONCE) {
+      await Promise.all(
+        seats.slice(from, from + AT_ONCE).map(async (game) => {
+          const said = await askGame(
+            game.gameId,
+            { type: "standing", v: PROTOCOL_VERSION, token: game.token },
+            ["state"]
+          );
+          if (said === null || said.type !== "state") {
+            return;
+          }
+          answers += 1;
+          found.set(seatOf(game.gameId, game.role), {
+            status: said.status,
+            result: said.result,
+            reason: said.reason,
+            opponent: said.opponent,
+            moves: said.moves.length,
+            startedAt: said.startedAt,
+            endedAt: said.endedAt,
+          });
+          /* Brought up to date while the answer is here. */
+          const ending =
+            said.status === "finished" && said.reason !== null
+              ? { result: said.result, reason: said.reason }
+              : undefined;
+          const changed =
+            (said.opponent ?? null) !== game.opponentName ||
+            (ending !== undefined) !== (game.ending !== undefined);
+          if (changed) {
+            saveGame({
+              ...game,
+              opponentName: said.opponent ?? game.opponentName,
+              ending: ending ?? game.ending,
+            });
+          }
+        })
+      );
+    }
+    setStandings(found);
+    setBeenAsked(true);
+    /* Nothing answered, and there was something to ask: the line is down, and
+       the list says so rather than showing yesterday as though it were now. */
+    setReachedThem(seats.length === 0 || answers > 0);
+    setGames(savedGames());
+    setReading(false);
+  }, []);
+
+  /**
+   * Gives up seats, which for a challenge nobody has answered means taking it
+   * back.
+   *
+   * A seat at a game that can still be played is not a thing to drop quietly:
+   * the token is the only way back to it, and a challenge whose token is gone
+   * would go on standing, answerable by anyone holding the link, with nobody
+   * able to play the game it made. So a challenge still waiting is withdrawn at
+   * the object first, and only then forgotten here.
+   *
+   * One seat at a time, not one game: a browser can hold both ends of a game,
+   * and the row that was ticked is one of them.
+   */
+  const forgetSelected = useCallback(
+    async (seats: readonly string[]) => {
+      for (const dropping of seats) {
+        const saved = loadGame(dropping);
+        if (saved === null) {
+          continue;
+        }
+        const standing = standings.get(dropping);
+        const waiting =
+          standing === undefined
+            ? saved.ending === undefined && saved.opponentName === null
+            : standing.status === "planning";
+        if (waiting) {
+          await askGame(
+            saved.gameId,
+            { type: "cancel", token: saved.token },
+            ["ended"],
+            3000
+          );
+        }
+        forgetGame(dropping);
+        /* The one being shown goes with it: what the panel above is describing
+           has just stopped being anything this browser holds. */
+        if (dropping === seat.current) {
+          seat.current = null;
+          disconnect();
+          forgetGameInUrl();
+          setPhase({ kind: "idle" });
+        }
+      }
+      setGames(savedGames());
+      await readGames();
+    },
+    [disconnect, readGames, standings]
+  );
+
+  /**
+   * A game begun or taken up without leaving the one being played.
+   *
+   * A browser can hold a seat at any number of games, and only one of them is
+   * on the board — so offering a game, or accepting somebody's, is not a reason
+   * to walk out of the game in front of you. The connection is: there is one,
+   * and the game being played has it.
+   *
+   * So these three do their business on a line of their own, opened for one
+   * exchange and dropped: the seat is written, the object is told, and the new
+   * game appears in the list as a game to go to. Nothing is watching it — a
+   * challenge answered while you are elsewhere is found the next time the list
+   * is read, not announced. That is the price of not being interrupted, and it
+   * is the right way round.
+   */
+  const challengeAside = useCallback(
+    async (terms: ChallengeTerms): Promise<string | null> => {
+      const gameId = newGameId();
+      const mine = newToken();
+      setName(terms.name);
+      saveName(terms.name);
+      /* Written before the message goes, as on the main line: a reply that
+         never arrives must not take the only copy of the token with it. */
+      saveGame({
+        gameId,
+        token: mine,
+        you: terms.color,
+        myName: terms.name,
+        opponentName: null,
+        role: "challenger",
+      });
+      const said = await askGame(
+        gameId,
+        {
+          type: "create",
+          v: PROTOCOL_VERSION,
+          token: mine,
+          name: terms.name,
+          color: terms.color,
+          handicap: terms.handicap,
+          takebacks: terms.takebacks,
+          ...(terms.continueFrom === null
+            ? {}
+            : {
+                initialFEN: terms.continueFrom.initialFEN,
+                line: terms.continueFrom.moves,
+              }),
+        },
+        ["created"]
+      );
+      if (said === null) {
+        /* Nobody answered, so there is no game — and a seat at no game is a row
+           in the list that goes nowhere. */
+        forgetGame(seatOf(gameId, "challenger"));
+        setGames(savedGames());
+        return null;
+      }
+      setGames(savedGames());
+      await readGames();
+      return seatOf(gameId, "challenger");
+    },
+    [readGames]
+  );
+
+  /** What a challenge is, for somebody deciding whether to take it up. */
+  const lookAside = useCallback(
+    async (
+      gameId: string
+    ): Promise<{
+      gameId: string;
+      challenger: string;
+      you: ColorChoice;
+      terms: Terms;
+    } | null> => {
+      const said = await askGame(
+        gameId,
+        { type: "peek", v: PROTOCOL_VERSION },
+        ["challenge"]
+      );
+      if (said === null || said.type !== "challenge") {
+        return null;
+      }
+      return {
+        gameId,
+        challenger: said.challenger,
+        you: said.you,
+        terms: said.terms,
+      };
+    },
+    []
+  );
+
+  /** Answering one of those, still without leaving the game being played. */
+  const answerAside = useCallback(
+    async (
+      looked: { gameId: string; challenger: string; you: ColorChoice },
+      accept: boolean,
+      myName: string,
+      color?: Color
+    ): Promise<string | null> => {
+      const mine = newToken();
+      const side = looked.you === OPPONENT_CHOOSES ? (color ?? "w") : looked.you;
+      setName(myName);
+      saveName(myName);
+      saveGame({
+        gameId: looked.gameId,
+        token: mine,
+        you: side,
+        myName,
+        opponentName: looked.challenger,
+        role: "opponent",
+      });
+      const said = await askGame(
+        looked.gameId,
+        {
+          type: "answer",
+          v: PROTOCOL_VERSION,
+          token: mine,
+          name: myName,
+          accept,
+          ...(looked.you === OPPONENT_CHOOSES && color !== undefined
+            ? { color }
+            : {}),
+        },
+        ["joined", "declined"]
+      );
+      if (said === null || !accept) {
+        forgetGame(seatOf(looked.gameId, "opponent"));
+        setGames(savedGames());
+        return null;
+      }
+      setGames(savedGames());
+      await readGames();
+      return seatOf(looked.gameId, "opponent");
+    },
+    [readGames]
+  );
+
   const leave = useCallback(() => {
     /*
       An invite still waiting for its answer is taken back, not merely
@@ -1074,12 +1427,28 @@ export function useFriendGame(listeners: FriendListeners) {
     notice,
     dismissNotice: () => setNotice(null),
     name,
+    remember,
     start,
     challenge,
     goTo,
     rejoin,
-    /** Games this browser holds a seat at, for a tab that is showing none. */
+    /** Games this browser holds a seat at, whether or not one is being shown. */
     games,
+    /** What the object last said about each of them, by seat. */
+    standings,
+    /** Whether the last reading of the list reached the object at all. */
+    reachedThem,
+    /** Whether the games have been asked how they stand since the page opened. */
+    asked: beenAsked,
+    /** Whether a reading is going on now. */
+    reading,
+    readGames,
+    forgetSelected,
+    /** The seat the panel above the list is showing, if any. */
+    showingSeat: seat.current,
+    challengeAside,
+    lookAside,
+    answerAside,
     answer,
     move,
     takeBack,

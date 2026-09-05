@@ -187,6 +187,54 @@ export function gameInUrl(): string | null {
 }
 
 /**
+ * Asks one game how it stands, and hangs up.
+ *
+ * What the list of games is built on. A row has to say whether a game is still
+ * being played and how it ended if it is not, and only the object knows —
+ * neither browser is told anything while it is looking elsewhere. So each game
+ * is asked in turn: a line opened, one message sent, the first answer of the
+ * kind wanted taken, and the line dropped. The game being played keeps its own
+ * connection throughout; this borrows nothing from it.
+ *
+ * Null for anything that is not an answer: a line that will not open, an object
+ * that no longer knows the token, or a silence longer than the wait. The caller
+ * shows what it last knew and says that it could not ask.
+ */
+export function askGame(
+  gameId: string,
+  ask: FromClient,
+  want: readonly FromServer["type"][],
+  waitFor = 6000
+): Promise<FromServer | null> {
+  return new Promise((resolve) => {
+    let answered = false;
+    let connection: Connection | null = null;
+    const finish = (answer: FromServer | null) => {
+      if (answered) {
+        return;
+      }
+      answered = true;
+      window.clearTimeout(timer);
+      connection?.close();
+      resolve(answer);
+    };
+    const timer = window.setTimeout(() => finish(null), waitFor);
+    connection = openGame(
+      gameId,
+      (message) => {
+        if (want.includes(message.type)) {
+          finish(message);
+        } else if (message.type === "error") {
+          finish(null);
+        }
+      },
+      () => finish(null)
+    );
+    connection.send(ask);
+  });
+}
+
+/**
  * Puts the game in the address bar, so that this tab and this game are one
  * thing: a reload comes back to it, the browser restores it with the window,
  * and a second tab is free to be a second game.

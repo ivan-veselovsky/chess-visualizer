@@ -214,6 +214,9 @@ try {
           at: Math.round(t - t0),
           marks: window.__marks(),
           rings: document.querySelectorAll(".pin-marker").length,
+          /* Rings still being drawn, as against ones being seen off: a fading
+             ring is in the page for as long as its fade lasts. */
+          held: document.querySelectorAll(".pin-marker:not(.mark-going)").length,
           flying: document.querySelectorAll(".flying-piece").length,
           /* Ids defined more than once. A renderer refers to its own clip paths
              by id, so a name shared by two marks is not a tidiness matter: SVG
@@ -383,6 +386,75 @@ try {
     "and one is drawn once it has landed",
     pinFrames.at(-1).rings > before,
     `${before} -> ${pinFrames.at(-1).rings}`
+  );
+
+  console.log("\nA piece in the air holds nothing\n");
+
+  /*
+    The bishop that pinned the knight now leaves the diagonal, from the position
+    the section above left on the board. Its rays and its wash go as it takes
+    off, because a piece in the air attacks nothing — and the ring it was
+    holding has to go with them. It stood there for the whole journey once and
+    was released on landing, a beat after everything else the bishop was doing
+    had gone.
+  */
+  /* A quiet move first, since it is White to play there and the bishop is
+     Black's. h3 touches nothing on the diagonal the pin runs along. */
+  await move("h2", "h3");
+  await page.run(`window.__watch(2600); return "watching";`);
+  await move("b4", "e7");
+  const released = await page.run(`return window.__frames;`);
+  const airborne = released.filter((frame) => frame.flying > 0);
+  check(
+    "the ring is let go as the pinning piece takes off",
+    airborne.length > 0 && airborne.every((frame) => frame.held === 0),
+    `${airborne.filter((frame) => frame.held > 0).length} of ${airborne.length} frames in the air still hold it`
+  );
+  check(
+    "and nothing is left of it once the move is over",
+    released.at(-1).rings === 0,
+    `${released.at(-1).rings} rings`
+  );
+
+  console.log("\nWhat is taken stands until it is reached\n");
+
+  /*
+    1.e4 d5 2.exd5. The pawn on d5 is on the board for the whole of the journey
+    towards it — that is what makes the arrival read as a capture — and so are
+    its marks. They vanished and came back at the start of every capture once:
+    the position committed before the flight that holds it back, and for one
+    render, painted or not, the board was the board after the move.
+  */
+  await page.run(`
+    [...document.querySelectorAll("button")]
+      .find((b) => b.textContent.includes("Reset to initial position"))
+      .click();
+    await sleep(1200);
+    return "reset";`);
+  for (const [from, to] of [
+    ["e2", "e4"],
+    ["d7", "d5"],
+  ]) {
+    await move(from, to);
+  }
+  await page.run(`window.__watch(2600); return "watching";`);
+  await move("e4", "d5");
+  const capture = await page.run(`return window.__frames;`);
+
+  const inTheAir = capture.filter((frame) => frame.flying > 0);
+  /* Whatever was already on its way out when the piece took off may go on
+     going: the mover's own marks left when it was picked up. What may not
+     happen is a mark starting to leave while the piece is still in the air. */
+  const goingAtFirst = new Set(
+    (inTheAir[0]?.marks ?? []).filter((mark) => mark.leaving).map((mark) => mark.id)
+  );
+  const startedLeaving = inTheAir
+    .flatMap((frame) => frame.marks.filter((mark) => mark.leaving).map((mark) => mark.id))
+    .filter((id) => !goingAtFirst.has(id));
+  check(
+    "the marks of a piece being taken stay while the piece is still travelling",
+    inTheAir.length > 0 && startedLeaving.length === 0,
+    `${inTheAir.length} frames in the air, ${new Set(startedLeaving).size} marks left during them`
   );
 
   page.close();

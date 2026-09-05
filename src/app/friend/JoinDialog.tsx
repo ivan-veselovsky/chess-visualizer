@@ -43,7 +43,7 @@ export default function JoinDialog({ open, onJoin, onClose }: JoinDialogProps) {
 
   return (
     <dialog ref={dialog} className="pgn-dialog join-dialog" onClose={onClose}>
-      <h2 className="challenge-title">Join a game</h2>
+      <h2 className="challenge-title">Accept a challenge</h2>
 
       <div className="board-controls">
         <label htmlFor="join-game">Game id</label>
@@ -73,17 +73,20 @@ export default function JoinDialog({ open, onJoin, onClose }: JoinDialogProps) {
       </p>
 
       <div className="pgn-dialog-actions">
-        <button type="button" className="reset-button" onClick={onClose}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="reset-button"
-          disabled={gameId === null}
-          onClick={join}
-        >
-          Join
-        </button>
+        {/* The two ways out, at one width: see `.button-pair`. */}
+        <div className="button-pair">
+          <button type="button" className="reset-button" onClick={onClose}>
+            Decline
+          </button>
+          <button
+            type="button"
+            className="reset-button"
+            disabled={gameId === null}
+            onClick={join}
+          >
+            Accept
+          </button>
+        </div>
       </div>
     </dialog>
   );

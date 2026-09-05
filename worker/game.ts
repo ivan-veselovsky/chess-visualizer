@@ -139,6 +139,7 @@ export class Game extends DurableObject {
       (message.type === "create" ||
         message.type === "answer" ||
         message.type === "peek" ||
+        message.type === "standing" ||
         message.type === "resume") &&
       message.v !== PROTOCOL_VERSION
     ) {
@@ -194,6 +195,8 @@ export class Game extends DurableObject {
         return this.answer(ws, message);
       case "resume":
         return this.resume(ws, message);
+      case "standing":
+        return this.standing(ws, message);
       case "move":
         return this.play(ws, message);
       case "takeBack":
@@ -319,6 +322,8 @@ export class Game extends DurableObject {
       takebacksLeft: { w: takebacks, b: takebacks },
       drawOfferedBy: null,
       createdAt: Date.now(),
+      startedAt: null,
+      endedAt: null,
     };
     await this.write(record);
     this.bind(ws, message.token);
@@ -343,7 +348,7 @@ export class Game extends DurableObject {
         not theirs and a number that is nobody's.
       */
       if (record.reason === "challengeCancelled") {
-        return this.refuse(ws, "challengeCancelled", "That invite was taken back");
+        return this.refuse(ws, "challengeCancelled", "That challenge was taken back");
       }
       return record.status === "inProgress"
         ? this.refuse(ws, "alreadyAnswered", "That game is under way")
@@ -383,7 +388,7 @@ export class Game extends DurableObject {
         return this.refuse(
           ws,
           "challengeCancelled",
-          "That invite was taken back"
+          "That challenge was taken back"
         );
       }
       if (record.guest?.token === message.token) {
@@ -399,6 +404,8 @@ export class Game extends DurableObject {
                 terms: termsOf(record),
                 moves: record.moves,
                 takebacksLeft: record.takebacksLeft,
+                startedAt: record.startedAt,
+                endedAt: record.endedAt,
               }
             : { type: "declined" }
         );
@@ -407,12 +414,12 @@ export class Game extends DurableObject {
       return this.refuse(
         ws,
         "alreadyAnswered",
-        "This invite has already been answered"
+        "This challenge has already been answered"
       );
     }
 
     if (record.host.token === message.token) {
-      return this.refuse(ws, "ownInvite", "You cannot answer your own invite");
+      return this.refuse(ws, "ownInvite", "You cannot answer your own challenge");
     }
 
     /*
@@ -464,7 +471,7 @@ export class Game extends DurableObject {
         "That game cannot be answered now"
       );
     }
-    await this.write({
+    const settledRecord = await this.write({
       ...record,
       host: { ...record.host, color: hostColor },
       guest,
@@ -493,6 +500,8 @@ export class Game extends DurableObject {
         you: hostColor,
         terms: settled,
         moves: record.moves,
+        startedAt: settledRecord.startedAt,
+        endedAt: settledRecord.endedAt,
       });
     }
 
@@ -505,6 +514,8 @@ export class Game extends DurableObject {
       // scratch, the carried line for one being taken up.
       moves: record.moves,
       takebacksLeft: record.takebacksLeft,
+      startedAt: settledRecord.startedAt,
+      endedAt: settledRecord.endedAt,
     });
     this.sendTo(record.host.token, {
       type: "answered",
@@ -513,6 +524,8 @@ export class Game extends DurableObject {
       you: hostColor,
       terms: settled,
       moves: record.moves,
+      startedAt: settledRecord.startedAt,
+      endedAt: settledRecord.endedAt,
     });
     return this.saidPresence({ ...record, guest });
   }
@@ -553,6 +566,47 @@ export class Game extends DurableObject {
     });
   }
 
+  /**
+   * How the game stands, told to a player who is not joining it.
+   *
+   * Everything `resume` says and nothing it does: the connection is not bound
+   * to the player and the opponent is not told anyone arrived. A browser going
+   * down its list of games asks each of them this, and nobody at any of those
+   * games sees a light blink for it.
+   */
+  private async standing(
+    ws: WebSocket,
+    message: Extract<FromClient, { type: "standing" }>
+  ): Promise<void> {
+    const record = await this.read();
+    if (record === null) {
+      return this.refuse(ws, "noSuchGame", "There is no such game");
+    }
+    const player = this.playerFor(record, message.token);
+    if (player === null) {
+      return this.refuse(
+        ws,
+        "unknownToken",
+        "That token belongs to no one here"
+      );
+    }
+    const opponent = player === record.host ? record.guest : record.host;
+    return this.tell(ws, {
+      type: "state",
+      you: player.color,
+      opponent: opponent?.name ?? null,
+      status: record.status,
+      result: record.result,
+      reason: record.reason,
+      terms: termsOf(record),
+      moves: record.moves,
+      takebacksLeft: record.takebacksLeft,
+      drawOfferedBy: record.drawOfferedBy,
+      startedAt: record.startedAt,
+      endedAt: record.endedAt,
+    });
+  }
+
   /** A player coming back on a new connection, which is the usual case. */
   private async resume(
     ws: WebSocket,
@@ -590,6 +644,8 @@ export class Game extends DurableObject {
       moves: record.moves,
       takebacksLeft: record.takebacksLeft,
       drawOfferedBy: record.drawOfferedBy,
+      startedAt: record.startedAt,
+      endedAt: record.endedAt,
     });
     // Both lights, now that there is one more connection to report.
     return this.saidPresence(record);
@@ -788,13 +844,13 @@ export class Game extends DurableObject {
       return this.refuse(
         ws,
         "notYourInvite",
-        "Only the challenger can take an invite back"
+        "Only the challenger can take a challenge back"
       );
     }
     if (record.status !== "planning") {
-      return this.deny(ws, "alreadyAnswered", "That invite has been answered");
+      return this.deny(ws, "alreadyAnswered", "That challenge has been answered");
     }
-    await this.write({
+    const withdrawn = await this.write({
       ...record,
       status: "finished",
       result: "*",
@@ -803,7 +859,8 @@ export class Game extends DurableObject {
     this.tell(ws, {
       type: "ended",
       result: "*",
-      reason: "challengeCancelled"
+      reason: "challengeCancelled",
+      at: withdrawn.endedAt ?? Date.now(),
     });
   }
 
@@ -825,14 +882,19 @@ export class Game extends DurableObject {
       return this.deny(ws, "notPlaying", "That game is not being played");
     }
     const result: GameResult = player.color === "w" ? "0-1" : "1-0";
-    await this.write({
+    const resigned = await this.write({
       ...record,
       status: "finished",
       result,
       reason: "resignation",
       drawOfferedBy: null,
     });
-    this.both(record, { type: "ended", result, reason: "resignation" });
+    this.both(record, {
+      type: "ended",
+      result,
+      reason: "resignation",
+      at: resigned.endedAt ?? Date.now(),
+    });
   }
 
   /** Offers a draw, which stands until it is answered or a move is taken back. */
@@ -883,7 +945,7 @@ export class Game extends DurableObject {
       this.both(record, { type: "drawDeclined" });
       return;
     }
-    await this.write({
+    const agreed = await this.write({
       ...record,
       status: "finished",
       result: "1/2-1/2",
@@ -894,6 +956,7 @@ export class Game extends DurableObject {
       type: "ended",
       result: "1/2-1/2",
       reason: "agreement",
+      at: agreed.endedAt ?? Date.now(),
     });
   }
 
@@ -1049,8 +1112,28 @@ export class Game extends DurableObject {
     return (await this.ctx.storage.get<GameRecord>("game")) ?? null;
   }
 
-  private async write(record: GameRecord): Promise<void> {
-    await this.ctx.storage.put("game", record);
+  /**
+   * Persists a game, stamping when it began and when it finished.
+   *
+   * Here rather than at each of the places a game can change: it can end half a
+   * dozen ways — resigned, agreed, mated, declined, withdrawn, run out — and a
+   * stamp written at each of them is a stamp forgotten at the next one added.
+   * Every change passes through here, and a status only moves forward, so each
+   * time is set the first time its status is written and kept from then on.
+   *
+   * Returns what was actually stored, since what is stored is what the players
+   * are then told.
+   */
+  private async write(record: GameRecord): Promise<GameRecord> {
+    const now = Date.now();
+    const stamped: GameRecord = {
+      ...record,
+      startedAt:
+        record.startedAt ?? (record.status === "inProgress" ? now : null),
+      endedAt: record.endedAt ?? (record.status === "finished" ? now : null),
+    };
+    await this.ctx.storage.put("game", stamped);
+    return stamped;
   }
 
   async webSocketClose(

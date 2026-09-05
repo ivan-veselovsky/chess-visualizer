@@ -6,6 +6,7 @@ import {
   type HandicapPiece,
 } from "../../chess/handicap";
 import { OPPONENT_CHOOSES, type ColorChoice } from "../../../worker/protocol";
+import { halfMoves } from "./counting";
 import type { ChallengeTerms } from "./useFriendGame";
 
 interface ChallengeDialogProps {
@@ -16,6 +17,8 @@ interface ChallengeDialogProps {
   board: { initialFEN: string; moves: string[] };
   onSubmit: (terms: ChallengeTerms) => void;
   onClose: () => void;
+  /** Said as the dialog goes, so a name typed here outlives it. */
+  onName: (name: string) => void;
 }
 
 /** Where a game is to start: from scratch, from odds, or from a game already
@@ -42,6 +45,7 @@ const PIECE_NAMES: Record<HandicapPiece, string> = {
  * whoever agreed to give them however the sides fall.
  */
 export default function ChallengeDialog({
+  onName,
   open,
   name,
   board,
@@ -97,9 +101,15 @@ export default function ChallengeDialog({
       className="pgn-dialog challenge-dialog"
       /* No dismissal by clicking past it: half-filled terms are worth more than
          a tidy way out, and there is a Cancel for people who mean it. */
-      onClose={onClose}
+      onClose={() => {
+        /* A name typed here is kept whichever way this closes: somebody who
+           names themselves and then backs out has still said what they are
+           called. */
+        onName(myName);
+        onClose();
+      }}
     >
-      <h2 className="challenge-title">Challenge a friend</h2>
+      <h2 className="challenge-title">Send a challenge</h2>
 
       <div className="board-controls">
         <label htmlFor="challenge-name">My name</label>
@@ -178,9 +188,7 @@ export default function ChallengeDialog({
           {continuable && (
             <option value="board">
               {board.moves.length > 0
-                ? `The game on my board (${board.moves.length} ${
-                    board.moves.length === 1 ? "move" : "moves"
-                  })`
+                ? `The game on my board (${halfMoves(board.moves.length)})`
                 : "The position on my board"}
             </option>
           )}
@@ -221,7 +229,7 @@ export default function ChallengeDialog({
           are not this game's to unmake. */}
       {start === "board" && board.moves.length > 0 && (
         <p className="invite-note challenge-note">
-          Both of you take it up from here. The {board.moves.length} moves
+          Both of you take it up from here. The {halfMoves(board.moves.length)}{" "}
           already played stay in the game and in its PGN, and neither side can
           take them back.
         </p>
@@ -249,33 +257,36 @@ export default function ChallengeDialog({
       </div>
 
       <div className="pgn-dialog-actions">
-        <button type="button" className="reset-button" onClick={onClose}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="reset-button"
-          disabled={!ready}
-          title={
-            ready
-              ? undefined
-              : oddsNamed
-                ? "A name and a color first"
-                : "Say what the odds are, or start from the initial position"
-          }
-          onClick={() =>
-            color !== null &&
-            onSubmit({
-              name: myName.trim(),
-              color,
-              handicap,
-              takebacks,
-              continueFrom,
-            })
-          }
-        >
-          Challenge
-        </button>
+        {/* The two ways out, at one width: see `.button-pair`. */}
+        <div className="button-pair">
+          <button type="button" className="reset-button" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="reset-button"
+            disabled={!ready}
+            title={
+              ready
+                ? undefined
+                : oddsNamed
+                  ? "A name and a color first"
+                  : "Say what the odds are, or start from the initial position"
+            }
+            onClick={() =>
+              color !== null &&
+              onSubmit({
+                name: myName.trim(),
+                color,
+                handicap,
+                takebacks,
+                continueFrom,
+              })
+            }
+          >
+            Challenge
+          </button>
+        </div>
       </div>
     </dialog>
   );

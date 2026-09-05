@@ -47,7 +47,7 @@ export default function CheckLayer({
   }
   return (
     <g className="check-layer">
-      {discs.map(({ key, item, leaving }) => {
+      {discs.map(({ key, item, leaving, props }) => {
         const { x, y } = squareCenter(item.square, orientation);
         return (
           <circle
@@ -56,6 +56,7 @@ export default function CheckLayer({
             cy={y}
             r={radius}
             className={`check-disc-${item.kind} ${leaving ? "mark-going" : "mark-coming"}`}
+            {...props}
           />
         );
       })}

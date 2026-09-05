@@ -115,11 +115,7 @@ export default function AttackLayer({
         piece.square,
         piece.type
       )}`,
-    fadeTimeMs,
-    /* The piece itself, which outlives any one set of marks: when a line opens
-       or shuts, the marks it draws are replaced, and the old set must give way
-       as the new one arrives rather than after it. */
-    ({ piece }) => `${piece.square}-${piece.color}${piece.type}`
+    fadeTimeMs
   );
 
   // One filter per side, each emitted only if that side's outline is wanted.
@@ -193,7 +189,7 @@ export default function AttackLayer({
           </filter>
         ))}
 
-      {drawn.map(({ key, item: { piece, board }, leaving }) => {
+      {drawn.map(({ key, item: { piece, board }, leaving, props }) => {
         const Renderer = ATTACK_RENDERERS[piece.type];
         if (Renderer === undefined) {
           return null;
@@ -211,7 +207,7 @@ export default function AttackLayer({
             when their time was up. Wrapped, the two multiply — the fade takes
             the marks from whatever strength they are drawn at down to nothing.
           */
-          <g key={key} className={leaving ? "mark-going" : "mark-coming"}>
+          <g key={key} className={leaving ? "mark-going" : "mark-coming"} {...props}>
           <g
             /*
               Marked as outlined where a filter runs, because the filter has

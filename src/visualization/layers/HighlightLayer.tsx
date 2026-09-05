@@ -81,7 +81,7 @@ export default function HighlightLayer({
       className="highlight-layer"
       fill={negative ? undefined : color}
     >
-      {spots.map(({ key, item: square, leaving }) => {
+      {spots.map(({ key, item: square, leaving, props }) => {
         const { x, y } = squareCenter(square, orientation);
         /*
           The other kind of square's colour, taken from the board's own two
@@ -105,6 +105,7 @@ export default function HighlightLayer({
             ]
               .filter(Boolean)
               .join(" ")}
+            {...props}
           />
         );
       })}

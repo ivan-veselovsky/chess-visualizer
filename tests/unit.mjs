@@ -14,6 +14,8 @@ const DEFAULT_SETTINGS = DEFAULT_SETTINGS_JSON;
 import { lineOf as lineFromHistory } from "../src/chess/history.ts";
 import { openingFromUrl } from "../src/app/sharing.ts";
 import { reachSignature } from "../src/chess/attacks.ts";
+import { halfMoves } from "../src/app/friend/counting.ts";
+import { pinnedSquares } from "../src/chess/pins.ts";
 import {
   attackersOn,
   boardDuring,
@@ -35,6 +37,7 @@ import {
   saveGame,
   savedGames,
   seatOf,
+  playersOf,
   spellGameId,
 } from "../src/app/friend/storage.ts";
 import { friendlyGameName } from "../src/app/friend/gameName.ts";
@@ -561,6 +564,69 @@ console.log("\nA piece in the air\n");
   check("with neither of them attacking while they travel",
     attackersOn(held, "f1", "w", flying).length === 0,
     attackersOn(held, "f1", "w", flying).join());
+}
+
+{
+  /*
+    A piece in the air pins nothing.
+
+    1.d4 Nf6 2.c4 e6 3.Nc3 Bb4: the bishop holds the knight on c3, which cannot
+    step off the diagonal without giving the king away. Lift the bishop — it is
+    partway to somewhere else — and the knight is free, however much of the line
+    the bishop is still standing in.
+  */
+  const board = new Chess();
+  for (const san of ["d4", "Nf6", "c4", "e6", "Nc3", "Bb4"]) {
+    board.move(san);
+  }
+  check("a bishop on b4 pins the knight on c3",
+    pinnedSquares(board).join() === "c3", pinnedSquares(board).join());
+  check("and holds nothing while it is in the air",
+    pinnedSquares(board, ["b4"]).length === 0,
+    pinnedSquares(board, ["b4"]).join());
+  check("while a piece in the air elsewhere changes nothing",
+    pinnedSquares(board, ["f6"]).join() === "c3",
+    pinnedSquares(board, ["f6"]).join());
+}
+
+{
+  /*
+    One browser at both ends of one game: two seats, two tokens, one number.
+    The list shows the game twice and the two rows disagree about who won, so
+    each has to say which side it is speaking for.
+  */
+  const played = { v: 1, gameId: "829115739", token: "t", ending: undefined };
+  const mine = { ...played, you: "w", myName: "Bob", opponentName: "Alice", role: "challenger" };
+  const theirs = { ...played, you: "b", myName: "Alice", opponentName: "Bob", role: "opponent" };
+  check("the two seats of one game are two records",
+    seatOf(mine.gameId, mine.role) !== seatOf(theirs.gameId, theirs.role),
+    `${seatOf(mine.gameId, mine.role)} and ${seatOf(theirs.gameId, theirs.role)}`);
+  const white = playersOf(mine);
+  const black = playersOf(theirs);
+  check("and both name the same pair, White first",
+    white.white === "Bob" && white.black === "Alice" &&
+      black.white === "Bob" && black.black === "Alice",
+    JSON.stringify([white, black]));
+  check("each from its own side",
+    white.yours === "w" && black.yours === "b",
+    `${white.yours} and ${black.yours}`);
+  check("while a challenge nobody has answered names nobody",
+    playersOf({ ...mine, you: "opponentChooses", opponentName: null }) === null);
+}
+
+{
+  /*
+    How far a game has got, in one wording wherever it is said. Two places once
+    counted the same thing differently — the challenge dialog in half-moves and
+    the game's own panel in moves — so a game offered as twelve came back as
+    six, and eleven of them would have come back as six and a half.
+  */
+  check("nothing played says so", halfMoves(0) === "no moves yet", halfMoves(0));
+  check("one is singular", halfMoves(1) === "1 half-move", halfMoves(1));
+  check("and the rest are not",
+    halfMoves(11) === "11 half-moves" && halfMoves(12) === "12 half-moves",
+    `${halfMoves(11)} / ${halfMoves(12)}`);
+  check("a count below nothing is still nothing", halfMoves(-3) === "no moves yet");
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

@@ -26,7 +26,7 @@ export default function InviteDetails({
   return (
     <>
       <div className="board-controls">
-        <label htmlFor={`${idPrefix}-link`}>Invite link</label>
+        <label htmlFor={`${idPrefix}-link`}>Challenge link</label>
         <input
           id={`${idPrefix}-link`}
           type="text"
@@ -38,7 +38,7 @@ export default function InviteDetails({
         <CopyButton
           label="Copy"
           icon={<ShareIcon />}
-          title="Copy the invite link"
+          title="Copy the challenge link"
           text={() => link}
         />
       </div>

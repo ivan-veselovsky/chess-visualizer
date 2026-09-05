@@ -15,14 +15,14 @@
   },
   "move": {
     "speed": 10,
-    "time": 0.8,
+    "time": 0.75,
     "blend": 0.93
   },
   "grid": {
     "show": true,
     "color": "#8a8a8a"
   },
-  "fadeTimeMs": 300,
+  "fadeTimeMs": 250,
   "playPeriodPerPositionSec": 1,
   "showCapturedPiecesBar": true,
   "pieceTint": {

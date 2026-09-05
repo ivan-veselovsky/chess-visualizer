@@ -13,9 +13,11 @@ interface PinLayerProps {
   lifted?: Square | null;
   /** How long a ring takes to come and go, in milliseconds. */
   fadeTimeMs?: number;
-  /** Squares whose piece is in the air, where a ring would hang over nothing.
-      What such a piece pins is another matter: it is still standing in the
-      line, so the ring on the piece it holds is still true. */
+  /** Squares whose piece is in the air. No ring is drawn on such a piece, where
+      it would hang over nothing — and none is drawn for one either: a piece in
+      the air attacks nothing, so whatever it was pinning is let go for as long
+      as the journey lasts. It goes on blocking the line all the same, which is
+      a different thing and is why it is still on the board. */
   flying?: Square[];
   orientation?: Orientation;
 }
@@ -36,7 +38,16 @@ export default function PinLayer({
   fadeTimeMs = 0,
   orientation = "white",
 }: PinLayerProps) {
-  const pinned = useMemo(() => new Set(pinnedSquares(position)), [position]);
+  /* The pieces that are not attacking just now, as one string, because that is
+     what a list of squares can be remembered by from one render to the next. */
+  const idle = [lifted, ...flying].filter((square) => square !== null).join(" ");
+  const pinned = useMemo(
+    () =>
+      new Set(
+        pinnedSquares(position, idle === "" ? [] : (idle.split(" ") as Square[]))
+      ),
+    [position, idle]
+  );
   const radius = (Math.max(attackSettings.pins.ringDiameter, 0) * SQUARE_SIZE) / 2;
   const rings = useFading(
     radius === 0
@@ -58,7 +69,7 @@ export default function PinLayer({
 
   return (
     <g className="pin-layer">
-      {rings.map(({ key, item: square, leaving }) => {
+      {rings.map(({ key, item: square, leaving, props }) => {
         const { x, y } = squareCenter(square, orientation);
         return (
           <circle
@@ -67,6 +78,7 @@ export default function PinLayer({
             cy={y}
             r={radius}
             className={`pin-marker ${leaving ? "mark-going" : "mark-coming"}`}
+            {...props}
           />
         );
       })}

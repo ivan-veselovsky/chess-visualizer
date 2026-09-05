@@ -27,7 +27,7 @@ export function describeEnding(reason: EndReason): string {
     case "challengeDeclined":
       return "Challenge declined";
     case "challengeCancelled":
-      return "Invite taken back";
+      return "Challenge taken back";
   }
 }
 
@@ -52,7 +52,7 @@ export function endingOf(
     fiftyMove: "the fifty-move rule",
     insufficientMaterial: "too little material to mate",
     challengeDeclined: "the challenge being declined",
-    challengeCancelled: "the invite being taken back",
+    challengeCancelled: "the challenge being taken back",
   };
   if (mine === null) {
     return `Drawn by ${how[over.reason]}.`;

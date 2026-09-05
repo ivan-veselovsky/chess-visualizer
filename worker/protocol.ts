@@ -124,6 +124,18 @@ export interface GameRecord {
   /** Who has a draw on offer, when one is standing. */
   drawOfferedBy: Color | null;
   createdAt: number;
+  /**
+   * When the game began and when it finished — set as the status reaches each,
+   * and null until it does.
+   *
+   * Kept by the object rather than by either browser, because they are facts
+   * about the game and not about a chair at it: both players should be told the
+   * same times, a game walked back into from another browser has times to show,
+   * and a clock that is wrong is then wrong for the record rather than for one
+   * reader. A challenge nobody answered never started, and keeps a null.
+   */
+  startedAt: number | null;
+  endedAt: number | null;
 }
 
 /**
@@ -201,6 +213,16 @@ export type FromClient =
   /** Comes back to a game already joined, on a new connection. */
   | { type: "resume"; v?: number; token: string }
   /**
+   * How a game stands, for somebody keeping a list of them rather than playing
+   * one.
+   *
+   * `resume` would answer the same question, and answer it by sitting down: it
+   * binds the connection to the player and tells the opponent they are here.
+   * A browser looking over its games would light and unlight every opponent's
+   * lamp in turn, having joined nothing. This reads and says nothing to anyone.
+   */
+  | { type: "standing"; v?: number; token: string }
+  /**
    * A move, and which ply it is meant to be.
    *
    * The number is what makes a move idempotent: sent twice after a connection
@@ -236,6 +258,8 @@ export type FromServer =
       /** Everything played so far — nothing, unless this is a reconnection. */
       moves: string[];
       takebacksLeft: Tally;
+      startedAt: number | null;
+      endedAt: number | null;
     }
   | { type: "declined" }
   /**
@@ -251,6 +275,8 @@ export type FromServer =
       opponent: string;
       you: Color;
       terms: Terms;
+      startedAt: number | null;
+      endedAt: number | null;
       /**
        * The line the game starts on: empty for a game beginning from nothing
        * played, and the carried moves for one being continued. The challenger
@@ -270,6 +296,8 @@ export type FromServer =
       moves: string[];
       takebacksLeft: Tally;
       drawOfferedBy: Color | null;
+      startedAt: number | null;
+      endedAt: number | null;
     }
   /**
    * A move that has happened, told to both players by the one place that
@@ -289,7 +317,7 @@ export type FromServer =
   /** A move unmade, and what that left. */
   | { type: "tookBack"; ply: number; fen: string; takebacksLeft: Tally }
   /** The game is over by something other than a move. */
-  | { type: "ended"; result: GameResult; reason: EndReason }
+  | { type: "ended"; result: GameResult; reason: EndReason; at: number }
   | { type: "drawOffered"; by: Color }
   | { type: "drawDeclined" }
   /**
@@ -398,7 +426,7 @@ export interface Terms {
  * A client that sends nothing here is older than the version that started
  * sending it, and is treated as a mismatch on those grounds.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /**
  * How often each player asks the other, and how long an unanswered question

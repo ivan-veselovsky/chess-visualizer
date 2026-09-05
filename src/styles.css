@@ -569,6 +569,18 @@ body {
   min-width: 10em;
 }
 
+/*
+  The odds are three choices answering one question, and they belong on one
+  line. A select is by default as wide as its longest option — "The game on my
+  board (24 moves)" is a long option — so on a board with a game on it the last
+  of the three was pushed onto a row of its own. Given leave to shrink they
+  share the row instead, and what a narrow one cannot show it trims.
+*/
+.challenge-dialog .board-controls > .choice-select {
+  flex: 1 1 6em;
+  min-width: 0;
+}
+
 .game-select option {
   color: var(--app-fg);
   background: var(--app-bg);
@@ -2490,9 +2502,17 @@ input[type="color"]::-moz-color-swatch {
   its specificity — a rule without the guard would leave the dialog on screen
   while it was closed.
 */
-.challenge-dialog[open] {
-  /* Rows with room between them. They are four separate questions and were
-     sitting directly on top of one another. */
+/*
+  Rows with room between them. They are separate questions and were sitting
+  directly on top of one another.
+
+  Both dialogs that ask something about a game, not only the one that offers it:
+  the one that takes a game up is laid out the same way and had its title
+  resting on the field below it, the title carrying no margin of its own because
+  this gap is what spaces these dialogs out.
+*/
+.challenge-dialog[open],
+.join-dialog[open] {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
@@ -2551,6 +2571,14 @@ input[type="color"]::-moz-color-swatch {
 
 .challenge-number {
   flex: 0 0 5rem;
+}
+
+/* At the size of the row it is part of. The quieter suffixes in the tabs stand
+   after a number in a column of settings, where being small is what keeps them
+   out of the way; here it is one word in a sentence — "0 each" — and reading it
+   smaller than the label in front of it made the line look like two things. */
+.challenge-dialog .field-suffix {
+  font-size: 0.9rem;
 }
 
 /*
@@ -2645,6 +2673,16 @@ input[type="color"]::-moz-color-swatch {
   margin-top: 0.7rem;
 }
 
+/* The game being played, held apart from the list of the others below it. The
+   app's own panel: a hairline, the panel's ground, and room to breathe inside
+   it. */
+.invite-panel-framed {
+  padding: 0.75rem 0.9rem 0.9rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-bg);
+}
+
 /* Except a warning, which is a thing apart wherever it stands. */
 .invite-alert {
   padding: 0.75rem 0.9rem;
@@ -2668,17 +2706,35 @@ input[type="color"]::-moz-color-swatch {
 .invite-heading-row {
   display: flex;
   align-items: baseline;
-  gap: 5rem;
+  /* A gap this wide when there is room for it, and no less than this when there
+     is not: what holds the button at the far end is the margin below. */
+  gap: 2rem;
 }
 
 .invite-heading-row > .reset-button {
-  /* Wider than its one word asks for: it is the only thing on this line that
-     can be pressed, and a button the size of the word reads as a label. */
+  /* At the panel's right edge, whatever the heading in front of it happens to
+     say: a button that moves with the length of a name is a button that has to
+     be looked for each time the name changes. */
+  margin-left: auto;
+  /* Wider than its two words ask for: it is the only thing on this line that
+     can be pressed, and a button the size of the words reads as a label. */
   min-width: 8rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.4em;
+}
+
+/* The three facts about a game that the board cannot show, under the line that
+   names it: quieter than the heading, and on one line so that a game's whole
+   standing can be taken in at a glance. */
+.invite-facts {
+  margin: 0.1rem 0 0;
+  /* The size the rest of the panel is written at. Left to inherit, it came out
+     larger than the heading above it, which made the quietest line on the panel
+     the loudest. */
+  font-size: 0.9rem;
+  color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
 /* The count of what a button has left, set under that button rather than at
@@ -2713,7 +2769,11 @@ input[type="color"]::-moz-color-swatch {
      rather than a control, and set tight against the heading above and the
      buttons below it read as a caption on one and a label on the other. */
   margin: 2rem 0;
-  font-size: 0.85rem;
+  /* The size of everything else in the panel. It was set smaller when this was
+     only a picture to glance at, but the two names in it are the players' own
+     and are read as names rather than as a caption. Quieter than the rest is
+     what the colour is for. */
+  font-size: 0.9rem;
   color: color-mix(in srgb, currentColor 75%, transparent);
 }
 
@@ -2783,22 +2843,107 @@ input[type="color"]::-moz-color-swatch {
   margin-top: 0.4rem;
 }
 
+/* A row is two things, not one: the game to go to, and a tick for forgetting
+   it. They are side by side rather than nested, because a checkbox inside a
+   button is a button that cannot be ticked. */
+.saved-game-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+/* Which game the panel above is showing. A mark at the head of the row rather
+   than a frame around it: a frame costs a row's worth of height across the
+   whole list to say one thing about one line of it. */
+.saved-game-here {
+  flex: 0 0 0.7em;
+  font-weight: 700;
+}
+
+.saved-game-row.here .saved-game-pair {
+  font-weight: 600;
+}
+
+.saved-game-mark {
+  flex: 0 0 1.1em;
+  text-align: center;
+}
+
+.saved-game-tick {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* Enough rows to see the shape of the list, and then it scrolls. In rows rather
+   than in a fraction of the panel: the panel is itself a scroller, and two
+   scrollers sharing a height fight over every wheel turn. */
+.games-scroll {
+  max-height: 11rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* A game that was being played when the line went down. The mark is the state
+   it was last seen in, in the colour the connection lights use for a line that
+   is not up — so one glance says both what the game was and that nobody could
+   ask. The tooltip and the label say it in words, colour being no place to keep
+   a fact on its own. */
+/* Being played, and the object is answering for it: the colour the connection
+   lights use for a line that is up, so the list and the diagram under a game
+   say the same thing in the same way. */
+.saved-game-mark.playing {
+  color: #35b45a;
+}
+
+.saved-game-mark.unconfirmed {
+  color: #e04b3f;
+}
+
+.games-panel {
+  margin-top: 0.9rem;
+}
+
+.games-actions {
+  margin-top: 0.8rem;
+}
+
 /* The number first and what the game is after it: the digits are what a game
    is looked up by, and they line up down the list where the words do not. */
+/* The part of a row that goes to the game: everything but the tick. The names
+   take what room is left and the standing is pushed to the far end, so a list
+   of thirty reads down two edges rather than four. */
 .saved-game {
   display: flex;
   align-items: baseline;
-  gap: 0.75em;
-  width: 100%;
+  gap: 0.6em;
+  flex: 1 1 auto;
   min-width: 0;
   text-align: left;
 }
 
+.saved-game-pair {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: auto;
+}
+
 .saved-game-who {
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: color-mix(in srgb, currentColor 78%, transparent);
+}
+
+/* The names between the number and how the game stands: at full strength,
+   because they are what tells two rows of one game apart, and shrinking before
+   the number does because a long name is likelier than a long ending. */
+.saved-game-pair {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .saved-game-id {
@@ -2946,7 +3091,46 @@ input[type="color"]::-moz-color-swatch {
   cursor: pointer;
 }
 
+/*
+  Two answers to one question — decline and accept, no and yes — at one width.
+
+  A broad "Accept draw" beside a narrow "No" reads as though one of them were
+  the expected answer, and neither of them is: they are the two ways the
+  question can go, and the panel should not lean on the reader's arm.
+
+  The width is the wider label's, with room either side of it, and the narrower
+  one is stretched to match. That is what the grid does here: laid out in
+  columns of one fraction each and sized to its own content, every column comes
+  out the width of the widest thing in any of them — so the pair grows with the
+  words rather than with a number somebody once measured. The room either side
+  is `--answer-room`, in ems, so it stays room-around-a-word at any text size.
+*/
+.button-pair {
+  --answer-room: 3em;
+  /* Between the two: wide enough that the pair reads as two answers rather than
+     one control split down the middle, and in ems with the room either side so
+     the whole thing scales together. */
+  --answer-apart: 1.5em;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  width: max-content;
+  gap: var(--answer-apart);
+}
+
+.button-pair > .reset-button {
+  padding-inline: var(--answer-room);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* A question from the other player, which arrives while the reader is looking
+   at something else. Stood well clear of whatever is above it: it is not
+   another line of the panel but a thing being asked, and pressed against the
+   count above it the two read as one block. */
 .invite-question {
+  margin-top: 1.1rem;
   margin-bottom: 0.55rem;
   font-size: 0.9rem;
 }

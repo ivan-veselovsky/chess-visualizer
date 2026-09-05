@@ -27,7 +27,7 @@ console.log("The other ways an invite can end\n");
   bob.close(); alice.close();
 }
 
-// The host cannot answer their own invite.
+// The host cannot answer their own challenge.
 {
   const game = gameId(), host = token();
   const bob = await connect(game);
@@ -36,8 +36,8 @@ console.log("The other ways an invite can end\n");
   const same = await connect(game);
   same.say({ type: "answer", token: host, name: "Bob", accept: true });
   await answered(same);
-  check("the host cannot answer their own invite",
-    same.heard[0]?.type === "error" && /your own invite/.test(same.heard[0].reason),
+  check("the host cannot answer their own challenge",
+    same.heard[0]?.type === "error" && /your own challenge/.test(same.heard[0].reason),
     JSON.stringify(same.heard[0]));
   bob.close();
 }

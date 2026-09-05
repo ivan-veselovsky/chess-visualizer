@@ -10,6 +10,8 @@ interface InviteDialogProps {
   name: string;
   onAnswer: (accept: boolean, name: string, color?: Color) => void;
   onClose: () => void;
+  /** Said as the dialog goes, so a name typed here outlives it. */
+  onName: (name: string) => void;
 }
 
 /**
@@ -23,6 +25,7 @@ interface InviteDialogProps {
  * apart: the one that ends it sits away from the one that takes it up.
  */
 export default function InviteDialog({
+  onName,
   phase,
   name,
   onAnswer,
@@ -54,7 +57,13 @@ export default function InviteDialog({
     <dialog
       ref={dialog}
       className="pgn-dialog challenge-dialog invite-dialog"
-      onClose={onClose}
+      onClose={() => {
+        /* A name typed here is kept whichever way this closes: somebody who
+           names themselves and then backs out has still said what they are
+           called. */
+        onName(myName);
+        onClose();
+      }}
     >
       {phase.kind === "invited" && (
         <>
@@ -134,31 +143,33 @@ export default function InviteDialog({
           </dl>
 
           <div className="pgn-dialog-actions">
-            <button
-              type="button"
-              className="reset-button controls-end"
-              title="Turn this challenge down — the invite cannot be used again"
-              onClick={() => onAnswer(false, myName.trim())}
-            >
-              Decline
-            </button>
-            <button
-              type="button"
-              className="reset-button"
-              disabled={myName.trim() === "" || (choosing && pick === null)}
-              title={
-                choosing && pick === null ? "Choose a side first" : undefined
-              }
-              onClick={() =>
-                onAnswer(
-                  true,
-                  myName.trim(),
-                  choosing ? (pick ?? "w") : undefined
-                )
-              }
-            >
-              Accept
-            </button>
+            <div className="button-pair controls-end">
+              <button
+                type="button"
+                className="reset-button"
+                title="Turn this challenge down — the challenge cannot be used again"
+                onClick={() => onAnswer(false, myName.trim())}
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                className="reset-button"
+                disabled={myName.trim() === "" || (choosing && pick === null)}
+                title={
+                  choosing && pick === null ? "Choose a side first" : undefined
+                }
+                onClick={() =>
+                  onAnswer(
+                    true,
+                    myName.trim(),
+                    choosing ? (pick ?? "w") : undefined
+                  )
+                }
+              >
+                Accept
+              </button>
+            </div>
           </div>
         </>
       )}

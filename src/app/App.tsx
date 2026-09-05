@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -77,6 +76,8 @@ import ToggleField from "./ToggleField";
 import ChallengeDialog from "./friend/ChallengeDialog";
 import InviteDialog from "./friend/InviteDialog";
 import InvitePanel from "./friend/InvitePanel";
+import { gameInUrl } from "./friend/connection";
+import { loadGame } from "./friend/storage";
 import JoinDialog from "./friend/JoinDialog";
 import SavedGames from "./friend/SavedGames";
 import { describeEnding } from "./friend/ending";
@@ -84,6 +85,7 @@ import { friendlyGameName } from "./friend/gameName";
 import PlayerName from "./friend/PlayerName";
 import { useFriendGame } from "./friend/useFriendGame";
 import type { Heatmap, Settings } from "./settings";
+import type { ColorChoice, Terms } from "../../worker/protocol";
 import { DEFAULT_SETTINGS } from "./presets";
 import type { SideIntensity } from "../visualization/settings";
 import {
@@ -220,7 +222,31 @@ export default function App() {
     });
   }
 
-  const [tab, setTab] = useState<PanelTab>("game");
+  /*
+    Which panel the page opens on.
+
+    The board's own tab, unless the address names a game still being played —
+    a reload of a tab that was in one, or a link followed back into one. Then it
+    opens on the game: that is what the reader came back for, the panel saying
+    whose move it is and who is still connected is there, and half of the
+    board's tab is disabled while a game with a friend is on anyway.
+
+    A game that is over is the other way round. There is nothing left to do to
+    it, and somebody who left a tab sitting at a finished game was reading it —
+    stepping the line, taking the PGN off it — which is the board's tab.
+
+    Whether it is over is asked of the seat this browser holds, which is on hand
+    at the first render where the object is a round trip away. An address naming
+    a game this browser has no seat at is somebody's challenge being followed,
+    and that is a game about to start rather than one already over.
+  */
+  const [tab, setTab] = useState<PanelTab>(() => {
+    const seat = gameInUrl();
+    if (seat === null) {
+      return "game";
+    }
+    return loadGame(seat)?.ending === undefined ? "match" : "game";
+  });
   /*
     What the page opens on. A link may name a position; read once, at the first
     render, so that stepping away from it afterwards is not undone by a later
@@ -271,7 +297,7 @@ export default function App() {
     }
     const loaded = historyFromLine(entries);
     setHistory(loaded);
-    setFen(currentPosition(loaded));
+    showPosition(currentPosition(loaded));
     setLibraryGame(null);
     setStashName(null);
     return null;
@@ -376,7 +402,7 @@ export default function App() {
       entries.unshift({ fen: board.fen(), move: san });
     }
     setHistory({ entries, current: 0 });
-    setFen(entries[0].fen);
+    showPosition(entries[0].fen);
     setLibraryGame(null);
     setStashName(null);
   }
@@ -397,7 +423,7 @@ export default function App() {
       return;
     }
     setHistory(game.history);
-    setFen(currentPosition(game.history));
+    showPosition(currentPosition(game.history));
     setStashName(name);
     setLibraryGame(null);
     setLibraryGameError(null);
@@ -408,7 +434,7 @@ export default function App() {
    * anything that had followed dropped.
    */
   function playPosition(fen: string, move: string) {
-    setFen(fen);
+    showPosition(fen);
     setHistory(pushPosition(history, fen, move));
   }
 
@@ -418,7 +444,7 @@ export default function App() {
    * connecting it to what came before, so nothing to step back through.
    */
   function setPosition(next: string) {
-    setFen(next);
+    showPosition(next);
     setHistory(startHistory(next));
     setLibraryGame(null);
     setLibraryGameError(null);
@@ -441,7 +467,7 @@ export default function App() {
       return;
     }
     setHistory(goToPosition(history, at));
-    setFen(next);
+    showPosition(next);
   }
 
   /**
@@ -451,7 +477,7 @@ export default function App() {
    */
   function showHistory(moved: PositionHistory) {
     setHistory(moved);
-    setFen(currentPosition(moved));
+    showPosition(currentPosition(moved));
   }
 
   function stepHistory(direction: "first" | "previous" | "next" | "last") {
@@ -541,49 +567,37 @@ export default function App() {
     board: Chess;
     flying: Square[];
   } | null>(null);
-  const shownFen = useRef<string | null>(null);
+  /* What the board is showing, as the flight planner last left it. It starts
+     where the board starts: the first position is not arrived at, so nothing
+     travels to it. */
+  const shownFen = useRef<string>(currentPosition(history));
   const draggedTo = useRef<Square | null>(null);
   /*
-    Before the paint, not after it.
+    What travels when the board goes from one position to another, worked out
+    where the position changes rather than noticed afterwards.
 
-    An ordinary effect is not promised to run before the browser draws, so the
-    frame showing the finished position — the piece already arrived, its rays
-    already drawn from where it lands — could reach the screen first and be
-    taken away again a moment later. That is a flash of the answer before the
-    question, and it is what a reader sees as a flicker at the start of a move.
+    This was a layout effect once: the position was set, React drew it, and the
+    effect set the flight that holds it back before anything reached the screen.
+    Nothing was ever painted wrongly — but a render happened in between, showing
+    the move already made, and everything that watches the board for changes was
+    told a story that was never true. The marks believed a pin appeared and went
+    again, and that a taken piece's marks vanished and came back, and the fades
+    grew a set of graces to wait those phantoms out.
 
-    A layout effect runs after the DOM is updated and before anything is shown,
-    so the board being held back is the first thing drawn. The price is that
-    everything below stands between the click and the screen, which is why
-    `moveBetween` was made to work on one board rather than thirty.
+    Called from the same handler that moves the position, all of it lands in one
+    commit and there is no in-between to lie about.
   */
-  useLayoutEffect(() => {
-    const before = shownFen.current;
-    const after = currentPosition(history);
-    shownFen.current = after;
-    const dragged = draggedTo.current;
-    draggedTo.current = null;
-    /*
-      Whatever was in the air comes down, before anything else is decided.
-
-      A journey is drawn towards one position, and this is a different one — so
-      it is over however it got here. Left standing it never ended: jumping to
-      the start of a game while a move was crossing the board took every other
-      route out of the code below, which sets a flight but had nothing to clear
-      one, and the travelling piece stayed hanging over the board for good. The
-      timer that would have landed it goes with the effect that booked it.
-    */
-    if (before !== after) {
-      setFlight(null);
-      setDuring(null);
-    }
+  function planJourney(
+    before: string,
+    after: string,
+    dragged: Square | null
+  ): { flight: Flight; during: { board: Chess; flying: Square[] } } | null {
     if (
-      before === null ||
       before === after ||
       settings.move.speed <= 0 ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      return;
+      return null;
     }
     /*
       Which way the board went. Forward is a move played from what was shown;
@@ -599,7 +613,7 @@ export default function App() {
     const backward = forward === null ? moveBetween(after, before) : null;
     const move = forward ?? backward;
     if (move === null || (forward !== null && move.to === dragged)) {
-      return;
+      return null;
     }
     const { travellers: played } = travellersOf(move);
     // Going back, each piece retraces its own journey.
@@ -624,7 +638,7 @@ export default function App() {
     );
     const ms = flightTime(squares, moveSpeed(settings.move, squares));
     if (ms <= 0) {
-      return;
+      return null;
     }
 
     /*
@@ -650,33 +664,68 @@ export default function App() {
     const stood = forward !== null ? before : after;
     const held = boardDuring(stood);
     if (held === null) {
-      return;
+      return null;
     }
 
-    setFlight({ travellers, ms });
-    /*
-      The squares the travelling pieces stand on in that position — which is the
-      one the move was played from either way, forward or back, so it is always
-      the move's own `from`. They stay on the board and go on blocking; what
-      they no longer do is attack, and that is what naming them here withholds.
-    */
-    setDuring({ board: held, flying: played.map((piece) => piece.from) });
-    /*
-      A long stop, not the length of the journey.
+    return {
+      flight: { travellers, ms },
+      /*
+        The squares the travelling pieces stand on in that position — which is
+        the one the move was played from either way, forward or back, so it is
+        always the move's own `from`. They stay on the board and go on blocking;
+        what they no longer do is attack, and that is what naming them here
+        withholds.
+      */
+      during: { board: held, flying: played.map((piece) => piece.from) },
+    };
+  }
 
-      What ends a flight is the piece arriving — the board says so, and `land`
-      below is what it says it to. This is only in case it never does: an
-      animation the browser refuses to run, a layer that never measured itself.
-      Timed at the journey's own length it was a race against it, and one the
-      board kept winning: the piece was taken off four fifths of the way there
-      and the rest of its journey became a jump.
+  /**
+   * The board goes to a position.
+   *
+   * Every route to another position comes through here — a move played, a step
+   * through the list, a game loaded, a move arriving from the other player —
+   * and each of them says so in the same breath as it changes the list itself.
+   * That is the point of it: the position, the piece in the air and the board
+   * held back behind it are three parts of one change, and a reader who saw
+   * them arrive separately would be watching a flicker.
+   */
+  function showPosition(next: string) {
+    const before = shownFen.current;
+    shownFen.current = next;
+    const dragged = draggedTo.current;
+    draggedTo.current = null;
+    const journey = planJourney(before, next, dragged);
+    /*
+      Set either way, so that a position reached while something was still
+      travelling brings it down. Left standing it never ended: jumping to the
+      start of a game mid-move once left the piece hanging over the board.
     */
+    setFlight(journey?.flight ?? null);
+    setDuring(journey?.during ?? null);
+    setFen(next);
+  }
+
+  /*
+    A long stop, not the length of the journey.
+
+    What ends a flight is the piece arriving — the board says so, and `land`
+    below is what it says it to. This is only in case it never does: an
+    animation the browser refuses to run, a layer that never measured itself.
+    Timed at the journey's own length it was a race against it, and one the
+    board kept winning: the piece was taken off four fifths of the way there
+    and the rest of its journey became a jump.
+  */
+  useEffect(() => {
+    if (flight === null) {
+      return;
+    }
     const landed = window.setTimeout(() => {
       setFlight(null);
       setDuring(null);
-    }, ms + 2000);
+    }, flight.ms + 2000);
     return () => window.clearTimeout(landed);
-  }, [history, settings.move.speed, settings.orientation]);
+  }, [flight]);
 
   /*
     A link that asked for the game to play itself.
@@ -719,7 +768,7 @@ export default function App() {
     */
     onMoved: ({ san, fen: after }) => {
       setHistory((current) => pushPosition(current, after, san));
-      setFen(after);
+      showPosition(after);
     },
     /*
       The whole line, on joining a game or coming back to one. Replayed here
@@ -736,7 +785,7 @@ export default function App() {
           ? { entries: current.entries.slice(1), current: 0 }
           : current
       );
-      setFen(back);
+      showPosition(back);
     },
     onLine: ({ initialFEN, moves }) => {
       if (initialFEN === "") {
@@ -764,6 +813,49 @@ export default function App() {
     },
   });
   const [joining, setJoining] = useState(false);
+  /*
+    Whether the list of games is open, and which of them are ticked for
+    forgetting. The list is a way about the games this browser holds rather than
+    a thing to be in: it opens under the game being shown, and closes again.
+  */
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
+  /*
+    Whether a game is already on the board. What it decides is not whether
+    another game may be started — it may — but which way round: the game in
+    front of the reader keeps the connection, and anything else is arranged on
+    a line of its own and left in the list.
+  */
+  const aside = friend.phase.kind === "playing" && friend.phase.over === null;
+  const [challengingAside, setChallengingAside] = useState(false);
+  /** A challenge being looked at while another game is being played. */
+  const [considering, setConsidering] = useState<{
+    gameId: string;
+    challenger: string;
+    you: ColorChoice;
+    terms: Terms;
+  } | null>(null);
+  const [asideTrouble, setAsideTrouble] = useState<string | null>(null);
+  /*
+    Read afresh whenever it is opened, and whenever this tab arrives at or
+    leaves a game — the two moments when what the list says may have stopped
+    being true. Nothing polls: a list nobody is looking at is not worth a socket
+    a minute, and the button beside it is there for a reader who wants to be
+    sure.
+  */
+  const readGames = friend.readGames;
+  /*
+    A game ending is not a phase change — the phase stays `playing` and gains an
+    ending — so watching the kind alone left the row for a game just resigned
+    saying "in play", and a row saying that cannot be ticked. Whether the game
+    being shown is over is therefore watched as well.
+  */
+  const gameOver =
+    friend.phase.kind === "playing" && friend.phase.over !== null;
+  useEffect(() => {
+    if (tab === "match") {
+      void readGames();
+    }
+  }, [tab, friend.phase.kind, gameOver, readGames]);
   /**
    * A game that has begun but is not on the board yet, because what is on the
    * board has not been dealt with. Held until the question is answered, and
@@ -1388,24 +1480,56 @@ export default function App() {
           >
                 {/* Offering a game, and taking one up. */}
               <div className="board-controls match-actions">
+                {/*
+                  Neither of these is barred by a game already being played. A
+                  browser holds as many seats as it likes and shows one of them;
+                  a game begun or taken up while another is on the board joins
+                  the list rather than pushing that one off it, and is there to
+                  be gone to when its turn comes.
+                */}
                 <button
                   type="button"
                   className="reset-button"
-                  disabled={inGame !== null}
-                  title={inGame ?? undefined}
-                  onClick={friend.start}
+                  title={
+                    aside
+                      ? "Offer another game; it joins the list below"
+                      : undefined
+                  }
+                  onClick={() => (aside ? setChallengingAside(true) : friend.start())}
                 >
                   Send a challenge {"\u2026"}
                 </button>
                 <button
                   type="button"
                   className="reset-button"
-                  disabled={inGame !== null}
-                  title={inGame ?? "Enter the id somebody read out to you"}
+                  title={
+                    aside
+                      ? "Take up another game; it joins the list below"
+                      : "Enter the id somebody read out to you"
+                  }
                   onClick={() => setJoining(true)}
                 >
                   Accept a challenge {"\u2026"}
                 </button>
+              </div>
+
+              {/* Under the two things this tab does, and above everything that
+                  changes with the game being shown. It is about the view rather
+                  than about any one game, so it keeps its place whether a game
+                  is on the board, a list is open under it, or neither: a switch
+                  that moves about is a switch that has to be looked for. */}
+              <div className="board-controls match-view">
+                <ToggleField
+                  id="flip-board-match"
+                  label="Black at bottom"
+                  checked={settings.orientation === "black"}
+                  onChange={(flipped) =>
+                    setSettings({
+                      ...settings,
+                      orientation: flipped ? "black" : "white",
+                    })
+                  }
+                />
               </div>
 
               {/*
@@ -1433,16 +1557,13 @@ export default function App() {
                 </aside>
               )}
 
-              {/* Only when this tab is at no game: a tab that is at one says so in
-                  its address, and the panel below is about that game. */}
-              {friend.phase.kind === "idle" && (
-                <SavedGames games={friend.games} onOpen={friend.rejoin} />
-              )}
-
               <InvitePanel
                 phase={friend.phase}
                 link={friend.link}
                 myName={friend.name}
+                /* The line on the board is the game's line while one is being
+                   played, so this is what the object holds, counted here. */
+                movesPlayed={Math.max(history.entries.length - 1, 0)}
                 canTakeBack={takeback.can}
                 takebackReason={takeback.why}
                 onTakeBack={friend.takeBack}
@@ -1454,23 +1575,106 @@ export default function App() {
                 onDismissNotice={friend.dismissNotice}
               />
 
-            {/* Here as well as on the game tab: whoever has just been given
-                Black wants the board turned round, and that is the moment they
-                are looking at this panel rather than that one. Stood off from
-                the game above it — it is about the view, not about the game. */}
-            <div className="board-controls match-view">
-              <ToggleField
-                id="flip-board-match"
-                label="Black at bottom"
-                checked={settings.orientation === "black"}
-                onChange={(flipped) =>
-                  setSettings({
-                    ...settings,
-                    orientation: flipped ? "black" : "white",
-                  })
-                }
-              />
-            </div>
+
+            {asideTrouble !== null && (
+              <aside className="invite-panel invite-alert" role="alert">
+                <p className="invite-note">{asideTrouble}</p>
+                <div className="pgn-dialog-actions">
+                  <button
+                    type="button"
+                    className="reset-button"
+                    onClick={() => setAsideTrouble(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </aside>
+            )}
+
+            {/*
+              The other games, under the one being shown, and always there when
+              there are any: it stood behind a button for a while, and a list
+              one has to ask for is a list one forgets is holding anything.
+            */}
+            {friend.games.length > 0 && (
+              <section className="invite-panel games-panel" aria-label="Your games">
+                <p className="invite-heading">Your games</p>
+                <div className="games-scroll">
+                  <SavedGames
+                    games={friend.games}
+                    standings={friend.standings}
+                    showingSeat={friend.showingSeat}
+                    chosen={ticked}
+                    asked={friend.asked}
+                    onOpen={(seat) => {
+                      setTicked(new Set());
+                      friend.rejoin(seat);
+                    }}
+                    onChoose={(seat, on) =>
+                      setTicked((was) => {
+                        const next = new Set(was);
+                        if (on) {
+                          next.add(seat);
+                        } else {
+                          next.delete(seat);
+                        }
+                        return next;
+                      })
+                    }
+                  />
+                </div>
+                {!friend.reachedThem && (
+                  <p className="invite-note">
+                    The server could not be reached. Games that were being
+                    played are marked in red and shown as they were last seen;
+                    everything else here is settled and cannot have changed.
+                  </p>
+                )}
+                <div className="board-controls games-actions">
+                  <button
+                    type="button"
+                    className="reset-button"
+                    disabled={ticked.size === 0}
+                    title={
+                      ticked.size === 0
+                        ? "Tick the games to forget"
+                        : "Forget them in this browser; they stay on the server"
+                    }
+                    onClick={async () => {
+                      const going = [...ticked];
+                      /*
+                        Whether the board is about to be showing a game this
+                        browser no longer holds. It goes with the seat: a line
+                        left standing there is a game nobody can play on, in a
+                        panel that no longer names it — and the next game to
+                        start would ask whether to stash it, which is asking
+                        whether to keep something already given up.
+                      */
+                      const showing =
+                        friend.showingSeat !== null &&
+                        going.includes(friend.showingSeat);
+                      setTicked(new Set());
+                      await friend.forgetSelected(going);
+                      if (showing) {
+                        setPosition(DEFAULT_POSITION);
+                      }
+                    }}
+                  >
+                    Forget selected
+                  </button>
+                  <button
+                    type="button"
+                    className="reset-button"
+                    disabled={friend.reading}
+                    title="Ask every game how it stands now"
+                    onClick={() => void friend.readGames()}
+                  >
+                    {friend.reading ? "Refreshing …" : "Refresh"}
+                  </button>
+                </div>
+              </section>
+            )}
+
           </div>
 
           {tab === "balance" && (
@@ -1555,34 +1759,72 @@ export default function App() {
 
       <JoinDialog
         open={joining}
-        onJoin={(gameId) => {
+        onJoin={async (gameId) => {
           setJoining(false);
-          friend.goTo(gameId);
+          if (!aside) {
+            friend.goTo(gameId);
+            return;
+          }
+          /* Looked at on a line of its own, so the game on the board keeps
+             the one it has. */
+          const looked = await friend.lookAside(gameId);
+          if (looked === null) {
+            setAsideTrouble(
+              "That challenge could not be opened. It may have been answered, taken back, or the number may be wrong."
+            );
+            return;
+          }
+          setConsidering(looked);
         }}
         onClose={() => setJoining(false)}
       />
 
       <ChallengeDialog
-        open={friend.phase.kind === "challenging"}
+        open={friend.phase.kind === "challenging" || challengingAside}
         name={friend.name}
         // What is on the board, in case the game is to be taken up from it
         // rather than started: the whole line, not merely the position, so
         // that the moves already played stay part of the game.
         board={lineOf(history)}
-        onSubmit={friend.challenge}
+        onSubmit={async (terms) => {
+          if (!challengingAside) {
+            friend.challenge(terms);
+            return;
+          }
+          setChallengingAside(false);
+          const made = await friend.challengeAside(terms);
+          if (made === null) {
+            setAsideTrouble("That challenge could not be sent. The server did not answer.");
+          }
+        }}
+        onName={friend.remember}
         // Only a dismissal abandons the challenge. A <dialog> fires `close`
         // whenever it closes, including when it closes because the game was
         // created — and calling off the game at that moment would throw away
         // the invite that had just been made.
-        onClose={() =>
-          friend.phase.kind === "challenging" ? friend.leave() : undefined
-        }
+        onClose={() => {
+          setChallengingAside(false);
+          if (friend.phase.kind === "challenging") {
+            friend.leave();
+          }
+        }}
       />
 
       <InviteDialog
-        phase={friend.phase}
+        phase={
+          considering === null
+            ? friend.phase
+            : { kind: "invited", ...considering }
+        }
         name={friend.name}
-        onAnswer={(accept, name, color) => {
+        onName={friend.remember}
+        onAnswer={async (accept, name, color) => {
+          if (considering !== null) {
+            const looked = considering;
+            setConsidering(null);
+            await friend.answerAside(looked, accept, name, color);
+            return;
+          }
           /* Taking a challenge up puts the reader in a game, and the panel that
              says whose move it is — and what may be done about it — is the one
              they now want in front of them. A challenge reached by its link
@@ -1592,9 +1834,15 @@ export default function App() {
           }
           friend.answer(accept, name, color);
         }}
-        onClose={() =>
-          friend.phase.kind === "invited" ? friend.leave() : undefined
-        }
+        onClose={() => {
+          if (considering !== null) {
+            setConsidering(null);
+            return;
+          }
+          if (friend.phase.kind === "invited") {
+            friend.leave();
+          }
+        }}
       />
 
       <PgnDialog
