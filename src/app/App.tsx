@@ -957,18 +957,22 @@ export default function App() {
   }, [tab, friend.phase.kind, history, stashName]);
 
   /*
-    A game ending is not a phase change — the phase stays `playing` and gains an
-    ending — so watching the kind alone left the row for a game just resigned
-    saying "in play", and a row saying that cannot be ticked. Whether the game
-    being shown is over is therefore watched as well.
+    The list is read from the server when it comes on screen, and not again
+    until somebody asks.
+
+    Reading it is a socket per saved game, and it used to be done again on
+    every phase change as well — which meant going from one game to another,
+    two phase changes, asked every game in the list twice over to learn about
+    the one that was clicked. Everything those readings were for now comes from
+    the game itself, on the connection already open to it: a move, an ending,
+    the state on arriving. Refresh is there for the rest of the list, and says
+    what it is doing.
   */
-  const gameOver =
-    friend.phase.kind === "playing" && friend.phase.over !== null;
   useEffect(() => {
     if (tab === "match") {
       void readGames();
     }
-  }, [tab, friend.phase.kind, gameOver, readGames]);
+  }, [tab, readGames]);
   /**
    * A game that has begun but is not on the board yet, because what is on the
    * board has not been dealt with. Held until the question is answered, and

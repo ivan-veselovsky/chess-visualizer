@@ -21,6 +21,16 @@
   --piece-dark-mix: 45%;
   --panel-border: color-mix(in srgb, currentColor 25%, transparent);
   --panel-bg: color-mix(in srgb, currentColor 5%, transparent);
+  /*
+    The ground under a pointer, which is not the ground under a panel.
+
+    Two different things are being said — "this would be pressed" and "this one
+    is the one" — and for a while they were said in the same colour, so a row
+    the mouse happened to be over looked exactly like the game on the board.
+    Quieter than a panel, in both themes, and it moves with the pointer while
+    the other stays put.
+  */
+  --hover-bg: color-mix(in srgb, currentColor 3%, transparent);
   --invalid: #c62828;
 
   /*
@@ -69,6 +79,16 @@
   /* Pulled back toward the page: at full text colour a checked box is a bright
      block, louder than the setting it reports. */
   --checkbox-accent: color-mix(in srgb, var(--app-fg) 50%, var(--app-bg));
+  /*
+    Lifted off the page a little further than under the light theme.
+
+    The same 5% of the text colour that reads plainly on white is nearly
+    nothing on #17181b — a panel, and the row wearing a panel's ground
+    to say it is the game in front of you, both sank into the page. Hover keeps
+    the old value, which leaves the two a step apart.
+  */
+  --panel-bg: color-mix(in srgb, currentColor 10%, transparent);
+  --hover-bg: color-mix(in srgb, currentColor 5%, transparent);
   color-scheme: dark;
 }
 
@@ -2395,7 +2415,7 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .reset-button:not(:disabled):hover {
-  background: var(--panel-bg);
+  background: var(--hover-bg);
 }
 
 /* --- Captured pieces ---------------------------------------------------- */
@@ -2930,12 +2950,16 @@ input[type="color"]::-moz-color-swatch {
   gap: 0.6em;
 }
 
-/* Which game the panel above is showing. A mark at the head of the row rather
-   than a frame around it: a frame costs a row's worth of height across the
-   whole list to say one thing about one line of it. */
-.saved-game-here {
-  flex: 0 0 0.7em;
-  font-weight: 700;
+/*
+  Which game the panel above is showing: the row wears the panel's own ground.
+
+  The two are one thing said in two places — the game in the frame at the top
+  and its line in the list — and giving them the same ground is what says so,
+  without spending a column at the head of every row on a mark that is blank
+  on all but one of them.
+*/
+.saved-game-row.here .saved-game {
+  background: var(--panel-bg);
 }
 
 .saved-game-row.here .saved-game-pair {

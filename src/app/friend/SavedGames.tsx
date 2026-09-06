@@ -166,11 +166,12 @@ export default function SavedGames({
               type="button"
               className="reset-button saved-game"
               title={here ? "The game being shown" : "Go to this game"}
+              /* Which row is the one on the board, said rather than shown:
+                 it is marked by its ground, and a reader who cannot see the
+                 colour is otherwise told nothing. */
+              aria-current={here ? "true" : undefined}
               onClick={() => onOpen(seat)}
             >
-              <span className="saved-game-here" aria-hidden={!here}>
-                {here ? "*" : ""}
-              </span>
               <span className="saved-game-pair">
                 {players === null
                   ? game.myName

@@ -38,6 +38,8 @@ import {
   loadGame,
   newGameId,
   newToken,
+  gamesRevision,
+  noteOutsideChange,
   saveGame,
   saveName,
   savedGames,
@@ -334,6 +336,27 @@ export function useFriendGame(listeners: FriendListeners) {
   const [standings, setStandings] = useState<Map<string, Standing | null>>(
     new Map()
   );
+  /**
+   * What the list says about one game, changed on its own.
+   *
+   * The list is read from the server all at once, which is a socket per game
+   * and worth doing only when somebody asks for it. Everything the object says
+   * about the game being watched arrives on the connection that is already
+   * open, though — a move, an ending, the state on coming back — and it is the
+   * same account the list asks for. So the row is kept up from that, and going
+   * to a game asks about that game and nothing else.
+   */
+  const noteStanding = useCallback(
+    (mine: string, from: (was: Standing | null) => Standing | null) => {
+      setStandings((all) => {
+        const next = new Map(all);
+        next.set(mine, from(all.get(mine) ?? null));
+        return next;
+      });
+    },
+    []
+  );
+
   const [reading, setReading] = useState(false);
   const [reachedThem, setReachedThem] = useState(true);
   /* Whether the games have been asked at all since the page opened. Before
@@ -482,6 +505,18 @@ export function useFriendGame(listeners: FriendListeners) {
             if (held !== null) {
               saveGame({ ...held, touchedAt: Date.now() });
             }
+            noteStanding(seat.current, (was) =>
+              was === null
+                ? was
+                : {
+                    ...was,
+                    status: message.status,
+                    result: message.result,
+                    reason: message.reason,
+                    moves: message.ply,
+                    touchedAt: Date.now(),
+                  }
+            );
           }
           // A move can be the one that ends it — mate, or a draw on the board.
           if (message.status === "finished" && message.reason !== null) {
@@ -532,6 +567,20 @@ export function useFriendGame(listeners: FriendListeners) {
             result: message.result,
             reason: message.reason,
           });
+          if (seat.current !== null) {
+            noteStanding(seat.current, (was) =>
+              was === null
+                ? was
+                : {
+                    ...was,
+                    status: "finished",
+                    result: message.result,
+                    reason: message.reason,
+                    endedAt: message.at,
+                    touchedAt: message.at,
+                  }
+            );
+          }
           setPhase((current) =>
             current.kind === "playing"
               ? {
@@ -572,7 +621,20 @@ export function useFriendGame(listeners: FriendListeners) {
             myName: nameAt(seat.current),
             opponentName: message.opponent,
             role: "opponent",
+            touchedAt: message.touchedAt,
           });
+          if (seat.current !== null) {
+            noteStanding(seat.current, () => ({
+              status: "inProgress",
+              result: "*",
+              reason: null,
+              opponent: message.opponent,
+              moves: message.moves.length,
+              startedAt: message.startedAt,
+              endedAt: message.endedAt,
+              touchedAt: message.touchedAt,
+            }));
+          }
           setPhase({
             kind: "playing",
             gameId,
@@ -603,7 +665,20 @@ export function useFriendGame(listeners: FriendListeners) {
               myName: nameAt(seat.current),
               opponentName: message.opponent,
               role: "challenger",
+              touchedAt: message.touchedAt,
             });
+            if (seat.current !== null) {
+              noteStanding(seat.current, () => ({
+                status: "inProgress",
+                result: "*",
+                reason: null,
+                opponent: message.opponent,
+                moves: message.moves.length,
+                startedAt: message.startedAt,
+                endedAt: message.endedAt,
+                touchedAt: message.touchedAt,
+              }));
+            }
           }
           /*
             The board the game starts from, which the challenger may be seeing
@@ -676,6 +751,18 @@ export function useFriendGame(listeners: FriendListeners) {
                 ? "challenger"
                 : "opponent",
             });
+          }
+          if (seat.current !== null) {
+            noteStanding(seat.current, () => ({
+              status: message.status,
+              result: message.result,
+              reason: message.reason,
+              opponent: message.opponent,
+              moves: message.moves.length,
+              startedAt: message.startedAt,
+              endedAt: message.endedAt,
+              touchedAt: message.touchedAt,
+            }));
           }
           // And now the ending, which outlasts everything above it.
           if (message.status === "finished" && message.reason !== null) {
@@ -828,7 +915,7 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
       }
     },
-    [name]
+    [name, noteStanding]
   );
 
   /** Offers a game, and holds the invite open until it is answered. */
@@ -1127,6 +1214,7 @@ export function useFriendGame(listeners: FriendListeners) {
        the list says so rather than showing yesterday as though it were now. */
     setReachedThem(seats.length === 0 || answers > 0);
     setGames(savedGames());
+    listedAt.current = gamesRevision();
     setReading(false);
   }, []);
 
@@ -1433,7 +1521,41 @@ export function useFriendGame(listeners: FriendListeners) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.kind, phase.kind === "playing" ? phase.over : null]);
 
-  useEffect(() => setGames(savedGames()), [phase.kind]);
+  /*
+    The records re-read, in the order the list is already in.
+
+    Order comes from when each game was last touched, and that is a good order
+    to read a list in — but only to arrive in. Re-sorted underneath somebody
+    who is clicking through it, a row moves away from the pointer that is on
+    it: the game just opened has been touched more recently than the rest and
+    climbs to the top, taking every row below it down one. So a re-read keeps
+    the order it found, and the sort is what a refresh is for. Anything new
+    goes to the top, where the newest belongs.
+  */
+  /** What `games` was last read at; see `gamesRevision`. */
+  const listedAt = useRef(-1);
+
+  const relist = useCallback(() => {
+    /* Nothing has been written since this last read them, so there is nothing
+       to read: an ordinary switch from one game to another writes no seat at
+       all, and passes through here twice. */
+    if (listedAt.current === gamesRevision()) {
+      return;
+    }
+    listedAt.current = gamesRevision();
+    setGames((was) => {
+      const at = new Map(
+        was.map((game, index) => [seatOf(game.gameId, game.role), index])
+      );
+      return savedGames().sort(
+        (one, other) =>
+          (at.get(seatOf(one.gameId, one.role)) ?? -1) -
+          (at.get(seatOf(other.gameId, other.role)) ?? -1)
+      );
+    });
+  }, []);
+
+  useEffect(() => relist(), [phase.kind, relist]);
 
   /*
     And when another tab changes what this browser is in. Storage events fire
@@ -1442,10 +1564,14 @@ export function useFriendGame(listeners: FriendListeners) {
     not still be offered as unentered in the next window along.
   */
   useEffect(() => {
-    const reread = () => setGames(savedGames());
+    const reread = () => {
+      /* Another tab wrote it, and its count is not this one's. */
+      noteOutsideChange();
+      relist();
+    };
     window.addEventListener("storage", reread);
     return () => window.removeEventListener("storage", reread);
-  }, []);
+  }, [relist]);
 
   useEffect(() => disconnect, [disconnect]);
 

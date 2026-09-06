@@ -126,7 +126,34 @@ function read(key: string): string | null {
   }
 }
 
+/*
+  How many times the seats have changed, counted rather than watched.
+
+  Reading them all is cheap and not free — a parse per game, and the list is
+  read again on every phase the app passes through, most of which change
+  nothing. A count of the writes that landed turns "has anything changed since
+  I last looked?" into comparing two numbers. It counts seats only: a name or
+  a preference written beside them is nothing the list is made of.
+*/
+let changes = 0;
+
+/** What the seats stand at now; compare with what you last read them at. */
+export function gamesRevision(): number {
+  return changes;
+}
+
+/**
+ * Says the seats were changed by somebody this counter cannot see — another
+ * tab of the same browser, which writes to its own copy of this module.
+ */
+export function noteOutsideChange(): void {
+  changes += 1;
+}
+
 function write(key: string, value: string): void {
+  if (key.startsWith(PREFIX)) {
+    changes += 1;
+  }
   memory.set(key, value);
   try {
     window.localStorage.setItem(key, value);
@@ -156,6 +183,9 @@ function keys(): string[] {
 }
 
 function forget(key: string): void {
+  if (key.startsWith(PREFIX)) {
+    changes += 1;
+  }
   memory.delete(key);
   try {
     window.localStorage.removeItem(key);
@@ -192,6 +222,21 @@ export function saveGame(game: Omit<SavedGame, "v">): void {
     );
     return;
   }
+  /*
+    The same trap as the ending below, and it caught this one too: a writer
+    that does not know when the object last said anything is not saying it was
+    never touched. Left out, the field went, and the game dropped to the foot
+    of the list among the ones nothing has ever been heard about — where it sat
+    until the object's answer arrived and put it back where it had been. What a
+    reader saw of that was the row they had just clicked leaping to the bottom
+    of the list and back.
+
+    Kept quietly, unlike the ending: most writers here have no business knowing
+    this, and only the ones that are told a time pass one.
+  */
+  if (before?.touchedAt !== undefined && written.touchedAt === undefined) {
+    written = { ...written, touchedAt: before.touchedAt };
+  }
   if (before?.ending !== undefined && written.ending === undefined) {
     console.error(
       `saveGame: seat ${seat} is at a game that has ended, and this write ` +
@@ -200,7 +245,37 @@ export function saveGame(game: Omit<SavedGame, "v">): void {
     written = { ...written, ending: before.ending };
   }
 
+  /*
+    A record is written when it changes, and not for being looked at.
+
+    Going to a game rewrites it — the opponent's name may have been learned
+    while this browser was away, and that is worth keeping — but nearly every
+    time, what is written is what was already there. Those writes are not
+    free and they are not silent: each one is a chance for a writer that does
+    not know about a field to drop it, and each one wakes every other tab in
+    this browser with a storage event, which reads the list again. A game
+    changes when a move is played in it, when it ends, when the object says it
+    was touched — and then this writes.
+  */
+  if (before !== null && same(before, written)) {
+    return;
+  }
+
   write(KEY(seat), JSON.stringify(written));
+}
+
+/**
+ * Whether two records say the same thing, field by field.
+ *
+ * By field rather than by serialising the pair: the stored one is in whatever
+ * order it was written in and the new one is in whatever order it was built
+ * in, and two identical records can be two different strings.
+ */
+function same(before: SavedGame, after: SavedGame): boolean {
+  const fields = new Set([...Object.keys(before), ...Object.keys(after)]);
+  const value = (game: SavedGame, field: string) =>
+    JSON.stringify((game as unknown as Record<string, unknown>)[field]);
+  return [...fields].every((field) => value(before, field) === value(after, field));
 }
 
 /**
