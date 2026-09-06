@@ -49,21 +49,44 @@ const MOVE_SECONDS = 2.5;
 const MOVE = ["e2", "e4"];
 
 /**
- * When to look, in seconds from the moment the piece leaves its square.
+ * When to look — and by which of the two clocks.
  *
- * From the take-off rather than from the click, because the two are not the
- * same instant and only one of them belongs to the app: a click has to be
- * dispatched, handled, and turned into a move, which took a third of a second
- * on the machine this was first recorded on and would take something else on
- * another. Timed from the click, the record would hold that machine's latency
- * and every other machine would read it as a rendering fault.
+ * Never from the click. A click has to be dispatched, handled and turned into
+ * a move, which took a third of a second on the machine this was first
+ * recorded on and would take something else on another; timed from the click,
+ * the record would hold that machine's latency and every other machine would
+ * read it as a rendering fault. So a moment in the flight is timed from the
+ * take-off, which the flight's own animation is asked for.
+ *
+ * And a moment in the fade is timed from the fade, for the same reason one
+ * step further in. The fade does not begin when the piece lands: the landing
+ * hands the new position to the app, which rebuilds every mark on the board
+ * before any of them can start fading in, and that rebuild is the machine's
+ * work rather than the app's. Measured here, it is 50 to 117ms, wandering with
+ * the load. A moment written as "1.05s after take-off + 2.5s of flight" is
+ * therefore somewhere between 93% and 100% through a one-second fade depending
+ * on whose machine is running it — which is exactly where two machines
+ * disagree about a colour by more than a colour is allowed to drift. Written
+ * as "1.05s into the fade" it is past the end of it everywhere.
  *
  * Placed around what happens rather than spread evenly: the piece is in the air
  * until 2.5s, the fade runs for a second after it lands, and the board is still
  * by 4s. The moments that matter are the ones inside the fade, where a mark
  * that jumps and a mark that fades look the same in every other test.
  */
-const MOMENTS = [0.3, 1.5, 2.45, 2.75, 3.05, 3.3, 3.55, 4.01];
+const MOMENTS = [
+  { clock: "move", at: 0.3 },
+  { clock: "move", at: 1.5 },
+  { clock: "move", at: 2.45 },
+  { clock: "fade", at: 0.25 },
+  { clock: "fade", at: 0.55 },
+  { clock: "fade", at: 0.8 },
+  { clock: "fade", at: 1.05 },
+  { clock: "fade", at: 1.51 },
+];
+
+/** How a moment is named, in the record and in what this prints. */
+const label = (moment) => `${moment.clock} ${moment.at.toFixed(2)}`;
 
 /**
  * Where to look.
@@ -128,6 +151,15 @@ try {
     deviceScaleFactor: 1,
     mobile: false,
   });
+  /*
+    A slower machine on demand: `CPU_THROTTLE=4` runs everything at a quarter
+    speed, which is how a build agent behaves and how the timing faults this
+    test is prone to are reproduced without one.
+  */
+  const throttle = Number(process.env.CPU_THROTTLE ?? 1);
+  if (throttle > 1) {
+    await lab.page.send("Emulation.setCPUThrottlingRate", { rate: throttle });
+  }
   await lab.page.send("Page.navigate", { url: lab.app });
   await pause(2500);
 
@@ -198,21 +230,59 @@ try {
       requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
+    /*
+      And when the marks of the new position begin to arrive, which is a
+      different moment from the landing and belongs to the machine.
+
+      The ones that leave started fading at take-off — the two halves of a
+      crossing move together — so they are still running and must not be
+      mistaken for the arrival. What is wanted is the first transition to start
+      at the landing or after it, less a frame's grace for a commit that lands
+      a shade early.
+    */
+    window.__faded = null;
+    const arriving = () => {
+      if (window.__tookOff !== null) {
+        const landed = window.__tookOff * 1000 + window.__journey;
+        const starts = document
+          .getAnimations()
+          .filter((a) => a.transitionProperty === "opacity" && a.startTime !== null)
+          .map((a) => performance.timeOrigin + Number(a.startTime))
+          .filter((at) => at >= landed - 16);
+        if (starts.length > 0) {
+          window.__faded = Math.min(...starts) / 1000;
+          return;
+        }
+      }
+      requestAnimationFrame(arriving);
+    };
+    requestAnimationFrame(arriving);
     return "watching";`);
   const clicked = Date.now() / 1000;
   await lab.page.click(to.cx, to.cy);
-  await pause((MOMENTS[MOMENTS.length - 1] + 1) * 1000);
+  /* Long enough for every moment on either clock, and a second over: a moment
+     in the fade is that far past a landing which is itself a move away, plus
+     whatever the machine spends getting the fade started. */
+  const last = Math.max(
+    ...MOMENTS.map((m) => (m.clock === "move" ? m.at : MOVE_SECONDS + m.at))
+  );
+  await pause((last + 1) * 1000);
   await lab.page.send("Page.stopScreencast");
   const began = await lab.page.run(`return window.__tookOff;`);
   const journey = await lab.page.run(`return window.__journey;`);
+  const faded = await lab.page.run(`return window.__faded;`);
   if (began === null) {
     throw new Error("the piece never left its square");
+  }
+  if (faded === null) {
+    throw new Error("the marks of the new position never began to arrive");
   }
 
   console.log(
     `\n  ${MOVE.join("-")} from the opening position, fade ${FADE_MS}ms, move ${MOVE_SECONDS}s` +
       `\n  ${frames.length} frames painted; the journey began ` +
-      `${((began - clicked) * 1000).toFixed(0)}ms after the click and took ${journey}ms\n`
+      `${((began - clicked) * 1000).toFixed(0)}ms after the click and took ${journey}ms; ` +
+      `the fade began ${((faded - began) * 1000 - journey).toFixed(0)}ms after the landing\n`
   );
 
   /** Every patch of one square, in pixels, given where the board put it. */
@@ -252,7 +322,7 @@ try {
   const fresh = {};
 
   for (const moment of MOMENTS) {
-    const wanted = began + moment;
+    const wanted = (moment.clock === "move" ? began : faded) + moment.at;
     /*
       What is on the screen at a moment is the last frame painted by then — not
       the nearest frame, which after the board settles is one painted a second
@@ -263,7 +333,7 @@ try {
     const shown = frames.filter((frame) => frame.at <= wanted).at(-1);
     const later = frames.find((frame) => frame.at > wanted);
     if (shown === undefined) {
-      check(`${moment.toFixed(2)}s was painted at all`, false, "no frame that early");
+      check(`${label(moment)}s was painted at all`, false, "no frame that early");
       continue;
     }
     const stale = wanted - shown.at;
@@ -293,7 +363,7 @@ try {
       );
       if (moved) {
         check(
-          `a frame within ${NEAR_ENOUGH}s of ${moment.toFixed(2)}s`,
+          `a frame within ${NEAR_ENOUGH}s of ${label(moment)}s`,
           false,
           `the board moved between frames ${stale.toFixed(3)}s before and ` +
             `${(later.at - wanted).toFixed(3)}s after — this machine is dropping frames`
@@ -301,19 +371,19 @@ try {
         continue;
       }
     }
-    fresh[moment.toFixed(2)] = seen;
+    fresh[label(moment)] = seen;
 
     if (UPDATE) {
       const say = (key) => `${key}=${seen[key].join(",")}`;
       console.log(
-        `  ${moment.toFixed(2)}s  ${say("c4.stripe")}  ${say("c4.beside")}  ${say("d5.stripe")}  ${say("e4.whole")}`
+        `  ${label(moment)}s  ${say("c4.stripe")}  ${say("c4.beside")}  ${say("d5.stripe")}  ${say("e4.whole")}`
       );
       continue;
     }
 
-    const expected = recorded.at[moment.toFixed(2)];
+    const expected = recorded.at[label(moment)];
     if (expected === undefined) {
-      check(`${moment.toFixed(2)}s is in the record`, false, "run with --update");
+      check(`${label(moment)}s is in the record`, false, "run with --update");
       continue;
     }
     const wrong = Object.entries(seen)
@@ -331,7 +401,7 @@ try {
       return `${key} — ${what === "beside" ? "beside the ray on " : what === "stripe" ? "the ray crossing " : ""}${square}, ${place.is}`;
     };
     check(
-      `at ${moment.toFixed(2)}s (frame ${stale.toFixed(3)}s old) the board is as recorded`,
+      `${label(moment)}s in (frame ${stale.toFixed(3)}s old) the board is as recorded`,
       wrong.length === 0,
       wrong
         .map((one) => `${where(one.key)}: ${one.rgb.join(",")}, recorded ${one.was.join(",")} (out by ${one.off})`)
