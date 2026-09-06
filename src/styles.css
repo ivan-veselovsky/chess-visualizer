@@ -465,6 +465,14 @@ body {
 
 /* At the far end of the row, away from the button: it is read once and set
    rarely, and standing next to the button it read as half of it. */
+/* Stood off from the steps above it and the position below: playing a game
+   through is a different act from stepping along it by hand, and at the
+   panel's own spacing the three rows read as one block of controls. */
+.play-row {
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
 .play-row > .number-field {
   flex: 0 0 auto;
   margin-bottom: 0;
@@ -2039,6 +2047,17 @@ input[type="color"]::-moz-color-swatch {
   margin-left: auto;
 }
 
+/* Stood off from the buttons above it, and holding no margin below: the line
+   over the build note is what closes the panel. */
+.settings-logging {
+  /* Half an em more than the panel's own spacing: it is not another of the
+     buttons above it, and standing at their distance it read as one. */
+  margin-top: calc(1.1rem + 0.5em);
+  /* At the far end, under "Reset to defaults": the left of this panel is a
+     column of settings, and this is not one of them. */
+  justify-content: flex-end;
+}
+
 /*
   Which build this is. Held well back from the settings above it: it answers a
   question nobody asks twice, and should not compete with anything that can be
@@ -2694,11 +2713,41 @@ input[type="color"]::-moz-color-swatch {
 /* The game being played, held apart from the list of the others below it. The
    app's own panel: a hairline, the panel's ground, and room to breathe inside
    it. */
-.invite-panel-framed {
+.game-details {
+  /*
+    A box of one size, whatever is in it.
+
+    A game being played fills it; one being opened has only its number and the
+    line to say; none at all has a sentence. Left to their own heights the panel
+    grew and shrank as a reader moved between games, and everything under it —
+    the list they were clicking in — moved with it. Measured at the tallest of
+    them, with room to grow for a draw offered or a notice.
+  */
+  min-height: 13rem;
   padding: 0.75rem 0.9rem 0.9rem;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   background: var(--panel-bg);
+}
+
+/*
+  The panel a moment behind: the game just left, while the next one is being
+  asked for.
+
+  Dim rather than blank, and the dimming is a fade rather than a step. A switch
+  that is answered in a frame or two never gets far enough into the fade to be
+  seen, which is the point — the reader waiting on a slow server is told, and
+  the reader on a fast one is not shown a flash for a wait they never had.
+*/
+.game-details-waiting {
+  opacity: 0.6;
+  transition: opacity 400ms ease 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-details-waiting {
+    transition: none;
+  }
 }
 
 /* Except a warning, which is a thing apart wherever it stands. */
@@ -2920,6 +2969,18 @@ input[type="color"]::-moz-color-swatch {
   /* As tall as the rows it holds, and no taller: it gives way — and then
      scrolls — only when the panel has no more room to give. */
   flex: 0 1 auto;
+  /*
+    Room at the right for the scrollbar to be in.
+
+    A row runs to the edge of this box and the ticks sit at the end of it, so
+    with nothing here the scrollbar arrives flush against them — touching, in a
+    browser whose scrollbars take room, and drawn straight over them in one
+    whose scrollbars float above the content, which is Firefox's way. The space
+    is kept whether or not there is a scrollbar today: a list that shuffles
+    sideways as its last row arrives is worse than one that is always a little
+    inset.
+  */
+  padding-right: 0.75rem;
   /* Never squeezed to a line and a half, however little is left. */
   min-height: 6rem;
   overflow-y: auto;
@@ -2958,8 +3019,18 @@ input[type="color"]::-moz-color-swatch {
   margin-top: 0.9rem;
 }
 
+/* At the far end, under the rows they act on: the ticks they answer are at
+   that edge too, and a button at the other end of the panel from the thing it
+   does is a button in the wrong place. */
 .games-actions {
+  justify-content: flex-end;
   margin-top: 0.8rem;
+}
+
+/* The dialogs' pair with less room either side: a dialog has width to spend on
+   two words, and a panel beside a board has not. */
+.games-pair {
+  --answer-room: 1em;
 }
 
 /* The number first and what the game is after it: the digits are what a game
@@ -3214,11 +3285,18 @@ input[type="color"]::-moz-color-swatch {
   gap: var(--answer-apart);
 }
 
+/* An icon standing before a word inside a button: the two are one thing to
+   press, and the gap is the space a word would have after it. */
+.button-icon {
+  flex: 0 0 auto;
+}
+
 .button-pair > .reset-button {
   padding-inline: var(--answer-room);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.45em;
 }
 
 /* A question from the other player, which arrives while the reader is looking

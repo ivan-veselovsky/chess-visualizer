@@ -267,6 +267,8 @@ export type FromServer =
       takebacksLeft: Tally;
       startedAt: number | null;
       endedAt: number | null;
+      /** When anything last happened to it; see the record's own field. */
+      touchedAt: number;
     }
   | { type: "declined" }
   /**
@@ -284,6 +286,7 @@ export type FromServer =
       terms: Terms;
       startedAt: number | null;
       endedAt: number | null;
+      touchedAt: number;
       /**
        * The line the game starts on: empty for a game beginning from nothing
        * played, and the carried moves for one being continued. The challenger
@@ -305,6 +308,7 @@ export type FromServer =
       drawOfferedBy: Color | null;
       startedAt: number | null;
       endedAt: number | null;
+      touchedAt: number;
     }
   /**
    * A move that has happened, told to both players by the one place that

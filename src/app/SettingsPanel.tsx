@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
@@ -21,6 +21,7 @@ import type {
   CheckMarks,
   Heatmap,
 } from "./settings";
+import { logging, setLogging } from "./friend/log";
 import { downloadSettings, parseSettings } from "./settingsFile";
 
 /**
@@ -55,6 +56,22 @@ export default function SettingsPanel({
   onChange,
 }: SettingsPanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
+  /*
+    Whether the app is writing down what it does, which is not a setting.
+
+    It is nobody's preference about how a board looks and it does not belong in
+    a settings file — exported, mailed to somebody, imported by them, and now
+    their console is full of somebody else's debugging. It lives where it acts,
+    in this browser, and is read again every time this tab is opened: two tabs
+    of the app share the one flag, and the switch should say what is true rather
+    than what was true when the page loaded.
+  */
+  const [writingLog, setWritingLog] = useState(logging);
+  useEffect(() => {
+    if (group === "manage") {
+      setWritingLog(logging());
+    }
+  }, [group]);
   const [importError, setImportError] = useState<string | null>(null);
 
   async function readSettingsFile(file: File) {
@@ -700,6 +717,22 @@ export default function SettingsPanel({
                 {importError}
               </p>
             )}
+          </div>
+
+          {/* Under the buttons and above the line that ends the panel: it is
+              about this browser rather than about the settings, and the rule
+              below it is where the settings stop. */}
+          <div className="board-controls settings-logging">
+            <ToggleField
+              id="client-logging"
+              label="Enable client logging"
+              hint="Writes what the app is doing to the browser console: lines opened, messages sent and heard, phases changed. Kept in this browser rather than in the settings."
+              checked={writingLog}
+              onChange={(wanted) => {
+                setWritingLog(wanted);
+                setLogging(wanted);
+              }}
+            />
           </div>
 
           <AboutBuild />

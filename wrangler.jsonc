@@ -13,6 +13,17 @@
     // which is nothing on disk and must not come back as a 404.
     "not_found_handling": "single-page-application"
   },
+  /*
+    What a deployed worker is told. A game says what it is doing — see
+    `worker/log.ts` — and a busy deployment saying it for every game of every
+    reader is a great deal of writing nobody asked for, so it is off here and
+    on in `.dev.vars`, which is what a machine running this locally reads.
+    Turn it on for a deployment when there is a question to answer:
+
+      npx wrangler deploy --var GAME_LOG:on
+  */
+  "vars": { "GAME_LOG": "off" },
+
   // One object per game, addressed by the game's id.
   "durable_objects": {
     "bindings": [{ "name": "GAME", "class_name": "Game" }]

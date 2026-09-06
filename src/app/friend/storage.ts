@@ -44,6 +44,15 @@ export interface SavedGame {
    * moves in memory are gone.
    */
   ending?: { result: GameResult; reason: EndReason };
+  /**
+   * When anything last happened to the game, as the object last said.
+   *
+   * Kept here so the list can be in the order it is worth reading in before
+   * anybody has been asked anything — a reload should not shuffle it. Absent on
+   * a seat written before this was carried, and on one nothing has answered
+   * for yet.
+   */
+  touchedAt?: number;
 }
 
 /**
@@ -285,17 +294,26 @@ export function savedGames(): SavedGame[] {
     games.push(saved);
   }
   /*
-    In the order they are worth looking at: games being played first, since
-    somebody may be waiting on a move; then invites still hoping for an answer;
-    then games that are over and only want putting away. Within a group, by the
-    game's number, so that the two seats at one game sit together and the list
-    does not reshuffle itself between one reading and the next.
+    Newest doing first: the game something last happened in, whatever that was —
+    a move, an answer, a resignation.
+
+    Not by what state a game is in, which is what this used to be: games being
+    played, then challenges, then finished ones, and inside each group by the
+    game's number, which is no order at all. A game started this morning and
+    abandoned then sat above one that has been going for a week, because one is
+    "in play" earlier in the alphabet of states than the other. What a reader
+    wants at the top is what they were last doing.
+
+    A seat nothing has answered for has no time to sort by and goes below the
+    ones that have, in the order it always had — by number, so that the two
+    seats at one game sit together and the list does not reshuffle itself
+    between one reading and the next.
   */
-  const rank = (game: SavedGame) =>
-    game.ending !== undefined ? 2 : game.opponentName === null ? 1 : 0;
-  return games.sort(
-    (a, b) => rank(a) - rank(b) || a.gameId.localeCompare(b.gameId)
-  );
+  return games.sort((a, b) => {
+    const mine = a.touchedAt ?? 0;
+    const theirs = b.touchedAt ?? 0;
+    return theirs - mine || a.gameId.localeCompare(b.gameId);
+  });
 }
 
 /** The name last played under, so nobody types it twice. */

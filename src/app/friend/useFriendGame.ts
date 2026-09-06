@@ -193,7 +193,21 @@ export type Phase =
     somebody else's game entirely — and showing any one of the three on a guess
     would mean showing the wrong one for as long as the round trip takes.
   */
-  | { kind: "opening"; gameId: string }
+  | {
+      kind: "opening";
+      gameId: string;
+      /**
+       * Whether this has been gone back for, which is what tells a round trip
+       * from a server that is not there.
+       *
+       * The panel waits differently for the two. A round trip is over before
+       * it is worth saying anything about, so the game just left stays up
+       * until the next one can replace it; a server that is down keeps this
+       * phase for as long as it stays down, and a stale panel dimmed for
+       * minutes says nothing worth knowing.
+       */
+      retried: boolean;
+    }
   /** Created, invite out, nobody has answered. */
   | {
       kind: "waiting";
@@ -256,6 +270,8 @@ export interface Standing {
   moves: number;
   startedAt: number | null;
   endedAt: number | null;
+  /** When anything last happened to it, which is what the list is ordered by. */
+  touchedAt: number;
 }
 
 /**
@@ -457,6 +473,16 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
         case "moved":
           setNotice(null);
+          /* Something has just happened in this game, which is what the list is
+             ordered by. Said here as well as read on the next refresh, so a
+             game being played does not sink under games nobody is touching in
+             between two readings. */
+          if (seat.current !== null) {
+            const held = loadGame(seat.current);
+            if (held !== null) {
+              saveGame({ ...held, touchedAt: Date.now() });
+            }
+          }
           // A move can be the one that ends it — mate, or a draw on the board.
           if (message.status === "finished" && message.reason !== null) {
             markGameOver(gameId, {
@@ -861,7 +887,7 @@ export function useFriendGame(listeners: FriendListeners) {
   const openInvite = useCallback(
     (gameId: string) => {
       seat.current = null;
-      setPhase({ kind: "opening", gameId });
+      setPhase({ kind: "opening", gameId, retried: false });
       connect(gameId, (message) => handle(gameId, message)).send({
         type: "peek",
         v: PROTOCOL_VERSION,
@@ -902,7 +928,7 @@ export function useFriendGame(listeners: FriendListeners) {
       }
       // Said out loud, unlike the one the retry uses: this is somebody asking
       // for a game, and the wait is theirs to see.
-      setPhase({ kind: "opening", gameId: gameOf(mine) });
+      setPhase({ kind: "opening", gameId: gameOf(mine), retried: false });
       rejoinQuietly(mine);
     },
     [rejoinQuietly]
@@ -1073,6 +1099,7 @@ export function useFriendGame(listeners: FriendListeners) {
             moves: said.moves.length,
             startedAt: said.startedAt,
             endedAt: said.endedAt,
+            touchedAt: said.touchedAt,
           });
           /* Brought up to date while the answer is here. */
           const ending =
@@ -1081,12 +1108,14 @@ export function useFriendGame(listeners: FriendListeners) {
               : undefined;
           const changed =
             (said.opponent ?? null) !== game.opponentName ||
-            (ending !== undefined) !== (game.ending !== undefined);
+            (ending !== undefined) !== (game.ending !== undefined) ||
+            said.touchedAt !== game.touchedAt;
           if (changed) {
             saveGame({
               ...game,
               opponentName: said.opponent ?? game.opponentName,
               ending: ending ?? game.ending,
+              touchedAt: said.touchedAt,
             });
           }
         })
@@ -1303,6 +1332,11 @@ export function useFriendGame(listeners: FriendListeners) {
           return;
         }
         attempts.current += 1;
+        // A game still being opened has now been waited on twice, which is
+        // worth saying: see `retried`.
+        setPhase((was) =>
+          was.kind === "opening" ? { ...was, retried: true } : was
+        );
         // If this one does not take either, its own close comes back here.
         rejoinQuietly(mine);
       }, wait);

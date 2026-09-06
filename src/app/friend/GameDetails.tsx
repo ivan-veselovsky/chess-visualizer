@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import CopyButton from "../CopyButton";
 import DrawIcon from "../DrawIcon";
 import FlagIcon from "../FlagIcon";
@@ -13,7 +13,7 @@ import InviteDetails from "./InviteDetails";
 import { spellGameId } from "./storage";
 import type { Link, Phase } from "./useFriendGame";
 
-interface InvitePanelProps {
+interface GameDetailsProps {
   phase: Phase;
   /** How the line stands, at both ends of it. */
   link: Link;
@@ -182,7 +182,7 @@ function facts(
   return said.join(" \u00b7 ");
 }
 
-export default function InvitePanel({
+export default function GameDetails({
   phase,
   link,
   myName,
@@ -196,17 +196,18 @@ export default function InvitePanel({
   onAnswerDraw,
   notice,
   onDismissNotice,
-}: InvitePanelProps) {
+}: GameDetailsProps) {
   /*
     Whether the game's link and number are being shown again. Held here rather
     than in the app: nothing outside this panel opens it, and the button that
     does is a few lines below.
 
-    Both hooks stand ahead of the early return: a component may not call fewer
-    of them on one render than on another, and this one draws nothing at all
-    for half the phases there are.
+    Both hooks run on every render, in every phase, which is the only way a
+    component may call them.
   */
   const [showingLink, setShowingLink] = useState(false);
+  /** The panel as it last stood, for the moment between one game and the next. */
+  const kept = useRef<ReactNode>(null);
   const linkDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = linkDialog.current;
@@ -220,25 +221,35 @@ export default function InvitePanel({
     }
   }, [showingLink]);
 
-  if (
-    phase.kind === "idle" ||
-    phase.kind === "challenging" ||
-    phase.kind === "invited"
-  ) {
-    return null;
-  }
 
   /*
-    A frame of its own around the game being played.
-    
-    It had none for a while, on the grounds that a tab showing one game does not
-    need to be told which part of it is the game. With several games in a list
-    underneath, it does: the frame is what says "this one is in front of you"
-    and holds the eye to it. Nothing is drawn when there is no game — the panel
-    returns above rather than framing an empty space.
+    A frame of its own around the game in front of the reader, drawn whether or
+    not there is one.
+
+    The frame is what says "this one" with several more games listed
+    underneath, and it is there in every phase for the same reason. Going from
+    one game to another passes through a moment of having none: drawn only when
+    there was a game, the panel went, everything below it jumped up, and it came
+    back a fraction of a second later — the list a reader was clicking in moved
+    under their hand at every click. Empty, it says so, and its height does not
+    depend on what is in it, so nothing below it moves.
   */
-  return (
-    <aside className="invite-panel invite-panel-framed" aria-label="Game with a friend">
+  const noGame =
+    phase.kind === "idle" ||
+    phase.kind === "challenging" ||
+    phase.kind === "invited";
+
+  const body = (
+    <>
+      {noGame && (
+        <>
+          <p className="invite-heading">No current game</p>
+          <p className="invite-note">
+            Send a challenge and its link is here to hand on, or take up one of
+            the games below.
+          </p>
+        </>
+      )}
       {/* The address named a game and the object has not said what it is yet.
           Said plainly, because the wait is a round trip and the id is the one
           thing already known to be true. */}
@@ -542,6 +553,45 @@ export default function InvitePanel({
           </div>
         </>
       )}
+    </>
+  );
+
+  /*
+    A game gives way to the next one in a single change.
+
+    Going from one game to another passes through `opening`, which knows the
+    number and nothing else: drawn, it takes down everything the panel was
+    showing — the heading, the line, the controls — and puts a fresh set up a
+    moment later when the object answers. Two changes, and the second undoes
+    the first. What a reader sees of that is a blink.
+
+    So the panel that was there stays there until there is something to replace
+    it with, and then is replaced once. It is the same element tree as the last
+    render, so nothing is torn down and nothing is rebuilt: the page is
+    untouched for as long as the wait lasts. Held dim and `inert` while it
+    waits, because what it shows is the game just left — true a moment ago,
+    and not to be resigned or drawn by a click meant for the game coming.
+
+    Not held once the game has been gone back for. That wait is not a round
+    trip and has no end in sight, and a stale panel dimmed for minutes says far
+    less than the notice that says the server is down. The line's own lights are
+    no use for telling the two apart: this end goes down at the start of every
+    switch, because the switch is what closes it.
+  */
+  if (phase.kind !== "opening") {
+    kept.current = body;
+  }
+  const holding =
+    phase.kind === "opening" && kept.current !== null && !phase.retried;
+
+  return (
+    <aside
+      className={`invite-panel game-details${holding ? " game-details-waiting" : ""}`}
+      aria-label="Game with a friend"
+      aria-busy={holding || undefined}
+      inert={holding}
+    >
+      {holding ? kept.current : body}
     </aside>
   );
 }

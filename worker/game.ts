@@ -18,6 +18,7 @@ import {
   type ErrorCode,
 } from "./protocol";
 import { positionWithHandicap, type Handicap } from "../src/chess/handicap";
+import { note } from "./log";
 import type { Color } from "./protocol";
 
 /**
@@ -92,10 +93,31 @@ export class Game extends DurableObject {
    */
   private readonly keptFor: number;
 
+  /** Whether this deployment keeps a log at all; see `./log`. */
+  private readonly logging: boolean;
+
+  /** The game's own number, which is what every line of the log is filed
+      under. A name is what the object was addressed by; the hash is what is
+      left when it was not. */
+  private get named(): string {
+    return this.ctx.id.name ?? this.ctx.id.toString().slice(0, 8);
+  }
+
+  /** Says something about this game, where anything is being said at all. */
+  private say(what: string, detail?: unknown): void {
+    if (this.logging) {
+      note(this.named, what, detail);
+    }
+  }
+
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never);
     const asked = Number((env as { GAME_TTL_MS?: string })?.GAME_TTL_MS);
     this.keptFor = Number.isFinite(asked) && asked > 0 ? asked : KEPT_FOR_MS;
+    /* Anything but "off" keeps a log, so a deployment that has never heard of
+       the variable still says what it did. */
+    this.logging =
+      ((env as { GAME_LOG?: string })?.GAME_LOG ?? "on").toLowerCase() !== "off";
     /*
       The heartbeat, answered by the runtime rather than by this object. A
       client asking every few seconds whether its line is still up would
@@ -111,6 +133,7 @@ export class Game extends DurableObject {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected a WebSocket upgrade", { status: 426 });
     }
+    this.say("a line was opened");
     const { 0: client, 1: server } = new WebSocketPair();
     // Hibernating: the object may leave memory between messages while the
     // socket stays open, and comes back when one arrives.
@@ -193,6 +216,17 @@ export class Game extends DurableObject {
 
   /** What each kind of message means. */
   private async dispatch(ws: WebSocket, message: FromClient): Promise<void> {
+    /*
+      Every asking, and nothing about who asked: a token names a player and is
+      not a thing to write down.
+
+      Except the probes. They are two players asking after each other every few
+      seconds for as long as a game is open, they say nothing about the game,
+      and left in they are the only thing anybody would ever read.
+    */
+    if (message.type !== "probe" && message.type !== "probed") {
+      this.say(`asked to ${message.type}`);
+    }
     switch (message.type) {
       case "create":
         return this.create(ws, message);
@@ -417,6 +451,7 @@ export class Game extends DurableObject {
                 takebacksLeft: record.takebacksLeft,
                 startedAt: record.startedAt,
                 endedAt: record.endedAt,
+                touchedAt: record.touchedAt,
               }
             : { type: "declined" }
         );
@@ -513,6 +548,7 @@ export class Game extends DurableObject {
         moves: record.moves,
         startedAt: settledRecord.startedAt,
         endedAt: settledRecord.endedAt,
+        touchedAt: settledRecord.touchedAt,
       });
     }
 
@@ -527,6 +563,7 @@ export class Game extends DurableObject {
       takebacksLeft: record.takebacksLeft,
       startedAt: settledRecord.startedAt,
       endedAt: settledRecord.endedAt,
+      touchedAt: settledRecord.touchedAt,
     });
     this.sendTo(record.host.token, {
       type: "answered",
@@ -537,6 +574,7 @@ export class Game extends DurableObject {
       moves: record.moves,
       startedAt: settledRecord.startedAt,
       endedAt: settledRecord.endedAt,
+      touchedAt: settledRecord.touchedAt,
     });
     return this.saidPresence({ ...record, guest });
   }
@@ -615,6 +653,7 @@ export class Game extends DurableObject {
       drawOfferedBy: record.drawOfferedBy,
       startedAt: record.startedAt,
       endedAt: record.endedAt,
+      touchedAt: record.touchedAt,
     });
   }
 
@@ -657,6 +696,7 @@ export class Game extends DurableObject {
       drawOfferedBy: record.drawOfferedBy,
       startedAt: record.startedAt,
       endedAt: record.endedAt,
+      touchedAt: record.touchedAt,
     });
     // Both lights, now that there is one more connection to report.
     return this.saidPresence(record);
@@ -1103,6 +1143,7 @@ export class Game extends DurableObject {
    * that would be worth reading.
    */
   private refuse(ws: WebSocket, code: ErrorCode, reason: string): void {
+    this.say(`refused: ${code} — ${reason}`);
     this.tell(ws, { type: "error", code, reason });
     ws.close(1008, reason);
   }
@@ -1116,6 +1157,7 @@ export class Game extends DurableObject {
    * account of the game — and none is a reason to stop talking to them.
    */
   private deny(ws: WebSocket, code: ErrorCode, reason: string): void {
+    this.say(`said no: ${code} — ${reason}`);
     this.tell(ws, { type: "error", code, reason });
   }
 
@@ -1160,6 +1202,7 @@ export class Game extends DurableObject {
    * there is nobody to tell, a week having passed.
    */
   private async forget(): Promise<void> {
+    this.say("swept away: nothing has happened to it for its whole keep");
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
   }
@@ -1209,6 +1252,11 @@ export class Game extends DurableObject {
       touchedAt: now,
     };
     await this.ctx.storage.put("game", stamped);
+    this.say(
+      `now ${stamped.status}` +
+        (stamped.reason === null ? "" : ` — ${stamped.result} by ${stamped.reason}`) +
+        `, ${stamped.moves.length} half-moves`
+    );
     /* And the clock on it back to the start. */
     await this.ctx.storage.setAlarm(now + this.keptFor);
     return stamped;

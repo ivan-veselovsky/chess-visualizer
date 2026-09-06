@@ -66,6 +66,17 @@ export function openGame(
   */
   let heardAt = Date.now();
   let asking: ReturnType<typeof setInterval> | null = null;
+  /*
+    Whether this end hung up on purpose.
+
+    A close is a close as far as the socket is concerned, and the caller's close
+    handler is what goes back for a game whose line has dropped — so without
+    this, hanging up to go to another game had the app quietly going back for
+    the game it had just left. It came back a second later, took the line down
+    again, and the panel that was drawing the new game was told it had been
+    waiting all along. Nobody goes back for a line that was put down on purpose.
+  */
+  let hungUp = false;
 
   socket.addEventListener("open", () => {
     heardAt = Date.now();
@@ -125,14 +136,16 @@ export function openGame(
   document.addEventListener("visibilitychange", onVisible);
 
   socket.addEventListener("close", () => {
-    note(`line closed to ${gameOf(gameId)}`);
+    note(`line closed to ${gameOf(gameId)}${hungUp ? " (hung up)" : ""}`);
     document.removeEventListener("visibilitychange", onVisible);
     if (asking !== null) {
       clearInterval(asking);
       asking = null;
     }
     onLink(false);
-    onClosed();
+    if (!hungUp) {
+      onClosed();
+    }
   });
 
   return {
@@ -151,6 +164,7 @@ export function openGame(
       }
     },
     close() {
+      hungUp = true;
       if (asking !== null) {
         clearInterval(asking);
         asking = null;

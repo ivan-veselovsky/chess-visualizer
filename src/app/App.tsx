@@ -76,10 +76,12 @@ import StashedGames from "./StashedGames";
 import ToggleField from "./ToggleField";
 import ChallengeDialog from "./friend/ChallengeDialog";
 import InviteDialog from "./friend/InviteDialog";
-import InvitePanel from "./friend/InvitePanel";
+import GameDetails from "./friend/GameDetails";
 import { gameHere } from "./friend/connection";
 import { loadGame } from "./friend/storage";
 import JoinDialog from "./friend/JoinDialog";
+import ForgetIcon from "./ForgetIcon";
+import RefreshIcon from "./RefreshIcon";
 import SavedGames from "./friend/SavedGames";
 import { describeEnding } from "./friend/ending";
 import { friendlyGameName } from "./friend/gameName";
@@ -1694,7 +1696,7 @@ export default function App() {
                 </aside>
               )}
 
-              <InvitePanel
+              <GameDetails
                 phase={friend.phase}
                 link={friend.link}
                 myName={friend.name}
@@ -1768,6 +1770,9 @@ export default function App() {
                   </p>
                 )}
                 <div className="board-controls games-actions">
+                  {/* The two answers to "what now" about this list, at one
+                      width and held together: see `.button-pair`. */}
+                  <div className="button-pair games-pair">
                   <button
                     type="button"
                     className="reset-button"
@@ -1797,6 +1802,7 @@ export default function App() {
                       }
                     }}
                   >
+                    <ForgetIcon />
                     Forget selected
                   </button>
                   <button
@@ -1806,8 +1812,10 @@ export default function App() {
                     title="Ask every game how it stands now"
                     onClick={() => void friend.readGames()}
                   >
+                    <RefreshIcon />
                     {friend.reading ? "Refreshing …" : "Refresh"}
                   </button>
+                  </div>
                 </div>
               </section>
             )}
