@@ -1,5 +1,6 @@
 import { PING, PONG } from "../../../worker/protocol";
 import type { FromClient, FromServer } from "../../../worker/protocol";
+import { note } from "./log";
 import { gameOf } from "./storage";
 
 export type { FromClient, FromServer };
@@ -55,6 +56,7 @@ export function openGame(
   );
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 
+  note(`line opening to ${gameOf(gameId)}`);
   const socket = new WebSocket(url.toString());
   const queued: FromClient[] = [];
 
@@ -67,6 +69,7 @@ export function openGame(
 
   socket.addEventListener("open", () => {
     heardAt = Date.now();
+    note(`line up to ${gameOf(gameId)}`);
     onLink(true);
     asking = setInterval(() => {
       if (Date.now() - heardAt > SILENT_FOR) {
@@ -97,7 +100,9 @@ export function openGame(
       return;
     }
     try {
-      onMessage(JSON.parse(String(event.data)) as FromServer);
+      const said = JSON.parse(String(event.data)) as FromServer;
+      note(`heard ${said.type} from ${gameOf(gameId)}`, said);
+      onMessage(said);
     } catch {
       // A message that will not parse says nothing worth acting on.
     }
@@ -120,6 +125,7 @@ export function openGame(
   document.addEventListener("visibilitychange", onVisible);
 
   socket.addEventListener("close", () => {
+    note(`line closed to ${gameOf(gameId)}`);
     document.removeEventListener("visibilitychange", onVisible);
     if (asking !== null) {
       clearInterval(asking);
@@ -132,6 +138,12 @@ export function openGame(
   return {
     // Held until the socket opens, so a caller need not wait to say anything.
     send(message) {
+      /* The token is not written down: it is the whole of a player's identity,
+         and a console is a place things get copied out of. */
+      note(
+        `said ${message.type} to ${gameOf(gameId)}` +
+          (socket.readyState === WebSocket.OPEN ? "" : " (held until the line opens)")
+      );
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify(message));
       } else {
@@ -175,15 +187,64 @@ export function gameLink(gameId: string): string {
 }
 
 /**
- * The game this page was opened at, if any.
+ * Where a tab keeps the game it is at.
+ *
+ * Per tab and not per browser, which is what `sessionStorage` is: two tabs at
+ * two games is the arrangement this app is built around — a browser can hold
+ * both seats at one game — and a browser-wide note of "the game" would have the
+ * two of them writing over each other.
+ */
+const HERE = "cv.here";
+
+function remembered(): string | null {
+  try {
+    return window.sessionStorage.getItem(HERE);
+  } catch {
+    /* A browser refusing storage still plays; it just forgets on reload. */
+    return null;
+  }
+}
+
+/**
+ * The game a link asked for, taken once and then taken out of the address.
+ *
+ * A link carries a game because that is how one person hands a game to another.
+ * What it is not is a record of where a tab is: left in the address it became a
+ * second account of that, and the two disagreed — the list said one game was
+ * showing and the address said another, and every reload went back to whichever
+ * the address happened to name. So it is read once, on arrival, and the address
+ * is put back to plain. From then on the tab's own note is the whole of it.
  *
  * `invite` is read too, and means exactly the same: links written before the
- * two were one word are in people's chat histories, and the id inside them is
- * this id. What happens next no longer depends on which word was used.
+ * two were one word are in people's chat histories.
  */
-export function gameInUrl(): string | null {
+function gameFromLink(): string | null {
   const asked = new URLSearchParams(window.location.search);
-  return asked.get(PLAY_PARAM) ?? asked.get("invite");
+  const named = asked.get(PLAY_PARAM) ?? asked.get("invite");
+  if (named === null) {
+    return null;
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.delete(PLAY_PARAM);
+  url.searchParams.delete("invite");
+  window.history.replaceState(null, "", url.toString());
+  return named;
+}
+
+/**
+ * The game this tab is at: what a link asked for if one did, and what the tab
+ * was at before it was reloaded otherwise.
+ *
+ * Safe to ask more than once. The link is spent the first time and remembered,
+ * so every later asking gets the same answer from the tab's own note.
+ */
+export function gameHere(): string | null {
+  const asked = gameFromLink();
+  if (asked !== null) {
+    nowAtGame(asked);
+    return asked;
+  }
+  return remembered();
 }
 
 /**
@@ -234,32 +295,28 @@ export function askGame(
 }
 
 /**
- * Puts the game in the address bar, so that this tab and this game are one
- * thing: a reload comes back to it, the browser restores it with the window,
- * and a second tab is free to be a second game.
+ * Notes the game this tab is at, so that a reload comes back to it and the tab
+ * next door is free to be at another.
  *
- * Replaced rather than pushed — Back should leave the page, not walk backwards
- * out of a game that is still being played.
+ * The seat, sign and all: which side of a game a tab is sitting at is the whole
+ * of what makes it different from the tab beside it. Nothing is written to the
+ * address — a game being shown is what the list marks, and one place saying it
+ * is enough.
  */
-export function showGameInUrl(seat: string): void {
-  const url = new URL(window.location.href);
-  url.search = "";
-  // The seat, sign and all: this address is the tab's own, and which side of
-  // the game it is sitting at is the whole of what makes it different from the
-  // tab next to it.
-  url.searchParams.set(PLAY_PARAM, seat);
-  if (url.toString() !== window.location.href) {
-    window.history.replaceState(null, "", url.toString());
+export function nowAtGame(seat: string): void {
+  try {
+    window.sessionStorage.setItem(HERE, seat);
+  } catch {
+    /* Then this tab forgets where it was when it is reloaded, and nothing
+       worse: the game is still on the server and still in the list. */
   }
 }
 
-/** Takes it out again, when this tab is no longer at that game. */
-export function forgetGameInUrl(): void {
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has(PLAY_PARAM) && !url.searchParams.has("invite")) {
-    return;
+/** Forgets it, when this tab is no longer at that game. */
+export function noLongerAtGame(): void {
+  try {
+    window.sessionStorage.removeItem(HERE);
+  } catch {
+    /* Nothing to undo. */
   }
-  url.searchParams.delete(PLAY_PARAM);
-  url.searchParams.delete("invite");
-  window.history.replaceState(null, "", url.toString());
 }

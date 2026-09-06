@@ -24,7 +24,11 @@ export default function PlayerName({ name, color, mine }: PlayerNameProps) {
         className={`player-color player-color-${color}`}
         aria-hidden="true"
       />
-      {name}
+      {/* The name in a box of its own, so that a long one is cut short rather
+          than wrapped: the row is one line high whatever it holds, and the
+          board below it does not move because somebody is called something
+          long. */}
+      <span className="player-name-text">{name}</span>
       {mine && <span className="player-mine"> (me)</span>}
     </p>
   );

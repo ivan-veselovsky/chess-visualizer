@@ -302,7 +302,14 @@ export default function InvitePanel({
             <p className="invite-heading">
               {phase.over === null
                 ? `Playing ${phase.opponent} — you are ${phase.you === "w" ? "White" : "Black"}`
-                : endingOf(phase.over, phase.you)}
+                : endingOf(phase.over, phase.you)}{" "}
+              {/* Which game this is, said where the game is named. The list goes
+                  by the players, and two games against the same person are told
+                  apart by nothing else — and it is the number one reads out to
+                  somebody whose browser has fallen over. */}
+              <span className="invite-heading-id">
+                ({spellGameId(phase.gameId)})
+              </span>
             </p>
             {/* The link and the number, which the invite showed and then took
                 away with it. Wanted again more often than one would think: an

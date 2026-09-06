@@ -34,6 +34,7 @@ import {
 } from "../chess/pgn";
 import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
 import {
+  nextStashName,
   stashGame,
   stashedGame,
   type GameStash,
@@ -76,7 +77,7 @@ import ToggleField from "./ToggleField";
 import ChallengeDialog from "./friend/ChallengeDialog";
 import InviteDialog from "./friend/InviteDialog";
 import InvitePanel from "./friend/InvitePanel";
-import { gameInUrl } from "./friend/connection";
+import { gameHere } from "./friend/connection";
 import { loadGame } from "./friend/storage";
 import JoinDialog from "./friend/JoinDialog";
 import SavedGames from "./friend/SavedGames";
@@ -241,7 +242,7 @@ export default function App() {
     and that is a game about to start rather than one already over.
   */
   const [tab, setTab] = useState<PanelTab>(() => {
-    const seat = gameInUrl();
+    const seat = gameHere();
     if (seat === null) {
       return "game";
     }
@@ -298,6 +299,8 @@ export default function App() {
     const loaded = historyFromLine(entries);
     setHistory(loaded);
     showPosition(currentPosition(loaded));
+    /* Read in from somewhere that still has it. */
+    handed.current = lineOf(loaded);
     setLibraryGame(null);
     setStashName(null);
     return null;
@@ -403,6 +406,15 @@ export default function App() {
     }
     setHistory({ entries, current: 0 });
     showPosition(entries[0].fen);
+    handed.current = {
+      initialFEN,
+      /* What was actually played, not what was sent: a line that stopped being
+         legal partway is on the board only as far as it got. */
+      moves: entries
+        .slice(0, -1)
+        .reverse()
+        .map((entry) => entry.move ?? ""),
+    };
     setLibraryGame(null);
     setStashName(null);
   }
@@ -424,6 +436,7 @@ export default function App() {
     }
     setHistory(game.history);
     showPosition(currentPosition(game.history));
+    handed.current = lineOf(game.history);
     setStashName(name);
     setLibraryGame(null);
     setLibraryGameError(null);
@@ -446,6 +459,9 @@ export default function App() {
   function setPosition(next: string) {
     showPosition(next);
     setHistory(startHistory(next));
+    /* Typed, pasted or reset: whatever follows from here is the board's own
+       and nobody else's copy of it. */
+    handed.current = null;
     setLibraryGame(null);
     setLibraryGameError(null);
     setStashName(null);
@@ -769,6 +785,12 @@ export default function App() {
     onMoved: ({ san, fen: after }) => {
       setHistory((current) => pushPosition(current, after, san));
       showPosition(after);
+      if (handed.current !== null) {
+        handed.current = {
+          ...handed.current,
+          moves: [...handed.current.moves, san],
+        };
+      }
     },
     /*
       The whole line, on joining a game or coming back to one. Replayed here
@@ -786,6 +808,12 @@ export default function App() {
           : current
       );
       showPosition(back);
+      if (handed.current !== null) {
+        handed.current = {
+          ...handed.current,
+          moves: handed.current.moves.slice(0, -1),
+        };
+      }
     },
     onLine: ({ initialFEN, moves }) => {
       if (initialFEN === "") {
@@ -805,7 +833,24 @@ export default function App() {
       const same =
         here.initialFEN === initialFEN &&
         here.moves.join(" ") === moves.join(" ");
-      if (!same && history.entries.length > 1 && stashName === null) {
+      /* Still what it was handed, so it is a game that is kept elsewhere and
+         there is nothing here to lose. Moving between games in the list is this
+         case every time, and it was stopping to ask on every one of them. */
+      const asHanded =
+        handed.current !== null &&
+        handed.current.initialFEN === here.initialFEN &&
+        handed.current.moves.join(" ") === here.moves.join(" ");
+      if (same) {
+        /*
+          The line the board already holds. Putting it up again would rebuild it
+          and leave the reader at its head — which is where they were not: a
+          game in progress can be walked back through, and a `state` arriving
+          from a reconnection would have snatched the board back to the last
+          move every time it did.
+        */
+        return;
+      }
+      if (!asHanded && history.entries.length > 1 && stashName === null) {
         setWaitingToStart({ initialFEN, moves });
         return;
       }
@@ -826,7 +871,31 @@ export default function App() {
     a line of its own and left in the list.
   */
   const aside = friend.phase.kind === "playing" && friend.phase.over === null;
-  const [challengingAside, setChallengingAside] = useState(false);
+  /* Where the panel was when the challenge dialog was opened, so that thinking
+     better of it puts the reader back rather than nowhere. */
+  const [wasShowing, setWasShowing] = useState<string | null>(null);
+  /*
+    Whether the board has players' names above and below it.
+
+    A game being opened counts, not only one already open. Going from one game
+    to another passes through the moment of being at neither, and reading that
+    moment honestly — no game, so no names — took the two rows away, let the
+    board grow into the space, and put them back a fraction of a second later.
+    The reader sees the board jump out and back for every switch.
+
+    So the space is held while a game is on its way. The names in it are the new
+    game's when they arrive; until then the rows stand empty, which is a blank
+    where a name will be rather than the board moving twice.
+  */
+  const atAGame =
+    friend.phase.kind === "playing" || friend.phase.kind === "opening";
+  const named =
+    friend.phase.kind === "playing"
+      ? {
+          you: friend.phase.you,
+          opponent: friend.phase.opponent,
+        }
+      : null;
   /** A challenge being looked at while another game is being played. */
   const [considering, setConsidering] = useState<{
     gameId: string;
@@ -843,6 +912,48 @@ export default function App() {
     sure.
   */
   const readGames = friend.readGames;
+  /*
+    Coming back to the game's own tab.
+
+    While a game is on, the board is free to be walked back through: nothing can
+    be sent from a position that is not the last one, so stepping about in it is
+    reading rather than playing. Coming back here is coming back to play, so the
+    board catches up to the move the game is actually at.
+
+    And if what is on the board is no longer that game — a PGN read in, a line
+    played out by hand on the other tab — that is asked about before the game
+    goes back up, in the same words as anywhere else something made here is
+    about to be replaced.
+  */
+  useEffect(() => {
+    if (
+      tab !== "match" ||
+      friend.phase.kind !== "playing" ||
+      handed.current === null
+    ) {
+      return;
+    }
+    const here = lineOf(history);
+    const game = handed.current;
+    const same =
+      here.initialFEN === game.initialFEN &&
+      here.moves.join(" ") === game.moves.join(" ");
+    if (same) {
+      if (history.current !== 0) {
+        showHistory({ ...history, current: 0 });
+      }
+      return;
+    }
+    if (history.entries.length > 1 && stashName === null) {
+      setWaitingToStart(game);
+      return;
+    }
+    putUp(game);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the board and the
+    // game it is showing are what this watches; the helpers it calls are the
+    // component's own and are the same on every render.
+  }, [tab, friend.phase.kind, history, stashName]);
+
   /*
     A game ending is not a phase change — the phase stays `playing` and gains an
     ending — so watching the kind alone left the row for a game just resigned
@@ -861,6 +972,25 @@ export default function App() {
    * board has not been dealt with. Held until the question is answered, and
    * only then put up.
    */
+  /**
+   * The line the board was handed, by whoever handed it one.
+   *
+   * A game put up from the list, a game from the library, a stash taken out, a
+   * PGN pasted in, a line a link carried: all of them are kept somewhere other
+   * than the board, and none of them is worth asking whether to keep. What is
+   * worth asking about is what somebody made here — moves played on the board
+   * by hand, a position typed in — and that is exactly what this tells apart:
+   * the board holding something other than what it was handed.
+   *
+   * Kept level with the game while it is played, since a move of one's own in a
+   * game with a friend is the object's move as much as the board's. Otherwise
+   * the first move of a game would have made the board look like an afternoon's
+   * work, and switching to another game would have stopped to ask about it.
+   */
+  const handed = useRef<{ initialFEN: string; moves: string[] } | null>(
+    lineOf(history)
+  );
+
   const [waitingToStart, setWaitingToStart] = useState<{
     initialFEN: string;
     moves: string[];
@@ -1100,7 +1230,7 @@ export default function App() {
   return (
     <main
       className={
-        friend.phase.kind === "playing" ? "app app-playing" : "app"
+        atAGame ? "app app-playing" : "app"
       }
     >
       <header className="app-header">
@@ -1139,15 +1269,17 @@ export default function App() {
               }
             >
               {/* Whoever is at the far end of the board as it now stands. */}
-              {friend.phase.kind === "playing" && (
+              {atAGame && (
                 <PlayerName
                   name={
-                    farSide === friend.phase.you
-                      ? friend.name
-                      : friend.phase.opponent
+                    named === null
+                      ? ""
+                      : farSide === named.you
+                        ? friend.name
+                        : named.opponent
                   }
                   color={farSide}
-                  mine={farSide === friend.phase.you}
+                  mine={named !== null && farSide === named.you}
                 />
               )}
               <div className="board-with-captured">
@@ -1188,15 +1320,17 @@ export default function App() {
                 )}
               </div>
               {/* And whoever is at this end. */}
-              {friend.phase.kind === "playing" && (
+              {atAGame && (
                 <PlayerName
                   name={
-                    nearSide === friend.phase.you
-                      ? friend.name
-                      : friend.phase.opponent
+                    named === null
+                      ? ""
+                      : nearSide === named.you
+                        ? friend.name
+                        : named.opponent
                   }
                   color={nearSide}
-                  mine={nearSide === friend.phase.you}
+                  mine={named !== null && nearSide === named.you}
                 />
               )}
             </div>
@@ -1495,7 +1629,10 @@ export default function App() {
                       ? "Offer another game; it joins the list below"
                       : undefined
                   }
-                  onClick={() => (aside ? setChallengingAside(true) : friend.start())}
+                  onClick={() => {
+                    setWasShowing(friend.showingSeat);
+                    friend.start();
+                  }}
                 >
                   Send a challenge {"\u2026"}
                 </button>
@@ -1780,32 +1917,36 @@ export default function App() {
       />
 
       <ChallengeDialog
-        open={friend.phase.kind === "challenging" || challengingAside}
+        open={friend.phase.kind === "challenging"}
         name={friend.name}
         // What is on the board, in case the game is to be taken up from it
         // rather than started: the whole line, not merely the position, so
         // that the moves already played stay part of the game.
         board={lineOf(history)}
-        onSubmit={async (terms) => {
-          if (!challengingAside) {
-            friend.challenge(terms);
-            return;
-          }
-          setChallengingAside(false);
-          const made = await friend.challengeAside(terms);
-          if (made === null) {
-            setAsideTrouble("That challenge could not be sent. The server did not answer.");
-          }
-        }}
+        /*
+          A challenge takes the board, whatever was on it. Offering a game means
+          handing somebody its link, and the link is on the panel of the game
+          being shown — arranged quietly in the background, a challenge would
+          have been made that nobody could send. What it replaces is not lost:
+          the game that was showing is in the list, a click away.
+        */
+        onSubmit={friend.challenge}
         onName={friend.remember}
         // Only a dismissal abandons the challenge. A <dialog> fires `close`
         // whenever it closes, including when it closes because the game was
         // created — and calling off the game at that moment would throw away
         // the invite that had just been made.
         onClose={() => {
-          setChallengingAside(false);
-          if (friend.phase.kind === "challenging") {
-            friend.leave();
+          if (friend.phase.kind !== "challenging") {
+            return;
+          }
+          /* Only a dismissal gets here while the phase is still `challenging`:
+             a challenge that was sent has already moved on. So this is somebody
+             thinking better of it, and what they were looking at before comes
+             back. */
+          friend.leave();
+          if (wasShowing !== null) {
+            friend.rejoin(wasShowing);
           }
         }}
       />
@@ -1857,11 +1998,13 @@ export default function App() {
       <StashDialog
         open={waitingToStart !== null}
         taken={stash.map((game) => game.name)}
-        initialName={`Set aside ${new Date().toLocaleDateString()}`}
+        initialName={nextStashName(stash.map((game) => game.name))}
+        /* What is actually at stake, which is never the game about to go up —
+           that one is on the server and in the list. It is what is on the board
+           now: a line somebody made here, which nothing else has a copy of. */
         prompt={
-          friend.phase.kind === "playing"
-            ? `You're about to start a game with ${friend.phase.opponent}. Would you like to stash the current game?`
-            : "Would you like to stash the current game?"
+          "The board holds a position you made here, and it is about to be " +
+          "replaced. Would you like to stash it first?"
         }
         submitLabel="Stash"
         dismissLabel="Discard"
@@ -1894,7 +2037,9 @@ export default function App() {
                 friend.phase.you === "b" ? friend.name : friend.phase.opponent,
                 friend.phase.gameId
               )
-            : null)
+            : /* Nothing names this one, so the day does — and says which of
+                 the day's it is, where there is more than one. */
+              nextStashName(stash.map((game) => game.name)))
         }
         onSubmit={stashHere}
         onClose={() => setStashDialogOpen(false)}

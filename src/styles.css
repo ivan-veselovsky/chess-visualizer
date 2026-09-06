@@ -89,8 +89,16 @@ body {
 .app {
   /* Only a game with a friend puts names round the board. */
   --player-names: 0rem;
-  /* What the page keeps for itself around the board, whatever else is on. */
-  --page-reserve: 7rem;
+  /*
+    What the page keeps for itself around the board, whatever else is on.
+
+    Measured rather than guessed at: the padding above, the header and its
+    margin, and the padding below come to 105px at every width the header does
+    not wrap at — which is all of them, it being one line of a title and two
+    links. Six rems is that with a few pixels in hand. It was a rem more, and
+    the board gave up a line of squares for space nothing was using.
+  */
+  --page-reserve: 6rem;
   --board-reserve: calc(var(--page-reserve) + var(--player-names));
   --board-cap: calc((100vh - var(--board-reserve)) * var(--board-zoom));
   /* Excludes mobile browser chrome; ignored where unsupported. */
@@ -107,7 +115,9 @@ body {
   --board-max: min(100%, var(--board-cap));
   max-width: 1500px;
   margin: 0 auto;
-  padding: 1.5rem 0.75rem 2rem;
+  /* Less under the board than above the header: the board is the page, and a
+     wide margin below it is a wide margin below nothing. */
+  padding: 1.5rem 0.75rem 1rem;
 }
 
 .app-header {
@@ -165,7 +175,15 @@ body {
 
 /* A game with a friend names both players, above the board and below it. */
 .app-playing {
-  --player-names: 3.2rem;
+  /*
+    What the two rows take out of the height the board is measured against.
+
+    The rows themselves are a line of text each, their margins, and the extra
+    room under the upper one — add those up rather than guess, or the board is
+    measured against space the names are already sitting in and the page grows
+    a scrollbar.
+  */
+  --player-names: 4rem;
 }
 
 /* Board on the left, everything else stacked on the right. */
@@ -2711,6 +2729,17 @@ input[type="color"]::-moz-color-swatch {
   gap: 2rem;
 }
 
+/* The number after the name of the game: quieter than the words, and in the
+   figures the app spells ids in everywhere else, so it reads as a number to be
+   said aloud rather than as part of the sentence. */
+.invite-heading-id {
+  font-family: ui-monospace, monospace;
+  font-weight: 400;
+  font-size: 0.9em;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  white-space: nowrap;
+}
+
 .invite-heading-row > .reset-button {
   /* At the panel's right edge, whatever the heading in front of it happens to
      say: a button that moves with the length of a name is a button that has to
@@ -2877,8 +2906,22 @@ input[type="color"]::-moz-color-swatch {
 /* Enough rows to see the shape of the list, and then it scrolls. In rows rather
    than in a fraction of the panel: the panel is itself a scroller, and two
    scrollers sharing a height fight over every wheel turn. */
+/*
+  The rows take the room the panel has left, and scroll only when there is no
+  more of it.
+
+  It was a fixed eleven rems, which is five rows: enough to see the shape of a
+  list, and a scrollbar under a tab with half its height standing empty. What
+  decides now is what is actually below — the panel is a column, this stretches
+  into what the game above it does not want, and the two buttons under it keep
+  their place because they are not in the part that scrolls.
+*/
 .games-scroll {
-  max-height: 11rem;
+  /* As tall as the rows it holds, and no taller: it gives way — and then
+     scrolls — only when the panel has no more room to give. */
+  flex: 0 1 auto;
+  /* Never squeezed to a line and a half, however little is left. */
+  min-height: 6rem;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -2906,7 +2949,12 @@ input[type="color"]::-moz-color-swatch {
   color: #e04b3f;
 }
 
+/* A column, so the rows above the two buttons can be the part that stretches. */
 .games-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 1 auto;
   margin-top: 0.9rem;
 }
 
@@ -2929,9 +2977,11 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .saved-game-pair {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
-  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .saved-game-who {
@@ -2953,10 +3003,17 @@ input[type="color"]::-moz-color-swatch {
   white-space: nowrap;
 }
 
+/* The number after the players, said the way the panel above says it: quiet,
+   in figures, and never broken across a line. Two games against the same person
+   are told apart by nothing else. */
 .saved-game-id {
   flex: 0 0 auto;
+  margin-right: auto;
   font-family: ui-monospace, monospace;
+  font-size: 0.9em;
   letter-spacing: 0.02em;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  white-space: nowrap;
 }
 
 .join-number {
@@ -2988,10 +3045,42 @@ input[type="color"]::-moz-color-swatch {
   align-items: center;
   gap: 0.45rem;
   margin: 0.25rem 0;
+  /*
+    One line high, whatever the name is — or whether there is one yet.
+
+    The board hangs below this row, so anything that changes its height moves
+    the board. Two things did: a row waiting for a name it has not been told is
+    as tall as the colour dot rather than as tall as a line of text, seven
+    pixels shorter, which is why the board slid up and back on every switch
+    between games; and a name long enough to wrap would have made it a line
+    taller. Fixed here and cut short below, the board's size and place have
+    nothing to do with who is playing.
+
+    The em is for browsers without `lh`, and says the same height less exactly.
+  */
+  height: 1.32em;
+  height: 1lh;
+  /* Room under the upper name, which sits straight on the board's edge. The
+     lower one needs none: the file letters run between it and the board and
+     are gap enough. */
+  margin-bottom: calc(0.25rem + 0.5em);
   padding-left: calc(
     (100% - var(--captured-bar-width) - var(--captured-bar-gap)) * 24 / 536
   );
   font-size: 0.95rem;
+}
+
+/* The lower name is under the coordinates, and takes the plain gap. */
+.board-and-players > .player-name:last-child {
+  margin-bottom: 0.25rem;
+}
+
+/* Cut short rather than wrapped; see the row above. */
+.player-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* With the bar hidden, the board is the whole column. */

@@ -17,13 +17,14 @@ import {
   PROBE_SILENT,
   PROTOCOL_VERSION,
 } from "../../../worker/protocol";
+import { note } from "./log";
 import {
-  forgetGameInUrl,
-  gameInUrl,
+  noLongerAtGame,
+  gameHere,
   gameLink,
   askGame,
   openGame,
-  showGameInUrl,
+  nowAtGame,
   type Connection,
   type FromClient,
   type FromServer,
@@ -324,6 +325,16 @@ export function useFriendGame(listeners: FriendListeners) {
      claiming to be more. */
   const [beenAsked, setBeenAsked] = useState(false);
   const connection = useRef<Connection | null>(null);
+  /* Every change of phase, said once: the phase is what the whole panel is
+     drawn from, and "what was it before" is the first question asked of any
+     surprise on it. */
+  const wasPhase = useRef(phase.kind);
+  useEffect(() => {
+    if (wasPhase.current !== phase.kind) {
+      note(`phase ${wasPhase.current} → ${phase.kind}`, phase);
+      wasPhase.current = phase.kind;
+    }
+  }, [phase]);
   /*
     Held in a ref and refreshed every render. The socket's handler is set up
     once, and a handler that closed over the app's first render would be
@@ -426,7 +437,7 @@ export function useFriendGame(listeners: FriendListeners) {
         case "created":
           offering.current = null;
           // From here the tab is at this game, and its address says so.
-          showGameInUrl(seat.current ?? gameId);
+          nowAtGame(seat.current ?? gameId);
           setPhase({
             kind: "waiting",
             gameId,
@@ -523,7 +534,7 @@ export function useFriendGame(listeners: FriendListeners) {
           );
           break;
         case "joined":
-          showGameInUrl(seat.current ?? gameId);
+          nowAtGame(seat.current ?? gameId);
           told.current.onLine({
             initialFEN: message.terms.initialFEN ?? "",
             moves: message.moves,
@@ -608,7 +619,7 @@ export function useFriendGame(listeners: FriendListeners) {
           setPhase({ kind: "declined", mine: true });
           break;
         case "state":
-          showGameInUrl(seat.current ?? gameId);
+          nowAtGame(seat.current ?? gameId);
           /*
             The record is rewritten before it is marked, not after. Writing it
             is writing the whole of it, so a rewrite that knows nothing about
@@ -653,8 +664,21 @@ export function useFriendGame(listeners: FriendListeners) {
               moves: message.moves,
             });
           }
-          setPhase(
-            message.opponent === null || message.you === OPPONENT_CHOOSES
+          /*
+            A reconnection says what the game is, not what the reader is doing.
+
+            The line to a game drops and is picked up again on its own, and what
+            comes back is a `state` — which was written straight over the phase,
+            whatever it was. Somebody filling in a challenge had the dialog shut
+            in their face a second after opening it, because the game they were
+            already at had quietly reconnected behind them. The two dialog
+            phases are the reader's own and are left alone; the game they
+            describe is in the list either way.
+          */
+          setPhase((current) =>
+            current.kind === "challenging" || current.kind === "invited"
+              ? current
+              : message.opponent === null || message.you === OPPONENT_CHOOSES
               ? {
                   kind: "waiting",
                   gameId,
@@ -770,7 +794,7 @@ export function useFriendGame(listeners: FriendListeners) {
           if (gone && cameFromOwnAddress.current) {
             cameFromOwnAddress.current = false;
             seat.current = null;
-            forgetGameInUrl();
+            noLongerAtGame();
             setPhase({ kind: "idle" });
             break;
           }
@@ -872,6 +896,7 @@ export function useFriendGame(listeners: FriendListeners) {
 
   const rejoin = useCallback(
     (mine: string) => {
+    note("going back to a seat");
       if (loadGame(mine) === null) {
         return;
       }
@@ -985,6 +1010,7 @@ export function useFriendGame(listeners: FriendListeners) {
    * that are not a game.
    */
   const remember = useCallback((typed: string) => {
+    note("opening the challenge dialog");
     const named = typed.trim();
     if (named === "") {
       return;
@@ -1116,7 +1142,7 @@ export function useFriendGame(listeners: FriendListeners) {
         if (dropping === seat.current) {
           seat.current = null;
           disconnect();
-          forgetGameInUrl();
+          noLongerAtGame();
           setPhase({ kind: "idle" });
         }
       }
@@ -1127,69 +1153,19 @@ export function useFriendGame(listeners: FriendListeners) {
   );
 
   /**
-   * A game begun or taken up without leaving the one being played.
+   * A game taken up without leaving the one being played.
    *
    * A browser can hold a seat at any number of games, and only one of them is
-   * on the board — so offering a game, or accepting somebody's, is not a reason
-   * to walk out of the game in front of you. The connection is: there is one,
-   * and the game being played has it.
+   * on the board — so accepting somebody's challenge is not a reason to walk
+   * out of the game in front of you. The connection is: there is one, and the
+   * game being played has it. So this does its business on a line of its own,
+   * opened for one exchange and dropped, and the new game appears in the list
+   * as a game to go to.
    *
-   * So these three do their business on a line of their own, opened for one
-   * exchange and dropped: the seat is written, the object is told, and the new
-   * game appears in the list as a game to go to. Nothing is watching it — a
-   * challenge answered while you are elsewhere is found the next time the list
-   * is read, not announced. That is the price of not being interrupted, and it
-   * is the right way round.
+   * Offering a game is the other way round and goes through `challenge`, which
+   * takes the board: what one does with a challenge is send its link, and the
+   * link is on the panel of the game being shown.
    */
-  const challengeAside = useCallback(
-    async (terms: ChallengeTerms): Promise<string | null> => {
-      const gameId = newGameId();
-      const mine = newToken();
-      setName(terms.name);
-      saveName(terms.name);
-      /* Written before the message goes, as on the main line: a reply that
-         never arrives must not take the only copy of the token with it. */
-      saveGame({
-        gameId,
-        token: mine,
-        you: terms.color,
-        myName: terms.name,
-        opponentName: null,
-        role: "challenger",
-      });
-      const said = await askGame(
-        gameId,
-        {
-          type: "create",
-          v: PROTOCOL_VERSION,
-          token: mine,
-          name: terms.name,
-          color: terms.color,
-          handicap: terms.handicap,
-          takebacks: terms.takebacks,
-          ...(terms.continueFrom === null
-            ? {}
-            : {
-                initialFEN: terms.continueFrom.initialFEN,
-                line: terms.continueFrom.moves,
-              }),
-        },
-        ["created"]
-      );
-      if (said === null) {
-        /* Nobody answered, so there is no game — and a seat at no game is a row
-           in the list that goes nowhere. */
-        forgetGame(seatOf(gameId, "challenger"));
-        setGames(savedGames());
-        return null;
-      }
-      setGames(savedGames());
-      await readGames();
-      return seatOf(gameId, "challenger");
-    },
-    [readGames]
-  );
-
   /** What a challenge is, for somebody deciding whether to take it up. */
   const lookAside = useCallback(
     async (
@@ -1265,6 +1241,7 @@ export function useFriendGame(listeners: FriendListeners) {
   );
 
   const leave = useCallback(() => {
+    note("leaving the game being shown");
     /*
       An invite still waiting for its answer is taken back, not merely
       forgotten: the object would otherwise go on offering a game to whoever
@@ -1292,7 +1269,7 @@ export function useFriendGame(listeners: FriendListeners) {
     }
     seat.current = null;
     disconnect();
-    forgetGameInUrl();
+    noLongerAtGame();
     setPhase({ kind: "idle" });
   }, [disconnect, phase]);
 
@@ -1334,6 +1311,7 @@ export function useFriendGame(listeners: FriendListeners) {
 
   const goTo = useCallback(
     (asked: string) => {
+    note("going to a game by its number");
       if (loadGame(asked) !== null) {
         rejoin(asked);
         return;
@@ -1349,7 +1327,7 @@ export function useFriendGame(listeners: FriendListeners) {
         // And the address is put right at once, so that a refresh does the
         // same thing as the first visit and nobody is shown a mark for a seat
         // they do not have.
-        showGameInUrl(gameOf(asked));
+        nowAtGame(gameOf(asked));
         goTo(gameOf(asked));
         return;
       }
@@ -1369,7 +1347,7 @@ export function useFriendGame(listeners: FriendListeners) {
     settles the rest.
   */
   useEffect(() => {
-    const gameId = gameInUrl();
+    const gameId = gameHere();
     if (gameId !== null) {
       cameFromOwnAddress.current = isChallengerSeat(gameId);
       goTo(gameId);
@@ -1464,7 +1442,6 @@ export function useFriendGame(listeners: FriendListeners) {
     forgetSelected,
     /** The seat the panel above the list is showing, if any. */
     showingSeat: seat.current,
-    challengeAside,
     lookAside,
     answerAside,
     answer,

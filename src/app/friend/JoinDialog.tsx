@@ -75,8 +75,11 @@ export default function JoinDialog({ open, onJoin, onClose }: JoinDialogProps) {
       <div className="pgn-dialog-actions">
         {/* The two ways out, at one width: see `.button-pair`. */}
         <div className="button-pair">
+          {/* There is nothing to decline until a game has been named: until
+              then this dialog is a question being asked, and backing out of it
+              is cancelling rather than turning anybody down. */}
           <button type="button" className="reset-button" onClick={onClose}>
-            Decline
+            {gameId === null ? "Cancel" : "Decline"}
           </button>
           <button
             type="button"

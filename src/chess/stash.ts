@@ -45,3 +45,28 @@ export function stashGame(
     ? [...stash, game]
     : stash.map((stashed, index) => (index === at ? game : stashed));
 }
+
+/**
+ * A name to offer for something being put aside, that nothing is called yet.
+ *
+ * The day it was set aside on, which is what somebody looking for it later
+ * remembers about it — and a number after that when the day already has one.
+ * Offered names that collide are worse than useless: the dialog takes the name
+ * as given, so accepting the suggestion twice in a day would have written the
+ * second game over the first without saying so.
+ *
+ * The first of a day carries no number. A list of "Set aside 6/9/2026", "(2)",
+ * "(3)" reads as one thing and the ones after it, which is what they are.
+ */
+export function nextStashName(taken: readonly string[], on = new Date()): string {
+  const day = `Set aside ${on.toLocaleDateString()}`;
+  if (!taken.includes(day)) {
+    return day;
+  }
+  for (let n = 2; ; n += 1) {
+    const tried = `${day} (${n})`;
+    if (!taken.includes(tried)) {
+      return tried;
+    }
+  }
+}

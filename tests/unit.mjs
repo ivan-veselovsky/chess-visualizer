@@ -15,6 +15,7 @@ import { lineOf as lineFromHistory } from "../src/chess/history.ts";
 import { openingFromUrl } from "../src/app/sharing.ts";
 import { reachSignature } from "../src/chess/attacks.ts";
 import { halfMoves } from "../src/app/friend/counting.ts";
+import { nextStashName } from "../src/chess/stash.ts";
 import { pinnedSquares } from "../src/chess/pins.ts";
 import {
   attackersOn,
@@ -627,6 +628,28 @@ console.log("\nA piece in the air\n");
     halfMoves(11) === "11 half-moves" && halfMoves(12) === "12 half-moves",
     `${halfMoves(11)} / ${halfMoves(12)}`);
   check("a count below nothing is still nothing", halfMoves(-3) === "no moves yet");
+}
+
+{
+  /*
+    What to call something being put aside. The dialog takes the name as given
+    and a stash replaces whatever is already under that name, so a suggestion
+    that collides is a suggestion to write over yesterday's — or over the one
+    set aside ten minutes ago.
+  */
+  const day = new Date(2026, 8, 6);
+  const first = nextStashName([], day);
+  check("the first of a day is named after the day",
+    first === "Set aside " + day.toLocaleDateString(), first);
+  const second = nextStashName([first], day);
+  check("the next one says which it is", second === first + " (2)", second);
+  check("and it goes on counting",
+    nextStashName([first, second], day) === first + " (3)",
+    nextStashName([first, second], day));
+  check("names of other things are not in the way",
+    nextStashName(["Ruy Lopez", "Endgame"], day) === first);
+  check("and a gap in the numbers is filled rather than stepped over",
+    nextStashName([first, first + " (3)"], day) === first + " (2)");
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

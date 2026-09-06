@@ -1,6 +1,6 @@
 import { halfMoves } from "./counting";
 import { endingOf } from "./ending";
-import { playersOf, seatOf } from "./storage";
+import { playersOf, seatOf, spellGameId } from "./storage";
 import type { SavedGame } from "./storage";
 import type { Standing } from "./useFriendGame";
 import { OPPONENT_CHOOSES } from "../../../worker/protocol";
@@ -42,7 +42,7 @@ function standingOf(
       return "Waiting for an answer";
     }
     if (live.status === "inProgress") {
-      return live.moves === 0 ? "In play" : `In play · ${halfMoves(live.moves)}`;
+      return live.moves === 0 ? "In play" : `In play, ${halfMoves(live.moves)}`;
     }
     return live.reason === null
       ? "Over"
@@ -96,10 +96,11 @@ function markOf(
  * The games this browser holds a seat at: which one is being shown, who is
  * playing whom in each of the others, and how each stands.
  *
- * The number is not on the row. It is nine digits that say nothing about the
- * game and take the width of two names, and a reader picking a game out of
- * thirty knows it by who is in it. It is on the row's tooltip for anyone who
- * wants it, and in the panel above for the game being shown.
+ * The number is on the row after the names, quietly. It was left off for a
+ * while — nine digits that say nothing about the game, taking the width of two
+ * names — and it is true that a reader picks a game out of thirty by who is in
+ * it. But two games against the same person are told apart by nothing else, and
+ * nothing stops a browser holding three of them.
  */
 export default function SavedGames({
   games,
@@ -164,7 +165,7 @@ export default function SavedGames({
             <button
               type="button"
               className="reset-button saved-game"
-              title={`Game ${game.gameId}${here ? " — the one being shown" : ""}`}
+              title={here ? "The game being shown" : "Go to this game"}
               onClick={() => onOpen(seat)}
             >
               <span className="saved-game-here" aria-hidden={!here}>
@@ -176,6 +177,9 @@ export default function SavedGames({
                   : `${players.white}${players.yours === "w" ? " (you)" : ""} – ${
                       players.black
                     }${players.yours === "b" ? " (you)" : ""}`}
+              </span>
+              <span className="saved-game-id">
+                ({spellGameId(game.gameId)})
               </span>
               <span className="saved-game-who">{standingOf(game, live)}</span>
               <span
