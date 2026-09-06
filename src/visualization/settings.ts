@@ -10,6 +10,7 @@
  * and no way for a half-filled object to exist.
  */
 
+
 export interface BoardColors {
   lightSquare: string;
   darkSquare: string;

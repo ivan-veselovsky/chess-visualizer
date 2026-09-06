@@ -10,6 +10,7 @@ import {
   type SettingsSide,
 } from "../geometry";
 import type { AttackSettings } from "../settings";
+import { raysShown } from "../visible";
 import BishopAttacks from "./attacks/BishopAttacks";
 import KingAttacks from "./attacks/KingAttacks";
 import KnightAttacks from "./attacks/KnightAttacks";
@@ -105,6 +106,17 @@ export default function AttackLayer({
       .filter(
         (piece) => piece.square !== lifted && !flying.includes(piece.square)
       )
+      /*
+        And only the sides that are being drawn at all. A side at nought is
+        left out here rather than painted invisibly: what follows is where the
+        cost is — every square a piece reaches, and where each of its rays
+        starts and stops — and none of it is worth doing for marks that will
+        not be seen. Marks already up when a side is turned off are dropped
+        from this list, which is how they come to fade rather than vanish.
+      */
+      .filter((piece) =>
+        raysShown(attackSettings, settingsSide(piece.color, orientation))
+      )
       .map((piece) => ({ piece, board: position })),
     /* What it draws, not merely which piece draws it: a rook whose line a move
        has just opened is drawing something else, and a mark that changes shape
@@ -122,7 +134,9 @@ export default function AttackLayer({
   const sides = (["me", "opponent"] as const).map((side) => ({
     side,
     id: `${idPrefix}-outline-${side}`,
-    width: Math.max(attackSettings.outlineWidths[side], 0) * SQUARE_SIZE,
+    width: raysShown(attackSettings, side)
+      ? Math.max(attackSettings.outlineWidths[side], 0) * SQUARE_SIZE
+      : 0,
   }));
   const outlineFor = (side: SettingsSide) =>
     sides.find((entry) => entry.side === side && entry.width > 0);

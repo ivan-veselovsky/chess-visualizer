@@ -78,7 +78,7 @@ import ChallengeDialog from "./friend/ChallengeDialog";
 import InviteDialog from "./friend/InviteDialog";
 import GameDetails from "./friend/GameDetails";
 import { gameHere } from "./friend/connection";
-import { loadGame } from "./friend/storage";
+import { loadGame, seatOf } from "./friend/storage";
 import JoinDialog from "./friend/JoinDialog";
 import ForgetIcon from "./ForgetIcon";
 import RefreshIcon from "./RefreshIcon";
@@ -90,6 +90,7 @@ import { useFriendGame } from "./friend/useFriendGame";
 import type { Heatmap, Settings } from "./settings";
 import type { ColorChoice, Terms } from "../../worker/protocol";
 import { DEFAULT_SETTINGS } from "./presets";
+import { flushSettings, loadSettings, saveSettings } from "./settingsStore";
 import type { SideIntensity } from "../visualization/settings";
 import {
   heatOver,
@@ -125,7 +126,44 @@ const TABS: readonly Tab<PanelTab>[] = [
 ];
 
 export default function App() {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  /*
+    The settings this browser was last using, read before the first paint
+    rather than after it.
+
+    In the initial state and not in an effect: an effect runs after the page is
+    on the screen, so the board would be painted in the default colours and
+    repainted in the reader's a moment later — a flash of somebody else's
+    settings every time the app opens. Anything unreadable — a version this
+    build has moved past, a record cut short — leaves the defaults standing.
+  */
+  const [settings, setSettings] = useState<Settings>(
+    () => loadSettings() ?? DEFAULT_SETTINGS
+  );
+
+  /*
+    And kept.
+
+    Told on every change; written on the store's own clock, half a minute at a
+    time, and only when something has actually changed — a browser sitting on a
+    board nobody is touching writes nothing. Flushed the moment the page is
+    hidden or unloaded, which is the last chance a tab about to be closed or
+    backgrounded will get.
+  */
+  useEffect(() => saveSettings(settings), [settings]);
+  useEffect(() => {
+    const leaving = () => {
+      if (document.visibilityState === "hidden") {
+        flushSettings();
+      }
+    };
+    document.addEventListener("visibilitychange", leaving);
+    window.addEventListener("pagehide", flushSettings);
+    return () => {
+      document.removeEventListener("visibilitychange", leaving);
+      window.removeEventListener("pagehide", flushSettings);
+      flushSettings();
+    };
+  }, []);
 
   /*
     One colour speaks for a side's rays, though the settings keep one per piece
@@ -973,6 +1011,47 @@ export default function App() {
       void readGames();
     }
   }, [tab, readGames]);
+
+  /*
+    A tab with games in it opens at one of them.
+
+    The panel and the list are one thing said twice, and an empty panel over a
+    full list is the app declining to answer a question it can answer: of the
+    games this browser is in, the one last touched is the one to be looking at.
+    The reader can go to any of the others with a click, and does not have to
+    make that click before anything is on the screen at all.
+
+    Only when there is no game at all — a challenge being composed, an invite
+    being read, a game being opened are all games in hand, and none of them is
+    disturbed. Nor does this repeat: going to one leaves the phase somewhere
+    other than idle.
+  */
+  const going = friend.rejoin;
+  const listed = friend.games;
+  useEffect(() => {
+    if (tab !== "match" || friend.phase.kind !== "idle" || listed.length === 0) {
+      return;
+    }
+    /*
+      Unless the tab is already at a game, which on the way in it may be
+      without the phase saying so yet.
+
+      A reload comes back to the game the tab was left at, and that comes from
+      the address the tab holds rather than from anything on screen — it is
+      asked for in an effect, and the phase it sets does not land until every
+      effect of that first commit has run, this one included. Reading the phase
+      alone, this saw `idle`, decided nobody was at anything, and sent the
+      reader to the top of the list instead of back to the game they reloaded.
+      The address is the thing that knows, and it is cleared when a game is
+      forgotten, so a reader who drops the game they were at still lands on the
+      next one.
+    */
+    if (gameHere() !== null) {
+      return;
+    }
+    const first = listed[0];
+    going(seatOf(first.gameId, first.role));
+  }, [tab, friend.phase.kind, listed, going]);
   /**
    * A game that has begun but is not on the board yet, because what is on the
    * board has not been dealt with. Held until the question is answered, and

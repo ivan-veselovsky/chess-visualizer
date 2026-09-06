@@ -40,6 +40,7 @@ import PieceLayer from "./layers/PieceLayer";
 import PinLayer from "./layers/PinLayer";
 import SquareLayer from "./layers/SquareLayer";
 import HeatmapLayer from "./layers/HeatmapLayer";
+import { heatmapShown, raysShown } from "./visible";
 
 interface BoardProps {
   /** Hatching over the dark squares. */
@@ -396,6 +397,13 @@ export default function Board({
     rayIntensity: null,
     heatmap: null,
     linkedIntensity: null,
+    /*
+      Except for whether each side is drawn at all, which the fraction does
+      decide. Everywhere above nought it only restyles what is already built;
+      at nought there is nothing built to restyle, so crossing that point —
+      either way — is one rebuild.
+    */
+    drawing: [raysShown(attacks, "me"), raysShown(attacks, "opponent")],
   });
   const attackLayer = useMemo(
     () => (
@@ -466,8 +474,8 @@ export default function Board({
         />
         {/* Over the squares and the last-move mark, and under everything else:
             it colours the board rather than marking anything on it. */}
-        {(attacks.heatmap.intensity.me > 0 ||
-          attacks.heatmap.intensity.opponent > 0) && (
+        {(heatmapShown(attacks.heatmap, "me") ||
+          heatmapShown(attacks.heatmap, "opponent")) && (
           <HeatmapLayer
             position={drawn}
             heatmap={attacks.heatmap}

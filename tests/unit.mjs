@@ -263,6 +263,91 @@ console.log("\nSettings files, old and new\n");
     parseSettings(JSON.stringify({ ...now, schemaVersion: 999 })).settings === null);
 }
 
+console.log("\nSettings kept between visits\n");
+{
+  /* A store of one browser's worth, standing in for the real one: what the app
+     writes goes in here and is read back out, which is the whole contract. */
+  const store = new Map();
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => store.set(key, String(value)),
+      removeItem: (key) => store.delete(key),
+    },
+  };
+  const { SETTINGS_KEY, flushSettings, loadSettings, saveSettings } = await import(
+    "../src/app/settingsStore.ts"
+  );
+
+  check("nothing kept yet means nothing to open with",
+    loadSettings() === null);
+
+  const mine = { ...DEFAULT_SETTINGS, fadeMs: 1234 };
+  saveSettings(mine);
+  check("a change is not written the instant it is made",
+    store.has(SETTINGS_KEY) === false);
+  /* Forty changes in a drag are one write, of the value landed on. The clock
+     that would have done it is half a minute long; what it calls when it comes
+     round is what is called here. */
+  for (let n = 0; n < 40; n += 1) {
+    saveSettings({ ...mine, fadeMs: 1000 + n });
+  }
+  flushSettings();
+  check("and a run of them is one write, of the last",
+    store.size === 1 && JSON.parse(store.get(SETTINGS_KEY)).fadeMs === 1039,
+    String(store.size));
+  flushSettings();
+  check("with nothing to write, nothing is written",
+    JSON.parse(store.get(SETTINGS_KEY)).fadeMs === 1039);
+
+  /* A tab opened and left alone hands the settings back unchanged, which is
+     not a change and is not worth a write. */
+  let writes = 0;
+  const counting = globalThis.window.localStorage.setItem;
+  globalThis.window.localStorage.setItem = (key, value) => {
+    writes += 1;
+    counting(key, value);
+  };
+  saveSettings({ ...mine, fadeMs: 1039 });
+  flushSettings();
+  check("and settings that come back the same are not written again",
+    writes === 0, String(writes));
+  globalThis.window.localStorage.setItem = counting;
+
+  check("what was kept is what opens next time",
+    loadSettings()?.fadeMs === 1039);
+
+  /* One unlucky write, landing as half a record — which is what the read-back
+     is there to catch. The store is itself again straight after, as a store
+     that could never write would leave nothing to put anything back with. */
+  const whole = store.get(SETTINGS_KEY);
+  const keep = globalThis.window.localStorage.setItem;
+  globalThis.window.localStorage.setItem = (key, value) => {
+    globalThis.window.localStorage.setItem = keep;
+    store.set(key, String(value).slice(0, 40));
+  };
+  saveSettings({ ...mine, fadeMs: 4321 });
+  flushSettings();
+  check("a write that lands half-written puts back the one that did not",
+    store.get(SETTINGS_KEY) === whole, store.get(SETTINGS_KEY).slice(0, 44));
+  check("so the settings still read back whole",
+    loadSettings()?.fadeMs === 1039);
+
+  store.set(SETTINGS_KEY, JSON.stringify({ ...mine, schemaVersion: 999 }));
+  check("settings from another revision are dropped, not guessed at",
+    loadSettings() === null && store.has(SETTINGS_KEY) === false);
+
+  store.set(SETTINGS_KEY, '{"schemaVersion":' + SETTINGS_SCHEMA_VERSION + ',"theme"');
+  check("and so is a record a dying tab cut in half",
+    loadSettings() === null && store.has(SETTINGS_KEY) === false);
+
+  store.set(SETTINGS_KEY, JSON.stringify({ schemaVersion: SETTINGS_SCHEMA_VERSION }));
+  check("as is one with the settings missing from it",
+    loadSettings() === null);
+
+  globalThis.window = undefined;
+}
+
 console.log("\nSeats, and the games they are at\n");
 {
   check("the side that offered the game sits at the minus",

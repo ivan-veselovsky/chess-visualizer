@@ -4,6 +4,7 @@ import { attackersOn } from "../../chess/flight";
 import { mix, readRgb, toHex } from "../color";
 import { FILES, RANKS, squareBox, type Orientation } from "../geometry";
 import type { Heatmap } from "../settings";
+import { heatmapShown } from "../visible";
 
 interface HeatmapLayerProps {
   position: Chess;
@@ -52,12 +53,31 @@ export default function HeatmapLayer({
 }: HeatmapLayerProps) {
   const mine: Color = orientation === "black" ? "b" : "w";
   const theirs: Color = mine === "w" ? "b" : "w";
+  const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
+
+  // What one attacker of each side lays down: that side's configured strength,
+  // scaled by the share of it the reader has asked for. Either of them at
+  // nought is a side that colours nothing.
+  const ourStrength = heatmapShown(heatmap, "me")
+    ? clamp(heatmap.strength.me) * clamp(heatmap.intensity.me)
+    : 0;
+  const theirStrength = heatmapShown(heatmap, "opponent")
+    ? clamp(heatmap.strength.opponent) * clamp(heatmap.intensity.opponent)
+    : 0;
+
+  const countMine = ourStrength > 0;
+  const countTheirs = theirStrength > 0;
 
   /*
     Counted once per position rather than per render: this asks chess.js about
-    every square twice over, and the board is redrawn for reasons that have
-    nothing to do with what attacks what. Both sides are counted whichever are
-    shown, so that turning one on does not recount the other.
+    every square, and the board is redrawn for reasons that have nothing to do
+    with what attacks what.
+
+    A side laying down no colour is not counted at all. It used to be counted
+    anyway, so that turning it on again did not have to recount — but that is
+    sixty-four questions per position for a side the reader has turned off, and
+    turning it back on costs one recount, which is what the next move costs
+    anyway.
   */
   const squares = useMemo(() => {
     /*
@@ -83,8 +103,10 @@ export default function HeatmapLayer({
            something to arrive from. See the note by `shown`. */
         found.push({
           square,
-          mine: attackersOn(board, square, mine, silent).length,
-          theirs: attackersOn(board, square, theirs, silent).length,
+          mine: countMine ? attackersOn(board, square, mine, silent).length : 0,
+          theirs: countTheirs
+            ? attackersOn(board, square, theirs, silent).length
+            : 0,
         });
       }
     }
@@ -92,15 +114,8 @@ export default function HeatmapLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `flying` is
     // compared by its contents; a fresh array of the same squares is the same
     // board to count.
-  }, [position, lifted, flying.join(), mine, theirs]);
+  }, [position, lifted, flying.join(), mine, theirs, countMine, countTheirs]);
 
-  const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
-  // What one attacker of each side lays down: that side's configured strength,
-  // scaled by the share of it the reader has asked for.
-  const ourStrength =
-    clamp(heatmap.strength.me) * clamp(heatmap.intensity.me);
-  const theirStrength =
-    clamp(heatmap.strength.opponent) * clamp(heatmap.intensity.opponent);
   if (ourStrength === 0 && theirStrength === 0) {
     return null;
   }
