@@ -81,10 +81,28 @@ TODO:
    how a PGN names them.
 
    
-2. Separate takebacks for me and the opponent.
+1. Separate takebacks for me and the opponent.
 
-3. Time control in the game: 1st step: clock for each of the players on the top and bottom of the board in play mode.
+1. Time control in the game: 1st step: clock for each of the players on the top and bottom of the board in play mode.
 
-4. --IMPORTANT: remove stale games by a TTL from server. 1 week would be reasonable--
+1. Save timing information into game's PGN:
 
-5.
+   PGN can include timing information, usually through annotations inside comments:
+
+   ```
+   [TimeControl "600+5"]
+
+   1. e4 {[%clk 0:09:57]} e5 {[%clk 0:09:56]}
+   2. Nf3 {[%clk 0:09:51]} Nc6 {[%clk 0:09:49]}
+   ```
+   TimeControl "600+5" — 10 minutes plus 5 seconds per move.
+   [%clk 0:09:57] — 9:57 remained on that player’s clock after the move.
+   [%emt 0:00:06] — an alternative annotation meaning 6 seconds elapsed while making the move.
+
+   These per-move annotations are widely used extensions rather than part of the original core PGN specification, so some PGN programs may ignore them. They remain valid because they are stored inside ordinary PGN comments.
+
+
+1. When playing a game from PGN, show the board in 2-players mode and show the player's names as per PGN. Once the user alters the move sequence, the board can get into "detached" state.
+
+
+
