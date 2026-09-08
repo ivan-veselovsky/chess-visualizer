@@ -3,7 +3,7 @@
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
-    "lightSquare": "#ccdccc",
+    "lightSquare": "#cccccc",
     "darkSquare": "#bfbfbf",
     "useLightForDark": true
   },

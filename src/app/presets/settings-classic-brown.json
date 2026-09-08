@@ -3,14 +3,14 @@
   "theme": "dark",
   "darkThemeTextColor": "#bababa",
   "boardColors": {
-    "lightSquare": "#ccdccc",
-    "darkSquare": "#b5835a",
+    "lightSquare": "#cccccc",
+    "darkSquare": "#b9a18d",
     "useLightForDark": false
   },
   "orientation": "white",
   "lastMove": {
     "color": "#949494",
-    "negative": false,
+    "negative": true,
     "diameter": 0.75
   },
   "move": {
