@@ -8,6 +8,8 @@ interface CopyButtonProps {
   disabled?: boolean;
   /** Drawn ahead of the label, and kept there while the button reports back. */
   icon?: ReactNode;
+  /** Anything the row it sits in wants to say about where it goes. */
+  className?: string;
 }
 
 /**
@@ -23,6 +25,7 @@ export default function CopyButton({
   title,
   disabled = false,
   icon,
+  className,
 }: CopyButtonProps) {
   const [said, setSaid] = useState<"copied" | "failed" | null>(null);
   const timer = useRef<number | null>(null);
@@ -57,7 +60,7 @@ export default function CopyButton({
   return (
     <button
       type="button"
-      className="reset-button"
+      className={className === undefined ? "reset-button" : `reset-button ${className}`}
       title={title}
       disabled={disabled}
       onClick={copy}

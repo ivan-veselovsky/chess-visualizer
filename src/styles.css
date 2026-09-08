@@ -2202,6 +2202,16 @@ input[type="color"]::-moz-color-swatch {
   width: min(20rem, 90vw);
 }
 
+/*
+  Less room around the two words than a wider dialog gives them: at the usual
+  three ems the pair is a dozen pixels wider than this box, and a pair is not
+  allowed to be squeezed — see `.button-pair`. Taking it out of the padding
+  keeps the two halves equal and inside the dialog.
+*/
+.color-dialog .button-pair {
+  --answer-room: 2.1em;
+}
+
 .color-dialog .color-field {
   /* Wraps rather than overflows: the copy button says how it went, and what it
      says is longer than what it usually reads. */
@@ -3582,6 +3592,16 @@ input[type="color"]::-moz-color-swatch {
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   width: max-content;
+  /*
+    Never squeezed. A pair is one shape — two answers of one width — and as an
+    ordinary flex item it would give way when the row it sits in ran short. What
+    that produced was not a smaller pair but a lopsided one: under a width it has
+    been given rather than one it asked for, the two `1fr` tracks split what
+    there is in proportion to their words, so "Cancel" came out wider than
+    "Done". If a pair does not fit, the room around its words is what to take in
+    — see the colour dialog, which asks for less of it.
+  */
+  flex: 0 0 auto;
   gap: var(--answer-apart);
 }
 

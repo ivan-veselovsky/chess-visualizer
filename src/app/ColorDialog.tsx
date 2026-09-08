@@ -118,29 +118,35 @@ export default function ColorDialog({
             }
           }}
         />
-        {/* Beside the colour it copies, rather than among the ways out. */}
+        {/* Beside the colour it copies, rather than among the ways out, and at
+            the far end of the row so it does not read as part of the field. */}
         <CopyButton
-          label="Copy"
+          label="Copy hex"
+          className="controls-end"
           title="Copy this colour as hex"
           text={() => value}
         />
       </div>
 
+      {/* The two ways out, at one width and held apart: see `.button-pair`,
+          which the dialogs and the panels both answer with. */}
       <div className="pgn-dialog-actions">
-        <button
-          type="button"
-          className="reset-button"
-          onClick={() => finish(false)}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="reset-button"
-          onClick={() => finish(true)}
-        >
-          Done
-        </button>
+        <div className="button-pair">
+          <button
+            type="button"
+            className="reset-button"
+            onClick={() => finish(false)}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="reset-button"
+            onClick={() => finish(true)}
+          >
+            Done
+          </button>
+        </div>
       </div>
     </dialog>
   );
