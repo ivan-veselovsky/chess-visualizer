@@ -19,6 +19,11 @@
   /* --attack-outline-* are supplied per-board by <Board>. */
   /* How much of a piece's own colour survives when its side is black. */
   --piece-dark-mix: 45%;
+  /* The page's one piece of livery, worn by the title over the board. */
+  --livery: #49d0fd;
+  /* And what the flower is, which is a colour of its own: the one thing on the
+     page that opens and closes by itself should not be mistaken for a control. */
+  --petal: #ccdccc;
   --panel-border: color-mix(in srgb, currentColor 25%, transparent);
   --panel-bg: color-mix(in srgb, currentColor 5%, transparent);
   /*
@@ -190,7 +195,7 @@ body {
   font-size: 1.5rem;
   /* Stated outright rather than mixed from the text colour: it is the page's
      one piece of livery, and reads the same under either theme. */
-  color: #49d0fd;
+  color: var(--livery);
 }
 
 /* A game with a friend names both players, above the board and below it. */
@@ -3440,16 +3445,15 @@ input[type="color"]::-moz-color-swatch {
   because a CSS transform replaces the attribute it would otherwise inherit.
 */
 /*
-  White petals, under either theme and round either side's disc: the flower is
-  one thing that opens, and what it says is whose move it is — which the disc at
-  the middle already carries. A petal that took the page's ground was a hole
-  with a line round it on the dark theme and invisible on the light one.
+  Petals of one colour, under either theme and round either side's disc: the
+  flower is one thing that opens, and what it says is whose move it is — which
+  the disc at the middle already carries.
 
-  The line is lighter than the panel's own for the same reason it is there at
-  all: to hold the shape against a light page without drawing seven rings.
+  The line round them is lighter than the panel's own for the same reason it is
+  there at all: to hold the shape without drawing seven rings.
 */
 .player-petal {
-  fill: #f4f4f4;
+  fill: var(--petal);
   stroke: color-mix(in srgb, currentColor 45%, transparent);
   stroke-width: 0.9;
   transform-box: view-box;
