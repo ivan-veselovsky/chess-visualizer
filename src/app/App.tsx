@@ -88,9 +88,14 @@ import { friendlyGameName } from "./friend/gameName";
 import PlayerName from "./friend/PlayerName";
 import { useFriendGame } from "./friend/useFriendGame";
 import type { Heatmap, Settings } from "./settings";
+import { OPPONENT_CHOOSES } from "../../worker/protocol";
 import type { ColorChoice, Terms } from "../../worker/protocol";
 import { DEFAULT_SETTINGS } from "./presets";
-import { flushSettings, loadSettings, saveSettings } from "./settingsStore";
+import { loadSettings } from "./settingsStore";
+import { usePresets, nameTrouble } from "./usePresets";
+import { asking, setAsking } from "./asking";
+import SaveAsDialog from "./SaveAsDialog";
+import PresetList from "./PresetList";
 import type { SideIntensity } from "../visualization/settings";
 import {
   heatOver,
@@ -136,34 +141,23 @@ export default function App() {
     settings every time the app opens. Anything unreadable — a version this
     build has moved past, a record cut short — leaves the defaults standing.
   */
+  const [opened] = useState(loadSettings);
   const [settings, setSettings] = useState<Settings>(
-    () => loadSettings() ?? DEFAULT_SETTINGS
+    () => opened.working ?? DEFAULT_SETTINGS
   );
 
   /*
-    And kept.
-
-    Told on every change; written on the store's own clock, half a minute at a
-    time, and only when something has actually changed — a browser sitting on a
-    board nobody is touching writes nothing. Flushed the moment the page is
-    hidden or unloaded, which is the last chance a tab about to be closed or
-    backgrounded will get.
+    And kept, under whatever name they are being used: the presets, the one in
+    hand, and everything not saved yet. Writing is the store's business and the
+    rules are `usePresets`; from here it is one hook and a list.
   */
-  useEffect(() => saveSettings(settings), [settings]);
-  useEffect(() => {
-    const leaving = () => {
-      if (document.visibilityState === "hidden") {
-        flushSettings();
-      }
-    };
-    document.addEventListener("visibilitychange", leaving);
-    window.addEventListener("pagehide", flushSettings);
-    return () => {
-      document.removeEventListener("visibilitychange", leaving);
-      window.removeEventListener("pagehide", flushSettings);
-      flushSettings();
-    };
-  }, []);
+  const presets = usePresets({ settings, apply: setSettings, opened });
+  /** Presets ticked for removal, as games are ticked for forgetting. */
+  const [tickedPresets, setTickedPresets] = useState<Set<string>>(new Set());
+  /** Whether the Save as dialog was opened from the button rather than a
+      question about settings with nowhere to go. */
+  const [namingPreset, setNamingPreset] = useState(false);
+  const [askBeforeDiscard, setAskBeforeDiscard] = useState(asking);
 
   /*
     One colour speaks for a side's rays, though the settings keep one per piece
@@ -355,6 +349,20 @@ export default function App() {
     setLibraryGameError(error);
     if (error === null) {
       setLibraryGame(game.id);
+      /*
+        And the board stops being anybody's game.
+
+        A game off the library is somebody else's, played a century ago; it is
+        not the game two people were sitting at. Left attached, the panel went
+        on naming that game, the row in the list went on being marked as the
+        one in front of the reader, and the two players' names stayed over a
+        board neither of them was playing on. The list keeps the game — this is
+        putting it down, not giving it up — and a click picks it back up.
+
+        Only ever from here: a game still being played locks the library, so
+        what is put down is a game already finished or a challenge still out.
+      */
+      putBoardDown();
     }
   }
 
@@ -917,25 +925,52 @@ export default function App() {
   /*
     Whether the board has players' names above and below it.
 
-    A game being opened counts, not only one already open. Going from one game
-    to another passes through the moment of being at neither, and reading that
-    moment honestly — no game, so no names — took the two rows away, let the
-    board grow into the space, and put them back a fraction of a second later.
-    The reader sees the board jump out and back for every switch.
+    Going from one game to another passes through the moment of being at
+    neither, and reading that moment honestly — no game, so no names — took the
+    two rows away, let the board grow into the space, and put them back a
+    fraction of a second later: the board jumping out and back at every switch.
 
-    So the space is held while a game is on its way. The names in it are the new
-    game's when they arrive; until then the rows stand empty, which is a blank
-    where a name will be rather than the board moving twice.
+    So while a game is on its way, the answer is whatever it last was. Between
+    two games that both name their players, the rows stay and hold their space;
+    between two challenges, which name nobody, they stay away. Either way the
+    board is one size for the whole switch, and changes at most once — when the
+    new game arrives and turns out to be a different kind of thing from the old
+    one.
   */
-  const atAGame =
-    friend.phase.kind === "playing" || friend.phase.kind === "opening";
+  const namesShown = useRef(false);
+  const atOne =
+    friend.phase.kind === "playing" || friend.phase.kind === "waiting";
+  if (friend.phase.kind !== "opening") {
+    namesShown.current = atOne;
+  }
+  const atAGame = friend.phase.kind === "opening" ? namesShown.current : atOne;
+  /*
+    Who is at each end.
+
+    A challenge has one player and a chair: the opponent is named for the shape
+    of the thing rather than because anybody knows who they are, and the board
+    reads as a game waiting for somebody instead of as a position that happens
+    to be up. Where the side is still the opponent's to pick, this end is drawn
+    as the near one — it is where the reader's own name goes, and the game will
+    turn the board round itself the moment it starts.
+  */
   const named =
     friend.phase.kind === "playing"
       ? {
           you: friend.phase.you,
           opponent: friend.phase.opponent,
         }
-      : null;
+      : friend.phase.kind === "waiting"
+        ? {
+            you:
+              friend.phase.you === OPPONENT_CHOOSES
+                ? settings.orientation === "black"
+                  ? ("b" as const)
+                  : ("w" as const)
+                : friend.phase.you,
+            opponent: "An opponent",
+          }
+        : null;
   /** A challenge being looked at while another game is being played. */
   const [considering, setConsidering] = useState<{
     gameId: string;
@@ -1026,10 +1061,33 @@ export default function App() {
     disturbed. Nor does this repeat: going to one leaves the phase somewhere
     other than idle.
   */
+  /*
+    Whether the reader put the game down on purpose.
+
+    The list opens at a game when there is none, which is what somebody
+    arriving wants and exactly what somebody who has just closed one does not:
+    without this, closing a game would be undone in the same breath by the tab
+    that offers one. Cleared by picking a game, which is the reader saying they
+    want one again.
+  */
+  const [letGo, setLetGo] = useState(false);
+  const putBoardDown = useCallback(() => {
+    if (friend.phase.kind === "idle") {
+      return;
+    }
+    friend.putDown();
+    setLetGo(true);
+  }, [friend]);
+
   const going = friend.rejoin;
   const listed = friend.games;
   useEffect(() => {
-    if (tab !== "match" || friend.phase.kind !== "idle" || listed.length === 0) {
+    if (
+      tab !== "match" ||
+      friend.phase.kind !== "idle" ||
+      listed.length === 0 ||
+      letGo
+    ) {
       return;
     }
     /*
@@ -1051,7 +1109,7 @@ export default function App() {
     }
     const first = listed[0];
     going(seatOf(first.gameId, first.role));
-  }, [tab, friend.phase.kind, listed, going]);
+  }, [tab, friend.phase.kind, listed, going, letGo]);
   /**
    * A game that has begun but is not on the board yet, because what is on the
    * board has not been dealt with. Held until the question is answered, and
@@ -1129,13 +1187,6 @@ export default function App() {
   */
   useEffect(() => {
     if (!playing) {
-      return;
-    }
-    /* A game with a friend is played, not watched: the moves arrive as they are
-       made, and walking the line on a timer would take the board away from
-       whoever is waiting to move on it. */
-    if (inGame !== null) {
-      setPlaying(false);
       return;
     }
     if (!canGoNext(history)) {
@@ -1241,16 +1292,52 @@ export default function App() {
     });
   }, [friend.phase, friend.name, history.entries]);
 
-  const seated = useRef<string | null>(null);
+  /*
+    Sitting down at a game turns the board round to the side being played.
+
+    A challenge counts, not only a game under way: somebody who asked to play
+    Black is going to play Black, and looking at their own challenge from over
+    the White pieces is looking at it from the wrong chair. Where the side is
+    still the opponent's to pick there is no chair to take yet, and the board is
+    left as it is until somebody answers and the game says which way round it
+    goes.
+
+    Where the side is still the opponent's to pick, the board is set to Black by
+    convention. Somebody has to be at the bottom of it and there is nothing yet
+    to say who; Black is the guess that costs least, since the challenger who
+    minded which side they were on would have said so. If the answer turns out
+    to be the other way, the game says so on acceptance and the board turns
+    then.
+
+    Once per game, and then once more when the game settles what a challenge
+    left open: the challenge and the game it becomes are one seat, so the board
+    is not spun under a reader who is already at it, but a guess is not allowed
+    to outlive the answer to it.
+  */
+  const seated = useRef<{ seat: string; settled: boolean } | null>(null);
   useEffect(() => {
     const phase = friend.phase;
-    if (phase.kind !== "playing" || seated.current === phase.gameId) {
+    if (phase.kind !== "playing" && phase.kind !== "waiting") {
       return;
     }
-    seated.current = phase.gameId;
+    const settled = phase.kind === "playing";
+    const side = phase.you === OPPONENT_CHOOSES ? "b" : phase.you;
+    /*
+      By the seat and not by the game. One browser can hold both ends of one
+      board — two tabs, two tokens, one game id — and going from one of them to
+      the other is sitting down in the opposite chair. Keyed by the game, that
+      move was taken for staying where one was, and the board stayed round the
+      wrong way while the panel said whose side it was.
+    */
+    const chair = friend.showingSeat ?? phase.gameId;
+    const at = seated.current;
+    if (at !== null && at.seat === chair && (at.settled || !settled)) {
+      return;
+    }
+    seated.current = { seat: chair, settled };
     setSettings((current) => ({
       ...current,
-      orientation: phase.you === "b" ? "black" : "white",
+      orientation: side === "b" ? "black" : "white",
     }));
   }, [friend.phase]);
 
@@ -1365,6 +1452,7 @@ export default function App() {
                   }
                   color={farSide}
                   mine={named !== null && farSide === named.you}
+                  toMove={atAGame && shown?.turn() === farSide}
                 />
               )}
               <div className="board-with-captured">
@@ -1384,12 +1472,20 @@ export default function App() {
                 playable={
                   friend.phase.kind === "playing" ? friend.phase.you : null
                 }
-                // Stepping back through a game is reading it. Playing on from
-                // an earlier position would be starting a different game, and
-                // the one being played is not this browser's to fork.
+                /*
+                  Stepping back through a game is reading it. Playing on from an
+                  earlier position would be starting a different game, and the
+                  one being played is not this browser's to fork.
+
+                  A challenge is frozen outright: there is no game to move in
+                  until somebody answers it, and a board that took moves would
+                  be offering to play against nobody. Stepping away is what
+                  hands the position back to the reader.
+                */
                 frozen={
-                  friend.phase.kind === "playing" &&
-                  (history.current !== 0 || !friend.link.mine)
+                  friend.phase.kind === "waiting" ||
+                  (friend.phase.kind === "playing" &&
+                    (history.current !== 0 || !friend.link.mine))
                 }
                 lastMove={lastMove}
                 lastMoveMark={settings.lastMove}
@@ -1416,6 +1512,7 @@ export default function App() {
                   }
                   color={nearSide}
                   mine={named !== null && nearSide === named.you}
+                  toMove={atAGame && shown?.turn() === nearSide}
                 />
               )}
             </div>
@@ -1542,7 +1639,11 @@ export default function App() {
                      position the button has no work to do, and saying so is
                      better than starting the game again from the top under a
                      word that promises to carry on. */
-                  disabled={inGame !== null || (!playing && !canGoNext(history))}
+                  /* Whatever the navigation can do, this can do: playing a
+                     game through is the same walk taken at a pace, and while a
+                     game with somebody else is on it is reading rather than
+                     playing — which is exactly what stepping through it is. */
+                  disabled={!playing && !canGoNext(history)}
                   onClick={playOrStop}
                 >
                   <PlayIcon playing={playing} />
@@ -1556,9 +1657,7 @@ export default function App() {
                   suffix="seconds"
                   step={0.5}
                   value={period}
-                  disabled={inGame !== null}
                   hint={
-                    inGame ??
                     "How long each position is left on the board while the game plays."
                   }
                   onChange={(playPeriodPerPositionSec) =>
@@ -1780,6 +1879,7 @@ export default function App() {
               )}
 
               <GameDetails
+                anyGames={friend.games.length > 0}
                 phase={friend.phase}
                 link={friend.link}
                 myName={friend.name}
@@ -1830,6 +1930,7 @@ export default function App() {
                     asked={friend.asked}
                     onOpen={(seat) => {
                       setTicked(new Set());
+                      setLetGo(false);
                       friend.rejoin(seat);
                     }}
                     onChoose={(seat, on) =>
@@ -1855,6 +1956,33 @@ export default function App() {
                 <div className="board-controls games-actions">
                   {/* The two answers to "what now" about this list, at one
                       width and held together: see `.button-pair`. */}
+                  {/*
+                    Steps away from the game and leaves it in the list. Nothing
+                    is given up: the seat, the token and the row stay, and the
+                    board goes back to being a board — a position to look at, a
+                    game to load from the library, a line to play out.
+
+                    At the other end of the row from the two that act on the
+                    list: this one is about the game in front of the reader, and
+                    a button that puts something down should not sit against the
+                    one that throws things away.
+                  */}
+                  <button
+                    type="button"
+                    className="reset-button games-step-away"
+                    disabled={friend.phase.kind === "idle"}
+                    title={
+                      friend.phase.kind === "idle"
+                        ? "No game is being shown"
+                        : "Stop showing this game. It stays in the list."
+                    }
+                    onClick={() => {
+                      setTicked(new Set());
+                      putBoardDown();
+                    }}
+                  >
+                    Step away
+                  </button>
                   <div className="button-pair games-pair">
                   <button
                     type="button"
@@ -1976,8 +2104,74 @@ export default function App() {
               <SettingsPanel
                 group={tab}
                 settings={settings}
-                defaults={DEFAULT_SETTINGS}
                 onChange={setSettings}
+                presetName={presets.target}
+                onBring={presets.bring}
+                askBeforeDiscard={askBeforeDiscard}
+                onAskBeforeDiscard={(on) => {
+                  setAskBeforeDiscard(on);
+                  setAsking(on);
+                }}
+                presets={
+                  <section className="preset-panel" aria-label="Settings presets">
+                    <p className="invite-heading">Settings presets</p>
+                    {/* The list is what scrolls, not the tab: see
+                        `.presets-scroll`, which is the games list's rule said
+                        again for this one. */}
+                    <div className="presets-scroll">
+                    <PresetList
+                      rows={presets.rows}
+                      target={presets.target}
+                      dirty={presets.dirty}
+                      chosen={tickedPresets}
+                      onOpen={(name) => {
+                        setTickedPresets(new Set());
+                        presets.choose(name);
+                      }}
+                      onChoose={(name, on) =>
+                        setTickedPresets((was) => {
+                          const next = new Set(was);
+                          if (on) {
+                            next.add(name);
+                          } else {
+                            next.delete(name);
+                          }
+                          return next;
+                        })
+                      }
+                    />
+                    </div>
+                    <div className="board-controls preset-actions">
+                      <div className="button-pair preset-pair">
+                      <button
+                        type="button"
+                        className="reset-button"
+                        disabled={tickedPresets.size === 0}
+                        title={
+                          tickedPresets.size === 0
+                            ? "Tick the presets to remove"
+                            : "Remove the ticked presets"
+                        }
+                        onClick={() => {
+                          presets.remove([...tickedPresets]);
+                          setTickedPresets(new Set());
+                        }}
+                      >
+                        <ForgetIcon />
+                        Remove selected
+                      </button>
+                      <button
+                        type="button"
+                        className="reset-button"
+                        title="Save the settings on the board under a name of your own"
+                        onClick={() => setNamingPreset(true)}
+                      >
+                        Save as …
+                      </button>
+                      </div>
+                    </div>
+                  </section>
+                }
               />
             </div>
           )}
@@ -2039,6 +2233,37 @@ export default function App() {
           if (wasShowing !== null) {
             friend.rejoin(wasShowing);
           }
+        }}
+      />
+
+      {/*
+        One box for two questions that want the same answer: "give these
+        settings a name", asked because the reader pressed Save as, and asked
+        because they are about to be replaced by something else. The second is
+        the one that can be turned off.
+      */}
+      <SaveAsDialog
+        open={namingPreset || presets.pending !== null}
+        confirming={presets.pending !== null}
+        trouble={(name) =>
+          nameTrouble(name, presets.mine, presets.unreadable)
+        }
+        askAgain={askBeforeDiscard}
+        onAskAgain={(on) => {
+          setAskBeforeDiscard(on);
+          setAsking(on);
+        }}
+        onSave={(name) => {
+          presets.saveAs(name, presets.pending);
+          setNamingPreset(false);
+        }}
+        onDiscard={() => {
+          presets.discard();
+          setNamingPreset(false);
+        }}
+        onClose={() => {
+          presets.keep();
+          setNamingPreset(false);
         }}
       />
 

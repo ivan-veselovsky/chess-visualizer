@@ -1,3 +1,6 @@
+import DrawIcon from "../DrawIcon";
+import LossIcon from "../LossIcon";
+import WinIcon from "../WinIcon";
 import { halfMoves } from "./counting";
 import { endingOf } from "./ending";
 import { playersOf, seatOf, spellGameId } from "./storage";
@@ -59,11 +62,27 @@ function standingOf(
  * A mark for the same thing the words say, so a list of thirty can be read
  * down its edge. Never the only carrier of it — the words are beside it, and
  * the mark says its own name to anything reading the page aloud.
+ *
+ * How a game ended is drawn rather than spelt: a tick, a cross, a half. Those
+ * three are told apart at a glance and at a colour, which "+", "−" and "½"
+ * were not — a plus and a minus differ by one stroke, and both were the colour
+ * of the words beside them. What is still going on keeps its dot: a round mark
+ * says how a game stands rather than how it came out, which is the distinction
+ * being made.
  */
-function markOf(
-  game: SavedGame,
-  live: Standing | undefined | null
-): { sign: string; says: string } {
+type Mark =
+  | { drawn: "won" | "lost" | "half"; says: string }
+  | { sign: string; says: string };
+
+/** The three ends of a game, as pictures. */
+function Ending({ kind }: { kind: "won" | "lost" | "half" }) {
+  if (kind === "won") {
+    return <WinIcon />;
+  }
+  return kind === "lost" ? <LossIcon /> : <DrawIcon />;
+}
+
+function markOf(game: SavedGame, live: Standing | undefined | null): Mark {
   const you = game.you === OPPONENT_CHOOSES ? "w" : game.you;
   if (live === null) {
     return { sign: "·", says: "No longer on the server" };
@@ -84,12 +103,10 @@ function markOf(
       : { sign: "●", says: "Being played" };
   }
   if (over.result === "1/2-1/2" || over.result === "*") {
-    return { sign: "½", says: "Drawn or never played" };
+    return { drawn: "half", says: "Drawn or never played" };
   }
   const won = (over.result === "1-0" ? "w" : "b") === you;
-  return won
-    ? { sign: "+", says: "Won" }
-    : { sign: "−", says: "Lost" };
+  return won ? { drawn: "won", says: "Won" } : { drawn: "lost", says: "Lost" };
 }
 
 /**
@@ -189,6 +206,7 @@ export default function SavedGames({
                   unconfirmed ? "unconfirmed" : "",
                   gone ? "gone" : "",
                   playing && !unconfirmed ? "playing" : "",
+                  "drawn" in mark ? `mark-${mark.drawn}` : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -203,7 +221,7 @@ export default function SavedGames({
                     : mark.says
                 }
               >
-                {mark.sign}
+                {"drawn" in mark ? <Ending kind={mark.drawn} /> : mark.sign}
               </span>
             </button>
             <input

@@ -263,6 +263,26 @@ console.log("\nSettings files, old and new\n");
     parseSettings(JSON.stringify({ ...now, schemaVersion: 999 })).settings === null);
 }
 
+console.log("\nWhat an exported file is called\n");
+{
+  const { settingsFileName, SETTINGS_FILE_NAME } = await import(
+    "../src/app/settingsFile.ts"
+  );
+  check("a preset of one's own is what the file is called",
+    settingsFileName("Evening board") === "Evening board.json",
+    settingsFileName("Evening board"));
+  check("the note about which one the app opens with is not",
+    settingsFileName("Blue - orange - with attacks (default)") ===
+      "Blue - orange - with attacks.json",
+    settingsFileName("Blue - orange - with attacks (default)"));
+  check("nor is anything a file system would rather not be given",
+    settingsFileName('a/b:c*d?e"f<g>h|i') === "abcdefghi.json",
+    settingsFileName('a/b:c*d?e"f<g>h|i'));
+  check("and with no name at all it falls back to the app's own",
+    settingsFileName(null) === SETTINGS_FILE_NAME &&
+    settingsFileName("   ") === SETTINGS_FILE_NAME);
+}
+
 console.log("\nSettings kept between visits\n");
 {
   /* A store of one browser's worth, standing in for the real one: what the app
@@ -278,44 +298,44 @@ console.log("\nSettings kept between visits\n");
   const { SETTINGS_KEY, flushSettings, loadSettings, saveSettings } = await import(
     "../src/app/settingsStore.ts"
   );
+  const held = () => JSON.parse(store.get(SETTINGS_KEY));
 
   check("nothing kept yet means nothing to open with",
-    loadSettings() === null);
+    loadSettings().working === null && loadSettings().target === null);
 
-  const mine = { ...DEFAULT_SETTINGS, fadeMs: 1234 };
-  saveSettings(mine);
+  const mine = { ...DEFAULT_SETTINGS, fadeTimeMs: 1234 };
+  saveSettings({ target: "Mine", working: mine, sets: { Mine: mine } });
   check("a change is not written the instant it is made",
     store.has(SETTINGS_KEY) === false);
   /* Forty changes in a drag are one write, of the value landed on. The clock
      that would have done it is half a minute long; what it calls when it comes
      round is what is called here. */
   for (let n = 0; n < 40; n += 1) {
-    saveSettings({ ...mine, fadeMs: 1000 + n });
+    const step = { ...mine, fadeTimeMs: 1000 + n };
+    saveSettings({ target: "Mine", working: step, sets: { Mine: step } });
   }
   flushSettings();
   check("and a run of them is one write, of the last",
-    store.size === 1 && JSON.parse(store.get(SETTINGS_KEY)).fadeMs === 1039,
-    String(store.size));
-  flushSettings();
-  check("with nothing to write, nothing is written",
-    JSON.parse(store.get(SETTINGS_KEY)).fadeMs === 1039);
+    store.size === 1 && held().working.fadeTimeMs === 1039, String(store.size));
 
-  /* A tab opened and left alone hands the settings back unchanged, which is
-     not a change and is not worth a write. */
   let writes = 0;
   const counting = globalThis.window.localStorage.setItem;
-  globalThis.window.localStorage.setItem = (key, value) => {
-    writes += 1;
-    counting(key, value);
-  };
-  saveSettings({ ...mine, fadeMs: 1039 });
+  globalThis.window.localStorage.setItem = (key, value) => { writes += 1; counting(key, value); };
+  const same = { ...mine, fadeTimeMs: 1039 };
+  saveSettings({ target: "Mine", working: same, sets: { Mine: same } });
   flushSettings();
   check("and settings that come back the same are not written again",
     writes === 0, String(writes));
   globalThis.window.localStorage.setItem = counting;
 
+  const back = loadSettings();
   check("what was kept is what opens next time",
-    loadSettings()?.fadeMs === 1039);
+    back.target === "Mine" && back.working?.fadeTimeMs === 1039 &&
+    back.sets.Mine?.fadeTimeMs === 1039);
+
+  check("the name and the settings it names travel in one record",
+    Object.keys(store).length === 0 && store.size === 1 &&
+    "target" in held() && "working" in held() && "sets" in held());
 
   /* One unlucky write, landing as half a record — which is what the read-back
      is there to catch. The store is itself again straight after, as a store
@@ -326,24 +346,39 @@ console.log("\nSettings kept between visits\n");
     globalThis.window.localStorage.setItem = keep;
     store.set(key, String(value).slice(0, 40));
   };
-  saveSettings({ ...mine, fadeMs: 4321 });
+  const later = { ...mine, fadeTimeMs: 4321 };
+  saveSettings({ target: "Mine", working: later, sets: { Mine: later } });
   flushSettings();
   check("a write that lands half-written puts back the one that did not",
     store.get(SETTINGS_KEY) === whole, store.get(SETTINGS_KEY).slice(0, 44));
   check("so the settings still read back whole",
-    loadSettings()?.fadeMs === 1039);
+    loadSettings().working?.fadeTimeMs === 1039);
 
-  store.set(SETTINGS_KEY, JSON.stringify({ ...mine, schemaVersion: 999 }));
-  check("settings from another revision are dropped, not guessed at",
-    loadSettings() === null && store.has(SETTINGS_KEY) === false);
+  /* A preset from another version sits beside the ones this build reads. */
+  store.set(SETTINGS_KEY, JSON.stringify({
+    target: "Mine",
+    working: mine,
+    sets: { Mine: mine, Ancient: { ...mine, schemaVersion: 12 } },
+  }));
+  const mixed = loadSettings();
+  check("a preset from another version is kept, and told apart from the rest",
+    Object.keys(mixed.sets).join() === "Mine" &&
+    mixed.unreadable.Ancient === 12,
+    JSON.stringify({ sets: Object.keys(mixed.sets), unreadable: mixed.unreadable }));
+  check("and it is still in the store, for the reader to decide about",
+    JSON.parse(store.get(SETTINGS_KEY)).sets.Ancient !== undefined);
 
-  store.set(SETTINGS_KEY, '{"schemaVersion":' + SETTINGS_SCHEMA_VERSION + ',"theme"');
-  check("and so is a record a dying tab cut in half",
-    loadSettings() === null && store.has(SETTINGS_KEY) === false);
+  /* Settings written before presets had names: taken as what is in use, under
+     no name at all. */
+  store.set(SETTINGS_KEY, JSON.stringify(mine));
+  const old = loadSettings();
+  check("settings from before presets had names still open",
+    old.working?.fadeTimeMs === 1234 && old.target === null &&
+    Object.keys(old.sets).length === 0);
 
-  store.set(SETTINGS_KEY, JSON.stringify({ schemaVersion: SETTINGS_SCHEMA_VERSION }));
-  check("as is one with the settings missing from it",
-    loadSettings() === null);
+  store.set(SETTINGS_KEY, '{"target":"Mine","working"');
+  check("a record a dying tab cut in half is dropped",
+    loadSettings().working === null && store.has(SETTINGS_KEY) === false);
 
   globalThis.window = undefined;
 }

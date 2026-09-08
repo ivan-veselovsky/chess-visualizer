@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
@@ -41,19 +41,33 @@ export type SettingsGroup =
 interface SettingsPanelProps {
   group: SettingsGroup;
   settings: Settings;
-  /**
-   * What Reset restores to. Passed in rather than imported so the panel resets
-   * to whichever preset is in force, not to one hard-coded set.
-   */
-  defaults: Settings;
   onChange: (settings: Settings) => void;
+  /**
+   * The presets, and everything that can be done with them.
+   *
+   * The panel draws them and says what was clicked; which preset is in hand,
+   * what is saved and what is not are the app's to know. Settings arriving
+   * from a file go through `onBring` rather than `onChange`, because they
+   * replace what is on the board and may have to be asked about first.
+   */
+  presets: ReactNode;
+  /** What the settings in use are called, which is what an export is named. */
+  presetName: string;
+  onBring: (settings: Settings) => void;
+  /** Whether unsaved settings are asked about before they are thrown away. */
+  askBeforeDiscard: boolean;
+  onAskBeforeDiscard: (on: boolean) => void;
 }
 
 export default function SettingsPanel({
   group,
   settings,
-  defaults,
   onChange,
+  presets,
+  presetName,
+  onBring,
+  askBeforeDiscard,
+  onAskBeforeDiscard,
 }: SettingsPanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   /*
@@ -78,7 +92,7 @@ export default function SettingsPanel({
     const { settings: loaded, error } = parseSettings(await file.text());
     setImportError(error);
     if (loaded !== null) {
-      onChange(loaded);
+      onBring(loaded);
     }
   }
 
@@ -134,7 +148,7 @@ export default function SettingsPanel({
   }
 
   return (
-    <div className="settings-panel">
+    <div className={`settings-panel${group === "manage" ? " settings-manage" : ""}`}>
       {group === "board" && (
         <>
           <SectionRule name="Theme" />
@@ -664,39 +678,54 @@ export default function SettingsPanel({
         </section>
       )}
 
-      {/* One reset for the lot. Per-section buttons meant the panel could sit in
-          a state no preset describes, half restored and half not. */}
       {group === "manage" && (
         <>
-          <div className="settings-footer">
-            <button
-              type="button"
-              className="reset-button"
-              onClick={() => {
-                setImportError(null);
-                downloadSettings(settings);
-              }}
-            >
-              Export settings
-            </button>
-            <button
-              type="button"
-              className="reset-button"
-              onClick={() => fileInput.current?.click()}
-            >
-              Import settings
-            </button>
-            <button
-              type="button"
-              className="reset-button settings-footer-end"
-              onClick={() => {
-                setImportError(null);
-                onChange(defaults);
-              }}
-            >
-              Reset to defaults
-            </button>
+          {/*
+            The presets first, because they are what the rest of this tab acts
+            on: the settings in use have a name, and everything below — export,
+            import, the switch about asking — is about the set that name holds.
 
+            There is no Reset to defaults any more. It restored one hard-coded
+            set, which is now a row in this list with a lock on it, and picking
+            it is the same act said in the same place as picking any other.
+          */}
+          {presets}
+
+          {/* Above the two file buttons rather than below them: it is about
+              the presets over it — what happens to settings that have nowhere
+              to be saved — and not about the files under it. */}
+          <div className="board-controls settings-logging settings-ask">
+            <ToggleField
+              id="ask-before-discard"
+              label="Ask before discarding unsaved settings"
+              hint="Settings changed on top of a built-in preset have nowhere to be saved. This asks what to do with them before they are replaced. Kept in this browser rather than in the settings."
+              checked={askBeforeDiscard}
+              onChange={onAskBeforeDiscard}
+            />
+          </div>
+
+          <div className="settings-footer">
+            {/* The two ways settings travel, side by side at one width: see
+                `.button-pair`, which the preset buttons above use as well. */}
+            <div className="button-pair settings-pair">
+              <button
+                type="button"
+                className="reset-button"
+                onClick={() => {
+                  setImportError(null);
+                  downloadSettings(settings, presetName);
+                }}
+              >
+                Export settings
+              </button>
+              <button
+                type="button"
+                className="reset-button"
+                onClick={() => fileInput.current?.click()}
+              >
+                Import settings
+              </button>
+            </div>
             <input
               ref={fileInput}
               type="file"
@@ -719,9 +748,16 @@ export default function SettingsPanel({
             )}
           </div>
 
-          {/* Under the buttons and above the line that ends the panel: it is
-              about this browser rather than about the settings, and the rule
-              below it is where the settings stop. */}
+          {/*
+            The floor of the panel: what this browser does, and what it was
+            built from.
+
+            Held down there rather than following the settings: neither is a
+            setting, and a note about the build sitting halfway up a tab reads
+            as part of what is above it. The rule over the build note is where
+            the settings stop.
+          */}
+          <div className="settings-tail">
           <div className="board-controls settings-logging">
             <ToggleField
               id="client-logging"
@@ -736,6 +772,7 @@ export default function SettingsPanel({
           </div>
 
           <AboutBuild />
+          </div>
         </>
       )}
     </div>

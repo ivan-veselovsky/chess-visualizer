@@ -4,7 +4,7 @@
   "darkThemeTextColor": "#bababa",
   "boardColors": {
     "lightSquare": "#ccdccc",
-    "darkSquare": "#57855c",
+    "darkSquare": "#b5835a",
     "useLightForDark": false
   },
   "orientation": "white",

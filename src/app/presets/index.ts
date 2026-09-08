@@ -1,5 +1,7 @@
 import type { Settings } from "../settings";
 import { DEFAULT_SETTINGS } from "./DefaultSettings";
+import { CLASSIC_GREEN } from "./ClassicGreen";
+import { CLASSIC_BROWN } from "./ClassicBrown";
 
 /**
  * A named, complete set of settings.
@@ -17,7 +19,13 @@ export interface Preset {
 }
 
 export const PRESETS: Preset[] = [
-  { id: "default", name: "Default", settings: DEFAULT_SETTINGS },
+  {
+    id: "default",
+    name: "Blue - orange - with attacks (default)",
+    settings: DEFAULT_SETTINGS,
+  },
+  { id: "classic-green", name: "Classic green", settings: CLASSIC_GREEN },
+  { id: "classic-brown", name: "Classic brown", settings: CLASSIC_BROWN },
 ];
 
 export { DEFAULT_SETTINGS };

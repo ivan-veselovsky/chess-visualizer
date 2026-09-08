@@ -477,6 +477,31 @@ export function useFriendGame(listeners: FriendListeners) {
           offering.current = null;
           // From here the tab is at this game, and its address says so.
           nowAtGame(seat.current ?? gameId);
+          /*
+            And the list knows how it stands, because the object has just said
+            so by making it.
+
+            Without this the row was marked as unconfirmed — red, meaning "this
+            is from memory, the server could not be reached to ask" — which was
+            plainly untrue of a game the server had created a moment earlier.
+            The mark went by whether the list had been read since the page
+            opened, and a game made after that reading had never been asked
+            about at all. Being told is as good as asking.
+          */
+          if (seat.current !== null) {
+            noteStanding(seat.current, () => ({
+              status: "planning",
+              result: "*",
+              reason: null,
+              opponent: null,
+              moves: 0,
+              startedAt: null,
+              endedAt: null,
+              /* This end's clock rather than the object's, which did not say.
+                 It stands until anything real is heard about the game. */
+              touchedAt: Date.now(),
+            }));
+          }
           setPhase({
             kind: "waiting",
             gameId,
@@ -771,6 +796,17 @@ export function useFriendGame(listeners: FriendListeners) {
               reason: message.reason,
             });
           }
+          /*
+            The board shows the game it is at, challenge or not.
+
+            A challenge has a position of its own — the board it starts from,
+            which odds or a game carried in may have made something other than
+            the usual one — and that is what a reader picking it out of the list
+            is asking to see. It was left off the board for a while, on the
+            grounds that nothing can be played in it yet; what that produced was
+            a challenge wearing the position of whatever game was looked at
+            before it, which is a stranger thing to see than an empty board.
+          */
           if (message.terms.initialFEN !== null) {
             told.current.onLine({
               initialFEN: message.terms.initialFEN,
@@ -1392,6 +1428,28 @@ export function useFriendGame(listeners: FriendListeners) {
 
 
   /**
+   * Puts the game down without giving it up.
+   *
+   * The difference from `leave` is what is kept: leaving a game that is over
+   * throws the seats away, because there is nothing left to walk back into.
+   * This throws nothing away at all — the seat, the token and the row in the
+   * list stay exactly as they were, and the game can be picked up again with a
+   * click. What ends is this tab's showing of it: the line to the object is
+   * hung up, the address stops naming it, and the board is nobody's game.
+   *
+   * A challenge still waiting for an answer is left standing for the same
+   * reason. It is not withdrawn — the link is still good and whoever holds it
+   * can still take the game up — it is simply no longer the thing on screen.
+   */
+  const putDown = useCallback(() => {
+    note("putting the game down");
+    seat.current = null;
+    disconnect();
+    noLongerAtGame();
+    setPhase({ kind: "idle" });
+  }, [disconnect]);
+
+  /**
    * Goes to a game by id, whichever way the id arrived — a link followed, or
    * nine digits read down a telephone and typed in.
    *
@@ -1611,6 +1669,7 @@ export function useFriendGame(listeners: FriendListeners) {
     offerDraw,
     answerDraw,
     leave,
+    putDown,
     loadGame,
   };
 }

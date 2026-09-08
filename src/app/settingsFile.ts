@@ -10,6 +10,23 @@ import { SETTINGS_SCHEMA_VERSION, type Settings } from "./settings.ts";
 export const SETTINGS_FILE_NAME = "chess-visualizer-settings.json";
 
 /**
+ * What to call the file, given the preset the settings are being used under.
+ *
+ * The preset's own name, because that is what the reader calls these settings
+ * and what they will look for when they come to import them again. Two things
+ * are taken off it: the "(default)" that says which built-in the app opens
+ * with, which means nothing in somebody's downloads folder, and any character
+ * a file system would rather not be given.
+ */
+export function settingsFileName(preset: string | null): string {
+  const wanted = (preset ?? "")
+    .replace(/\s*\(default\)\s*/i, " ")
+    .replace(/[\\/:*?"<>|]/g, "")
+    .trim();
+  return wanted === "" ? SETTINGS_FILE_NAME : `${wanted}.json`;
+}
+
+/**
  * Settings as they are written to a file: the whole `Settings` object, schema
  * version and all. Nothing is stripped — a file that omitted anything would
  * import as a partial object, which is what the version is there to prevent.
@@ -18,15 +35,15 @@ export function settingsToJson(settings: Settings): string {
   return `${JSON.stringify(settings, null, 2)}\n`;
 }
 
-/** Hands the browser a settings file to save. */
-export function downloadSettings(settings: Settings): void {
+/** Hands the browser a settings file to save, named after the preset in use. */
+export function downloadSettings(settings: Settings, preset: string | null = null): void {
   const blob = new Blob([settingsToJson(settings)], {
     type: "application/json",
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = SETTINGS_FILE_NAME;
+  link.download = settingsFileName(preset);
   link.click();
   URL.revokeObjectURL(url);
 }

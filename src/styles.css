@@ -2744,6 +2744,15 @@ input[type="color"]::-moz-color-swatch {
     them, with room to grow for a draw offered or a notice.
   */
   min-height: 13rem;
+  /*
+    And as tall as it needs to be when there is more to say.
+
+    It sits in a column with the games list, which will give way and scroll; a
+    panel that shrank instead would push its own last row through the frame,
+    which is what a draw offered by the other player did — the question arrived,
+    the box stayed where it was, and Resign hung out of the bottom of it.
+  */
+  flex: 0 0 auto;
   padding: 0.75rem 0.9rem 0.9rem;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
@@ -2951,6 +2960,119 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
+  The presets, which are a list of the same kind as the games and are drawn
+  with the same rules: a row that is a button, a tick beside it, the one in use
+  wearing the panel's ground. What differs is what a row holds — a lock instead
+  of a status light, and a word about the row rather than about a game.
+*/
+/* A column, so the list inside it can be the part that gives way. */
+.preset-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 0.9rem;
+}
+
+/*
+  The presets take the room the tab has left, and scroll only when there is no
+  more of it — the games list's arrangement, for the same reason: a tab that
+  scrolls as a whole takes its buttons off the bottom of the screen, and a
+  reader looking for Save as has to go and find it.
+
+  Room at the right for the scrollbar to be in, so it does not arrive over the
+  ticks; and never squeezed below a few rows however little is left.
+*/
+.presets-scroll {
+  flex: 0 1 auto;
+  min-height: 6rem;
+  overflow-y: auto;
+  padding-right: 0.75rem;
+}
+
+/* The list, and then air before the two buttons under it: they act on what is
+   ticked in it, and standing them off says they are a separate act rather than
+   another row. */
+.preset-list {
+  margin-bottom: 1.1rem;
+}
+
+.preset-lock {
+  flex: 0 0 1.1em;
+  align-self: center;
+  display: flex;
+  justify-content: center;
+}
+
+.preset-lock .button-icon {
+  width: 0.95em;
+  height: 0.95em;
+  opacity: 0.75;
+}
+
+.preset-note {
+  flex: 1 1 auto;
+  text-align: right;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+/* As under the games list: to the right, and the two the same width. */
+.preset-actions {
+  justify-content: flex-end;
+}
+
+/*
+  The pairs in this tab, at the panel's own spacing rather than a dialog's.
+  Named with `.button-pair` so they beat it on specificity wherever this file
+  happens to put them — the same trap the games pair fell into.
+*/
+.button-pair.preset-pair,
+.button-pair.settings-pair {
+  --answer-room: 1.4em;
+  --answer-apart: 1.4em;
+}
+
+/*
+  A column, so what belongs at the bottom can be sent there.
+
+  Only this tab: the others are read top to bottom and have nothing that wants
+  the floor, while this one ends with two things that are not settings at all —
+  what this browser writes to its console, and what the build is.
+*/
+.settings-panel.settings-manage {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.settings-tail {
+  margin-top: auto;
+}
+
+/*
+  Room under the question about unsaved settings.
+
+  It belongs to the presets above it and the two file buttons belong to
+  themselves, and at the panel's own spacing the three read as one block of
+  controls. A line of air says which way the question faces.
+*/
+.settings-ask {
+  margin-bottom: 2em;
+}
+
+.preset-trouble {
+  color: var(--invalid);
+}
+
+/* The tick and the two buttons, on one line with the tick at the left. */
+.save-as-choice {
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.9rem;
+}
+
+/*
   Which game the panel above is showing: the row wears the panel's own ground.
 
   The two are one thing said in two places — the game in the frame at the top
@@ -3034,6 +3156,28 @@ input[type="color"]::-moz-color-swatch {
   color: #e04b3f;
 }
 
+/*
+  How a game came out, in the two colours the list already uses for good news
+  and bad — the same green as a game whose object is answering, the same red as
+  a mark that could not be confirmed. A drawn game takes neither: nothing went
+  either way, and a half in the text colour says so.
+*/
+.saved-game-mark.mark-won {
+  color: #35b45a;
+}
+
+.saved-game-mark.mark-lost {
+  color: #e04b3f;
+}
+
+/* Room for a picture rather than a character, which the column was sized for. */
+.saved-game-mark .button-icon,
+.saved-game-mark .draw-icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+}
+
 /* A column, so the rows above the two buttons can be the part that stretches. */
 .games-panel {
   display: flex;
@@ -3046,15 +3190,62 @@ input[type="color"]::-moz-color-swatch {
 /* At the far end, under the rows they act on: the ticks they answer are at
    that edge too, and a button at the other end of the panel from the thing it
    does is a button in the wrong place. */
+/*
+  What can be done about the list, and what can be done about the game being
+  shown: the first at the left, the pair that acts on the list at the right.
+
+  Apart rather than in a row together, because they are about different things —
+  one leaves a game where it is, the others take games away — and a hand going
+  for one should not find the other under it.
+*/
 .games-actions {
-  justify-content: flex-end;
-  margin-top: 0.8rem;
+  /*
+    One width for all three, and the room their labels have inside it.
+
+    The words differ in length — two syllables at the left, two much longer
+    ones at the right — so padding alone would leave three buttons of three
+    sizes. A width they all take instead, chosen as the widest of them and
+    checked against the panel: 3 × 10.5em with the gaps comes to 479px in a
+    488px panel, which is the most the line will hold.
+  */
+  --action-width: 10.5em;
+  --answer-room: 1em;
+  justify-content: space-between;
+  /* The same air under the games list as under the presets. */
+  margin-top: 1.3rem;
 }
 
-/* The dialogs' pair with less room either side: a dialog has width to spend on
-   two words, and a panel beside a board has not. */
-.games-pair {
-  --answer-room: 1em;
+/* The one at the left of that row, sized and padded like the two at the right. */
+.games-step-away {
+  min-width: var(--action-width);
+  padding-inline: var(--answer-room);
+}
+
+.button-pair.games-pair > .reset-button {
+  min-width: var(--action-width);
+}
+
+/*
+  The dialogs' pair with less room either side: a dialog has width to spend on
+  two words, and a panel beside a board has not — the less so now that a third
+  button shares the line with them. Measured: at 1em of room the pair came to
+  441px beside a 92px button in a 488px panel, and the row broke in two.
+*/
+/*
+  Named with `.button-pair` and not on its own: both rules set the same
+  variable with one class each, and this file has the pair's own rule further
+  down — so on their own these values lost the tie to source order and the
+  panel went on using the dialogs' roomier spacing.
+*/
+.button-pair.games-pair {
+  /*
+    The row's own room, rather than the roomier value a dialog's pair takes:
+    all three buttons on this line are padded alike, and the line has to hold
+    them. Measured at the panel's 488px: the pair comes to 336px and the button
+    at the left to 115px, which leaves the gap between them and a little over.
+  */
+  --answer-room: inherit;
+  --answer-apart: 1.4em;
 }
 
 /* The number first and what the game is after it: the digits are what a game
@@ -3138,7 +3329,13 @@ input[type="color"]::-moz-color-swatch {
 .player-name {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  /*
+    The row's own spacing, which is what stands between the name and the "(me)"
+    after it. The flower needs more room than that and takes it on the disc
+    itself: widening the gap here widened both, and pushed "(me)" halfway across
+    the row.
+  */
+  gap: 0.7rem;
   margin: 0.25rem 0;
   /*
     One line high, whatever the name is — or whether there is one yet.
@@ -3185,20 +3382,95 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* Which army, said in the colour rather than in a word. */
+/*
+  Which side a name belongs to, and whether the game is waiting on it.
+
+  The disc is the side and never changes; the petals round it are the turn. They
+  are drawn outside the box the disc occupies — `overflow: visible` — so the
+  flower opening moves nothing: the row keeps its height, the name keeps its
+  place, and the board below is not resized by somebody playing a move.
+*/
 .player-color {
   flex: 0 0 auto;
   width: 0.8rem;
   height: 0.8rem;
-  border: 1px solid var(--panel-border);
-  border-radius: 50%;
+  /* The petals are drawn outside this box; without the extra room they came
+     within a hair of the first letter of the name. */
+  margin-right: 0.35rem;
+  overflow: visible;
 }
 
-.player-color-w {
-  background: #f4f4f4;
+.player-disc {
+  stroke: var(--panel-border);
+  stroke-width: 1;
 }
 
-.player-color-b {
-  background: #2a2a2a;
+/*
+  White, edged in black for the same reason the black one is edged in white:
+  the core has to be a piece rather than a spot of the page, and against the
+  white petals round it a light line said nothing at all.
+*/
+.player-color-w .player-disc {
+  fill: #f4f4f4;
+  stroke: #1a1a1a;
+  stroke-width: 1.1;
+}
+
+/*
+  Black, and outlined in white so that it is a piece rather than a hole.
+
+  At the panel's own hairline on a dark page the disc had no edge at all — it
+  read as a gap in the row where the White one reads as a stone. The colour it
+  stands for is the flat black of the pieces on the board; what makes it visible
+  is the line round it.
+*/
+.player-color-b .player-disc {
+  fill: #000000;
+  stroke: #ffffff;
+  stroke-width: 1.6;
+}
+
+/*
+  A petal: the page's own ground with a line round it, so the flower reads the
+  same whichever side it opens on — the colour is the disc's business.
+
+  Grown rather than shown. Held at a fifth of its size behind the disc, it comes
+  out as the move arrives and goes back as the move passes, which is a flower
+  opening rather than a mark appearing. The rotation travels with the scale
+  because a CSS transform replaces the attribute it would otherwise inherit.
+*/
+/*
+  White petals, under either theme and round either side's disc: the flower is
+  one thing that opens, and what it says is whose move it is — which the disc at
+  the middle already carries. A petal that took the page's ground was a hole
+  with a line round it on the dark theme and invisible on the light one.
+
+  The line is lighter than the panel's own for the same reason it is there at
+  all: to hold the shape against a light page without drawing seven rings.
+*/
+.player-petal {
+  fill: #f4f4f4;
+  stroke: color-mix(in srgb, currentColor 45%, transparent);
+  stroke-width: 0.9;
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transform: rotate(var(--petal-turn)) scale(0.2);
+  opacity: 0;
+  transition:
+    transform 280ms ease,
+    opacity 220ms ease;
+}
+
+.player-color-turn .player-petal {
+  transform: rotate(var(--petal-turn)) scale(1);
+  opacity: 1;
+}
+
+/* Opened at once for a reader who has asked for no movement. */
+@media (prefers-reduced-motion: reduce) {
+  .player-petal {
+    transition: none;
+  }
 }
 
 .player-mine {
@@ -3301,7 +3573,7 @@ input[type="color"]::-moz-color-swatch {
   /* Between the two: wide enough that the pair reads as two answers rather than
      one control split down the middle, and in ems with the room either side so
      the whole thing scales together. */
-  --answer-apart: 1.5em;
+  --answer-apart: 2em;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;

@@ -25,6 +25,14 @@ interface GameDetailsProps {
   canTakeBack: boolean;
   /** Why it can or cannot, for the button to say without being pressed. */
   takebackReason: string;
+  /**
+   * Whether there are games in the list below.
+   *
+   * It changes what an empty panel has to say: with games under it the reader
+   * is one click from a game and only has to be told so, and with none they
+   * have to be told how a game is come by at all.
+   */
+  anyGames: boolean;
   onTakeBack: () => void;
   onLeave: () => void;
   onResign: () => void;
@@ -189,6 +197,7 @@ export default function GameDetails({
   movesPlayed,
   canTakeBack,
   takebackReason,
+  anyGames,
   onTakeBack,
   onLeave,
   onResign,
@@ -242,13 +251,11 @@ export default function GameDetails({
   const body = (
     <>
       {noGame && (
-        <>
-          <p className="invite-heading">No current game</p>
-          <p className="invite-note">
-            Send a challenge and its link is here to hand on, or take up one of
-            the games below.
-          </p>
-        </>
+        <p className="invite-heading">
+          {anyGames
+            ? "Please select a game"
+            : "Send a challenge or accept one from your friend to start a game"}
+        </p>
       )}
       {/* The address named a game and the object has not said what it is yet.
           Said plainly, because the wait is a round trip and the id is the one
@@ -387,6 +394,41 @@ export default function GameDetails({
           />
 
           {/*
+            A draw offered to me is a question, and questions come with the two
+            answers rather than a note saying one was asked.
+
+            Under the line and over the buttons that end the game: it is about
+            this game and it is waiting on the reader, so it goes where they are
+            already looking rather than under everything else the panel has to
+            say. The panel grows by a row while the question stands and gives
+            the row back when it is answered — which is a box changing size
+            because something happened in the game, not because the reader
+            clicked about.
+          */}
+          {phase.drawOffered !== null && phase.drawOffered !== phase.you && (
+            <div className="board-controls invite-question">
+              <span>{phase.opponent} offers a draw</span>
+              <div className="button-pair controls-end">
+                <button
+                  type="button"
+                  className="reset-button"
+                  onClick={() => onAnswerDraw(false)}
+                >
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  className="reset-button"
+                  onClick={() => onAnswerDraw(true)}
+                >
+                  Accept draw
+                </button>
+              </div>
+            </div>
+          )}
+
+
+          {/*
             A row of its own, above the two that end the game. Taking a move
             back is part of playing — an agreed courtesy, spent from a counted
             allowance — and putting it beside Resign would make a slip of the
@@ -431,7 +473,7 @@ export default function GameDetails({
                     ? "Offer to end the game evenly"
                     : phase.drawOffered === phase.you
                       ? "Already offered — it is with your opponent"
-                      : `${phase.opponent} has offered one — answer it below`
+                      : `${phase.opponent} has offered one — answer it above`
                 }
                 onClick={onOfferDraw}
               >
@@ -458,11 +500,11 @@ export default function GameDetails({
               the reader can see them. What is left to spend cannot be seen on
               the board, so that is what this line is for.
 
-              Directly under the button it counts for, and before anything else
-              that may or may not be on the panel: a draw offered by the other
-              player puts a row between the two, and a count that has drifted a
-              line away from the button it belongs to reads as a count of
-              something else. */}
+              Directly under the button it counts for: a count that has drifted
+              a line away from the button it belongs to reads as a count of
+              something else. A draw offered by the other player used to come
+              between the two; it is asked further up now, over the buttons
+              rather than under them. */}
           {phase.terms.takebacks > 0 && (
             <p className="invite-note invite-tally">
               {`Takebacks: me ${
@@ -471,30 +513,6 @@ export default function GameDetails({
                 phase.takebacksLeft?.[phase.you === "w" ? "b" : "w"] ?? 0
               }`}
             </p>
-          )}
-
-          {/* A draw offered to me is a question, and questions come with the
-              two answers rather than a note saying one was asked. */}
-          {phase.drawOffered !== null && phase.drawOffered !== phase.you && (
-            <div className="board-controls invite-question">
-              <span>{phase.opponent} offers a draw</span>
-              <div className="button-pair controls-end">
-                <button
-                  type="button"
-                  className="reset-button"
-                  onClick={() => onAnswerDraw(false)}
-                >
-                  Decline
-                </button>
-                <button
-                  type="button"
-                  className="reset-button"
-                  onClick={() => onAnswerDraw(true)}
-                >
-                  Accept draw
-                </button>
-              </div>
-            </div>
           )}
 
           {/* Said and then let go of: the game is what matters, not the last
