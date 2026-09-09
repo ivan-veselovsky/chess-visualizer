@@ -4,7 +4,22 @@ import type { HistoryEntry, PositionHistory } from "./history";
 export interface PgnImport {
   /** The whole line, newest first, ready to become a history. Null on failure. */
   entries: HistoryEntry[] | null;
+  /**
+   * Who played it, as the file says.
+   *
+   * Exactly as written, and "Unknown" where a file says nothing: a game with
+   * nobody in it is still a game between two people, and a blank over the board
+   * reads as a fault rather than as an absence. PGN's own "?" is treated as
+   * nothing said, since that is what it means.
+   */
+  players: { white: string; black: string };
   error: string | null;
+}
+
+/** What a file says a player was called, or that nobody knows. */
+function playerNamed(said: string | undefined): string {
+  const name = (said ?? "").trim();
+  return name === "" || name === "?" ? "Unknown" : name;
 }
 
 /**
@@ -17,8 +32,9 @@ export interface PgnImport {
  * Entries come back newest first, matching how a history is ordered.
  */
 export function parsePgn(text: string): PgnImport {
+  const nobody = { white: "Unknown", black: "Unknown" };
   if (text.trim() === "") {
-    return { entries: null, error: "That file is empty." };
+    return { entries: null, players: nobody, error: "That file is empty." };
   }
 
   const game = new Chess();
@@ -27,14 +43,19 @@ export function parsePgn(text: string): PgnImport {
   } catch (cause) {
     return {
       entries: null,
+      players: nobody,
       error:
         cause instanceof Error ? cause.message : "Could not read that PGN.",
     };
   }
 
   const moves = game.history({ verbose: true });
+  const players = {
+    white: playerNamed(game.getHeaders().White),
+    black: playerNamed(game.getHeaders().Black),
+  };
   if (moves.length === 0) {
-    return { entries: null, error: "That PGN holds no moves." };
+    return { entries: null, players, error: "That PGN holds no moves." };
   }
 
   // `before` on the first move is where the game started, headers included.
@@ -43,7 +64,7 @@ export function parsePgn(text: string): PgnImport {
     line.push({ fen: move.after, move: move.san });
   }
 
-  return { entries: line.reverse(), error: null };
+  return { entries: line.reverse(), players, error: null };
 }
 
 /**

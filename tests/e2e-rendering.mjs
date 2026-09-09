@@ -138,11 +138,15 @@ const BESIDE_FROM_MIDDLE = 0.34;
    moves along its own segment and is caught here — the bug this test was
    written for sat at nought while the record said two thirds.
 
-   The number is in fractions of that segment. A tenth is about what sixteen
-   units of colour used to be on the spans these patches actually cover, and
-   comfortably above what two runs of one build differ by.
+   The number is in fractions of that segment, and it is measured rather than
+   reasoned. Every run says the worst any patch was out by, and across five runs
+   of one build the answer was 0 to 5 points on an idle machine and 10 to 18 at
+   a sixth of the speed — the fade committing a frame or two earlier or later
+   under load, which is what the fraction is sensitive to. A quarter is well
+   clear of that and nowhere near a fault: the clipped ray this test was written
+   for sat seventy points from where it belonged.
 */
-const TOLERANCE = 0.1;
+const TOLERANCE = 0.25;
 
 /*
    How much a patch has to move across the whole business to be worth asking
@@ -521,8 +525,14 @@ try {
       const place = PLACES.find((p) => p.square === square);
       return `${key} — ${what === "beside" ? "beside the ray on " : what === "stripe" ? "the ray crossing " : ""}${square}, ${place.is}`;
     };
+    /* The worst any patch is out by, said whether or not it passed: a check
+       that only speaks when it fails leaves nobody able to see how close the
+       tolerance is being run to. */
+    const worst = Object.entries(walked)
+      .filter(([key]) => expected[key] !== undefined)
+      .reduce((most, [key, fraction]) => Math.max(most, Math.abs(fraction - expected[key])), 0);
     check(
-      `${label(moment)}s in (frame ${(stale * 1000).toFixed(0)}ms away) the board is as recorded`,
+      `${label(moment)}s in (frame ${(stale * 1000).toFixed(0)}ms away, worst ${(worst * 100).toFixed(0)} points) the board is as recorded`,
       wrong.length === 0,
       wrong
         .map(

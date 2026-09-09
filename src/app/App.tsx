@@ -322,6 +322,19 @@ export default function App() {
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
   // one would not load, if ever one does not.
+  /*
+    A game read in from somewhere else — the library, or a file — and who it
+    was between.
+
+    Kept beside the line it arrived as, because the names belong to that line
+    and not to the board. Step through it and they stand; play a move of your
+    own and the line stops being that game, so they go and the board is nobody's
+    but yours. See `readGame` below, which is what the two are compared to.
+  */
+  const [read, setRead] = useState<{
+    players: { white: string; black: string };
+    line: { initialFEN: string; moves: string[] };
+  } | null>(null);
   const [libraryGame, setLibraryGame] = useState<string | null>(null);
   const [libraryGameError, setLibraryGameError] = useState<string | null>(null);
   const [pgnExportOpen, setPgnExportOpen] = useState(false);
@@ -340,7 +353,7 @@ export default function App() {
    * closing.
    */
   function loadPgn(pgn: string): string | null {
-    const { entries, error } = parsePgn(pgn);
+    const { entries, players, error } = parsePgn(pgn);
     if (entries === null) {
       return error;
     }
@@ -349,6 +362,7 @@ export default function App() {
     showPosition(currentPosition(loaded));
     /* Read in from somewhere that still has it. */
     handed.current = lineOf(loaded);
+    setRead({ players, line: lineOf(loaded) });
     setLibraryGame(null);
     setStashName(null);
     return null;
@@ -951,9 +965,28 @@ export default function App() {
     new game arrives and turns out to be a different kind of thing from the old
     one.
   */
+  /*
+    A game read in, while the board still holds it as it was read.
+
+    Stepping about in it keeps the names — that is reading the game. Playing a
+    move of one's own does not: the line stops being that game at the first
+    move that was not in it, so the names go and the board is the reader's own
+    again. The comparison is the line, not the position, so walking back to the
+    start and forward again is not a change.
+  */
+  const here = lineOf(history);
+  const readGame =
+    read !== null &&
+    read.line.initialFEN === here.initialFEN &&
+    read.line.moves.join(" ") === here.moves.join(" ")
+      ? read
+      : null;
+
   const namesShown = useRef(false);
   const atOne =
-    friend.phase.kind === "playing" || friend.phase.kind === "waiting";
+    friend.phase.kind === "playing" ||
+    friend.phase.kind === "waiting" ||
+    (friend.phase.kind === "idle" && readGame !== null);
   if (friend.phase.kind !== "opening") {
     namesShown.current = atOne;
   }
@@ -968,23 +1001,40 @@ export default function App() {
     as the near one — it is where the reader's own name goes, and the game will
     turn the board round itself the moment it starts.
   */
-  const named =
+  const named: { names: Record<Color, string>; mine: Color | null } | null =
     friend.phase.kind === "playing"
       ? {
-          you: friend.phase.you,
-          opponent: friend.phase.opponent,
+          names: {
+            [friend.phase.you]: friend.name,
+            [friend.phase.you === "w" ? "b" : "w"]: friend.phase.opponent,
+          } as Record<Color, string>,
+          mine: friend.phase.you,
         }
       : friend.phase.kind === "waiting"
-        ? {
-            you:
+        ? (() => {
+            const yours =
               friend.phase.you === OPPONENT_CHOOSES
                 ? side === "black"
-                  ? ("b" as const)
-                  : ("w" as const)
-                : friend.phase.you,
-            opponent: "An opponent",
-          }
-        : null;
+                  ? "b"
+                  : "w"
+                : friend.phase.you;
+            return {
+              names: {
+                [yours]: friend.name,
+                [yours === "w" ? "b" : "w"]: "An opponent",
+              } as Record<Color, string>,
+              mine: yours as Color,
+            };
+          })()
+        : readGame !== null
+          ? {
+              /* A game somebody else played: two names and no chair of your
+                 own, which is what makes the board a thing to read rather than
+                 a thing to sit at. */
+              names: { w: readGame.players.white, b: readGame.players.black },
+              mine: null,
+            }
+          : null;
   /** A challenge being looked at while another game is being played. */
   const [considering, setConsidering] = useState<{
     gameId: string;
@@ -1456,15 +1506,9 @@ export default function App() {
               {/* Whoever is at the far end of the board as it now stands. */}
               {atAGame && (
                 <PlayerName
-                  name={
-                    named === null
-                      ? ""
-                      : farSide === named.you
-                        ? friend.name
-                        : named.opponent
-                  }
+                  name={named?.names[farSide] ?? ""}
                   color={farSide}
-                  mine={named !== null && farSide === named.you}
+                  mine={named?.mine === farSide}
                   toMove={atAGame && shown?.turn() === farSide}
                 />
               )}
@@ -1516,15 +1560,9 @@ export default function App() {
               {/* And whoever is at this end. */}
               {atAGame && (
                 <PlayerName
-                  name={
-                    named === null
-                      ? ""
-                      : nearSide === named.you
-                        ? friend.name
-                        : named.opponent
-                  }
+                  name={named?.names[nearSide] ?? ""}
                   color={nearSide}
-                  mine={named !== null && nearSide === named.you}
+                  mine={named?.mine === nearSide}
                   toMove={atAGame && shown?.turn() === nearSide}
                 />
               )}

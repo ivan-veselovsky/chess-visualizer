@@ -283,6 +283,31 @@ console.log("\nWhat an exported file is called\n");
     settingsFileName("   ") === SETTINGS_FILE_NAME);
 }
 
+console.log("\nWho played a game that was read in\n");
+{
+  const { parsePgn } = await import("../src/chess/pgn.ts");
+  const named = parsePgn(
+    '[White "Adolf Anderssen"]\n[Black "Jean Dufresne"]\n\n1. e4 e5 2. Nf3 *'
+  );
+  check("the names come back as the file says them",
+    named.players.white === "Adolf Anderssen" && named.players.black === "Jean Dufresne",
+    JSON.stringify(named.players));
+
+  const bare = parsePgn("1. e4 e5 2. Nf3 *");
+  check("a file that names nobody says so rather than leaving a blank",
+    bare.players.white === "Unknown" && bare.players.black === "Unknown",
+    JSON.stringify(bare.players));
+
+  const asked = parsePgn('[White "?"]\n[Black "  "]\n\n1. e4 *');
+  check("and PGN's own question mark is nobody too",
+    asked.players.white === "Unknown" && asked.players.black === "Unknown",
+    JSON.stringify(asked.players));
+
+  const broken = parsePgn("this is not a game");
+  check("a file that will not read still answers about its players",
+    broken.entries === null && broken.players.white === "Unknown");
+}
+
 console.log("\nWhich way round the board faces\n");
 {
   const store = new Map();
