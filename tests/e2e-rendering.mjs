@@ -123,17 +123,68 @@ const BESIDE = 0.2;
 const BESIDE_FROM_MIDDLE = 0.34;
 
 /*
-   How far a colour may drift before it is a different colour.
+   How far along a patch may drift before it is at the wrong point of its fade.
 
-   Measured rather than guessed: across two runs of one build the same patch at
-   the same moment differed by nothing at the median and by eight at the worst,
-   which is the fade commiting a frame or two earlier or later under load. Twice
-   that leaves room for a slower machine and is still nowhere near what a fault
-   looks like — the clipped ray this test was written for sat a hundred units
-   from where it belonged for half a second.
+   Nothing here is a colour. What is recorded for each patch is where it stands
+   between two ends measured in the same run — the board before the move, and
+   the board once everything has settled — so a patch that is a quarter of the
+   way in is 0.25 whatever the board is painted in. Change the squares from
+   green to grey, or the rays from blue to red, and the record still holds: it
+   never knew what colour anything was.
+
+   That is worth having because the palette is the reader's and this test is not
+   about it. It is about when things happen and what is clipped: a ray that
+   arrives late, or is cut to nothing by a clip path meant for another mark,
+   moves along its own segment and is caught here — the bug this test was
+   written for sat at nought while the record said two thirds.
+
+   The number is in fractions of that segment. A tenth is about what sixteen
+   units of colour used to be on the spans these patches actually cover, and
+   comfortably above what two runs of one build differ by.
 */
-const TOLERANCE = 16;
-/* How stale the frame standing for a moment may be. */
+const TOLERANCE = 0.1;
+
+/*
+   How much a patch has to move across the whole business to be worth asking
+   about. A patch that ends where it began says nothing about the fade, and
+   dividing by its span would turn rounding into noise.
+*/
+const WORTH_ASKING = 12;
+
+/*
+   And how far a patch may drift when something crosses it rather than fades on
+   it.
+
+   A square the travelling piece passes over does not walk from one end to the
+   other: it goes out past the far end and comes back, and how far past depends
+   on what colour the piece is against what colour the square is — the one
+   reading here that a change of palette does move. What these moments are for
+   survives that easily, though: they say the piece is in the air rather than
+   already down, which is most of a segment away from either, so they are asked
+   the same question at a third of the precision instead of being dropped.
+*/
+const CROSSING = 0.35;
+
+/**
+ * Whether a reading is one of those: a square the piece is crossing while it
+ * is in the air.
+ *
+ * Said outright rather than guessed from the number. The two squares the move
+ * runs between are the ones a glyph passes over, and it passes over them while
+ * the flight is on — which is exactly the moments timed from the take-off.
+ * Everything else on the board, at any moment, is fading rather than being
+ * crossed.
+ */
+const crossing = (moment, key) =>
+  moment.clock === "move" && MOVE.some((square) => key.startsWith(`${square}.`));
+/*
+  How far from a moment the frame standing for it may be.
+
+  Only a gap this wide with the board still moving across it is a fault — a
+  machine dropping frames, which is worth saying out loud rather than measuring
+  around. Once the board settles nothing is painted for a second at a time and
+  the nearest frame is exactly what is on the screen, however far away it is.
+*/
 const NEAR_ENOUGH = 0.1;
 
 /* The stripe widths the app will be drawing with: its own defaults, read from
@@ -310,12 +361,58 @@ try {
     return patches;
   };
 
+  /*
+    The two ends every patch is measured between: the board as it stood before
+    the piece left, and the board once it has finished settling.
+
+    Taken from this run rather than worked out from the settings. The settings
+    say what a ray is painted in, not what a ray drawn over a wash over a square
+    comes to on the screen — that is the compositing this test exists to look
+    at, and a test that computed it would be checking its own arithmetic.
+  */
+  const measure = (frame) => {
+    const picture = readPng(Buffer.from(frame.data, "base64"));
+    const out = {};
+    for (const place of PLACES) {
+      for (const [what, patch] of Object.entries(patchesOf(place))) {
+        out[`${place.square}.${what}`] = picture.mean(patch.x, patch.y, patch.w, patch.h);
+      }
+    }
+    return out;
+  };
+  const before = measure(frames.filter((frame) => frame.at <= began).at(-1) ?? frames[0]);
+  const after = measure(frames.at(-1));
+
+  /**
+   * Where a colour stands between those two ends, as a fraction.
+   *
+   * Projected onto the line between them rather than taken channel by channel:
+   * the three channels travel together and the projection is what they agree
+   * on, which is one number to record and one number to read when it is wrong.
+   */
+  const along = (key, rgb) => {
+    const span = after[key].map((end, at) => end - before[key][at]);
+    const length = Math.hypot(...span);
+    if (length < WORTH_ASKING) {
+      return null;
+    }
+    const walked = rgb.map((value, at) => value - before[key][at]);
+    return (
+      span.reduce((sum, step, at) => sum + step * walked[at], 0) / (length * length)
+    );
+  };
+
   const recorded = UPDATE
     ? {
         move: MOVE.join("-"),
         fadeMs: FADE_MS,
         moveSeconds: MOVE_SECONDS,
         places: Object.fromEntries(PLACES.map((p) => [p.square, p.is])),
+        /* For a reader of the file: what the two ends came to in the run that
+           wrote it. Nothing is compared against them. */
+        ends: Object.fromEntries(
+          Object.keys(before).map((key) => [key, { before: before[key], after: after[key] }])
+        ),
         at: {},
       }
     : JSON.parse(readFileSync(RECORD, "utf8"));
@@ -330,24 +427,42 @@ try {
       with no frame after it is a moment the picture had already stopped
       moving, and the last frame is exactly right rather than merely close.
     */
-    const shown = frames.filter((frame) => frame.at <= wanted).at(-1);
+    /*
+      The frame nearest the moment, before or after it.
+
+      It used to be the last frame painted by then, which is what is on the
+      screen at that instant — true, and the wrong thing to compare. A frame
+      can be most of a fade's steepest tenth old before anything complains, and
+      two machines that paint on different beats then read the same moment at
+      two different points of the same curve: measured, a 26ms difference in
+      how stale the frame was moved a stripe by seventeen units, against a
+      tolerance of sixteen. Nearest is symmetric — the recording and the run
+      that checks it both take it — so what is left is half a frame either way
+      rather than a whole frame in one direction.
+    */
+    const shown = frames.reduce(
+      (best, frame) =>
+        best === undefined ||
+        Math.abs(frame.at - wanted) < Math.abs(best.at - wanted)
+          ? frame
+          : best,
+      undefined
+    );
     const later = frames.find((frame) => frame.at > wanted);
     if (shown === undefined) {
       check(`${label(moment)}s was painted at all`, false, "no frame that early");
       continue;
     }
-    const stale = wanted - shown.at;
-    const measure = (frame) => {
-      const picture = readPng(Buffer.from(frame.data, "base64"));
-      const out = {};
-      for (const place of PLACES) {
-        for (const [what, patch] of Object.entries(patchesOf(place))) {
-          out[`${place.square}.${what}`] = picture.mean(patch.x, patch.y, patch.w, patch.h);
-        }
-      }
-      return out;
-    };
+    const stale = shown.at - wanted;
     const seen = measure(shown);
+    /* The same reading as a set of fractions: where each patch stands between
+       its two ends. Patches that go nowhere across the whole business are left
+       out — see `WORTH_ASKING`. */
+    const walked = Object.fromEntries(
+      Object.entries(seen)
+        .map(([key, rgb]) => [key, along(key, rgb)])
+        .filter(([, fraction]) => fraction !== null)
+    );
 
     /*
       A gap in the frames is only a problem if the board changed across it. Once
@@ -356,25 +471,29 @@ try {
       is when the next frame shows something else that a gap means the moment
       fell somewhere unmeasured.
     */
-    if (later !== undefined && later.at - shown.at > NEAR_ENOUGH) {
+    if (later !== undefined && Math.abs(later.at - shown.at) > NEAR_ENOUGH) {
       const then = measure(later);
-      const moved = Object.entries(seen).some(([key, rgb]) =>
-        rgb.some((v, i) => Math.abs(v - then[key][i]) > TOLERANCE)
+      const moved = Object.entries(walked).some(
+        ([key, fraction]) => Math.abs(fraction - (along(key, then[key]) ?? fraction)) > TOLERANCE
       );
       if (moved) {
         check(
           `a frame within ${NEAR_ENOUGH}s of ${label(moment)}s`,
           false,
-          `the board moved between frames ${stale.toFixed(3)}s before and ` +
-            `${(later.at - wanted).toFixed(3)}s after — this machine is dropping frames`
+          `the board moved between frames ${Math.abs(stale).toFixed(3)}s and ` +
+            `${Math.abs(later.at - wanted).toFixed(3)}s from it — this machine ` +
+            `is dropping frames`
         );
         continue;
       }
     }
-    fresh[label(moment)] = seen;
+    fresh[label(moment)] = Object.fromEntries(
+      Object.entries(walked).map(([key, fraction]) => [key, Number(fraction.toFixed(3))])
+    );
 
     if (UPDATE) {
-      const say = (key) => `${key}=${seen[key].join(",")}`;
+      const say = (key) =>
+        `${key}=${walked[key] === undefined ? "—" : walked[key].toFixed(2)}`;
       console.log(
         `  ${label(moment)}s  ${say("c4.stripe")}  ${say("c4.beside")}  ${say("d5.stripe")}  ${say("e4.whole")}`
       );
@@ -386,25 +505,31 @@ try {
       check(`${label(moment)}s is in the record`, false, "run with --update");
       continue;
     }
-    const wrong = Object.entries(seen)
+    const wrong = Object.entries(walked)
       .filter(([key]) => expected[key] !== undefined)
-      .map(([key, rgb]) => ({
+      .map(([key, fraction]) => ({
         key,
-        rgb,
+        fraction,
         was: expected[key],
-        off: Math.max(...rgb.map((v, i) => Math.abs(v - expected[key][i]))),
+        off: Math.abs(fraction - expected[key]),
       }))
-      .filter((one) => one.off > TOLERANCE);
+      .filter(
+        (one) => one.off > (crossing(moment, one.key) ? CROSSING : TOLERANCE)
+      );
     const where = (key) => {
       const [square, what] = key.split(".");
       const place = PLACES.find((p) => p.square === square);
       return `${key} — ${what === "beside" ? "beside the ray on " : what === "stripe" ? "the ray crossing " : ""}${square}, ${place.is}`;
     };
     check(
-      `${label(moment)}s in (frame ${stale.toFixed(3)}s old) the board is as recorded`,
+      `${label(moment)}s in (frame ${(stale * 1000).toFixed(0)}ms away) the board is as recorded`,
       wrong.length === 0,
       wrong
-        .map((one) => `${where(one.key)}: ${one.rgb.join(",")}, recorded ${one.was.join(",")} (out by ${one.off})`)
+        .map(
+          (one) =>
+            `${where(one.key)}: ${(one.fraction * 100).toFixed(0)}% along its fade, ` +
+            `recorded ${(one.was * 100).toFixed(0)}% (out by ${(one.off * 100).toFixed(0)} points)`
+        )
         .join("\n          ")
     );
   }

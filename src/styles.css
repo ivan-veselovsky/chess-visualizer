@@ -2199,17 +2199,20 @@ input[type="color"]::-moz-color-swatch {
 
 /* Narrow: it holds one colour and its name, not a game. */
 .color-dialog {
-  width: min(20rem, 90vw);
+  /* Half as wide again as it was: the swatch, the hex and the button that
+     copies it were three things on a line with nowhere to breathe. */
+  width: min(30rem, 90vw);
 }
 
-/*
-  Less room around the two words than a wider dialog gives them: at the usual
-  three ems the pair is a dozen pixels wider than this box, and a pair is not
-  allowed to be squeezed — see `.button-pair`. Taking it out of the padding
-  keeps the two halves equal and inside the dialog.
-*/
+/* Roomier than a pair's usual three ems, which this box now has width for. */
 .color-dialog .button-pair {
-  --answer-room: 2.1em;
+  --answer-room: 4em;
+}
+
+/* And a line of air over them: the colour above is what the dialog is for, and
+   the two ways out are a separate thought. */
+.color-dialog .pgn-dialog-actions {
+  margin-top: calc(0.75rem + 1em);
 }
 
 .color-dialog .color-field {
@@ -2217,6 +2220,12 @@ input[type="color"]::-moz-color-swatch {
      says is longer than what it usually reads. */
   flex-wrap: wrap;
   margin: 0.6rem 0 0;
+}
+
+/* The well stands off the field that spells the same colour out: they say one
+   thing twice, and a hair's gap read as one control in two parts. */
+.color-dialog .color-field > input[type="color"] {
+  margin-right: 1.5em;
 }
 
 /* Held wide enough for anything the button says once pressed — including that
