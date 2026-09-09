@@ -104,6 +104,8 @@ TODO:
 
 1. When playing a game from PGN, show the board in 2-players mode and show the player's names as per PGN. Once the user alters the move sequence, the board can get into "detached" state.
 
+1. In 2-player mode and in a game playback -- show the game result with icons after player names. 
+
 1. Links between values in Settings: 
 if 2 choosers are linked, editing of any of them immediately changes the other. 
 Several choosers of the same type may be linked.
