@@ -3373,6 +3373,25 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* So the counter over a board that is nobody's game can be hung above the
+     column without taking a line out of it. */
+  position: relative;
+}
+
+/*
+  That counter: the same row a game has, at the same end and the same inset, but
+  lifted out of the flow and sat in the air above the board.
+
+  The board keeps its full height this way — nothing is reserved — and the strip
+  it lands in is the space under the page's title, which holds nothing on this
+  side of the page.
+*/
+.board-counter {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin: 0;
 }
 
 /*

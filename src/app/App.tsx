@@ -1016,6 +1016,13 @@ export default function App() {
   */
   /* Spaced either side of the colon, as a scoreline is written: "1 : 0" reads
      as two numbers with a result between them, where "1:0" reads as a time. */
+  /* Where the board is standing in whatever line it holds: how far the line
+     runs, or which position of it is showing. */
+  const counted =
+    history.current === 0
+      ? `${playedSoFar} half-${playedSoFar === 1 ? "move" : "moves"}`
+      : `half-move ${lookingAt} of ${playedSoFar}`;
+
   const scoreOf = (result: string) =>
     result === "1-0" ? "1 : 0" : result === "0-1" ? "0 : 1" : "½ : ½";
 
@@ -1553,6 +1560,24 @@ export default function App() {
                   : "board-and-players board-and-players-bare"
               }
             >
+              {/*
+                Where the board stands, for a board that is nobody's game.
+
+                Over the board and at the same end of the row as it is in a
+                game, so the reader looks in one place for it either way — but
+                out of the flow, so it takes no height from the column. A board
+                of one's own is drawn at its full size, and a line reserved
+                above it would shrink it by exactly the thing this is trying not
+                to cost. What it sits in is the air under the page's title,
+                which is going spare.
+              */}
+              {!atAGame && playedSoFar > 0 && (
+                <p className="player-name board-counter">
+                  <span className="player-who" />
+                  <span className="player-result" />
+                  <span className="player-position">{counted}</span>
+                </p>
+              )}
               {/* Whoever is at the far end of the board as it now stands. */}
               {atAGame && (
                 <PlayerName
@@ -1583,9 +1608,7 @@ export default function App() {
                           (history.current !== 0 ||
                             friend.phase.over !== null)) ||
                           friend.phase.kind === "waiting") && <LockIcon />}
-                        {history.current === 0
-                          ? `${playedSoFar} half-${playedSoFar === 1 ? "move" : "moves"}`
-                          : `half-move ${lookingAt} of ${playedSoFar}`}
+                        {counted}
                       </>
                     )
                   }
