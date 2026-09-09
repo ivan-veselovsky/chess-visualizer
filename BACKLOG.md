@@ -110,5 +110,7 @@ TODO:
 if 2 choosers are linked, editing of any of them immediately changes the other. 
 Several choosers of the same type may be linked.
 
+1. Make possible to get access to a forgotten game if the opponent has one. Basically, the opponent sends special message to the server (containing his token), that instructs the server to either erase the player's token, or send it to him.
+
 
 
