@@ -92,6 +92,7 @@ import { OPPONENT_CHOOSES } from "../../worker/protocol";
 import type { ColorChoice, Terms } from "../../worker/protocol";
 import { DEFAULT_SETTINGS } from "./presets";
 import { boardSide, setBoardSide } from "./boardSide";
+import LockIcon from "./LockIcon";
 import type { Orientation } from "../visualization/geometry";
 import { loadSettings } from "./settingsStore";
 import { usePresets, nameTrouble } from "./usePresets";
@@ -333,6 +334,8 @@ export default function App() {
   */
   const [read, setRead] = useState<{
     players: { white: string; black: string };
+    /** As the file said it: "1-0", "0-1", "1/2-1/2", or nothing. */
+    result: string | null;
     line: { initialFEN: string; moves: string[] };
   } | null>(null);
   const [libraryGame, setLibraryGame] = useState<string | null>(null);
@@ -353,7 +356,7 @@ export default function App() {
    * closing.
    */
   function loadPgn(pgn: string): string | null {
-    const { entries, players, error } = parsePgn(pgn);
+    const { entries, players, result, error } = parsePgn(pgn);
     if (entries === null) {
       return error;
     }
@@ -362,7 +365,7 @@ export default function App() {
     showPosition(currentPosition(loaded));
     /* Read in from somewhere that still has it. */
     handed.current = lineOf(loaded);
-    setRead({ players, line: lineOf(loaded) });
+    setRead({ players, result, line: lineOf(loaded) });
     setLibraryGame(null);
     setStashName(null);
     return null;
@@ -982,6 +985,40 @@ export default function App() {
       ? read
       : null;
 
+  /*
+    Standing somewhere earlier in a game that is still being played.
+
+    Nothing can be played from here — the board is frozen off the head, since a
+    move from an earlier position would fork a game that is not this browser's
+    to fork — so the side whose move it is gets an empty flower and a note
+    saying which position of the game is on the screen. Both go when the reader
+    comes back to the last move, and the move can be made again.
+  */
+  const steppedBack =
+    friend.phase.kind === "playing" && history.current !== 0;
+  const playedSoFar = history.entries.length - 1;
+  const lookingAt = playedSoFar - history.current;
+
+  /*
+    How a game came out, said from nobody's side.
+
+    The panel tells the player what happened to them — "You lost by
+    resignation" — because that is what somebody reading their own list wants.
+    Over the board, where both names are up, the neutral scoreline is the
+    honest form: it is a fact about the game rather than about either of them.
+  */
+  /*
+    What the board is showing, said along the row above it.
+
+    Only where there is a game to say it about: a position of one's own has no
+    result and no place in a line, and a row of facts about nothing would be
+    worse than the space it takes.
+  */
+  /* Spaced either side of the colon, as a scoreline is written: "1 : 0" reads
+     as two numbers with a result between them, where "1:0" reads as a time. */
+  const scoreOf = (result: string) =>
+    result === "1-0" ? "1 : 0" : result === "0-1" ? "0 : 1" : "½ : ½";
+
   const namesShown = useRef(false);
   const atOne =
     friend.phase.kind === "playing" ||
@@ -1059,6 +1096,12 @@ export default function App() {
     reading rather than playing. Coming back here is coming back to play, so the
     board catches up to the move the game is actually at.
 
+    Not a game that is over, though. There is nothing to come back to play, so
+    the position the reader left the board at is the one they meant to be
+    looking at — and taking them to the last move of a game that ended a week
+    ago is undoing what they just did. The lock in the title says why no move
+    can be made from where they are standing.
+
     And if what is on the board is no longer that game — a PGN read in, a line
     played out by hand on the other tab — that is asked about before the game
     goes back up, in the same words as anywhere else something made here is
@@ -1078,7 +1121,7 @@ export default function App() {
       here.initialFEN === game.initialFEN &&
       here.moves.join(" ") === game.moves.join(" ");
     if (same) {
-      if (history.current !== 0) {
+      if (history.current !== 0 && friend.phase.over === null) {
         showHistory({ ...history, current: 0 });
       }
       return;
@@ -1091,7 +1134,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the board and the
     // game it is showing are what this watches; the helpers it calls are the
     // component's own and are the same on every render.
-  }, [tab, friend.phase.kind, history, stashName]);
+    // and whether it is over, which decides whether the board is caught up.
+  }, [
+    tab,
+    friend.phase.kind,
+    friend.phase.kind === "playing" ? friend.phase.over : null,
+    history,
+    stashName,
+  ]);
 
   /*
     The list is read from the server when it comes on screen, and not again
@@ -1510,6 +1560,35 @@ export default function App() {
                   color={farSide}
                   mine={named?.mine === farSide}
                   toMove={atAGame && shown?.turn() === farSide}
+                  result={
+                    named === null ? null : friend.phase.kind === "playing" &&
+                      friend.phase.over !== null ? (
+                      scoreOf(friend.phase.over.result)
+                    ) : friend.phase.kind === "playing" ? (
+                      <>
+                        <span className="player-live" aria-hidden="true" />
+                        In play
+                      </>
+                    ) : readGame?.result != null ? (
+                      scoreOf(readGame.result)
+                    ) : null
+                  }
+                  position={
+                    named === null ? null : (
+                      <>
+                        {/* Nothing can be played from what is showing: an
+                            earlier position of a game, a game that is over, or
+                            a challenge with no game in it yet. */}
+                        {((friend.phase.kind === "playing" &&
+                          (history.current !== 0 ||
+                            friend.phase.over !== null)) ||
+                          friend.phase.kind === "waiting") && <LockIcon />}
+                        {history.current === 0
+                          ? `${playedSoFar} half-${playedSoFar === 1 ? "move" : "moves"}`
+                          : `half-move ${lookingAt} of ${playedSoFar}`}
+                      </>
+                    )
+                  }
                 />
               )}
               <div className="board-with-captured">

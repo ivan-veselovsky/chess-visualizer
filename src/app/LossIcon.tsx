@@ -1,9 +1,10 @@
 /**
- * A cross, for a game lost.
+ * A nought, for a game lost — the score a loss is written as.
  *
- * The same two strokes as the one on the button that forgets a game, at the
- * weight the other marks in the list are drawn at: in a column of marks it is
- * read as the opposite of the tick beside it rather than as a control.
+ * A ring rather than the digit, for the same reason the one beside it is three
+ * strokes: it is drawn, so it is the same figure in every font the page might
+ * fall back to. Narrower than it is tall, which is what tells a nought from the
+ * dot that marks a game still being played.
  */
 export default function LossIcon() {
   return (
@@ -14,13 +15,11 @@ export default function LossIcon() {
       height="1em"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.6"
-      strokeLinecap="round"
+      strokeWidth="2.2"
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M6.5 6.5 17.5 17.5" />
-      <path d="M17.5 6.5 6.5 17.5" />
+      <ellipse cx="12" cy="12" rx="4.6" ry="6.8" />
     </svg>
   );
 }

@@ -285,7 +285,10 @@ export default function GameDetails({
 
           <InviteDetails gameId={phase.gameId} link={phase.link} />
 
-          <p className="invite-note">
+          {/* The terms, at the size of the panel rather than of a note: this is
+              what was offered, which is the substance of the thing being waited
+              on, not an aside about it. */}
+          <p className="invite-note invite-terms-line">
             {terms([
               phase.you === OPPONENT_CHOOSES
                 ? "My opponent picks a side"

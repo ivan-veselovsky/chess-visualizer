@@ -13,6 +13,12 @@ export interface PgnImport {
    * nothing said, since that is what it means.
    */
   players: { white: string; black: string };
+  /**
+   * How it came out, in PGN's own vocabulary — "1-0", "0-1", "1/2-1/2" — or
+   * null where the file says nothing or says "*", which is PGN for a game with
+   * no result yet.
+   */
+  result: string | null;
   error: string | null;
 }
 
@@ -34,7 +40,12 @@ function playerNamed(said: string | undefined): string {
 export function parsePgn(text: string): PgnImport {
   const nobody = { white: "Unknown", black: "Unknown" };
   if (text.trim() === "") {
-    return { entries: null, players: nobody, error: "That file is empty." };
+    return {
+      entries: null,
+      players: nobody,
+      result: null,
+      error: "That file is empty.",
+    };
   }
 
   const game = new Chess();
@@ -44,6 +55,7 @@ export function parsePgn(text: string): PgnImport {
     return {
       entries: null,
       players: nobody,
+      result: null,
       error:
         cause instanceof Error ? cause.message : "Could not read that PGN.",
     };
@@ -54,8 +66,10 @@ export function parsePgn(text: string): PgnImport {
     white: playerNamed(game.getHeaders().White),
     black: playerNamed(game.getHeaders().Black),
   };
+  const said = (game.getHeaders().Result ?? "").trim();
+  const result = said === "" || said === "*" ? null : said;
   if (moves.length === 0) {
-    return { entries: null, players, error: "That PGN holds no moves." };
+    return { entries: null, players, result, error: "That PGN holds no moves." };
   }
 
   // `before` on the first move is where the game started, headers included.
@@ -64,7 +78,7 @@ export function parsePgn(text: string): PgnImport {
     line.push({ fen: move.after, move: move.san });
   }
 
-  return { entries: line.reverse(), players, error: null };
+  return { entries: line.reverse(), players, result, error: null };
 }
 
 /**

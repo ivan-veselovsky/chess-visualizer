@@ -139,12 +139,12 @@ const BESIDE_FROM_MIDDLE = 0.34;
    written for sat at nought while the record said two thirds.
 
    The number is in fractions of that segment, and it is measured rather than
-   reasoned. Every run says the worst any patch was out by, and across five runs
-   of one build the answer was 0 to 5 points on an idle machine and 10 to 18 at
-   a sixth of the speed — the fade committing a frame or two earlier or later
-   under load, which is what the fraction is sensitive to. A quarter is well
-   clear of that and nowhere near a fault: the clipped ray this test was written
-   for sat seventy points from where it belonged.
+   reasoned. Every run says the worst any patch was out by: across runs of one
+   build it is 0 to 4 points on an idle machine and up to 16 at a sixth of the
+   speed, where the fade itself commits a frame or two earlier or later. A
+   quarter is clear of that with room to spare, and nowhere near a fault — the
+   clipped ray this test was written for sat seventy points from where it
+   belonged.
 */
 const TOLERANCE = 0.25;
 
@@ -432,65 +432,52 @@ try {
       moving, and the last frame is exactly right rather than merely close.
     */
     /*
-      The frame nearest the moment, before or after it.
+      The two frames the moment falls between, and the reading interpolated
+      between them.
 
-      It used to be the last frame painted by then, which is what is on the
-      screen at that instant — true, and the wrong thing to compare. A frame
-      can be most of a fade's steepest tenth old before anything complains, and
-      two machines that paint on different beats then read the same moment at
-      two different points of the same curve: measured, a 26ms difference in
-      how stale the frame was moved a stripe by seventeen units, against a
-      tolerance of sixteen. Nearest is symmetric — the recording and the run
-      that checks it both take it — so what is left is half a frame either way
-      rather than a whole frame in one direction.
+      Not the nearest frame, and certainly not the last one painted by then.
+      A frame is a picture of some other instant, and how far out that is
+      depends on when the machine happened to paint: idle, this run paints 180
+      frames and any moment is within a few milliseconds of one; loaded, it
+      paints 95 and a moment can fall a tenth of a second from either. The fade
+      is continuous, so where it stood at the moment asked for is between what
+      the frames either side of it show — worked out here rather than guessed
+      at from whichever picture happened to be nearest.
+
+      Where the board has settled there is nothing after the moment, and the
+      last frame is exactly what is on the screen however old it is.
     */
-    const shown = frames.reduce(
-      (best, frame) =>
-        best === undefined ||
-        Math.abs(frame.at - wanted) < Math.abs(best.at - wanted)
-          ? frame
-          : best,
-      undefined
-    );
+    const earlier = frames.filter((frame) => frame.at <= wanted).at(-1);
     const later = frames.find((frame) => frame.at > wanted);
+    const shown = earlier ?? later;
     if (shown === undefined) {
       check(`${label(moment)}s was painted at all`, false, "no frame that early");
       continue;
     }
+    const span =
+      earlier !== undefined && later !== undefined
+        ? (wanted - earlier.at) / (later.at - earlier.at)
+        : 0;
     const stale = shown.at - wanted;
     const seen = measure(shown);
+    const next = later !== undefined && earlier !== undefined ? measure(later) : null;
     /* The same reading as a set of fractions: where each patch stands between
-       its two ends. Patches that go nowhere across the whole business are left
+       its two ends, at the moment asked for rather than at whichever instant
+       was painted. Patches that go nowhere across the whole business are left
        out — see `WORTH_ASKING`. */
     const walked = Object.fromEntries(
       Object.entries(seen)
-        .map(([key, rgb]) => [key, along(key, rgb)])
+        .map(([key, rgb]) => {
+          const from = along(key, rgb);
+          if (from === null) {
+            return [key, null];
+          }
+          const to = next === null ? null : along(key, next[key]);
+          return [key, to === null ? from : from + (to - from) * span];
+        })
         .filter(([, fraction]) => fraction !== null)
     );
 
-    /*
-      A gap in the frames is only a problem if the board changed across it. Once
-      the board settles nothing is painted for a second at a time, and the last
-      frame is then not merely the closest but exactly what is on the screen. It
-      is when the next frame shows something else that a gap means the moment
-      fell somewhere unmeasured.
-    */
-    if (later !== undefined && Math.abs(later.at - shown.at) > NEAR_ENOUGH) {
-      const then = measure(later);
-      const moved = Object.entries(walked).some(
-        ([key, fraction]) => Math.abs(fraction - (along(key, then[key]) ?? fraction)) > TOLERANCE
-      );
-      if (moved) {
-        check(
-          `a frame within ${NEAR_ENOUGH}s of ${label(moment)}s`,
-          false,
-          `the board moved between frames ${Math.abs(stale).toFixed(3)}s and ` +
-            `${Math.abs(later.at - wanted).toFixed(3)}s from it — this machine ` +
-            `is dropping frames`
-        );
-        continue;
-      }
-    }
     fresh[label(moment)] = Object.fromEntries(
       Object.entries(walked).map(([key, fraction]) => [key, Number(fraction.toFixed(3))])
     );
@@ -532,7 +519,9 @@ try {
       .filter(([key]) => expected[key] !== undefined)
       .reduce((most, [key, fraction]) => Math.max(most, Math.abs(fraction - expected[key])), 0);
     check(
-      `${label(moment)}s in (frame ${(stale * 1000).toFixed(0)}ms away, worst ${(worst * 100).toFixed(0)} points) the board is as recorded`,
+      `${label(moment)}s in (frames ${(stale * 1000).toFixed(0)}ms and ` +
+        `${later === undefined || earlier === undefined ? "—" : `${((later.at - wanted) * 1000).toFixed(0)}ms`}` +
+        ` from it, worst ${(worst * 100).toFixed(0)} points) the board is as recorded`,
       wrong.length === 0,
       wrong
         .map(

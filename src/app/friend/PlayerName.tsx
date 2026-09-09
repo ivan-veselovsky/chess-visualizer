@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Color } from "chess.js";
 
 interface PlayerNameProps {
@@ -8,6 +8,18 @@ interface PlayerNameProps {
   mine: boolean;
   /** Whether the position on the board is waiting on this side. */
   toMove?: boolean;
+  /**
+   * What the board is showing, said across the top of it: how the game came
+   * out, in the middle, and where in the game the board is standing, at the
+   * end.
+   *
+   * Here rather than beside the app's name, where they were for a while. This
+   * row is the game's own line — it already carries a player and which side
+   * they are — and a fact about the game reads as part of the board rather than
+   * as part of the page.
+   */
+  result?: ReactNode;
+  position?: ReactNode;
 }
 
 /**
@@ -28,9 +40,12 @@ export default function PlayerName({
   color,
   mine,
   toMove = false,
+  result = null,
+  position = null,
 }: PlayerNameProps) {
   return (
     <p className="player-name">
+      <span className="player-who">
       {/*
         Which side this is, and whether the game is waiting on it.
 
@@ -92,6 +107,11 @@ export default function PlayerName({
           long. */}
       <span className="player-name-text">{name}</span>
       {mine && <span className="player-mine"> (me)</span>}
+      </span>
+      {/* The middle of the row and the end of it, both empty on the near side
+          and on a board that is nobody's game. */}
+      <span className="player-result">{result}</span>
+      <span className="player-position">{position}</span>
     </p>
   );
 }

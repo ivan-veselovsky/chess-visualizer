@@ -25,7 +25,7 @@ export default function InviteDetails({
 }: InviteDetailsProps) {
   return (
     <>
-      <div className="board-controls">
+      <div className="board-controls invite-line">
         <label htmlFor={`${idPrefix}-link`}>Challenge link</label>
         <input
           id={`${idPrefix}-link`}
@@ -43,7 +43,7 @@ export default function InviteDetails({
         />
       </div>
 
-      <div className="board-controls">
+      <div className="board-controls invite-line">
         <label htmlFor={`${idPrefix}-number`}>Game id</label>
         {/* Said aloud as often as it is pasted, so it is shown the way it
             would be read: in threes. */}

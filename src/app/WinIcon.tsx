@@ -1,10 +1,10 @@
 /**
- * A tick, for a game won.
+ * A one, for a game won — the score a win is written as.
  *
- * Two strokes: a short one down into the corner and a long one up out of it,
- * which is the mark anybody makes against something that came out right. Drawn
- * rather than set as a character for the same reason the half is — a glyph that
- * is not in every fallback font, sitting on a baseline of its own.
+ * Drawn in strokes rather than set as the digit: a glyph would come out in
+ * whatever font the page fell back to, at whatever weight and on whatever
+ * baseline that font keeps, beside two marks that are drawn. Three strokes are
+ * the same figure everywhere, and the same weight as the nought beside it.
  */
 export default function WinIcon() {
   return (
@@ -15,13 +15,15 @@ export default function WinIcon() {
       height="1em"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.6"
+      strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M5 12.5 10 18 19 6.5" />
+      {/* The flag, the stem, and the foot it stands on. */}
+      <path d="M9.4 8.4 12.4 5.4V18.6" />
+      <path d="M8.8 18.6H16" />
     </svg>
   );
 }
