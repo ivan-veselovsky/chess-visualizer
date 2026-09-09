@@ -91,6 +91,8 @@ import type { Heatmap, Settings } from "./settings";
 import { OPPONENT_CHOOSES } from "../../worker/protocol";
 import type { ColorChoice, Terms } from "../../worker/protocol";
 import { DEFAULT_SETTINGS } from "./presets";
+import { boardSide, setBoardSide } from "./boardSide";
+import type { Orientation } from "../visualization/geometry";
 import { loadSettings } from "./settingsStore";
 import { usePresets, nameTrouble } from "./usePresets";
 import { asking, setAsking } from "./asking";
@@ -141,6 +143,18 @@ export default function App() {
     settings every time the app opens. Anything unreadable — a version this
     build has moved past, a record cut short — leaves the defaults standing.
   */
+  /*
+    Which way round the board faces, which is where the reader is sitting
+    rather than anything about how the board is drawn — see `boardSide`. Read
+    here, in the initial state, so the first paint is already the right way
+    round.
+  */
+  const [side, setSide] = useState<Orientation>(boardSide);
+  const turnBoard = useCallback((wanted: Orientation) => {
+    setSide(wanted);
+    setBoardSide(wanted);
+  }, []);
+
   const [opened] = useState(loadSettings);
   const [settings, setSettings] = useState<Settings>(
     () => opened.working ?? DEFAULT_SETTINGS
@@ -697,7 +711,7 @@ export default function App() {
     */
     const squares = Math.max(
       ...travellers.map((piece) =>
-        squaresApart(piece.from, piece.to, settings.orientation)
+        squaresApart(piece.from, piece.to, side)
       )
     );
     const ms = flightTime(squares, moveSpeed(settings.move, squares));
@@ -964,7 +978,7 @@ export default function App() {
         ? {
             you:
               friend.phase.you === OPPONENT_CHOOSES
-                ? settings.orientation === "black"
+                ? side === "black"
                   ? ("b" as const)
                   : ("w" as const)
                 : friend.phase.you,
@@ -1260,7 +1274,7 @@ export default function App() {
     Which army is at which end of the board as it stands. The names follow the
     board rather than the players, so turning it round moves them with it.
   */
-  const nearSide: Color = settings.orientation === "black" ? "b" : "w";
+  const nearSide: Color = side === "black" ? "b" : "w";
   const farSide: Color = nearSide === "w" ? "b" : "w";
 
   /*
@@ -1321,7 +1335,7 @@ export default function App() {
       return;
     }
     const settled = phase.kind === "playing";
-    const side = phase.you === OPPONENT_CHOOSES ? "b" : phase.you;
+    const seatSide = phase.you === OPPONENT_CHOOSES ? "b" : phase.you;
     /*
       By the seat and not by the game. One browser can hold both ends of one
       board — two tabs, two tokens, one game id — and going from one of them to
@@ -1335,10 +1349,9 @@ export default function App() {
       return;
     }
     seated.current = { seat: chair, settled };
-    setSettings((current) => ({
-      ...current,
-      orientation: side === "b" ? "black" : "white",
-    }));
+    turnBoard(seatSide === "b" ? "black" : "white");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `turnBoard` is
+    // made once and never changes; the phase is what this watches.
   }, [friend.phase]);
 
   // On the document root rather than a wrapper: the frame colour has to reach
@@ -1489,12 +1502,12 @@ export default function App() {
                 }
                 lastMove={lastMove}
                 lastMoveMark={settings.lastMove}
-                orientation={settings.orientation}
+                orientation={side}
               />
                 {settings.showCapturedPiecesBar && (
                   <CapturedBar
                     captures={captures}
-                    orientation={settings.orientation}
+                    orientation={side}
                     pieceTint={settings.pieceTint}
                     attacks={settings.attacks}
                   />
@@ -1556,13 +1569,8 @@ export default function App() {
               <ToggleField
                 id="flip-board"
                 label="Black at bottom"
-                checked={settings.orientation === "black"}
-                onChange={(flipped) =>
-                  setSettings({
-                    ...settings,
-                    orientation: flipped ? "black" : "white",
-                  })
-                }
+                checked={side === "black"}
+                onChange={(flipped) => turnBoard(flipped ? "black" : "white")}
               />
               <button
                 type="button"
@@ -1843,13 +1851,8 @@ export default function App() {
                 <ToggleField
                   id="flip-board-match"
                   label="Black at bottom"
-                  checked={settings.orientation === "black"}
-                  onChange={(flipped) =>
-                    setSettings({
-                      ...settings,
-                      orientation: flipped ? "black" : "white",
-                    })
-                  }
+                  checked={side === "black"}
+                  onChange={(flipped) => turnBoard(flipped ? "black" : "white")}
                 />
               </div>
 

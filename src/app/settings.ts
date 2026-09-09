@@ -1,4 +1,3 @@
-import type { Orientation } from "../visualization/geometry";
 import type {
   AttackSettings,
   BoardColors,
@@ -74,8 +73,6 @@ export interface Settings {
    */
   darkThemeTextColor: string;
   boardColors: BoardColors;
-  /** Which side is at the bottom of the board. */
-  orientation: Orientation;
   pieceTint: PieceTint;
   /** Thin lines on the square edges, readable even with identical colours. */
   grid: GridLines;

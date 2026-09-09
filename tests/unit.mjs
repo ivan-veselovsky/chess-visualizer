@@ -283,6 +283,42 @@ console.log("\nWhat an exported file is called\n");
     settingsFileName("   ") === SETTINGS_FILE_NAME);
 }
 
+console.log("\nWhich way round the board faces\n");
+{
+  const store = new Map();
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => store.set(key, String(value)),
+      removeItem: (key) => store.delete(key),
+    },
+  };
+  const { boardSide, setBoardSide } = await import("../src/app/boardSide.ts");
+
+  check("a browser that has never said opens White at the bottom",
+    boardSide() === "white");
+  setBoardSide("black");
+  check("and comes back to whichever side it was left on",
+    boardSide() === "black");
+  setBoardSide("white");
+  check("either way round", boardSide() === "white");
+  store.set("cv.board-side", "sideways");
+  check("anything else is not a side, and White stands",
+    boardSide() === "white");
+
+  /* And it is nobody's setting: a settings file that still carries one has it
+     taken out rather than being refused. */
+  const { parseSettings } = await import("../src/app/settingsFile.ts");
+  const older = { ...DEFAULT_SETTINGS, orientation: "black" };
+  const read = parseSettings(JSON.stringify(older));
+  check("a settings file from when it was a setting still reads",
+    read.settings !== null, read.error ?? "");
+  check("and the board's side is not in what comes back",
+    read.settings !== null && !("orientation" in read.settings));
+
+  globalThis.window = undefined;
+}
+
 console.log("\nSettings kept between visits\n");
 {
   /* A store of one browser's worth, standing in for the real one: what the app

@@ -59,7 +59,6 @@ const REQUIRED_KEYS = [
   "theme",
   "darkThemeTextColor",
   "boardColors",
-  "orientation",
   "grid",
   "pieceTint",
   "attacks",
@@ -124,8 +123,16 @@ export function parseSettings(text: string): ImportResult {
     Handed back under the modern name whichever it arrived under, so that
     nothing downstream has to know there were ever two, and so that exporting a
     file that was read from an old one writes the new name.
+
+    Which way round the board faces used to be in here. It is not a setting —
+    it is where the reader is sitting, and it lives in this browser now — so a
+    file or a record that still carries it has it quietly taken out rather than
+    refused. There is nothing to migrate: the value said what one browser was
+    doing on the day it was written, and this browser has its own.
   */
   const settings = { ...candidate, schemaVersion: version } as unknown as Settings;
-  delete (settings as unknown as Record<string, unknown>).optionsSchemaVersion;
+  const held = settings as unknown as Record<string, unknown>;
+  delete held.optionsSchemaVersion;
+  delete held.orientation;
   return { settings, error: null };
 }
