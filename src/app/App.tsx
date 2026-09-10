@@ -1016,12 +1016,17 @@ export default function App() {
   */
   /* Spaced either side of the colon, as a scoreline is written: "1 : 0" reads
      as two numbers with a result between them, where "1:0" reads as a time. */
-  /* Where the board is standing in whatever line it holds: how far the line
-     runs, or which position of it is showing. */
+  /*
+    Where the board is standing in whatever line it holds, said the same way
+    wherever it stands.
+
+    "Half-move 47 of 47" at the end rather than "47 half-moves": one form means
+    the reader never has to work out which of two things they are being told,
+    and the number they are looking for — where am I in this game — is in the
+    same place every time. A line with nothing in it says nothing at all.
+  */
   const counted =
-    history.current === 0
-      ? `${playedSoFar} half-${playedSoFar === 1 ? "move" : "moves"}`
-      : `half-move ${lookingAt} of ${playedSoFar}`;
+    playedSoFar === 0 ? "" : `half-move ${lookingAt} of ${playedSoFar}`;
 
   const scoreOf = (result: string) =>
     result === "1-0" ? "1 : 0" : result === "0-1" ? "0 : 1" : "½ : ½";
