@@ -93,6 +93,7 @@ import type { ColorChoice, Terms } from "../../worker/protocol";
 import { DEFAULT_SETTINGS } from "./presets";
 import { boardSide, setBoardSide } from "./boardSide";
 import LockIcon from "./LockIcon";
+import ExitIcon from "./ExitIcon";
 import type { Orientation } from "../visualization/geometry";
 import { loadSettings } from "./settingsStore";
 import { usePresets, nameTrouble } from "./usePresets";
@@ -2129,6 +2130,7 @@ export default function App() {
                       putBoardDown();
                     }}
                   >
+                    <ExitIcon />
                     Step away
                   </button>
                   <div className="button-pair games-pair">

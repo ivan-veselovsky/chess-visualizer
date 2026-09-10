@@ -3273,9 +3273,16 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* The one at the left of that row, sized and padded like the two at the right. */
+/* Laid out like the two it shares the row with — icon and word together in the
+   middle of the button, not against its left edge — and never narrower than
+   they are. It is not in their pair, so it has to be told separately. */
 .games-step-away {
   min-width: var(--action-width);
   padding-inline: var(--answer-room);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
 }
 
 .button-pair.games-pair > .reset-button {
