@@ -9,7 +9,7 @@ export default function BishopAttacks({
   piece,
   idPrefix,
   orientation,
-  attackSettings,
+  rays,
   geometry,
 }: PieceAttackProps) {
   return (
@@ -18,12 +18,13 @@ export default function BishopAttacks({
       axes={bishopAttackAxes(
         position,
         piece.square,
-        attackSettings.xRayDecayFactor
+        rays.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-bishop"
       stripe={geometry.bishopRay}
       innerSquares={innerSquares(geometry)}
-      fullWidth={attackSettings.fullWidthDiagonalRays}
+      fullWidth={rays.fullWidthDiagonals}
+      shape={rays.shape}
       idPrefix={idPrefix}
       orientation={orientation}
     />

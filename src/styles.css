@@ -914,6 +914,35 @@ body {
 }
 
 /*
+  A needle is a filled shape rather than a stroked line, so it takes its
+  colour on `fill` where a stripe takes it on `stroke`. The piece's own class
+  carries the colour either way; this says which property to put it on.
+*/
+.attack-needle {
+  stroke: none;
+}
+
+.attack-needle.attack-king {
+  fill: var(--attack-king);
+}
+
+.attack-needle.attack-queen {
+  fill: var(--attack-queen);
+}
+
+.attack-needle.attack-rook {
+  fill: var(--attack-rook);
+}
+
+.attack-needle.attack-bishop {
+  fill: var(--attack-bishop);
+}
+
+.attack-needle.attack-pawn {
+  fill: var(--attack-pawn);
+}
+
+/*
   The gamma tails are filled areas rather than stroked lines, so they take the
   colour on `fill` where the ring takes it on `stroke`.
 */
@@ -1104,6 +1133,14 @@ body {
   diagonal, which is why it is wider than the square is.
 */
 .intensity-row {
+  /*
+    How wide the column between the two choosers is, and how far apart it and
+    they stand. Said here because three rules need them: the column's own width,
+    the gap, and the offset that carries the side switches out of the left-hand
+    chooser and into the middle of that column.
+  */
+  --between: 6rem;
+  --apart: 0.75rem;
   display: flex;
   align-items: stretch;
   /* Everything the panel has left over, which is why it comes last — and
@@ -1115,7 +1152,7 @@ body {
      pair, and spread to the panel's edges they would not be. */
   justify-content: center;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--apart);
   /*
     The panel is padded thinly at the top and fully at the bottom, so the middle
     of what it holds is not the middle of the panel. The difference, taken above,
@@ -1167,6 +1204,15 @@ body {
   position: absolute;
   left: 0;
   right: 0;
+  /*
+    The switch and the name on one centred line. Laid out as a flex row so the
+    two sit level with each other rather than on a text baseline, which a
+    checkbox has no business standing on.
+  */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
   text-align: center;
   font-size: 1.05em;
   /*
@@ -1178,6 +1224,19 @@ body {
     height it is held to.
   */
   bottom: calc(50% + min(100cqw, 100cqh - 3.9rem) / 2 + 2.4rem);
+}
+
+/* Said the same way the settings panel says it, this being the same switch. */
+.intensity-label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--checkbox-accent);
+  cursor: pointer;
+}
+
+.intensity-label label {
+  cursor: pointer;
 }
 
 /*
@@ -1218,8 +1277,16 @@ body {
     to the square instead.
   */
   overflow: clip;
-  /* As far as the panel around it can absorb; see `--handle-clip`. */
-  overflow-clip-margin: var(--handle-clip);
+  /*
+    As far as the panel around it can absorb: one handle's half, the figure
+    `--handle-clip` records.
+
+    Written out rather than read from that variable because this property takes
+    no `var()` — a browser that cannot substitute it falls back to nought, which
+    is a clip tight to the frame and a handle shaved at the corners. The
+    variable stays as the note of where the number comes from.
+  */
+  overflow-clip-margin: 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1357,6 +1424,58 @@ body {
   margin-top: 0.25rem;
 }
 
+/*
+  A frame that carries the switches has to let them out.
+
+  They stand a whole column away from its edge, and the frame clips what its own
+  square paints past it. The clip stays — it is what keeps the corners from
+  asking the panel for height — but this one is let out far enough to reach the
+  middle of the column beyond it. Only the chooser that carries them is widened;
+  the other keeps the handle's own margin.
+*/
+.intensity-frame-aside {
+  /* The gap to the middle column, half of that column, and half a switch, which
+     is 0.75 + 3 + 0.75. Written out for the same reason as the rule above. */
+  overflow-clip-margin: 4.5rem;
+}
+
+/*
+  The switches that answer for both pictures, standing in the column between the
+  two choosers and level with the readings they answer for.
+
+  Hung off the left chooser's box, which is what puts them on those lines: the
+  readings are placed against this box and these are placed the same way. The
+  step to the right carries them off this chooser and into the middle of the
+  column beyond it — the frame's own side padding, the gap to that column, and
+  half of the column.
+*/
+.intensity-aside {
+  position: absolute;
+  left: calc(100% + 1.05rem + var(--apart) + var(--between) / 2);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+}
+
+.intensity-aside-top {
+  bottom: 100%;
+  margin-bottom: 0.25rem;
+}
+
+.intensity-aside-bottom {
+  top: 100%;
+  margin-top: 0.25rem;
+}
+
+/* Said the same way every other switch on the panel is said. */
+.intensity-side-switch {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--checkbox-accent);
+  cursor: pointer;
+}
+
 /* Hung off the box's own edges, so they follow it as it grows. */
 .intensity-corner-left {
   right: 100%;
@@ -1417,6 +1536,13 @@ body {
 .intensity-link-holder {
   display: flex;
   flex-direction: column;
+  /*
+    A width of its own rather than the button's, so that what stands in this
+    column — the link, and the two side switches hung off the chooser beside
+    it — can be centred on a figure both of them know. See `--between`.
+  */
+  flex: 0 0 var(--between);
+  width: var(--between);
 }
 
 .intensity-link-middle {
@@ -1426,7 +1552,9 @@ body {
 }
 
 .intensity-link {
-  display: inline-flex;
+  display: flex;
+  /* The column's, since the column no longer takes its width from this. */
+  width: 100%;
   align-items: center;
   justify-content: center;
   /* Wide rather than tall: it stands between the two choosers and reads as the
@@ -1921,6 +2049,20 @@ body {
 }
 
 /*
+  A field set off from what it follows, by half again the gap every field leaves
+  under itself — so the break is in the panel's own rhythm rather than a number
+  of its own. Wanted where a bordered field follows a switch, which is a bare
+  line of text and leaves less apparent room than a box does. A whole extra gap
+  was more room than the difference calls for.
+*/
+.field-apart {
+  /* Padding rather than a margin: the field above already leaves a margin, and
+     two margins meeting in a block collapse into the larger of the two — so a
+     margin here would add nothing at all. */
+  padding-top: calc(var(--field-gap, 0.85rem) / 2);
+}
+
+/*
   Nothing under the last field of a group: what separates a group from the next
   section's name is that name's own space above it, not the two added together.
 */
@@ -2140,9 +2282,80 @@ input[type="color"]::-moz-color-swatch {
   white-space: nowrap;
 }
 
-/* Name and swatch columns stay narrow; the value columns split the rest. */
+/*
+  Name and swatch columns stay narrow; the value columns split the rest.
+
+  Wide enough for the longest row name, which is not a piece's: the two opacity
+  rows take this column and the colour column between them, and "Attack ray max
+  opacity" has to fit there on one line.
+*/
 .col-piece {
-  width: 4rem;
+  width: 6.5rem;
+}
+
+/*
+  A table of one setting per row and one column a side, rather than of pieces:
+  the name needs the room a piece's does not, and the two columns split what is
+  left evenly so the sides are weighed against each other.
+*/
+.col-setting {
+  width: 10rem;
+}
+
+.stripe-table-sides tbody th {
+  /* Long enough to want the whole column; the widths above give it. */
+  white-space: normal;
+}
+
+/* Set off from what it follows: the rows above give a mark its shape, these
+   give it its weight. A gap rather than a rule, the line between the two sides
+   being rule enough for one small table. */
+.stripe-row-apart > th,
+.stripe-row-apart > td {
+  padding-top: 0.8rem;
+}
+
+/* Over the middle of the column each names, as the wide table's groups are. */
+.stripe-table-sides thead th {
+  text-align: center;
+}
+
+/*
+  And room between one row and the next: two rows of a two-row table sit closer
+  together than a run of them appears to, a colour well and a field being
+  different heights. Taken above each row but the first, so the table still
+  begins where its heading leaves it.
+*/
+.stripe-table-sides tbody tr + tr > th,
+.stripe-table-sides tbody tr + tr > td {
+  padding-top: 0.5em;
+}
+
+/*
+  Room between the two sides' fields, so a pair of numbers either side of the
+  line does not read as one.
+
+  The same on both sides of every cell, which is what keeps the two fields the
+  same width: padding on the second alone would take its room out of that field
+  and leave the pair visibly uneven.
+*/
+.stripe-table-sides td {
+  padding-left: 0.65rem;
+  padding-right: 0.65rem;
+}
+
+/* In a cell the well is all there is: the row and the column name it. */
+.color-field-well-only {
+  justify-content: center;
+  margin-bottom: 0;
+}
+
+/* And it is the size the attack table's swatches are, being the same thing in
+   the same kind of cell: a row this tall would push the table's rows apart. */
+.color-field-well-only > .color-well {
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 4px;
 }
 
 /* Wide enough for the "Color" heading, with the well breathing inside it. */

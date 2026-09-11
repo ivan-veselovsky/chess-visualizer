@@ -1,5 +1,10 @@
 import type { Square } from "chess.js";
-import { FILES, RANKS, fileIndex, rankIndex, squareAt } from "../chess/model";
+/*
+  Written with its extension, like the other modules `tests/unit.mjs` runs
+  straight from the TypeScript: node resolves what is written and guesses at
+  nothing.
+*/
+import { FILES, RANKS, fileIndex, rankIndex, squareAt } from "../chess/model.ts";
 
 // Re-exported so the layers have a single import for everything layout-related.
 export { FILES, RANKS };
@@ -168,6 +173,30 @@ const ORTHOGONAL_TIP_ANGLE = 90;
  * inner square, which is where the shape came from; the orthogonal case takes
  * the same angle across a side it meets square on.
  */
+/**
+ * Where a ray stops on the square it reaches: the far side of that square's
+ * small inner square, measured along the ray.
+ *
+ * The point of the wedge below, and the point of a needle, are the same place —
+ * taken from here by both so that a needle ends exactly where a stripe ends,
+ * whatever either of them is drawn with.
+ */
+export function rayStopTip(
+  square: Square,
+  direction: readonly [number, number],
+  halfSide: number,
+  orientation: Orientation = "white"
+): { x: number; y: number } {
+  const step = stepVector(direction, orientation);
+  const length = Math.hypot(step.x, step.y);
+  const along = { x: step.x / length, y: step.y / length };
+  // How far the inner square reaches along the ray: to a corner on a diagonal,
+  // to the middle of a side otherwise.
+  const reach = halfSide * (Math.abs(along.x) + Math.abs(along.y));
+  const center = squareCenter(square, orientation);
+  return { x: center.x + along.x * reach, y: center.y + along.y * reach };
+}
+
 export function rayStopWedgePath(
   square: Square,
   direction: readonly [number, number],
@@ -177,15 +206,7 @@ export function rayStopWedgePath(
   const step = stepVector(direction, orientation);
   const length = Math.hypot(step.x, step.y);
   const along = { x: step.x / length, y: step.y / length };
-
-  // How far the inner square reaches along the ray: to a corner on a diagonal,
-  // to the middle of a side otherwise.
-  const reach = halfSide * (Math.abs(along.x) + Math.abs(along.y));
-  const center = squareCenter(square, orientation);
-  const tip = {
-    x: center.x + along.x * reach,
-    y: center.y + along.y * reach,
-  };
+  const tip = rayStopTip(square, direction, halfSide, orientation);
 
   const diagonal = direction[0] !== 0 && direction[1] !== 0;
   const halfAngle =
@@ -216,6 +237,124 @@ export function rayStopWedgePath(
  * being notched by its corner. A rank or file crosses a single face square on,
  * where it is level already and its width makes no difference.
  */
+/**
+ * Where a needle's base sits: the two corners at which a ray of this width
+ * leaves the square it starts from.
+ *
+ * Each corner is followed out along the ray until it crosses that square's
+ * boundary, rather than both being cut on one line square across the ray. On a
+ * rank or a file the two answers are the same and the base is a flat end on one
+ * side; on a diagonal they are the same by symmetry and the base is a chord
+ * across the corner; on a knight's oblique line they differ, and each corner
+ * still lands exactly on the boundary — which is the point. A base drawn at one
+ * distance for both would hang off the square at one end or fall short at the
+ * other.
+ *
+ * `halfSide` is the square the ray sets off from, half a side across. The width
+ * kept exactly is the width across the ray — the one a reader sets — so on an
+ * oblique line the base is a slanted chord, longer than that but no wider, with
+ * both of its corners on the square. On a rank, a file or a diagonal the two
+ * corners come out level and the base is square across the ray.
+ */
+export function rayBaseCorners(
+  center: { x: number; y: number },
+  along: { x: number; y: number },
+  halfSide: number,
+  halfWidth: number
+): [{ x: number; y: number }, { x: number; y: number }] {
+  const across = { x: -along.y, y: along.x };
+  const corner = (sense: 1 | -1) => {
+    const offset = { x: across.x * halfWidth * sense, y: across.y * halfWidth * sense };
+    /* How far along the ray this side of it may run before leaving the square:
+       whichever of the two walls it meets first. A wall the ray runs parallel
+       to is never met. */
+    const walls = [
+      along.x === 0
+        ? Infinity
+        : ((along.x > 0 ? halfSide : -halfSide) - offset.x) / along.x,
+      along.y === 0
+        ? Infinity
+        : ((along.y > 0 ? halfSide : -halfSide) - offset.y) / along.y,
+    ];
+    const run = Math.max(Math.min(...walls), 0);
+    return {
+      x: center.x + along.x * run + offset.x,
+      y: center.y + along.y * run + offset.y,
+    };
+  };
+  return [corner(1), corner(-1)];
+}
+
+/** The two shapes a needle can be given: straight-sided, or curved. */
+export type NeedleShape = "triangle" | "ellipse";
+
+/**
+ * One ray as a needle: a shape whose base is the ray's own width, on the
+ * boundary of the square the ray leaves, and whose point is where the ray
+ * stops.
+ *
+ * The base is the same place and the same width a stripe has there — so
+ * needles and stripes begin alike and differ only in what happens along the
+ * way: one keeps its width to the end, the other closes to a point on the
+ * square it attacks.
+ *
+ * A "triangle" gets there in straight lines, shedding width at a constant rate,
+ * so a long ray is a hair from the halfway mark on. An "ellipse" is half of
+ * one, its short axis lying across the square the ray leaves and its long axis
+ * running down the ray: the sides set off square across the ray and bend in
+ * slowly, so a ray keeps its weight for most of its length and gives it up near
+ * the end.
+ *
+ * The ellipse is drawn as two quarter-arcs rather than one half: an arc is
+ * drawn between its endpoints, and passing through the tip is the whole point
+ * of this one.
+ */
+export function needlePath(
+  base: readonly [{ x: number; y: number }, { x: number; y: number }],
+  to: { x: number; y: number },
+  shape: NeedleShape
+): string {
+  if (shape === "triangle") {
+    return [
+      `M ${base[0].x} ${base[0].y}`,
+      `L ${to.x} ${to.y}`,
+      `L ${base[1].x} ${base[1].y}`,
+      "Z",
+    ].join(" ");
+  }
+  const middle = {
+    x: (base[0].x + base[1].x) / 2,
+    y: (base[0].y + base[1].y) / 2,
+  };
+  const run = { x: to.x - middle.x, y: to.y - middle.y };
+  const along = Math.hypot(run.x, run.y);
+  const across = Math.hypot(base[0].x - base[1].x, base[0].y - base[1].y) / 2;
+  if (along === 0 || across === 0) {
+    return "";
+  }
+  /* The ellipse is turned to lie down the ray: its first radius runs that way
+     and its second across. */
+  const turn = (Math.atan2(run.y, run.x) * 180) / Math.PI;
+  /*
+    Which way round the two quarters sweep.
+
+    The first corner is on one side of the ray and the second on the other, and
+    which side is which depends on how the board is turned — so it is worked out
+    from the corners themselves rather than assumed: the sign of the first
+    corner against the ray decides it.
+  */
+  const side =
+    (base[0].x - middle.x) * run.y - (base[0].y - middle.y) * run.x > 0 ? 1 : 0;
+  const arc = (to: { x: number; y: number }) =>
+    `A ${along} ${across} ${turn} 0 ${side} ${to.x} ${to.y}`;
+  return [
+    `M ${base[0].x} ${base[0].y}`,
+    arc(to),
+    arc({ x: base[1].x, y: base[1].y }),
+    "Z",
+  ].join(" ");
+}
+
 export function rayStartPlanePath(
   square: Square,
   direction: readonly [number, number],
@@ -358,6 +497,39 @@ export function ringSectorInsideRect(
     }
   }
   return best;
+}
+
+/**
+ * The widest run of angles over which a piece of ring with rounded ends stays
+ * inside a rectangle.
+ *
+ * A round end is a half-disc of the ring's own thickness, so the whole piece —
+ * arc and both ends — is the set of points within half a thickness of the
+ * middle circle between the two end angles. That piece is inside the square
+ * exactly when the middle circle stays half a thickness clear of every side,
+ * which is the same question asked of a square shrunk by that much on all four
+ * sides.
+ *
+ * Where the run ends, the end's own half-disc touches the side that stopped it:
+ * its centre is exactly half a thickness away, which is what tangency is. A
+ * square with no room left for the end at all comes back null.
+ */
+export function ringCapSpanInsideRect(
+  center: Point,
+  midRadius: number,
+  capRadius: number,
+  rect: Rect
+): [number, number] | null {
+  const room = {
+    x: rect.x + capRadius,
+    y: rect.y + capRadius,
+    width: rect.width - capRadius * 2,
+    height: rect.height - capRadius * 2,
+  };
+  const span = ringSectorInsideRect(center, midRadius, midRadius, room);
+  /* A run of no width is the middle circle grazing a corner of that shrunken
+     square, not a piece of ring worth drawing. */
+  return span === null || span[1] - span[0] < 1e-9 ? null : span;
 }
 
 /**

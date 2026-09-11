@@ -9,7 +9,7 @@ import {
   type Orientation,
   type SettingsSide,
 } from "../geometry";
-import type { AttackSettings } from "../settings";
+import type { RaySettings } from "../settings";
 import { raysShown } from "../visible";
 import BishopAttacks from "./attacks/BishopAttacks";
 import KingAttacks from "./attacks/KingAttacks";
@@ -37,7 +37,8 @@ const ATTACK_RENDERERS: Partial<
 interface AttackLayerProps {
   position: Chess;
   pieces: PlacedPiece[];
-  attackSettings: AttackSettings;
+  /** How the rays are drawn, which is all this layer draws. */
+  rays: RaySettings;
   /**
    * Square whose piece is in hand — dragged, or picked out by a click. Its
    * marks are left out either way: the board is being read to choose a move,
@@ -62,7 +63,7 @@ interface AttackLayerProps {
 export default function AttackLayer({
   position,
   pieces,
-  attackSettings,
+  rays,
   lifted = null,
   flying = [],
   fadeTimeMs = 0,
@@ -83,7 +84,7 @@ export default function AttackLayer({
     computed once per position rather than once per pointer move.
   */
   const opacityFor = (side: SettingsSide) =>
-    clamp(attackSettings.rayOpacity[side]);
+    clamp(rays.maxOpacity[side]);
 
   /*
     The pieces whose marks are drawn, and the ones whose marks are on their way
@@ -115,7 +116,7 @@ export default function AttackLayer({
         from this list, which is how they come to fade rather than vanish.
       */
       .filter((piece) =>
-        raysShown(attackSettings, settingsSide(piece.color, orientation))
+        raysShown(rays, settingsSide(piece.color, orientation))
       )
       .map((piece) => ({ piece, board: position })),
     /* What it draws, not merely which piece draws it: a rook whose line a move
@@ -134,8 +135,8 @@ export default function AttackLayer({
   const sides = (["me", "opponent"] as const).map((side) => ({
     side,
     id: `${idPrefix}-outline-${side}`,
-    width: raysShown(attackSettings, side)
-      ? Math.max(attackSettings.outlineWidths[side], 0) * SQUARE_SIZE
+    width: raysShown(rays, side)
+      ? Math.max(rays.outlineWidths[side], 0) * SQUARE_SIZE
       : 0,
   }));
   const outlineFor = (side: SettingsSide) =>
@@ -189,7 +190,7 @@ export default function AttackLayer({
             />
             <feFlood
               className={`attack-outline-ink-${entry.side}`}
-              floodOpacity={clamp(attackSettings.outlineOpacity[entry.side])}
+              floodOpacity={clamp(rays.outlineOpacity[entry.side])}
               result="ink"
             />
             <feComposite in="ink" in2="ring" operator="in" result="outline" />
@@ -258,8 +259,8 @@ export default function AttackLayer({
                 */
                 idPrefix={`${idPrefix}-${key.replace(/[^A-Za-z0-9_-]/g, "_")}`}
                 orientation={orientation}
-                attackSettings={attackSettings}
-                geometry={attackSettings.geometry[side]}
+                rays={rays}
+                geometry={rays.geometry[side]}
               />
             </g>
           </g>

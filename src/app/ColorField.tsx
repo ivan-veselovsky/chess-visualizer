@@ -7,6 +7,12 @@ interface ColorFieldProps {
   value: string;
   /** Present but not answering; `hint` should then say why. */
   disabled?: boolean;
+  /**
+   * The well alone, without its written label — for a table cell, where the row
+   * and the column say between them what the colour is. The label is still what
+   * a screen reader is given and what the dialog is titled with.
+   */
+  wellOnly?: boolean;
   /** Explanation shown on hover, rather than as standing text. */
   hint?: string;
   onChange: (color: string) => void;
@@ -28,14 +34,19 @@ export default function ColorField({
   label,
   value,
   disabled = false,
+  wellOnly = false,
   hint,
   onChange,
 }: ColorFieldProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className={disabled ? "color-field field-disabled" : "color-field"}>
-      <label htmlFor={id}>{label}</label>
+    <div
+      className={`color-field${wellOnly ? " color-field-well-only" : ""}${
+        disabled ? " field-disabled" : ""
+      }`}
+    >
+      {!wellOnly && <label htmlFor={id}>{label}</label>}
       <button
         id={id}
         type="button"

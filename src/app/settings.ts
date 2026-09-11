@@ -29,6 +29,8 @@ export type {
   OutlineOpacity,
   OutlineWidths,
   RayOpacity,
+  RaySettings,
+  RayShape,
   RayStyle,
 } from "../visualization/settings";
 
@@ -52,19 +54,18 @@ export type Theme = "light" | "dark";
  * Carried inside `Settings` itself, not just declared here, so it travels with
  * the settings wherever they are written to.
  */
-export const SETTINGS_SCHEMA_VERSION = 46;
+export const SETTINGS_SCHEMA_VERSION = 47;
 
 /**
- * Central description of everything the user can tweak: one object holding
- * every setting, with no partial or optional members.
+ * The board itself: the ground every mark is drawn on, and nothing that is
+ * drawn over it.
  *
- * A new group is added here, given a value in every preset under `presets/`,
- * and rendered in SettingsPanel. Values themselves live in the presets, never
- * here — so there is exactly one place a setting can come from.
+ * Grouped as the panel groups them, one node per tab, so that finding a setting
+ * in the object and finding it on the screen are the same search. The theme is
+ * in here because that is where it is set and because the board is most of what
+ * it colours, though it reaches the page around it too.
  */
-export interface Settings {
-  /** Which revision of this shape the object was written against. */
-  schemaVersion: number;
+export interface BoardSettings {
   theme: Theme;
   /**
    * Text colour under the dark theme. Reaches everything the theme does — the
@@ -72,10 +73,30 @@ export interface Settings {
    * all mixed from it.
    */
   darkThemeTextColor: string;
-  boardColors: BoardColors;
-  pieceTint: PieceTint;
+  squares: BoardColors;
+  /** The mark on the two squares the last move used. */
+  lastMove: LastMoveMark;
+  /** Hatching over the dark squares, which tells them apart without a colour. */
+  hedging: HedgeLines;
   /** Thin lines on the square edges, readable even with identical colours. */
   grid: GridLines;
+}
+
+/**
+ * The men: how they are coloured, whether the ones taken are shown, and how
+ * they move.
+ *
+ * The fade is here rather than beside a mark of its own because it is one clock
+ * for every mark there is, and because it is set on this tab, under the two
+ * rates that say how a piece travels — how fast the board answers a move,
+ * beside how fast the move itself goes.
+ */
+export interface PieceSettings {
+  tint: PieceTint;
+  /** The bar of captured men beside the board. */
+  showCaptured: boolean;
+  /** How a piece travels between squares when a move is played. */
+  moveMotion: MoveMotion;
   /**
    * How long a change to the board's colouring takes to cross, in
    * milliseconds — every mark on it, by one clock: the wash on the squares,
@@ -91,23 +112,52 @@ export interface Settings {
    * a slider between two extremes nobody wants.
    */
   fadeTimeMs: number;
+}
+
+/**
+ * Central description of everything the user can tweak: one object holding
+ * every setting, with no partial or optional members.
+ *
+ * Its groups are the panel's tabs — the board, the men, the marks drawn over
+ * them — so a setting is found in the same place either way round.
+ *
+ * A new group is added here, given a value in every preset under `presets/`,
+ * and rendered in SettingsPanel. Values themselves live in the presets, never
+ * here — so there is exactly one place a setting can come from.
+ */
+/**
+ * Reading a game rather than drawing a position: the pace one plays itself at,
+ * and what a link handed to somebody else asks their copy to do.
+ *
+ * Both are set on the Lab tab, where a game is stepped through and shared,
+ * which is what makes them a group and what they are named after.
+ */
+export interface LabSettings {
   /**
    * How long each position is left standing when a game plays itself, in
    * seconds — counted from the moment a piece lands to the moment the next one
    * sets off, so a move slower than this is never cut in half by the next.
    *
    * A reader's pace through a game rather than a piece's pace across the board,
-   * which is `move`'s business.
+   * which is `pieces.moveMotion`'s business.
    */
   playPeriodPerPositionSec: number;
-  /** The bar of captured men beside the board. */
-  showCapturedPiecesBar: boolean;
-  /** The mark on the two squares the last move used. */
-  lastMove: LastMoveMark;
-  /** How a piece travels between squares when a move is played. */
-  move: MoveMotion;
-  /** Hatching over the dark squares, which tells them apart without a colour. */
-  hedge: HedgeLines;
+  /**
+   * Whether a shared game link sets the game playing on arrival.
+   *
+   * The link carries the answer, and whoever opens it plays at their own pace —
+   * this says what the link is built to ask for. Remembered rather than reset
+   * with every visit: somebody who shares games shares them the same way twice.
+   */
+  shareGameWithAutoplay: boolean;
+}
+
+export interface Settings {
+  /** Which revision of this shape the object was written against. */
+  schemaVersion: number;
+  board: BoardSettings;
+  pieces: PieceSettings;
+  lab: LabSettings;
   attacks: AttackSettings;
 }
 

@@ -1,7 +1,7 @@
 import type { Chess } from "chess.js";
 import type { PlacedPiece } from "../../../chess/model";
 import type { Orientation } from "../../geometry";
-import type { AttackSettings, AttackGeometry } from "../../settings";
+import type { AttackGeometry, RaySettings } from "../../settings";
 
 /**
  * What every per-piece attack renderer receives. Keeping one shared shape lets
@@ -14,8 +14,8 @@ export interface PieceAttackProps {
   /** Unique within the document; prefix for any clip-path ids the renderer makes. */
   idPrefix: string;
   orientation: Orientation;
-  /** User-tunable shape parameters shared by both sides. */
-  attackSettings: AttackSettings;
+  /** How the rays are drawn: the settings shared by both sides. */
+  rays: RaySettings;
   /** The shapes for this piece's side, already picked out of the settings. */
   geometry: AttackGeometry;
 }

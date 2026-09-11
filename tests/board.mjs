@@ -51,7 +51,7 @@ try {
     window.__set("#fade-time", "400");
     window.__set("#move-time", "1.2");
     await sleep(200);
-    window.__tab("Game");
+    window.__tab("Lab");
     await sleep(400);
     const flip = document.querySelector("#flip-board");
     if (flip && flip.checked) { flip.click(); await sleep(300); }

@@ -1,9 +1,12 @@
 import { pawnAttacks, type PawnAttack } from "../../../chess/attacks";
 import {
   SQUARE_SIZE,
+  needlePath,
   perpendicular,
+  rayBaseCorners,
   rayPoint,
   rayStartPlanePath,
+  rayStopTip,
   rayStopWedgePath,
   squareBox,
   squareCenter,
@@ -29,7 +32,7 @@ export default function PawnAttacks({
   piece,
   idPrefix,
   orientation,
-  attackSettings,
+  rays,
   geometry,
 }: PieceAttackProps) {
   const bands = stripeBands(geometry.pawnRay);
@@ -42,7 +45,7 @@ export default function PawnAttacks({
     return null;
   }
 
-  const fullWidth = attackSettings.fullWidthDiagonalRays;
+  const fullWidth = rays.fullWidthDiagonals;
   const { small: smallHalfSide, large: largeHalfSide } = innerSquares(geometry);
   const halfWidth = (Math.max(geometry.pawnRay.rayWidth, 0) * SQUARE_SIZE) / 2;
   const center = squareCenter(piece.square, orientation);
@@ -53,6 +56,32 @@ export default function PawnAttacks({
    * — the same construction the sliding pieces' rays use.
    */
   const mark = (attack: PawnAttack) => {
+    /* A needle is one shape from the pawn to where the mark stops, which is
+       the same point the wedge below brings a stripe to. The bands — a stripe
+       either side of a gap — have nothing to say about a single shape, so they
+       are left out of it. */
+    const shape = rays.shape;
+    if (shape !== "stripe") {
+      const onward = rayPoint(piece.square, attack.direction, 1, orientation);
+      const run = { x: onward.x - center.x, y: onward.y - center.y };
+      const length = Math.hypot(run.x, run.y);
+      const along = { x: run.x / length, y: run.y / length };
+      return (
+        <path
+          d={needlePath(
+            rayBaseCorners(center, along, largeHalfSide, halfWidth),
+            rayStopTip(
+              attack.square,
+              attack.direction,
+              smallHalfSide,
+              orientation
+            ),
+            shape
+          )}
+          className="attack-stripe attack-pawn attack-needle"
+        />
+      );
+    }
     const to = rayPoint(piece.square, attack.direction, 1.5, orientation);
     const normal = perpendicular(attack.direction, orientation);
     return bands.map((band, index) => {

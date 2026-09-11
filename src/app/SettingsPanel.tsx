@@ -3,6 +3,7 @@ import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
 import ColorField from "./ColorField";
 import NumberField from "./NumberField";
+import NumberInput from "./NumberInput";
 import SectionRule from "./SectionRule";
 import SelectField from "./SelectField";
 import SliderField from "./SliderField";
@@ -10,10 +11,12 @@ import ToggleField from "./ToggleField";
 import type {
   AttackSettings,
   BoardColors,
+  BoardSettings,
+  PieceSettings,
   KnightGeometry,
+  RayShape,
   Settings,
-  OutlineOpacity,
-  RayOpacity,
+  RaySettings,
   PieceTint,
   LastMoveMark,
   HedgeLines,
@@ -23,6 +26,9 @@ import type {
 } from "./settings";
 import { logging, setLogging } from "./friend/log";
 import { downloadSettings, parseSettings } from "./settingsFile";
+
+/** The two ends of the board, in the order every table here puts them. */
+const SIDES = ["me", "opponent"] as const;
 
 /**
  * Which group of settings is on show. One at a time: the panel used to be a
@@ -96,15 +102,20 @@ export default function SettingsPanel({
     }
   }
 
-  function updateBoardColors(patch: Partial<BoardColors>) {
-    onChange({
-      ...settings,
-      boardColors: { ...settings.boardColors, ...patch },
-    });
+  function updateBoard(patch: Partial<BoardSettings>) {
+    onChange({ ...settings, board: { ...settings.board, ...patch } });
+  }
+
+  function updatePieces(patch: Partial<PieceSettings>) {
+    onChange({ ...settings, pieces: { ...settings.pieces, ...patch } });
+  }
+
+  function updateSquares(patch: Partial<BoardColors>) {
+    updateBoard({ squares: { ...settings.board.squares, ...patch } });
   }
 
   function updatePieceTint(patch: Partial<PieceTint>) {
-    onChange({ ...settings, pieceTint: { ...settings.pieceTint, ...patch } });
+    updatePieces({ tint: { ...settings.pieces.tint, ...patch } });
   }
 
   function updatePins(patch: Partial<PinMarks>) {
@@ -118,27 +129,19 @@ export default function SettingsPanel({
   }
 
   function updateLastMove(patch: Partial<LastMoveMark>) {
-    onChange({ ...settings, lastMove: { ...settings.lastMove, ...patch } });
+    updateBoard({ lastMove: { ...settings.board.lastMove, ...patch } });
   }
 
   function updateAttacks(patch: Partial<AttackSettings>) {
     onChange({ ...settings, attacks: { ...settings.attacks, ...patch } });
   }
 
-  function updateRayOpacity(patch: Partial<RayOpacity>) {
-    updateAttacks({
-      rayOpacity: { ...settings.attacks.rayOpacity, ...patch },
-    });
+  function updateRays(patch: Partial<RaySettings>) {
+    updateAttacks({ rays: { ...settings.attacks.rays, ...patch } });
   }
 
-  function updateOutlineOpacity(patch: Partial<OutlineOpacity>) {
-    updateAttacks({
-      outlineOpacity: { ...settings.attacks.outlineOpacity, ...patch },
-    });
-  }
-
-  function updateHedge(patch: Partial<HedgeLines>) {
-    onChange({ ...settings, hedge: { ...settings.hedge, ...patch } });
+  function updateHedging(patch: Partial<HedgeLines>) {
+    updateBoard({ hedging: { ...settings.board.hedging, ...patch } });
   }
 
   function updateHeatmap(patch: Partial<Heatmap>) {
@@ -158,18 +161,16 @@ export default function SettingsPanel({
               <ToggleField
                 id="dark-theme"
                 label="Dark theme"
-                checked={settings.theme === "dark"}
+                checked={settings.board.theme === "dark"}
                 onChange={(dark) =>
-                  onChange({ ...settings, theme: dark ? "dark" : "light" })
+                  updateBoard({ theme: dark ? "dark" : "light" })
                 }
               />
               <ColorField
                 id="dark-theme-text"
                 label="Dark theme text color"
-                value={settings.darkThemeTextColor}
-                onChange={(color) =>
-                  onChange({ ...settings, darkThemeTextColor: color })
-                }
+                value={settings.board.darkThemeTextColor}
+                onChange={(color) => updateBoard({ darkThemeTextColor: color })}
               />
             </div>
           </section>
@@ -181,14 +182,14 @@ export default function SettingsPanel({
               <ColorField
                 id="light-square"
                 label="Light board squares"
-                value={settings.boardColors.lightSquare}
-                onChange={(lightSquare) => updateBoardColors({ lightSquare })}
+                value={settings.board.squares.lightSquare}
+                onChange={(lightSquare) => updateSquares({ lightSquare })}
               />
               <ColorField
                 id="dark-square"
                 label="Dark board squares"
-                value={settings.boardColors.darkSquare}
-                onChange={(darkSquare) => updateBoardColors({ darkSquare })}
+                value={settings.board.squares.darkSquare}
+                onChange={(darkSquare) => updateSquares({ darkSquare })}
               />
             </div>
             {/*
@@ -201,9 +202,9 @@ export default function SettingsPanel({
               id="use-light-for-dark"
               label="Use light square color for dark squares"
               hint="Draw the whole board in the light squares' colour, so a shade means the same thing on every square. The dark colour is kept and comes back when this is turned off."
-              checked={settings.boardColors.useLightForDark}
+              checked={settings.board.squares.useLightForDark}
               onChange={(useLightForDark) =>
-                updateBoardColors({ useLightForDark })
+                updateSquares({ useLightForDark })
               }
             />
 
@@ -219,10 +220,10 @@ export default function SettingsPanel({
               <ColorField
                 id="last-move-color"
                 label="Last move highlight color"
-                value={settings.lastMove.color}
-                disabled={settings.lastMove.negative}
+                value={settings.board.lastMove.color}
+                disabled={settings.board.lastMove.negative}
                 hint={
-                  settings.lastMove.negative
+                  settings.board.lastMove.negative
                     ? "Not used: the negative circle takes its colour from the squares themselves."
                     : undefined
                 }
@@ -234,7 +235,7 @@ export default function SettingsPanel({
                 id="last-move-negative"
                 label="Negative square color circle"
                 hint="Mark the last move’s two squares with the other square colour — dark on a light square, light on a dark one. A bishop’s two squares then match; a pawn’s are opposites. With “Use light square color for dark squares” on, every circle is the dark square colour, there being only one colour left for it to be the opposite of."
-                checked={settings.lastMove.negative}
+                checked={settings.board.lastMove.negative}
                 onChange={(negative) => updateLastMove({ negative })}
               />
               <NumberField
@@ -242,7 +243,7 @@ export default function SettingsPanel({
                 inline
                 label="Last move circle diameter"
                 suffix="squares"
-                value={settings.lastMove.diameter}
+                value={settings.board.lastMove.diameter}
                 step={0.02}
                 allowZero
                 hint="How much of the square the mark covers, coloured either way."
@@ -264,14 +265,14 @@ export default function SettingsPanel({
               id="hedge-dark"
               label="Hedge dark squares"
               hint="Rule the dark squares with fine parallel lines, so they can be told from the light ones without being a different colour."
-              checked={settings.hedge.show}
-              onChange={(show) => updateHedge({ show })}
+              checked={settings.board.hedging.show}
+              onChange={(show) => updateHedging({ show })}
             />
             <ColorField
               id="hedge-color"
               label="Hedging color"
-              value={settings.hedge.color}
-              onChange={(color) => updateHedge({ color })}
+              value={settings.board.hedging.color}
+              onChange={(color) => updateHedging({ color })}
             />
           </div>
           <div className="field-row">
@@ -281,11 +282,11 @@ export default function SettingsPanel({
               label="Hedging angle"
               suffix="degrees"
               hint="Which way the lines run: nought and a hundred and eighty both lie flat, ninety stands upright, and the half turn between them covers every slope there is."
-              value={settings.hedge.angle}
+              value={settings.board.hedging.angle}
               step={5}
               max={180}
               allowZero
-              onChange={(angle) => updateHedge({ angle })}
+              onChange={(angle) => updateHedging({ angle })}
             />
             <NumberField
               id="hedge-step"
@@ -293,19 +294,19 @@ export default function SettingsPanel({
               label="Hedging step"
               suffix="squares"
               hint="The gap from one line to the next, as a fraction of a square. Nought draws none."
-              value={settings.hedge.step}
+              value={settings.board.hedging.step}
               step={0.02}
               max={1}
               allowZero
-              onChange={(step) => updateHedge({ step })}
+              onChange={(step) => updateHedging({ step })}
             />
           </div>
           <ToggleField
             id="hedge-orthogonal"
             label="Orthogonal"
             hint="Rule a second set of lines across the first, square to it and at the same spacing, so the squares are cross-hatched rather than hatched."
-            checked={settings.hedge.orthogonal}
-            onChange={(orthogonal) => updateHedge({ orthogonal })}
+            checked={settings.board.hedging.orthogonal}
+            onChange={(orthogonal) => updateHedging({ orthogonal })}
           />
           <SectionRule name="Checkerboard grid" />
 
@@ -313,17 +314,17 @@ export default function SettingsPanel({
             <ToggleField
               id="show-grid"
               label="Show checkerboard grid"
-              checked={settings.grid.show}
+              checked={settings.board.grid.show}
               onChange={(show) =>
-                onChange({ ...settings, grid: { ...settings.grid, show } })
+                updateBoard({ grid: { ...settings.board.grid, show } })
               }
             />
             <ColorField
               id="grid-color"
               label="Checkerboard grid color"
-              value={settings.grid.color}
+              value={settings.board.grid.color}
               onChange={(color) =>
-                onChange({ ...settings, grid: { ...settings.grid, color } })
+                updateBoard({ grid: { ...settings.board.grid, color } })
               }
             />
           </div>
@@ -338,7 +339,7 @@ export default function SettingsPanel({
               inline
               hint="How far each side is pulled from its attack colour: 0 keeps the colour exactly, 1 bleaches it to white or black."
               label="Lighten white pieces"
-              value={settings.pieceTint.lightenWhite}
+              value={settings.pieces.tint.lightenWhite}
               step={0.05}
               max={1}
               allowZero
@@ -349,7 +350,7 @@ export default function SettingsPanel({
               inline
               hint="How far each side is pulled from its attack colour: 0 keeps the colour exactly, 1 bleaches it to white or black."
               label="Darken black pieces"
-              value={settings.pieceTint.darkenBlack}
+              value={settings.pieces.tint.darkenBlack}
               step={0.05}
               max={1}
               allowZero
@@ -361,10 +362,8 @@ export default function SettingsPanel({
           <ToggleField
             id="show-taken-pieces"
             label="Show captured pieces"
-            checked={settings.showCapturedPiecesBar}
-            onChange={(showCapturedPiecesBar) =>
-              onChange({ ...settings, showCapturedPiecesBar })
-            }
+            checked={settings.pieces.showCaptured}
+            onChange={(showCaptured) => updatePieces({ showCaptured })}
           />
 
           <SectionRule name="Moves" />
@@ -388,11 +387,11 @@ export default function SettingsPanel({
               label="Move speed"
               suffix="squares/sec"
               hint="How fast a piece travels when speed is what is held. Nought puts it down without moving it, which is why there is no switch beside this."
-              value={settings.move.speed}
+              value={settings.pieces.moveMotion.speed}
               step={0.5}
               allowZero
               onChange={(speed) =>
-                onChange({ ...settings, move: { ...settings.move, speed } })
+                updatePieces({ moveMotion: { ...settings.pieces.moveMotion, speed } })
               }
             />
             <NumberField
@@ -402,11 +401,11 @@ export default function SettingsPanel({
               label="Move time"
               suffix="seconds"
               hint="How long a move takes when time is what is held, whatever distance it covers."
-              value={settings.move.time}
+              value={settings.pieces.moveMotion.time}
               step={0.1}
               allowZero
               onChange={(time) =>
-                onChange({ ...settings, move: { ...settings.move, time } })
+                updatePieces({ moveMotion: { ...settings.pieces.moveMotion, time } })
               }
             />
           </div>
@@ -414,11 +413,11 @@ export default function SettingsPanel({
             id="move-blend"
             from="Constant move speed"
             to="Constant move time"
-            value={settings.move.blend}
+            value={settings.pieces.moveMotion.blend}
             ticks={[0, 0.5, 1]}
             hint="Which of the two above is held. At the left every move goes at the same rate, so a long one takes longer; at the right every move takes the same time, however far it goes."
             onChange={(blend) =>
-              onChange({ ...settings, move: { ...settings.move, blend } })
+              updatePieces({ moveMotion: { ...settings.pieces.moveMotion, blend } })
             }
           />
           {/* Under the two rates and the slider that weighs them: it is not
@@ -433,85 +432,40 @@ export default function SettingsPanel({
             step={10}
             allowZero
             hint="How long a change to the board's colouring takes to cross: the wash on the squares, the rays, the check disc, the last move's spots, the pin rings. Nought draws every change in the frame it happens, which reads as a flash."
-            value={settings.fadeTimeMs}
-            onChange={(fadeTimeMs) => onChange({ ...settings, fadeTimeMs })}
+            value={settings.pieces.fadeTimeMs}
+            onChange={(fadeTimeMs) => updatePieces({ fadeTimeMs })}
           />
         </section>
       )}
 
       {group === "rays" && (
         <>
-          <AttackTable attacks={settings.attacks} onChange={updateAttacks} />
+          <AttackTable rays={settings.attacks.rays} onChange={updateRays} />
 
           <section className="settings-group">
-            <div className="field-row">
-              <NumberField
-                id="my-ray-opacity"
-                inline
-                label="My attack ray opacity"
-                value={settings.attacks.rayOpacity.me}
-                step={0.05}
-                max={1}
-                allowZero
-                onChange={(me) => updateRayOpacity({ me })}
-              />
-              <NumberField
-                id="opponent-ray-opacity"
-                inline
-                label="Opponent attack ray opacity"
-                value={settings.attacks.rayOpacity.opponent}
-                step={0.05}
-                max={1}
-                allowZero
-                onChange={(opponent) => updateRayOpacity({ opponent })}
-              />
-            </div>
-            <div className="field-row">
-              <NumberField
-                id="my-outline-opacity"
-                inline
-                hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
-                label="My outline opacity"
-                value={settings.attacks.outlineOpacity.me}
-                step={0.05}
-                max={1}
-                allowZero
-                onChange={(me) => updateOutlineOpacity({ me })}
-              />
-              <NumberField
-                id="opponent-outline-opacity"
-                inline
-                hint="Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone."
-                label="Opponent outline opacity"
-                value={settings.attacks.outlineOpacity.opponent}
-                step={0.05}
-                max={1}
-                allowZero
-                onChange={(opponent) => updateOutlineOpacity({ opponent })}
-              />
-            </div>
             <NumberField
               id="decay-per-blocker"
               inline
               label="X-ray decay factor"
               suffix="× (0 = no x-ray)"
-              value={settings.attacks.xRayDecayFactor}
+              value={settings.attacks.rays.xRayDecayFactor}
               allowZero
               max={1}
-              onChange={(xRayDecayFactor) => updateAttacks({ xRayDecayFactor })}
+              onChange={(xRayDecayFactor) => updateRays({ xRayDecayFactor })}
             />
             <SelectField<KnightGeometry>
               id="knight-geometry"
               label="Knight attack geometry"
-              hint="How the knight's ring is finished off on each square: cut between two radii, or cut by the square with a tail pointing back at the knight — along the board's lines, or along the radius."
-              value={settings.attacks.knightGeometry}
+              hint="How the knight's ring is finished off on each square: cut between two radii, rounded off with a half-disc of the ring's own thickness laid against the square's side, or cut by the square with a tail pointing back at the knight — along the board's lines, or along the radius."
+              value={settings.attacks.rays.knightGeometry}
               choices={[
                 { value: "arc", label: "Arc" },
+                { value: "rounded-arc", label: "Rounded arc" },
                 { value: "gamma-1", label: "Gamma 1" },
                 { value: "gamma-2", label: "Gamma 2" },
                 { value: "straight-ray", label: "Straight ray" },
               ]}
-              onChange={(knightGeometry) => updateAttacks({ knightGeometry })}
+              onChange={(knightGeometry) => updateRays({ knightGeometry })}
             />
             <NumberField
               id="straight-ray-opacity-decay"
@@ -519,22 +473,35 @@ export default function SettingsPanel({
               hint="What the straight-ray geometry's marks are drawn at where they only pass through, on the way to the square they reach — as a factor on that side's attack ray opacity, not an opacity of its own."
               label="Knight straight ray opacity decay"
               suffix="× ray opacity"
-              value={settings.attacks.straightRayOpacityDecay}
+              value={settings.attacks.rays.straightRayOpacityDecay}
               step={0.05}
               max={1}
               allowZero
               onChange={(straightRayOpacityDecay) =>
-                updateAttacks({ straightRayOpacityDecay })
+                updateRays({ straightRayOpacityDecay })
               }
             />
             <ToggleField
               id="full-rays"
               hint="Keep diagonal rays at full width through the corners where their squares meet, spilling onto the squares to either side."
               label="Full-width diagonal rays"
-              checked={settings.attacks.fullWidthDiagonalRays}
-              onChange={(fullWidthDiagonalRays) =>
-                updateAttacks({ fullWidthDiagonalRays })
+              checked={settings.attacks.rays.fullWidthDiagonals}
+              onChange={(fullWidthDiagonals) =>
+                updateRays({ fullWidthDiagonals })
               }
+            />
+            <SelectField<RayShape>
+              id="ray-shape"
+              apart
+              label="Ray shape"
+              hint="What shape each ray is drawn in: a stripe of one width from end to end, or a needle as wide as that stripe where it leaves the piece and narrowing to a point on the square it attacks — either straight-sided or curved as half an ellipse. A needle is one shape, so a stripe's gap down the middle is ignored while one is chosen."
+              value={settings.attacks.rays.shape}
+              choices={[
+                { value: "stripe", label: "Stripe" },
+                { value: "triangle", label: "Triangle needle" },
+                { value: "ellipse", label: "Elliptic needle" },
+              ]}
+              onChange={(shape) => updateRays({ shape })}
             />
           </section>
         </>
@@ -580,64 +547,90 @@ export default function SettingsPanel({
               tab, beside the two colours it chooses between, and the balance
               tab can turn it on and off by itself.
 
-              The two colours are laid out in two columns, mine and the
-              opponent's, matching the order of the choosers out there. */}
-          <div className="field-row field-row-heatmap-colors">
-            <ColorField
-              id="heatmap-me"
-              label="My heatmap color"
-              value={settings.attacks.heatmap.color.me}
-              onChange={(me) =>
-                updateHeatmap({
-                  color: { ...settings.attacks.heatmap.color, me },
-                })
-              }
-            />
-            <ColorField
-              id="heatmap-opponent"
-              label="Opponent's heatmap color"
-              value={settings.attacks.heatmap.color.opponent}
-              onChange={(opponent) =>
-                updateHeatmap({
-                  color: { ...settings.attacks.heatmap.color, opponent },
-                })
-              }
-            />
-          </div>
-          {/* One apiece, laid out as the rays' opacities are: the two ends of
-              the board are not always worth reading at the same weight. */}
-          <div className="field-row">
-            <NumberField
-              id="my-heatmap-strength"
-              inline
-              hint="How much colour one of my attackers lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid."
-              label="My heatmap strength"
-              value={settings.attacks.heatmap.strength.me}
-              step={0.02}
-              max={1}
-              allowZero
-              onChange={(me) =>
-                updateHeatmap({
-                  strength: { ...settings.attacks.heatmap.strength, me },
-                })
-              }
-            />
-            <NumberField
-              id="opponent-heatmap-strength"
-              inline
-              hint="The same for the other end of the board."
-              label="Opponent's heatmap strength"
-              value={settings.attacks.heatmap.strength.opponent}
-              step={0.02}
-              max={1}
-              allowZero
-              onChange={(opponent) =>
-                updateHeatmap({
-                  strength: { ...settings.attacks.heatmap.strength, opponent },
-                })
-              }
-            />
-          </div>
+              Laid out as the rays are: a column a side, so the two ends of the
+              board are read against each other rather than one after the
+              other. */}
+          <table className="stripe-table stripe-table-sides">
+            <colgroup>
+              <col className="col-setting" />
+              <col />
+              <col />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col" />
+                <th scope="col">Me</th>
+                <th scope="col" className="stripe-group-start">
+                  Opponent
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Heatmap color</th>
+                {SIDES.map((side) => (
+                  <td
+                    key={side}
+                    className={
+                      side === "opponent"
+                        ? "stripe-table-swatch stripe-group-start"
+                        : "stripe-table-swatch"
+                    }
+                  >
+                    <ColorField
+                      wellOnly
+                      id={`heatmap-${side}`}
+                      label={
+                        side === "me"
+                          ? "My heatmap color"
+                          : "Opponent's heatmap color"
+                      }
+                      value={settings.attacks.heatmap.color[side]}
+                      onChange={(color) =>
+                        updateHeatmap({
+                          color: { ...settings.attacks.heatmap.color, [side]: color },
+                        })
+                      }
+                    />
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  title="The most colour one attacker of that side lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid, and the balance panel takes its own fraction of this."
+                >
+                  Heatmap max strength
+                </th>
+                {SIDES.map((side) => (
+                  <td
+                    key={side}
+                    className={side === "opponent" ? "stripe-group-start" : undefined}
+                  >
+                    <NumberInput
+                      id={`${side}-heatmap-strength`}
+                      ariaLabel={
+                        side === "me"
+                          ? "My heatmap max strength"
+                          : "Opponent's heatmap max strength"
+                      }
+                      value={settings.attacks.heatmap.maxStrength[side]}
+                      step={0.02}
+                      allowZero
+                      onChange={(value) =>
+                        updateHeatmap({
+                          maxStrength: {
+                            ...settings.attacks.heatmap.maxStrength,
+                            [side]: value,
+                          },
+                        })
+                      }
+                    />
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
         </section>
       )}
 

@@ -9,7 +9,7 @@ export default function RookAttacks({
   piece,
   idPrefix,
   orientation,
-  attackSettings,
+  rays,
   geometry,
 }: PieceAttackProps) {
   return (
@@ -18,12 +18,13 @@ export default function RookAttacks({
       axes={rookAttackAxes(
         position,
         piece.square,
-        attackSettings.xRayDecayFactor
+        rays.xRayDecayFactor
       )}
       stripeClass="attack-stripe attack-rook"
       stripe={geometry.rookRay}
       innerSquares={innerSquares(geometry)}
-      fullWidth={attackSettings.fullWidthDiagonalRays}
+      fullWidth={rays.fullWidthDiagonals}
+      shape={rays.shape}
       idPrefix={idPrefix}
       orientation={orientation}
     />

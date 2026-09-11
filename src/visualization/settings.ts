@@ -91,13 +91,20 @@ export interface PieceTint {
 }
 
 /**
- * Bounding circles of the knight's ring, in square sides. The eight target
- * squares sit at sqrt(5) ~ 2.236 square sides from the knight, so useful radii
- * straddle that distance.
+ * Where the knight's ring sits and how thick it is, in square sides. The eight
+ * target squares sit at sqrt(5) ~ 2.236 square sides from the knight, so a ring
+ * that reaches them starts just inside that distance.
+ *
+ * A radius and a width rather than two radii: the width is the same measure
+ * every other piece's stripe is set by — the ring is one bent round into a
+ * circle — so the two are read and set alike, and moving the ring in or out no
+ * longer means changing both numbers to keep its weight.
  */
 export interface KnightRingSettings {
+  /** Where the ring begins, measured from the knight. */
   innerRadius: number;
-  outerRadius: number;
+  /** How far across it is, outwards from there. */
+  width: number;
   /**
    * A gap of this width, in square sides, down the middle of the ring, leaving
    * two concentric rings either side of it. Zero leaves the ring solid — the
@@ -178,7 +185,22 @@ export interface HeatmapColors {
 
 export interface Heatmap {
   /**
-   * What fraction of `strength` each side's attackers lay down.
+   * Whether the wash is drawn at all.
+   *
+   * A switch beside the fractions rather than a fraction of its own: turning
+   * the wash off and on again is asked for often — to see the board plain for a
+   * moment — and doing it by dragging both fractions to nought loses whatever
+   * they were set to. This leaves them alone.
+   */
+  show: boolean;
+  /**
+   * Whether each side's wash is drawn, asked of that side alone — the same pair
+   * the rays have, read the same way: shown at all, and this side among them.
+   */
+  showMine: boolean;
+  showOpponent: boolean;
+  /**
+   * What fraction of `maxStrength` each side's attackers lay down.
    *
    * Separate fractions rather than one: a board coloured by both ends at once
    * says which of them holds a square, and a board coloured by one says how far
@@ -200,22 +222,36 @@ export interface Heatmap {
    * board are not always worth reading at the same weight, and a single number
    * made it impossible to say so.
    */
-  strength: HeatmapStrength;
+  maxStrength: HeatmapStrength;
 }
 
 /**
  * How the knight's ring is finished off on each square it attacks.
  *
- * "arc" cuts it between two radii and leaves it at that. The two gammas add a
- * radial stripe as well: the first leaning in from `d`, above the arc; the
- * second rising from the corner by `b`, beneath it.
+ * "arc" cuts it between two radii and leaves it at that. "rounded-arc" cuts it
+ * no straighter than it has to: each end is a half-disc of the ring's own
+ * thickness, laid against the side of the square that stops it. The two gammas
+ * add a radial stripe as well: the first leaning in from `d`, above the arc;
+ * the second rising from the corner by `b`, beneath it.
  *
  * "straight-ray" draws no ring at all. Each move gets a stripe of the ring's
  * thickness from the knight out to its outer radius, aimed at the square it
  * reaches and pointed at the end, and the whole journey shows — faintly where
  * it passes over, plainly where it arrives.
  */
-export type KnightGeometry = "arc" | "gamma-1" | "gamma-2" | "straight-ray";
+export type KnightGeometry =
+  | "arc"
+  | "rounded-arc"
+  | "gamma-1"
+  | "gamma-2"
+  | "straight-ray";
+
+/**
+ * What shape each ray is drawn in: a band of one width from end to end, or a
+ * needle narrowing from the piece to the square it attacks — straight-sided,
+ * or curved as half an ellipse.
+ */
+export type RayShape = "stripe" | "triangle" | "ellipse";
 
 /**
  * Whether each side's attacks are drawn at all. Turning both off leaves the
@@ -401,43 +437,70 @@ export interface CheckMarks {
   checkmateColor: string;
 }
 
-export interface AttackSettings {
-  /** What fraction of `rayOpacity` each side's rays are actually drawn at. */
-  rayIntensity: SideIntensity;
+/**
+ * Everything about the rays: whether they are drawn, how much of them, what
+ * they are made of, and what shape they take.
+ *
+ * One node rather than a dozen fields lying beside the heatmap's, so that the
+ * two pictures the board draws are two objects of the same standing. Each says
+ * for itself whether it is shown and at what fraction of its own weight, and
+ * anything that has to treat them alike — the balance panel, a reader comparing
+ * them — can address one or the other rather than picking ray-ish keys out of
+ * the pile.
+ */
+export interface RaySettings {
   /**
-   * Whether the two intensities are held equal to the heatmap's. Kept here
-   * rather than beside either of them: it is a fact about the pair.
+   * Whether the rays are drawn at all — the same switch the heatmap has, for
+   * the same reason: a glance at the plain board and back, without giving up
+   * what the fractions below were set to.
    */
-  linkedIntensity: boolean;
+  show: boolean;
   /**
-   * Whether a piece pinned against its own king is ringed.
+   * Whether each side's rays are drawn, asked of that side alone.
    *
-   * One setting for both sides, unlike the marks above: a pin is a fact about
-   * the position rather than about whose reach is being read, and being able to
-   * see one side's pins but not the other's would only mislead.
+   * Read with `show` rather than instead of it: a side's rays are drawn when
+   * the rays are shown at all and that side is one of the ones being shown. Two
+   * questions rather than one because they are asked for different reasons —
+   * the first to see the board plain, the second to read one side's reach
+   * without the other's over it.
    */
+  showMine: boolean;
+  showOpponent: boolean;
+  /** What fraction of `maxOpacity` each side's rays are actually drawn at. */
+  intensity: SideIntensity;
+  /** The most each side's rays are ever drawn at: `intensity` is a fraction
+   *  of this, so it is the ceiling rather than what is on the board now. */
+  maxOpacity: RayOpacity;
+  /**
+   * What shape a ray is drawn in.
+   *
+   * A "stripe" is the same width from end to end and stops in a point on the
+   * square it reaches. The two needles narrow instead: as wide as the stripe
+   * where they leave the piece, closing to a point where the ray stops, so
+   * which end is which is plain from the shape alone and a board of them points
+   * at what is under threat. A "triangle" narrows in straight lines; an
+   * "ellipse" is half of one, keeping its weight until near the end.
+   *
+   * Nothing else about a ray changes: where it starts and stops, how it dims
+   * through a piece it x-rays, and which squares it is confined to are all the
+   * same whichever shape is chosen. A stripe drawn in two bands with a gap down
+   * the middle has no needle of its own — a needle is one shape — so the gap is
+   * ignored unless the shape is "stripe".
+   */
+  shape: RayShape;
   /** One choice for both sides: it is a shape, not a way of telling them apart. */
   knightGeometry: KnightGeometry;
-  /** Colouring every square by who attacks it, and how often. */
-  heatmap: Heatmap;
   /**
    * What the straight-ray geometry's marks are drawn at where they are only
    * passing through — the knight's own square, and the ones between it and the
    * square it reaches.
    *
-   * A factor on `rayOpacity` for that side rather than an opacity of its own,
-   * so raising a side's rays raises its trails with them: 0.3 draws them at
-   * three tenths of whatever that side's rays are drawn at. One draws the whole
+   * A factor on `maxOpacity` for that side rather than an opacity of its own, so
+   * raising a side's rays raises its trails with them: 0.3 draws them at three
+   * tenths of whatever that side's rays are drawn at. One draws the whole
    * length alike; zero shows only where each move arrives.
    */
   straightRayOpacityDecay: number;
-  pins: PinMarks;
-  checkAndCheckmate: CheckMarks;
-  colors: SideAttackColors;
-  outlineWidths: OutlineWidths;
-  outlineColors: OutlineColors;
-  rayOpacity: RayOpacity;
-  outlineOpacity: OutlineOpacity;
   /**
    * What a ray's intensity is multiplied by for each piece it passes through.
    * 0 hides everything beyond the first piece (no x-ray at all); 1 lets a ray
@@ -451,6 +514,40 @@ export interface AttackSettings {
    * it starts and ends in the same place — only its width in the corners
    * changes.
    */
-  fullWidthDiagonalRays: boolean;
+  fullWidthDiagonals: boolean;
+  colors: SideAttackColors;
+  outlineWidths: OutlineWidths;
+  outlineColors: OutlineColors;
+  outlineOpacity: OutlineOpacity;
   geometry: SideGeometry;
+}
+
+/**
+ * What the board draws over the position: the two pictures, and the marks that
+ * belong to neither.
+ *
+ * `rays` and `heatmap` are siblings of one kind — each a whole picture, shown
+ * or not, weighed by its own pair of fractions. What sits beside them is what
+ * is not part of either: the switch that holds their fractions together, and
+ * the pins and check marks, which answer questions about the position rather
+ * than about how far a side reaches.
+ */
+export interface AttackSettings {
+  rays: RaySettings;
+  /** Colouring every square by who attacks it, and how often. */
+  heatmap: Heatmap;
+  /**
+   * Whether the rays' intensities are held equal to the heatmap's. Kept out
+   * here rather than in either of them: it is a fact about the pair.
+   */
+  raysAndHeatmapIntensityLinked: boolean;
+  /**
+   * Whether a piece pinned against its own king is ringed.
+   *
+   * One setting for both sides, unlike the marks above: a pin is a fact about
+   * the position rather than about whose reach is being read, and being able to
+   * see one side's pins but not the other's would only mislead.
+   */
+  pins: PinMarks;
+  checkAndCheckmate: CheckMarks;
 }

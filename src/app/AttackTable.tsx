@@ -3,8 +3,8 @@ import ColorDialog from "./ColorDialog";
 import NumberInput from "./NumberInput";
 import {
   type AttackColors,
-  type AttackSettings,
   type AttackGeometry,
+  type RaySettings,
   type RayStyle,
 } from "./settings";
 
@@ -16,16 +16,20 @@ const SIDES: Side[] = ["me", "opponent"];
 const GAP_HINT =
   "Width of the gap down the middle of the stripe, in square sides. Zero leaves it solid.";
 const STRIPE_HINT = "Full width of the stripe, in square sides.";
-const RADII_HINT =
-  "Where the knight's ring sits: its inner and outer radius, in square sides from the knight.";
+const RADIUS_HINT =
+  "Where the knight's ring sits: the radius it begins at, in square sides from the knight, and how far across it is from there.";
 const INNER_SQUARES_HINT =
   "The two squares every ray is measured against, in square sides: a ray sets off from the large one and stops in a point on the small one. Keep the small inside the large to leave a gap around each piece.";
+const RAY_OPACITY_HINT =
+  "The most this side's rays are ever drawn at. The balance panel takes its fraction of this, so it is the ceiling rather than what is on the board now.";
+const OUTLINE_OPACITY_HINT =
+  "Set apart from the ray's own: rays at 0 with outlines at 1 shows a side as outlines alone.";
 const OUTLINE_HINT =
   "The outline traced around this side's marks, to tell them from the other side's: its colour, and its width in square sides. A hairline is a hundredth or so; zero draws none.";
 
 interface AttackTableProps {
-  attacks: AttackSettings;
-  onChange: (patch: Partial<AttackSettings>) => void;
+  rays: RaySettings;
+  onChange: (patch: Partial<RaySettings>) => void;
 }
 
 /** One editable number in the table. */
@@ -44,11 +48,21 @@ interface SideCells {
   swatch?: { value: string; onChange: (value: string) => void };
   gap?: Cell;
   width?: Cell;
+  /**
+   * One number for the whole side, taking the width of its three columns
+   * instead of sitting in one of them — for a row that says something about a
+   * side rather than about a stripe.
+   */
+  whole?: Cell;
 }
 
 interface Row {
   key: string;
   piece: string;
+  /** One value per side rather than a colour and two widths: see `whole`. */
+  spanning?: boolean;
+  /** Set off from the row above by a gap: what follows is a different question. */
+  apart?: boolean;
   /** Shown on hover over the row's name. */
   hint?: string;
   /**
@@ -83,7 +97,7 @@ function swatchName(row: Row, side: Side): string {
  * flipping the board hands these settings to the other colour rather than
  * turning the whole display around.
  */
-export default function AttackTable({ attacks, onChange }: AttackTableProps) {
+export default function AttackTable({ rays, onChange }: AttackTableProps) {
   /*
     Which swatch has its dialog open, named rather than captured. The cell's own
     handler is rebuilt on every render out of the settings as they stand, so
@@ -97,8 +111,8 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   function updateGeometry(side: Side, patch: Partial<AttackGeometry>) {
     onChange({
       geometry: {
-        ...attacks.geometry,
-        [side]: { ...attacks.geometry[side], ...patch },
+        ...rays.geometry,
+        [side]: { ...rays.geometry[side], ...patch },
       },
     });
   }
@@ -106,8 +120,8 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   function setColor(side: Side, key: keyof AttackColors, value: string) {
     onChange({
       colors: {
-        ...attacks.colors,
-        [side]: { ...attacks.colors[side], [key]: value },
+        ...rays.colors,
+        [side]: { ...rays.colors[side], [key]: value },
       },
     });
   }
@@ -115,7 +129,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   /** The attack colour for one piece on one side, as a cell's worth of state. */
   function pieceSwatch(side: Side, key: keyof AttackColors) {
     return {
-      value: attacks.colors[side][key],
+      value: rays.colors[side][key],
       onChange: (value: string) => setColor(side, key, value),
     };
   }
@@ -159,7 +173,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     color: keyof AttackColors
   ): Row {
     const cellsFor = (side: Side): SideCells => {
-      const stripe = attacks.geometry[side][key];
+      const stripe = rays.geometry[side][key];
       const update = (patch: Partial<RayStyle>) =>
         updateGeometry(side, { [key]: { ...stripe, ...patch } });
       return {
@@ -187,7 +201,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   /** The knight's ring, sized like any other stripe: a gap, no total width. */
   function knightRow(): Row {
     const cellsFor = (side: Side): SideCells => {
-      const ring = attacks.geometry[side].knightRing;
+      const ring = rays.geometry[side].knightRing;
       return {
         swatch: pieceSwatch(side, "knight"),
         gap: {
@@ -206,10 +220,10 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     };
   }
 
-  /** Where that ring sits — the one dimension the width columns cannot carry. */
-  function knightRadiiRow(): Row {
+  /** Where that ring sits, and how far across it is from there. */
+  function knightRadiusRow(): Row {
     const cellsFor = (side: Side): SideCells => {
-      const ring = attacks.geometry[side].knightRing;
+      const ring = rays.geometry[side].knightRing;
       return {
         gap: {
           value: ring.innerRadius,
@@ -219,17 +233,17 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
             updateGeometry(side, { knightRing: { ...ring, innerRadius } }),
         },
         width: {
-          value: ring.outerRadius,
-          label: `${side} knight outer radius`,
-          onChange: (outerRadius) =>
-            updateGeometry(side, { knightRing: { ...ring, outerRadius } }),
+          value: ring.width,
+          label: `${side} knight ring width`,
+          onChange: (width) =>
+            updateGeometry(side, { knightRing: { ...ring, width } }),
         },
       };
     };
     return {
-      key: "knight-radii",
-      piece: "…radii",
-      hint: RADII_HINT,
+      key: "knight-radius",
+      piece: "…radius",
+      hint: RADIUS_HINT,
       cells: { me: cellsFor("me"), opponent: cellsFor("opponent") },
     };
   }
@@ -237,7 +251,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   /** The frame the rays are measured in, rather than any one piece's mark. */
   function innerSquaresRow(): Row {
     const cellsFor = (side: Side): SideCells => {
-      const geometry = attacks.geometry[side];
+      const geometry = rays.geometry[side];
       return {
         gap: {
           value: geometry.smallInnerSquare,
@@ -280,20 +294,20 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
   function outlineRow(): Row {
     const cellsFor = (side: Side): SideCells => ({
       swatch: {
-        value: attacks.outlineColors[side],
+        value: rays.outlineColors[side],
         onChange: (value) =>
           onChange({
-            outlineColors: { ...attacks.outlineColors, [side]: value },
+            outlineColors: { ...rays.outlineColors, [side]: value },
           }),
       },
       width: {
-        value: attacks.outlineWidths[side],
+        value: rays.outlineWidths[side],
         label: `${side} outline width`,
         allowZero: true,
         step: 0.005,
         onChange: (value) =>
           onChange({
-            outlineWidths: { ...attacks.outlineWidths, [side]: value },
+            outlineWidths: { ...rays.outlineWidths, [side]: value },
           }),
       },
     });
@@ -306,19 +320,70 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
     };
   }
 
+  /** One number per side, across that side's columns: the two opacities. */
+  function opacityRow(
+    key: "maxOpacity" | "outlineOpacity",
+    name: string,
+    spoken: string,
+    hint?: string,
+    apart = false
+  ): Row {
+    const cellsFor = (side: Side): SideCells => ({
+      whole: {
+        value: rays[key][side],
+        label: `${side} ${spoken}`,
+        allowZero: true,
+        step: 0.05,
+        onChange: (value) =>
+          onChange({ [key]: { ...rays[key], [side]: value } }),
+      },
+    });
+    return {
+      key,
+      piece: name,
+      spanning: true,
+      apart,
+      hint,
+      cells: { me: cellsFor("me"), opponent: cellsFor("opponent") },
+    };
+  }
+
   const rows: Row[] = [
     stripeRow("kingRay", "King", "king"),
     stripeRow("queenRay", "Queen", "queen"),
     stripeRow("rookRay", "Rook", "rook"),
     stripeRow("bishopRay", "Bishop", "bishop"),
     knightRow(),
-    knightRadiiRow(),
+    knightRadiusRow(),
     stripeRow("pawnRay", "Pawn", "pawn"),
     innerSquaresRow(),
     outlineRow(),
+    /* What each side is drawn at, which the balance panel then takes its
+       fraction of — the most a ray is ever drawn at, hence "max". The outline's
+       own opacity is not scaled that way and is simply what it is. */
+    opacityRow(
+      "maxOpacity",
+      "Attack ray max opacity",
+      "attack ray max opacity",
+      RAY_OPACITY_HINT,
+      /* A gap above: what the rows before it set is the shape of a mark, and
+         what these two set is how strongly it is drawn. */
+      true
+    ),
+    opacityRow(
+      "outlineOpacity",
+      "Outline opacity",
+      "outline opacity",
+      OUTLINE_OPACITY_HINT
+    ),
   ];
 
-  function numberCell(cell: Cell | undefined, id: string, groupStart: boolean) {
+  function numberCell(
+    cell: Cell | undefined,
+    id: string,
+    groupStart: boolean,
+    span = 1
+  ) {
     const className = groupStart ? "stripe-group-start" : undefined;
     if (cell === undefined) {
       return (
@@ -328,7 +393,7 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
       );
     }
     return (
-      <td key={id} className={className}>
+      <td key={id} className={className} colSpan={span}>
         <NumberInput
           id={id}
           ariaLabel={cell.label}
@@ -407,23 +472,41 @@ export default function AttackTable({ attacks, onChange }: AttackTableProps) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.key}>
-              <th scope="row" title={row.hint}>
+            <tr key={row.key} className={row.apart ? "stripe-row-apart" : undefined}>
+              {/*
+                A spanning row's name takes the colour column as well: one
+                number a side needs no well, and the name is longer than a
+                piece's. The opponent's well column is left standing empty so
+                that the line between the two sides falls where it does in
+                every other row.
+              */}
+              <th scope="row" title={row.hint} colSpan={row.spanning ? 2 : 1}>
                 {row.piece}
               </th>
-              {SIDES.flatMap((side) => [
-                swatch(side, row),
-                numberCell(
-                  row.cells[side].gap,
-                  `${side}-${row.key}-gap`,
-                  false
-                ),
-                numberCell(
-                  row.cells[side].width,
-                  `${side}-${row.key}-width`,
-                  false
-                ),
-              ])}
+              {row.spanning
+                ? [
+                    numberCell(row.cells.me.whole, `me-${row.key}`, false, 2),
+                    <td key="between" className="stripe-group-start" />,
+                    numberCell(
+                      row.cells.opponent.whole,
+                      `opponent-${row.key}`,
+                      false,
+                      2
+                    ),
+                  ]
+                : SIDES.flatMap((side) => [
+                    swatch(side, row),
+                    numberCell(
+                      row.cells[side].gap,
+                      `${side}-${row.key}-gap`,
+                      false
+                    ),
+                    numberCell(
+                      row.cells[side].width,
+                      `${side}-${row.key}-width`,
+                      false
+                    ),
+                  ])}
             </tr>
           ))}
 

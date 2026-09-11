@@ -283,6 +283,435 @@ console.log("\nWhat an exported file is called\n");
     settingsFileName("   ") === SETTINGS_FILE_NAME);
 }
 
+console.log("\nRays drawn as needles\n");
+{
+  const { needlePath, rayBaseCorners, rayStopTip, rayStopWedgePath, squareCenter } =
+    await import("../src/visualization/geometry.ts");
+
+  /* A needle has a base across the piece and a point where the ray stops. Read
+     the corners back out of the path it draws. */
+  const corners = (d) =>
+    d
+      .split(/[ML]\s*/)
+      .slice(1)
+      .map((pair) => pair.replace("Z", "").trim().split(/\s+/).map(Number));
+
+  const base = rayBaseCorners({ x: 0, y: 0 }, { x: 1, y: 0 }, 20, 6);
+
+  /* Straight-sided, it is three corners: the two of the base, and the point. */
+  const straight = needlePath(base, { x: 100, y: 0 }, "triangle");
+  check("a triangle needle is its base and the point, and nothing else",
+    JSON.stringify(corners(straight)) ===
+      JSON.stringify([[20, 6], [100, 0], [20, -6]]),
+    straight);
+  check("and it is drawn in straight lines — no arcs about it",
+    !straight.includes("A"), straight);
+
+  /*
+    Half an ellipse: the base across the square, and the two quarters that meet
+    at the point. What matters about the path is that both quarters bend the
+    same way round — the same sweep — or the needle comes out an hourglass,
+    fat at both ends and pinched in the middle, which is what a mirrored
+    ellipse looks like.
+  */
+  const said = needlePath(base, { x: 100, y: 0 }, "ellipse");
+  const arcs = [...said.matchAll(/A ([-\d.]+) ([-\d.]+) ([-\d.]+) (\d) (\d) ([-\d.]+) ([-\d.]+)/g)]
+    .map((found) => found.slice(1).map(Number));
+  check("a needle is two arcs from the base, meeting at the point",
+    arcs.length === 2 && arcs[0][5] === 100 && arcs[0][6] === 0,
+    said);
+  check("both bend the same way round, or it is an hourglass",
+    arcs[0][4] === arcs[1][4], said);
+  check("its long radius runs to the point and its short one is the width",
+    arcs.every((arc) => arc[0] === 80 && arc[1] === 6), said);
+
+  /*
+    The base lies on the large inner square — every corner of it, whichever way
+    the ray runs — and is the width that was asked for.
+  */
+  const onSquare = (point, halfSide) =>
+    Math.abs(Math.max(Math.abs(point.x), Math.abs(point.y)) - halfSide) < 1e-9;
+  /* How wide the base is across the ray, which is the width a reader set. On an
+     oblique line the two corners leave the square at different distances along
+     it, so the base is slanted and longer than that — but no wider. */
+  const width = (pair, along) => {
+    const across = { x: -along.y, y: along.x };
+    return Math.abs(
+      (pair[0].x - pair[1].x) * across.x + (pair[0].y - pair[1].y) * across.y
+    );
+  };
+  for (const [name, along] of [
+    ["a file", { x: 0, y: -1 }],
+    ["a rank", { x: 1, y: 0 }],
+    ["a diagonal", { x: Math.SQRT1_2, y: Math.SQRT1_2 }],
+    ["a knight's line", { x: 2 / Math.sqrt(5), y: 1 / Math.sqrt(5) }],
+  ]) {
+    const pair = rayBaseCorners({ x: 0, y: 0 }, along, 20, 6);
+    check(`both corners of a needle along ${name} sit on the large inner square`,
+      onSquare(pair[0], 20) && onSquare(pair[1], 20), JSON.stringify(pair));
+    check(`and it is the width it was given across the ray, along ${name}`,
+      Math.abs(width(pair, along) - 12) < 1e-9, String(width(pair, along)));
+  }
+
+  /* A ray wider than the square it leaves would start behind its own piece if
+     the corners were followed backwards; they stop at the middle instead. */
+  const fat = rayBaseCorners({ x: 0, y: 0 }, { x: 1, y: 0 }, 5, 40);
+  check("a needle broader than its square still starts at the piece, not behind it",
+    fat[0].x >= 0 && fat[1].x >= 0, JSON.stringify(fat));
+
+  /* The point is where a stripe stops: the wedge below starts at the same
+     place, which is what keeps the two kinds of ray the same length. */
+  for (const [square, direction] of [["d4", [1, 0]], ["d4", [1, 1]], ["e5", [0, -1]]]) {
+    const tip = rayStopTip(square, direction, 12);
+    const wedge = rayStopWedgePath(square, direction, 12).split(/[ML]\s*/)[1].trim().split(/\s+/).map(Number);
+    check(`a needle ends where a stripe ends, on ${square} along ${direction}`,
+      Math.abs(tip.x - wedge[0]) < 1e-9 && Math.abs(tip.y - wedge[1]) < 1e-9,
+      JSON.stringify({ tip, wedge }));
+  }
+
+  /* And it stops beyond the middle of the square it reaches, not at it. */
+  const middle = squareCenter("d4");
+  const beyond = rayStopTip("d4", [1, 0], 12);
+  check("which is past the middle of that square",
+    beyond.x > middle.x && Math.abs(beyond.y - middle.y) < 1e-9);
+
+}
+
+console.log("\nDrawn at all, or not\n");
+{
+  const { raysShown, heatmapShown } = await import("../src/visualization/visible.ts");
+
+  const attacks = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)).attacks;
+  check("both are drawn as things stand",
+    raysShown(attacks.rays, "me") && heatmapShown(attacks.heatmap, "opponent"));
+
+  /* The switch answers on its own, and the fractions it does not touch are
+     still there to come back to. */
+  const hushed = JSON.parse(JSON.stringify(attacks));
+  hushed.rays.show = false;
+  hushed.heatmap.show = false;
+  check("a switch turned off draws neither side",
+    !raysShown(hushed.rays, "me") && !raysShown(hushed.rays, "opponent") &&
+    !heatmapShown(hushed.heatmap, "me") &&
+    !heatmapShown(hushed.heatmap, "opponent"));
+  check("and leaves the balance where it stood",
+    JSON.stringify(hushed.rays.intensity) ===
+      JSON.stringify(attacks.rays.intensity) &&
+    JSON.stringify(hushed.heatmap.intensity) ===
+      JSON.stringify(attacks.heatmap.intensity));
+
+  /* And a side turned off is left out of that picture, whatever the picture's
+     own switch says: the two are read together, not one instead of the other. */
+  const oneSide = JSON.parse(JSON.stringify(attacks));
+  oneSide.rays.showOpponent = false;
+  oneSide.heatmap.showOpponent = false;
+  check("a side left out is drawn in neither picture",
+    !raysShown(oneSide.rays, "opponent") &&
+      !heatmapShown(oneSide.heatmap, "opponent"));
+  check("while the other side goes on being drawn",
+    raysShown(oneSide.rays, "me") && heatmapShown(oneSide.heatmap, "me"));
+  const bothWays = JSON.parse(JSON.stringify(attacks));
+  bothWays.rays.show = false;
+  bothWays.rays.showMine = true;
+  check("and a picture turned off draws a side it was told to draw",
+    !raysShown(bothWays.rays, "me"));
+
+  /* One switch says nothing about the other. */
+  const half = JSON.parse(JSON.stringify(attacks));
+  half.rays.show = false;
+  check("turning the rays off leaves the wash alone",
+    !raysShown(half.rays, "me") && heatmapShown(half.heatmap, "me"));
+}
+
+console.log("\nSettings written for version 46\n");
+{
+  const { parseSettings } = await import("../src/app/settingsFile.ts");
+  const { SETTINGS_SCHEMA_VERSION } = await import("../src/app/settings.ts");
+
+  /*
+    The shipped settings, put back into the shape version 46 held them in: the
+    rays lying loose in `attacks` under the names they had there. Written out of
+    the current file rather than kept as a copy of an old one, so it cannot
+    drift away from what is actually being lifted.
+  */
+  const asVersion46 = (settings) => {
+    const older = JSON.parse(JSON.stringify(settings));
+    older.schemaVersion = 46;
+    const rays = older.attacks.rays;
+    delete older.attacks.rays;
+    older.attacks.linkedIntensity = older.attacks.raysAndHeatmapIntensityLinked;
+    delete older.attacks.raysAndHeatmapIntensityLinked;
+    older.attacks.heatmap.strength = older.attacks.heatmap.maxStrength;
+    delete older.attacks.heatmap.maxStrength;
+    const rayNames = {
+      show: "showRays",
+      intensity: "rayIntensity",
+      maxOpacity: "rayOpacity",
+      shape: "rayShape",
+      fullWidthDiagonals: "fullWidthDiagonalRays",
+    };
+    for (const [key, value] of Object.entries(rays)) {
+      /* 46 had no per-side switches at all, in either picture. */
+      if (key === "showMine" || key === "showOpponent") {
+        continue;
+      }
+      older.attacks[rayNames[key] ?? key] = value;
+    }
+    /* The knight's ring was two radii then. */
+    for (const side of Object.values(older.attacks.geometry)) {
+      const ring = side.knightRing;
+      side.knightRing = {
+        innerRadius: ring.innerRadius,
+        outerRadius: ring.innerRadius + ring.width,
+        gapWidth: ring.gapWidth,
+      };
+    }
+    /* And the board and the men, which lay loose at the top of the object. */
+    const loose = {
+      squares: "boardColors",
+      hedging: "hedge",
+      tint: "pieceTint",
+      showCaptured: "showCapturedPiecesBar",
+      moveMotion: "move",
+    };
+    for (const group of ["board", "pieces", "lab"]) {
+      for (const [key, value] of Object.entries(older[group])) {
+        older[loose[key] ?? key] = value;
+      }
+      delete older[group];
+    }
+    /* 46 had no answer to this one at all: the tab asked afresh every visit. */
+    delete older.shareGameWithAutoplay;
+    return older;
+  };
+
+  const older = asVersion46(DEFAULT_SETTINGS);
+  const read = parseSettings(JSON.stringify(older)).settings;
+  check("a version 46 record is read rather than refused",
+    read !== null, parseSettings(JSON.stringify(older)).error ?? "");
+  check("and comes back as this build's version",
+    read?.schemaVersion === SETTINGS_SCHEMA_VERSION);
+  check("its rays are gathered into a node of their own",
+    JSON.stringify(read?.attacks.rays) ===
+      JSON.stringify(DEFAULT_SETTINGS.attacks.rays),
+    JSON.stringify(read?.attacks.rays));
+  check("the knight's ring comes back as a radius and a width",
+    JSON.stringify(read?.attacks.rays.geometry.me.knightRing) ===
+      JSON.stringify(DEFAULT_SETTINGS.attacks.rays.geometry.me.knightRing),
+    JSON.stringify(read?.attacks.rays.geometry.me.knightRing));
+  check("and a ring given the wrong way round keeps the ring it drew",
+    (() => {
+      const turned = asVersion46(DEFAULT_SETTINGS);
+      const ring = turned.attacks.geometry.me.knightRing;
+      const swapped = { ...ring, innerRadius: ring.outerRadius, outerRadius: ring.innerRadius };
+      turned.attacks.geometry.me.knightRing = swapped;
+      const back = parseSettings(JSON.stringify(turned)).settings;
+      return (
+        JSON.stringify(back?.attacks.rays.geometry.me.knightRing) ===
+        JSON.stringify(DEFAULT_SETTINGS.attacks.rays.geometry.me.knightRing)
+      );
+    })());
+  check("and nothing of them is left lying beside the heatmap",
+    ["showRays", "rayIntensity", "rayOpacity", "rayShape", "colors",
+     "geometry", "knightGeometry", "outlineWidths", "outlineColors",
+     "outlineOpacity", "xRayDecayFactor", "straightRayOpacityDecay",
+     "fullWidthDiagonalRays"].every((key) => !(key in read.attacks)),
+    JSON.stringify(Object.keys(read?.attacks ?? {})));
+  check("the board and the men are gathered into two nodes of their own",
+    JSON.stringify(read?.board) === JSON.stringify(DEFAULT_SETTINGS.board) &&
+      JSON.stringify(read?.pieces) === JSON.stringify(DEFAULT_SETTINGS.pieces),
+    JSON.stringify({ board: read?.board, pieces: read?.pieces }));
+  check("and nothing of them is left loose at the top",
+    ["theme", "darkThemeTextColor", "boardColors", "grid", "lastMove", "hedge",
+     "pieceTint", "showCapturedPiecesBar", "move", "fadeTimeMs"].every(
+      (key) => !(key in read)
+    ),
+    JSON.stringify(Object.keys(read ?? {})));
+  check("the pace a game plays at goes with it, into the lab's own node",
+    read?.lab.playPeriodPerPositionSec ===
+      DEFAULT_SETTINGS.lab.playPeriodPerPositionSec &&
+      !("playPeriodPerPositionSec" in read));
+  check("and sharing with autoplay, which 46 never wrote down, comes back on",
+    read?.lab.shareGameWithAutoplay === true);
+  /* And it is written the way this build writes a settings file: same keys, in
+     the same order, so an export of a migrated record and one of a shipped
+     preset differ only where a setting differs. */
+  const order = (node, path = "") =>
+    Object.entries(node).flatMap(([key, value]) =>
+      value !== null && typeof value === "object" && !Array.isArray(value)
+        ? [path + key, ...order(value, `${path}${key}.`)]
+        : [path + key]
+    );
+  check("and the whole record is written in the order this build writes",
+    JSON.stringify(order(read)) === JSON.stringify(order(DEFAULT_SETTINGS)),
+    JSON.stringify(order(read)));
+
+  check("the heatmap's strength is renamed for what it is",
+    JSON.stringify(read?.attacks.heatmap.maxStrength) ===
+      JSON.stringify(DEFAULT_SETTINGS.attacks.heatmap.maxStrength) &&
+      !("strength" in read.attacks.heatmap),
+    JSON.stringify(read?.attacks.heatmap));
+  check("and so is the rays' opacity",
+    JSON.stringify(read?.attacks.rays.maxOpacity) ===
+      JSON.stringify(DEFAULT_SETTINGS.attacks.rays.maxOpacity) &&
+      !("opacity" in read.attacks.rays),
+    JSON.stringify(read?.attacks.rays.maxOpacity));
+  check("while the heatmap and the rest are where they were",
+    JSON.stringify(read?.attacks.heatmap) ===
+      JSON.stringify(DEFAULT_SETTINGS.attacks.heatmap) &&
+    JSON.stringify(read?.attacks.pins) ===
+      JSON.stringify(DEFAULT_SETTINGS.attacks.pins) &&
+    read?.attacks.raysAndHeatmapIntensityLinked ===
+      DEFAULT_SETTINGS.attacks.raysAndHeatmapIntensityLinked);
+
+  /* Three settings arrived in 46 without a version of their own, so a record
+     from that time may be silent about them — or answer the yes-or-no question
+     the ray shape was asked as at first. */
+  const shapeOf = (record) =>
+    parseSettings(JSON.stringify(record)).settings?.attacks.rays.shape;
+  const quiet = asVersion46(DEFAULT_SETTINGS);
+  delete quiet.attacks.rayShape;
+  check("a record from before needles gets the shape they settled on",
+    shapeOf(quiet) === "ellipse");
+  const yes = asVersion46(DEFAULT_SETTINGS);
+  delete yes.attacks.rayShape;
+  yes.attacks.needleRays = true;
+  check("one from when needles were a yes-or-no answer keeps its needle",
+    shapeOf(yes) === "ellipse");
+  const no = asVersion46(DEFAULT_SETTINGS);
+  delete no.attacks.rayShape;
+  no.attacks.needleRays = false;
+  check("while one that says no keeps its stripes",
+    shapeOf(no) === "stripe");
+  check("and the old word is not carried on once it has been read",
+    parseSettings(JSON.stringify(no)).settings?.attacks.needleRays ===
+      undefined);
+  const named = asVersion46(DEFAULT_SETTINGS);
+  named.attacks.rayShape = "triangle";
+  check("a record that names its shape is taken at its word",
+    shapeOf(named) === "triangle");
+  const nonsense = asVersion46(DEFAULT_SETTINGS);
+  nonsense.attacks.rayShape = "banana";
+  check("and one that names a shape there is none of falls back",
+    shapeOf(nonsense) === "ellipse");
+
+  const dark = asVersion46(DEFAULT_SETTINGS);
+  delete dark.attacks.showRays;
+  delete dark.attacks.heatmap.show;
+  const lit = parseSettings(JSON.stringify(dark)).settings;
+  check("a record from before the per-side switches has all four turned on",
+    read?.attacks.rays.showMine === true &&
+      read?.attacks.rays.showOpponent === true &&
+      read?.attacks.heatmap.showMine === true &&
+      read?.attacks.heatmap.showOpponent === true);
+  check("a record from before the two switches gets them, both on",
+    lit?.attacks.rays.show === true && lit?.attacks.heatmap.show === true);
+  const hushed = asVersion46(DEFAULT_SETTINGS);
+  hushed.attacks.showRays = false;
+  hushed.attacks.heatmap.show = false;
+  const back = parseSettings(JSON.stringify(hushed)).settings;
+  check("while one that says they are off keeps its answer",
+    back?.attacks.rays.show === false && back?.attacks.heatmap.show === false);
+
+  /* Only 46 is known. Anything older is still refused rather than guessed at. */
+  const ancient = asVersion46(DEFAULT_SETTINGS);
+  ancient.schemaVersion = 45;
+  const refused = parseSettings(JSON.stringify(ancient));
+  check("a version this build knows nothing of is still refused",
+    refused.settings === null && refused.error !== null, refused.error ?? "");
+}
+
+console.log("\nRecords written while this version was being written\n");
+{
+  const { parseSettings } = await import("../src/app/settingsFile.ts");
+
+  /* Two names changed inside version 47, so a browser left open through the
+     change holds a record that says 47 and reads like 46 in two places. Its
+     version matches, so nothing refuses it — and what the app then reaches for
+     is not there. */
+  const held = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  held.attacks.rays.opacity = held.attacks.rays.maxOpacity;
+  delete held.attacks.rays.maxOpacity;
+  held.attacks.heatmap.strength = held.attacks.heatmap.maxStrength;
+  delete held.attacks.heatmap.maxStrength;
+
+  const read = parseSettings(JSON.stringify(held)).settings;
+  check("a record from mid-version is read under the names in use now",
+    JSON.stringify(read?.attacks.rays.maxOpacity) ===
+      JSON.stringify(DEFAULT_SETTINGS.attacks.rays.maxOpacity) &&
+    JSON.stringify(read?.attacks.heatmap.maxStrength) ===
+      JSON.stringify(DEFAULT_SETTINGS.attacks.heatmap.maxStrength),
+    parseSettings(JSON.stringify(held)).error ?? "");
+  check("and the per-side switches it never had come back on",
+    read?.attacks.rays.showMine === true &&
+      read?.attacks.heatmap.showOpponent === true);
+  check("and the names it was written under are gone",
+    !("opacity" in read.attacks.rays) &&
+      !("strength" in read.attacks.heatmap));
+
+  /* And a record already in the shape this build writes is left alone. */
+  const now = parseSettings(JSON.stringify(DEFAULT_SETTINGS)).settings;
+  check("while one written by this build passes through untouched",
+    JSON.stringify(now?.attacks) === JSON.stringify(DEFAULT_SETTINGS.attacks));
+}
+
+console.log("\nA knight's ring, ended round\n");
+{
+  const {
+    SQUARE_SIZE,
+    ringCapSpanInsideRect,
+    ringSectorInsideRect,
+    squareBox,
+    squareCenter,
+  } = await import("../src/visualization/geometry.ts");
+
+  /* A ring of the shipped proportions round a knight on d4, and one of the
+     eight squares it reaches. */
+  const SQUARE = SQUARE_SIZE;
+  const center = squareCenter("d4");
+  const inner = 2.25 * SQUARE;
+  const outer = 2.4 * SQUARE;
+  const mid = (inner + outer) / 2;
+  const cap = (outer - inner) / 2;
+  const box = squareBox("f5");
+
+  const span = ringCapSpanInsideRect(center, mid, cap, box);
+  const at = (angle) => ({
+    x: center.x + mid * Math.cos(angle),
+    y: center.y + mid * Math.sin(angle),
+  });
+  /* How far an end's half-disc is from the nearest side of the square: nothing
+     if it is touching one, which is what "rounded off against the side" means. */
+  const clearance = (point) =>
+    Math.min(
+      point.x - box.x,
+      box.x + box.width - point.x,
+      point.y - box.y,
+      box.y + box.height - point.y
+    );
+  check("a rounded end is drawn where its half-disc still fits in the square",
+    span !== null && clearance(at(span[0])) >= cap - 1e-9 &&
+      clearance(at(span[1])) >= cap - 1e-9,
+    JSON.stringify(span));
+  check("and it goes as far as it can, up against that side",
+    Math.abs(clearance(at(span[0])) - cap) < 1e-6 &&
+      Math.abs(clearance(at(span[1])) - cap) < 1e-6,
+    JSON.stringify([clearance(at(span[0])), clearance(at(span[1])), cap]));
+
+  /* A round end reaches further than a radial cut, so it has to stop sooner:
+     the piece of ring it leaves is inside the one a square cut would take. */
+  const straight = ringSectorInsideRect(center, inner, outer, box);
+  check("a rounded piece of ring stops short of what a square cut would take",
+    span[0] > straight[0] - 1e-9 && span[1] < straight[1] + 1e-9 &&
+      span[1] - span[0] < straight[1] - straight[0],
+    JSON.stringify({ span, straight }));
+
+  /* And a ring too thick for the square to hold one end has no rounded piece
+     at all, rather than a pinched one. */
+  check("a ring too thick for the square is not drawn round at all",
+    ringCapSpanInsideRect(center, mid, SQUARE, box) === null);
+}
+
 console.log("\nWho played a game that was read in\n");
 {
   const { parsePgn } = await import("../src/chess/pgn.ts");

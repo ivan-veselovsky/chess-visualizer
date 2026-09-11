@@ -23,18 +23,18 @@ export function pieceVars(
   return {
     // One per piece per side. Which of each pair applies is decided by a class
     // on the glyph, so the rules that use them go on saying `var(--attack-king)`.
-    "--attack-king-me": attacks.colors.me.king,
-    "--attack-queen-me": attacks.colors.me.queen,
-    "--attack-rook-me": attacks.colors.me.rook,
-    "--attack-bishop-me": attacks.colors.me.bishop,
-    "--attack-knight-me": attacks.colors.me.knight,
-    "--attack-pawn-me": attacks.colors.me.pawn,
-    "--attack-king-opponent": attacks.colors.opponent.king,
-    "--attack-queen-opponent": attacks.colors.opponent.queen,
-    "--attack-rook-opponent": attacks.colors.opponent.rook,
-    "--attack-bishop-opponent": attacks.colors.opponent.bishop,
-    "--attack-knight-opponent": attacks.colors.opponent.knight,
-    "--attack-pawn-opponent": attacks.colors.opponent.pawn,
+    "--attack-king-me": attacks.rays.colors.me.king,
+    "--attack-queen-me": attacks.rays.colors.me.queen,
+    "--attack-rook-me": attacks.rays.colors.me.rook,
+    "--attack-bishop-me": attacks.rays.colors.me.bishop,
+    "--attack-knight-me": attacks.rays.colors.me.knight,
+    "--attack-pawn-me": attacks.rays.colors.me.pawn,
+    "--attack-king-opponent": attacks.rays.colors.opponent.king,
+    "--attack-queen-opponent": attacks.rays.colors.opponent.queen,
+    "--attack-rook-opponent": attacks.rays.colors.opponent.rook,
+    "--attack-bishop-opponent": attacks.rays.colors.opponent.bishop,
+    "--attack-knight-opponent": attacks.rays.colors.opponent.knight,
+    "--attack-pawn-opponent": attacks.rays.colors.opponent.pawn,
     // As percentages, which is what color-mix wants. Rounded, since a
     // fraction times 100 lands on things like 55.00000000000001.
     "--piece-lighten": percent(pieceTint.lightenWhite),

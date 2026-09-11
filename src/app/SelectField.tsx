@@ -10,6 +10,14 @@ interface SelectFieldProps<T extends string> {
   choices: readonly Choice<T>[];
   /** Explanation shown on hover, rather than as standing text. */
   hint?: string;
+  /**
+   * A little more room above, on top of the gap every field leaves below it.
+   *
+   * For a field that follows a switch: a switch is a line of text where a field
+   * is a bordered box, and the same margin between them reads as less room than
+   * the same margin between two boxes.
+   */
+  apart?: boolean;
   onChange: (value: T) => void;
 }
 
@@ -20,10 +28,14 @@ export default function SelectField<T extends string>({
   value,
   choices,
   hint,
+  apart = false,
   onChange,
 }: SelectFieldProps<T>) {
   return (
-    <div className="number-field field-inline" title={hint}>
+    <div
+      className={`number-field field-inline${apart ? " field-apart" : ""}`}
+      title={hint}
+    >
       <label htmlFor={id}>{label}</label>
       <select
         id={id}

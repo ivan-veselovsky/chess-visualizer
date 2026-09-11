@@ -8,24 +8,28 @@
  * skip the work and the layers ask in order not to do it.
  */
 import type { SettingsSide } from "./geometry";
-import type { AttackSettings, Heatmap } from "./settings";
+import type { Heatmap, RaySettings } from "./settings";
 
 const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
 
 /**
  * Whether a side's rays are worth drawing at all.
  *
- * Nought is not a faint mark, it is no mark — and a mark nobody can see is
- * still every ray of sixteen pieces worked out, built and painted. The reader's
+ * The two switches on the balance panel answer it outright — the picture as a
+ * whole, and this side of it; past that, nought is not
+ * a faint mark, it is no mark — and a mark nobody can see is still every ray of
+ * sixteen pieces worked out, built and painted. The reader's
  * fraction reaches the marks as a CSS variable precisely so that moving it does
  * not rebuild them, and that stays true across every value but this one: at the
  * end of the slider there is nothing left to restyle, so the cheaper thing is
  * to draw none of it. Coming back off nought rebuilds once, which is what
  * turning something back on costs.
  */
-export function raysShown(attacks: AttackSettings, side: SettingsSide): boolean {
+export function raysShown(rays: RaySettings, side: SettingsSide): boolean {
   return (
-    clamp01(attacks.rayOpacity[side]) * clamp01(attacks.rayIntensity[side]) > 0
+    rays.show &&
+    (side === "me" ? rays.showMine : rays.showOpponent) &&
+    clamp01(rays.maxOpacity[side]) * clamp01(rays.intensity[side]) > 0
   );
 }
 
@@ -38,5 +42,9 @@ export function raysShown(attacks: AttackSettings, side: SettingsSide): boolean 
  * heatmap.
  */
 export function heatmapShown(heatmap: Heatmap, side: SettingsSide): boolean {
-  return clamp01(heatmap.strength[side]) * clamp01(heatmap.intensity[side]) > 0;
+  return (
+    heatmap.show &&
+    (side === "me" ? heatmap.showMine : heatmap.showOpponent) &&
+    clamp01(heatmap.maxStrength[side]) * clamp01(heatmap.intensity[side]) > 0
+  );
 }

@@ -194,7 +194,7 @@ const NEAR_ENOUGH = 0.1;
 /* The stripe widths the app will be drawing with: its own defaults, read from
    the same file it ships, so that a change to them changes where this looks. */
 const settings = JSON.parse(readFileSync(SETTINGS, "utf8"));
-const rayWidth = (ray) => settings.attacks.geometry.me[ray].rayWidth;
+const rayWidth = (ray) => settings.attacks.rays.geometry.me[ray].rayWidth;
 
 const lab = await open({ port: PORT, debugPort: DEBUG_PORT });
 try {
@@ -231,7 +231,7 @@ try {
        other than where it claims to be. */
     window.__set("#move-blend", "1");
     await sleep(200);
-    window.__tab("Game");
+    window.__tab("Lab");
     await sleep(400);
     const flip = document.querySelector("#flip-board");
     if (flip && flip.checked) { flip.click(); await sleep(300); }

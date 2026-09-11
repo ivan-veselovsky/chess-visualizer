@@ -59,10 +59,10 @@ export default function HeatmapLayer({
   // scaled by the share of it the reader has asked for. Either of them at
   // nought is a side that colours nothing.
   const ourStrength = heatmapShown(heatmap, "me")
-    ? clamp(heatmap.strength.me) * clamp(heatmap.intensity.me)
+    ? clamp(heatmap.maxStrength.me) * clamp(heatmap.intensity.me)
     : 0;
   const theirStrength = heatmapShown(heatmap, "opponent")
-    ? clamp(heatmap.strength.opponent) * clamp(heatmap.intensity.opponent)
+    ? clamp(heatmap.maxStrength.opponent) * clamp(heatmap.intensity.opponent)
     : 0;
 
   const countMine = ourStrength > 0;

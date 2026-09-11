@@ -2,14 +2,17 @@ import type { Square } from "chess.js";
 import type { AttackAxis, RaySquare } from "../../../chess/attacks";
 import {
   SQUARE_SIZE,
+  needlePath,
   perpendicular,
+  rayBaseCorners,
   rayPoint,
+  rayStopTip,
   rayStartPlanePath,
   rayStopWedgePath,
   squareBox,
   type Orientation,
 } from "../../geometry";
-import type { RayStyle } from "../../settings";
+import type { RayShape, RayStyle } from "../../settings";
 import { stripeBands, type Band } from "./bands";
 import type { InnerSquares } from "./innerSquares";
 
@@ -27,6 +30,11 @@ interface RayStripesProps {
    * square corner, those squares meeting only there.
    */
   fullWidth: boolean;
+  /**
+   * What shape to draw each ray in: a stripe of one width, or a needle
+   * narrowing from the piece to where the ray stops.
+   */
+  shape: RayShape;
   idPrefix: string;
   orientation: Orientation;
 }
@@ -104,6 +112,7 @@ export default function RayStripes({
   stripe,
   innerSquares,
   fullWidth,
+  shape,
   idPrefix,
   orientation,
 }: RayStripesProps) {
@@ -153,6 +162,25 @@ export default function RayStripes({
         const rays = senses.map(({ key, sense, ray }) => {
           const direction = [df * sense, dr * sense] as const;
           const reach = ray[ray.length - 1].distance + 0.5;
+          /* Where the ray stops, which is where a needle comes to its point:
+             the far side of the last square's small inner square. A needle is
+             one triangle from the piece to there, and the clips below show
+             whichever stretch of it belongs to each intensity. */
+          const point = rayStopTip(
+            ray[ray.length - 1].square,
+            direction,
+            smallHalfSide,
+            orientation
+          );
+          /* And where it starts: on the large inner square, at the width the
+             reader asked for — the same place and width a stripe begins with,
+             so the two kinds of ray leave a piece alike. */
+          const middle = rayPoint(origin, axis.direction, 0, orientation);
+          const onward = rayPoint(origin, axis.direction, sense, orientation);
+          const run = { x: onward.x - middle.x, y: onward.y - middle.y };
+          const length = Math.hypot(run.x, run.y);
+          const along = { x: run.x / length, y: run.y / length };
+          const base = rayBaseCorners(middle, along, largeHalfSide, halfWidth);
 
           return (
             <g key={key}>
@@ -174,7 +202,22 @@ export default function RayStripes({
                     </clipPath>
                     <g clipPath={`url(#${beyondId})`}>
                       <g clipPath={`url(#${upToId})`}>
-                        {bands.map((band, bandIndex) => {
+                        {/*
+                          A needle is one shape from the piece to the square it
+                          reaches, so the bands — a stripe split either side of
+                          a gap — have nothing to say about it. Everything else
+                          is the same: the clips above cut it where they cut a
+                          stripe, which is what keeps the dimming through an
+                          x-rayed piece and the stop on the far square.
+                        */}
+                        {shape !== "stripe" ? (
+                          <path
+                            d={needlePath(base, point, shape)}
+                            className={`${stripeClass} attack-needle`}
+                            fillOpacity={segment.intensity}
+                          />
+                        ) : null}
+                        {shape === "stripe" && bands.map((band, bandIndex) => {
                           const from = rayPoint(
                             origin,
                             axis.direction,

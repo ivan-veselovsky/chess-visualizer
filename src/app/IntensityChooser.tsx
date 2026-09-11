@@ -30,6 +30,16 @@ const CELLS = 48;
 interface IntensityChooserProps {
   id: string;
   label: string;
+  /**
+   * Whether what this chooser weighs is drawn at all, and how to say otherwise.
+   *
+   * A switch beside the title rather than a corner of the square: the square
+   * says how much of each side to draw, and "none of it, for the moment" is a
+   * different question — one worth asking without losing the answer to the
+   * first, which dragging the handle to nought would.
+   */
+  on: boolean;
+  onOn: (on: boolean) => void;
   value: SideIntensity;
   /** The colour of the field at a point, given each side's fraction. */
   colorAt: (mine: number, opponent: number) => [number, number, number];
@@ -42,6 +52,18 @@ interface IntensityChooserProps {
   full: { mine: number; opponent: number };
   /** Anything to stand under the field, such as a switch belonging to it. */
   extra?: ReactNode;
+  /**
+   * What stands in the gap to the right of this chooser, level with the two
+   * corner readings: the switches that belong to both choosers rather than to
+   * either.
+   *
+   * Hung off this chooser's box rather than put in the column between the two,
+   * because that is the only way they line up with the readings. Where those
+   * readings sit is decided by the size of the square, and the square's size is
+   * decided by the width of the chooser — which the column between them has no
+   * way of knowing.
+   */
+  aside?: { top: ReactNode; bottom: ReactNode };
   onChange: (value: SideIntensity) => void;
 }
 
@@ -65,10 +87,13 @@ const snap = (v: number) =>
 export default function IntensityChooser({
   id,
   label,
+  on,
+  onOn,
   value,
   colorAt,
   full,
   extra,
+  aside,
   onChange,
 }: IntensityChooserProps) {
   /*
@@ -231,12 +256,27 @@ export default function IntensityChooser({
   const percent = (v: number) => `${Math.round(v * 100)}%`;
   return (
     <div className="intensity-chooser">
-      <div className="intensity-frame">
+      <div
+        className={`intensity-frame${
+          aside === undefined ? "" : " intensity-frame-aside"
+        }`}
+      >
         {/* Inside the frame, above the square, and centred with it: the frame
             takes all the height the column has to spare, so a title at the top
             of the column would stand a long way from the thing it names. */}
-        <span className="intensity-label" id={`${id}-label`}>
-          {label}
+        {/* The switch and the title together, the title being the switch's own
+            label: the name of the thing is what a reader aims at, and it names
+            the square below either way. */}
+        <span className="intensity-label">
+          <input
+            type="checkbox"
+            id={`${id}-on`}
+            checked={on}
+            onChange={(event) => onOn(event.target.checked)}
+          />
+          <label htmlFor={`${id}-on`} id={`${id}-label`}>
+            {label}
+          </label>
         </span>
         {/* The square the turned square fits inside, which is what grows: the
             words hang off it, so they follow it however large it becomes. */}
@@ -255,6 +295,16 @@ export default function IntensityChooser({
             {`Me: ${(live.me * full.mine).toFixed(2)}`}
           </span>
           <span className="intensity-corner intensity-corner-left">0</span>
+          {aside !== undefined && (
+            <>
+              <span className="intensity-aside intensity-aside-top">
+                {aside.top}
+              </span>
+              <span className="intensity-aside intensity-aside-bottom">
+                {aside.bottom}
+              </span>
+            </>
+          )}
           {/*
             Each written along the side its axis runs down, in the empty corner
             outside the square: mine up the lower-right edge, the opponent's

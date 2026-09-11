@@ -231,18 +231,18 @@ export default function Board({
       depend on either number.
     */
     "--ray-opacity-me": String(
-      clamp01(attacks.rayOpacity.me) * clamp01(attacks.rayIntensity.me)
+      clamp01(attacks.rays.maxOpacity.me) * clamp01(attacks.rays.intensity.me)
     ),
     "--ray-opacity-opponent": String(
-      clamp01(attacks.rayOpacity.opponent) *
-        clamp01(attacks.rayIntensity.opponent)
+      clamp01(attacks.rays.maxOpacity.opponent) *
+        clamp01(attacks.rays.intensity.opponent)
     ),
     "--grid-line": grid.color,
     "--pin-ring": attacks.pins.ringColor,
     "--check-color": attacks.checkAndCheckmate.checkColor,
     "--checkmate-color": attacks.checkAndCheckmate.checkmateColor,
-    "--attack-outline-me": attacks.outlineColors.me,
-    "--attack-outline-opponent": attacks.outlineColors.opponent,
+    "--attack-outline-me": attacks.rays.outlineColors.me,
+    "--attack-outline-opponent": attacks.rays.outlineColors.opponent,
     // The piece palette and the tints, shared with the bar of taken men.
     ...pieceVars(pieceTint, attacks),
   } as CSSProperties;
@@ -394,23 +394,26 @@ export default function Board({
   */
   const rayLook = JSON.stringify({
     ...attacks,
-    rayIntensity: null,
+    rays: { ...attacks.rays, intensity: null },
     heatmap: null,
-    linkedIntensity: null,
+    raysAndHeatmapIntensityLinked: null,
     /*
       Except for whether each side is drawn at all, which the fraction does
       decide. Everywhere above nought it only restyles what is already built;
       at nought there is nothing built to restyle, so crossing that point —
       either way — is one rebuild.
     */
-    drawing: [raysShown(attacks, "me"), raysShown(attacks, "opponent")],
+    drawing: [
+      raysShown(attacks.rays, "me"),
+      raysShown(attacks.rays, "opponent"),
+    ],
   });
   const attackLayer = useMemo(
     () => (
       <AttackLayer
         position={drawn}
         pieces={pieces}
-        attackSettings={attacks}
+        rays={attacks.rays}
         // Whichever way the piece was taken up: a move is being weighed, and
         // its own reach is the one thing not being weighed against.
         lifted={lifted}

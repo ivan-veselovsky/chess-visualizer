@@ -114,11 +114,15 @@ import {
 type PanelTab = "game" | "match" | "balance" | SettingsGroup;
 
 const TABS: readonly Tab<PanelTab>[] = [
-  { id: "game", label: "Game", name: "Game and view" },
+  // Where a position is worked on: set up, stepped through, played out against
+  // nobody, shared. "Lab" rather than "Game" because the tab beside it is a
+  // game too, and the words said nothing about which of them held the person.
+  { id: "game", label: "Lab", name: "Lab: the game and the view" },
   // A game against another person, which is a different thing from the game on
   // the board: it is arranged, joined, and given up, and none of that has
-  // anything to say about the position or the way it is drawn.
-  { id: "match", label: "Match", name: "Play against a friend" },
+  // anything to say about the position or the way it is drawn. Named for what
+  // is on the other end of it — somebody, now — rather than for the game.
+  { id: "match", label: "Live", name: "Live: play against a friend" },
   // Short because the strip has to stay on one line: nine tabs that wrap cost
   // the selected one its join to the panel, which is what makes it a tab.
   { id: "balance", label: "Balance", name: "Colour balance" },
@@ -133,6 +137,52 @@ const TABS: readonly Tab<PanelTab>[] = [
   // that in the space a word would need.
   { id: "manage", label: <GearIcon />, name: "Manage settings" },
 ];
+
+/**
+ * One side's switch, in the gap between the two choosers.
+ *
+ * No written label: it stands level with the reading it answers for — "Me" at
+ * the bottom of each square, "Opponent" at the top — and those say which side
+ * it is. The name a screen reader is given says it in words, there being no
+ * column to read it off.
+ *
+ * Indeterminate where the two pictures disagree, which only a hand-written file
+ * can arrange: the box then shows neither state rather than picking one of them
+ * to show as the truth.
+ */
+function SideSwitch({
+  side,
+  of,
+}: {
+  side: "Mine" | "Opponent";
+  of: { both: boolean; mixed: boolean; set: (shown: boolean) => void };
+}) {
+  const box = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (box.current !== null) {
+      box.current.indeterminate = of.mixed;
+    }
+  }, [of.mixed]);
+
+  const name = side === "Mine" ? "my" : "the opponent's";
+  return (
+    <input
+      ref={box}
+      type="checkbox"
+      className="intensity-side-switch"
+      checked={of.both}
+      aria-label={`Draw ${name} rays and heatmap`}
+      title={
+        of.mixed
+          ? `${side === "Mine" ? "My" : "The opponent's"} rays and heatmap disagree. Press to draw both.`
+          : of.both
+            ? `Drawing ${name} rays and heatmap. Press to leave that side out.`
+            : `Leaving ${name} rays and heatmap out. Press to draw them.`
+      }
+      onChange={() => of.set(!of.both)}
+    />
+  );
+}
 
 export default function App() {
   /*
@@ -182,15 +232,15 @@ export default function App() {
   */
   const rayColors = useMemo(
     () => ({
-      mine: meanColor(Object.values(settings.attacks.colors.me)),
-      theirs: meanColor(Object.values(settings.attacks.colors.opponent)),
+      mine: meanColor(Object.values(settings.attacks.rays.colors.me)),
+      theirs: meanColor(Object.values(settings.attacks.rays.colors.opponent)),
     }),
-    [settings.attacks.colors]
+    [settings.attacks.rays.colors]
   );
 
   // The board the fields are painted on: a light square, which is what the
   // marks are read against.
-  const square = settings.boardColors.lightSquare;
+  const square = settings.board.squares.lightSquare;
 
   const rayFieldColor = useCallback(
     (mine: number, opponent: number) =>
@@ -198,10 +248,10 @@ export default function App() {
         square,
         rayColors.mine,
         rayColors.theirs,
-        mine * settings.attacks.rayOpacity.me,
-        opponent * settings.attacks.rayOpacity.opponent
+        mine * settings.attacks.rays.maxOpacity.me,
+        opponent * settings.attacks.rays.maxOpacity.opponent
       ),
-    [square, rayColors, settings.attacks.rayOpacity]
+    [square, rayColors, settings.attacks.rays.maxOpacity]
   );
 
   /*
@@ -214,12 +264,12 @@ export default function App() {
     by side would read as though they were about to be told apart.
   */
   const rayFull = {
-    mine: settings.attacks.rayOpacity.me,
-    opponent: settings.attacks.rayOpacity.opponent,
+    mine: settings.attacks.rays.maxOpacity.me,
+    opponent: settings.attacks.rays.maxOpacity.opponent,
   };
   const heatFull = {
-    mine: settings.attacks.heatmap.strength.me,
-    opponent: settings.attacks.heatmap.strength.opponent,
+    mine: settings.attacks.heatmap.maxStrength.me,
+    opponent: settings.attacks.heatmap.maxStrength.opponent,
   };
 
   const heatFieldColor = useCallback(
@@ -228,14 +278,14 @@ export default function App() {
         square,
         settings.attacks.heatmap.color.me,
         settings.attacks.heatmap.color.opponent,
-        mine * settings.attacks.heatmap.strength.me,
-        opponent * settings.attacks.heatmap.strength.opponent
+        mine * settings.attacks.heatmap.maxStrength.me,
+        opponent * settings.attacks.heatmap.maxStrength.opponent
       ),
     [
       square,
       settings.attacks.heatmap.color.me,
       settings.attacks.heatmap.color.opponent,
-      settings.attacks.heatmap.strength,
+      settings.attacks.heatmap.maxStrength,
     ]
   );
 
@@ -244,30 +294,57 @@ export default function App() {
    * with it; parted, each keeps its own.
    */
   function setIntensity(moved: { rays?: SideIntensity; heatmap?: SideIntensity }) {
-    const linked = settings.attacks.linkedIntensity;
+    const linked = settings.attacks.raysAndHeatmapIntensityLinked;
     const next = moved.rays ?? moved.heatmap;
-    const rays = linked ? next! : moved.rays ?? settings.attacks.rayIntensity;
+    const rays = linked ? next! : moved.rays ?? settings.attacks.rays.intensity;
     const heat = linked ? next! : moved.heatmap ?? settings.attacks.heatmap.intensity;
     setSettings({
       ...settings,
       attacks: {
         ...settings.attacks,
-        rayIntensity: rays,
+        rays: { ...settings.attacks.rays, intensity: rays },
         heatmap: { ...settings.attacks.heatmap, intensity: heat },
       },
     });
   }
 
+  /**
+   * Whether a side is drawn, and turning it on or off — in both pictures at
+   * once, which is what the one switch between the two choosers says.
+   *
+   * Each picture keeps its own answer, so a file may arrive with them at odds.
+   * The switch then shows neither state: it reads as part-drawn, and pressing
+   * it turns both on, which is the way out of a state nothing on this panel
+   * could have produced.
+   */
+  function sideShown(side: "Mine" | "Opponent") {
+    const rays = settings.attacks.rays[`show${side}`];
+    const heatmap = settings.attacks.heatmap[`show${side}`];
+    return {
+      both: rays && heatmap,
+      mixed: rays !== heatmap,
+      set: (shown: boolean) =>
+        setSettings({
+          ...settings,
+          attacks: {
+            ...settings.attacks,
+            rays: { ...settings.attacks.rays, [`show${side}`]: shown },
+            heatmap: { ...settings.attacks.heatmap, [`show${side}`]: shown },
+          },
+        }),
+    };
+  }
+
   /** Joining the two, which takes the rays' setting for both, or parting them. */
   function linkIntensity(linked: boolean) {
     const heat = linked
-      ? settings.attacks.rayIntensity
+      ? settings.attacks.rays.intensity
       : settings.attacks.heatmap.intensity;
     setSettings({
       ...settings,
       attacks: {
         ...settings.attacks,
-        linkedIntensity: linked,
+        raysAndHeatmapIntensityLinked: linked,
         heatmap: { ...settings.attacks.heatmap, intensity: heat },
       },
     });
@@ -318,9 +395,8 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   /* How long a position is held while a game plays itself: a setting, like the
      pace a piece travels at, and kept in the same file. */
-  const period = settings.playPeriodPerPositionSec;
+  const period = settings.lab.playPeriodPerPositionSec;
   /* Whether a shared link should set the game playing for whoever opens it. */
-  const [shareAutoplay, setShareAutoplay] = useState(true);
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
   // one would not load, if ever one does not.
@@ -690,7 +766,7 @@ export default function App() {
   ): { flight: Flight; during: { board: Chess; flying: Square[] } } | null {
     if (
       before === after ||
-      settings.move.speed <= 0 ||
+      settings.pieces.moveMotion.speed <= 0 ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
       return null;
@@ -732,7 +808,7 @@ export default function App() {
         squaresApart(piece.from, piece.to, side)
       )
     );
-    const ms = flightTime(squares, moveSpeed(settings.move, squares));
+    const ms = flightTime(squares, moveSpeed(settings.pieces.moveMotion, squares));
     if (ms <= 0) {
       return null;
     }
@@ -1470,14 +1546,14 @@ export default function App() {
   // On the document root rather than a wrapper: the frame colour has to reach
   // the whole viewport, and this component only owns part of it.
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme;
+    document.documentElement.dataset.theme = settings.board.theme;
     // Read only from inside the dark theme's own block, so publishing it under
     // the light theme is inert rather than something to guard against.
     document.documentElement.style.setProperty(
       "--dark-theme-fg",
-      settings.darkThemeTextColor,
+      settings.board.darkThemeTextColor,
     );
-  }, [settings.theme, settings.darkThemeTextColor]);
+  }, [settings.board.theme, settings.board.darkThemeTextColor]);
 
   // A FEN is unparseable for most of the time it takes to type one, so the
   // board keeps showing the last position that did parse rather than blanking.
@@ -1561,7 +1637,7 @@ export default function App() {
           {shown !== null && (
             <div
               className={
-                settings.showCapturedPiecesBar
+                settings.pieces.showCaptured
                   ? "board-and-players"
                   : "board-and-players board-and-players-bare"
               }
@@ -1623,17 +1699,17 @@ export default function App() {
               <div className="board-with-captured">
                 <Board
                 position={shown}
-                colors={settings.boardColors}
-              hedge={settings.hedge}
-                pieceTint={settings.pieceTint}
+                colors={settings.board.squares}
+              hedge={settings.board.hedging}
+                pieceTint={settings.pieces.tint}
                 attacks={settings.attacks}
-                fadeTimeMs={settings.fadeTimeMs}
+                fadeTimeMs={settings.pieces.fadeTimeMs}
                 onMove={handleMove}
                 flight={flight}
                 onFlightLanded={land}
                 showing={during?.board ?? null}
                 flying={during?.flying ?? []}
-                grid={settings.grid}
+                grid={settings.board.grid}
                 playable={
                   friend.phase.kind === "playing" ? friend.phase.you : null
                 }
@@ -1653,14 +1729,14 @@ export default function App() {
                     (history.current !== 0 || !friend.link.mine))
                 }
                 lastMove={lastMove}
-                lastMoveMark={settings.lastMove}
+                lastMoveMark={settings.board.lastMove}
                 orientation={side}
               />
-                {settings.showCapturedPiecesBar && (
+                {settings.pieces.showCaptured && (
                   <CapturedBar
                     captures={captures}
                     orientation={side}
-                    pieceTint={settings.pieceTint}
+                    pieceTint={settings.pieces.tint}
                     attacks={settings.attacks}
                   />
                 )}
@@ -1815,7 +1891,10 @@ export default function App() {
                     "How long each position is left on the board while the game plays."
                   }
                   onChange={(playPeriodPerPositionSec) =>
-                    setSettings({ ...settings, playPeriodPerPositionSec })
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playPeriodPerPositionSec },
+                    })
                   }
                 />
               </div>
@@ -1874,20 +1953,27 @@ export default function App() {
                   id="share-autoplay"
                   label="With autoplay"
                   hint="The link sets the game playing from its first position, at whatever pace the reader's own settings say."
-                  checked={shareAutoplay}
-                  onChange={setShareAutoplay}
+                  checked={settings.lab.shareGameWithAutoplay}
+                  onChange={(shareGameWithAutoplay) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, shareGameWithAutoplay },
+                    })
+                  }
                 />
                 <CopyButton
                   label="Share game"
                   icon={<ShareIcon />}
                   title={
-                    shareAutoplay
+                    settings.lab.shareGameWithAutoplay
                       ? "Copy a link that plays this game through from its first position"
                       : "Copy a link that opens this game at its first position"
                   }
                   text={() => {
                     const pgn = sharablePgn();
-                    return pgn === null ? null : gameLink(pgn, shareAutoplay);
+                    return pgn === null
+                      ? null
+                      : gameLink(pgn, settings.lab.shareGameWithAutoplay);
                   }}
                 />
               </div>
@@ -2201,10 +2287,27 @@ export default function App() {
               <div className="intensity-row">
                 <IntensityChooser
                   id="ray-intensity"
-                  label="Attack rays:"
-                  value={settings.attacks.rayIntensity}
+                  label="Attack rays"
+                  on={settings.attacks.rays.show}
+                  onOn={(show) =>
+                    setSettings({
+                      ...settings,
+                      attacks: {
+                        ...settings.attacks,
+                        rays: { ...settings.attacks.rays, show },
+                      },
+                    })
+                  }
+                  value={settings.attacks.rays.intensity}
                   colorAt={rayFieldColor}
                   full={rayFull}
+                  /* The two switches that stand between the choosers, level
+                     with the readings they answer for: a side turned off here
+                     is left out of both pictures. */
+                  aside={{
+                    top: <SideSwitch side="Opponent" of={sideShown("Opponent")} />,
+                    bottom: <SideSwitch side="Mine" of={sideShown("Mine")} />,
+                  }}
                   onChange={(rayIntensity) => setIntensity({ rays: rayIntensity })}
                 />
                 {/* Level with the two squares, which now sit on the middle of
@@ -2214,23 +2317,33 @@ export default function App() {
                     <button
                       type="button"
                       className="intensity-link"
-                      aria-pressed={settings.attacks.linkedIntensity}
+                      aria-pressed={settings.attacks.raysAndHeatmapIntensityLinked}
                       title={
-                        settings.attacks.linkedIntensity
+                        settings.attacks.raysAndHeatmapIntensityLinked
                           ? "Rays and heatmap move together. Press to part them."
                           : "Rays and heatmap move separately. Press to hold them equal, at the rays' setting."
                       }
                       onClick={() =>
-                        linkIntensity(!settings.attacks.linkedIntensity)
+                        linkIntensity(!settings.attacks.raysAndHeatmapIntensityLinked)
                       }
                     >
-                      <LinkIcon closed={settings.attacks.linkedIntensity} />
+                      <LinkIcon closed={settings.attacks.raysAndHeatmapIntensityLinked} />
                     </button>
                   </div>
                 </div>
                 <IntensityChooser
                   id="heatmap-intensity"
-                  label="Heatmap:"
+                  label="Heatmap"
+                  on={settings.attacks.heatmap.show}
+                  onOn={(show) =>
+                    setSettings({
+                      ...settings,
+                      attacks: {
+                        ...settings.attacks,
+                        heatmap: { ...settings.attacks.heatmap, show },
+                      },
+                    })
+                  }
                   value={settings.attacks.heatmap.intensity}
                   colorAt={heatFieldColor}
                   full={heatFull}
