@@ -4,7 +4,7 @@
 
 Love chess but hate missing the obvious?
 
-### Put your right brain to work alongside your left. 
+### Put visual intuition to work alongside analysis.
 
 Chess Visualizer reveals the structure of a position at a glance: critical, weak, and contested squares—and how pieces attack, support, and constrain one another.
 
