@@ -1,12 +1,12 @@
 # Chess Visualizer
 
-## Blunder less. See the board. Spot the threats. 
+## Blunder less. See the board. Spot the threats. Plan attacks.
 
 Love chess but hate missing the obvious?
 
 ### Put visual intuition to work alongside analysis.
 
-Chess Visualizer reveals the structure of a position at a glance: critical, weak, and contested squares—and how pieces attack, support, and constrain one another.
+Chess Visualizer is an educational software that reveals the structure of a position at a glance: critical, weak, and contested squares—and how pieces attack, support, and constrain one another.
 
 ### Features
 
