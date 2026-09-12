@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { Chess, DEFAULT_POSITION, type Color, type Square } from "chess.js";
+import { PIECE_GLYPHS } from "../chess/model";
 import {
   canGoNext,
   canGoPrevious,
@@ -1563,7 +1564,16 @@ export default function App() {
       }
     >
       <header className="app-header">
-        <h1>Chess Visualizer</h1>
+        <h1>
+          {/* The app's own queen, in the title's own colour. Hidden from a
+              screen reader: it is livery rather than a word, and read out it
+              would make the page announce itself as "black chess queen Chess
+              Visualizer". */}
+          <span className="title-piece" aria-hidden="true">
+            {PIECE_GLYPHS.q}
+          </span>
+          Chess Visualizer
+        </h1>
         {/* New tabs throughout: the stash and the game on the board are held
             in memory alone, and navigating away would take them with it. */}
         <a

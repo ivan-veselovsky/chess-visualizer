@@ -184,14 +184,46 @@ body {
   margin-right: 2em;
 }
 
+/*
+  The queen that stands before the title, drawn from the same glyph the board
+  draws its pieces with and in the title's own colour, which it inherits.
+
+  The symbol fonts are named because the system's own font may have no chess
+  pieces in it at all, and the board says the same list for the same reason.
+  A shade smaller than the words and lifted a hair off the baseline: at the
+  title's own size the glyph sits heavy beside them.
+*/
+.title-piece {
+  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
+  /*
+    A tenth over the words' own size. At the same size the two would stand
+    exactly level — the queen's ink and a capital's height are both 0.734 of the
+    em in these two fonts, measured — so this stands the crown a little above
+    them. It sits on the baseline as they do, having no ink below it, so no
+    `vertical-align` either.
+  */
+  font-size: 1.1em;
+  line-height: 1;
+  /*
+    And starting where the words would have started. A glyph is inked some way
+    inside its own box — the queen by 0.109 of its own em, a capital C by 0.047
+    of the title's — so left alone the crown would stand the difference to the
+    right of where the title began before it was there.
+  */
+  margin-left: -0.067em;
+  margin-right: 0.35rem;
+}
+
 .app-header h1 {
   /*
-    Indented to start where the board does. The board sits inside a margin
+    Indented to start near where the board does. The board sits inside a margin
     holding its rank labels — 24 of the canvas's 536 units, so about 4.5% of
-    however wide it is drawn — and 2rem is that inset at the sizes the board is
-    usually seen at. An exact match would have to follow the board's width.
+    however wide it is drawn — and 2rem is roughly that inset at the sizes the
+    board is usually seen at. An exact match would have to follow the board's
+    width. The 0.2em back off it is by eye: the crown that now leads the line
+    reads as standing further in than a letter does.
   */
-  margin: 0 0 0 2rem;
+  margin: 0 0 0 calc(2rem - 0.2em);
   font-size: 1.5rem;
   /* Stated outright rather than mixed from the text colour: it is the page's
      one piece of livery, and reads the same under either theme. */
