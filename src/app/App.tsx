@@ -1251,68 +1251,23 @@ export default function App() {
   }, [tab, readGames]);
 
   /*
-    A tab with games in it opens at one of them.
+    Nothing is put up on arriving at this tab.
 
-    The panel and the list are one thing said twice, and an empty panel over a
-    full list is the app declining to answer a question it can answer: of the
-    games this browser is in, the one last touched is the one to be looking at.
-    The reader can go to any of the others with a click, and does not have to
-    make that click before anything is on the screen at all.
-
-    Only when there is no game at all — a challenge being composed, an invite
-    being read, a game being opened are all games in hand, and none of them is
-    disturbed. Nor does this repeat: going to one leaves the phase somewhere
-    other than idle.
+    The list used to open at the game last touched, on the grounds that an empty
+    panel over a full list is the app declining to answer a question it can
+    answer. It answers a different question badly, though: a reader who has been
+    working on the other tab and steps over here to look at the list is handed a
+    game, and being handed one means being asked what to do with what they were
+    working on — a question they did not ask for, about work they had not
+    finished. The panel says to pick a game instead, and picking one is a click.
   */
-  /*
-    Whether the reader put the game down on purpose.
-
-    The list opens at a game when there is none, which is what somebody
-    arriving wants and exactly what somebody who has just closed one does not:
-    without this, closing a game would be undone in the same breath by the tab
-    that offers one. Cleared by picking a game, which is the reader saying they
-    want one again.
-  */
-  const [letGo, setLetGo] = useState(false);
   const putBoardDown = useCallback(() => {
     if (friend.phase.kind === "idle") {
       return;
     }
     friend.putDown();
-    setLetGo(true);
   }, [friend]);
 
-  const going = friend.rejoin;
-  const listed = friend.games;
-  useEffect(() => {
-    if (
-      tab !== "match" ||
-      friend.phase.kind !== "idle" ||
-      listed.length === 0 ||
-      letGo
-    ) {
-      return;
-    }
-    /*
-      Unless the tab is already at a game, which on the way in it may be
-      without the phase saying so yet.
-
-      A reload comes back to the game the tab was left at, and that comes from
-      the address the tab holds rather than from anything on screen — it is
-      asked for in an effect, and the phase it sets does not land until every
-      effect of that first commit has run, this one included. Reading the phase
-      alone, this saw `idle`, decided nobody was at anything, and sent the
-      reader to the top of the list instead of back to the game they reloaded.
-      The address is the thing that knows, and it is cleared when a game is
-      forgotten, so a reader who drops the game they were at still lands on the
-      next one.
-    */
-    if (gameHere() !== null) {
-      return;
-    }
-    const first = listed[0];
-    going(seatOf(first.gameId, first.role));
-  }, [tab, friend.phase.kind, listed, going, letGo]);
   /**
    * A game that has begun but is not on the board yet, because what is on the
    * board has not been dealt with. Held until the question is answered, and
@@ -2165,7 +2120,6 @@ export default function App() {
                     asked={friend.asked}
                     onOpen={(seat) => {
                       setTicked(new Set());
-                      setLetGo(false);
                       friend.rejoin(seat);
                     }}
                     onChoose={(seat, on) =>

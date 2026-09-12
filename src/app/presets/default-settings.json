@@ -33,7 +33,7 @@
     "showCaptured": true,
     "moveMotion": {
       "speed": 10,
-      "time": 0.75,
+      "time": 0.5,
       "blend": 0.93
     },
     "fadeTimeMs": 250
