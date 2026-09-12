@@ -6,6 +6,12 @@ interface StashedGamesProps {
   value: string | null;
   /** Why the list is closed, when it is. */
   locked?: string | null;
+  /**
+   * Called as the list is about to be read, so that what another tab has put
+   * aside since is in it. A browser store is read in a fraction of a
+   * millisecond; a list that is out of date is a game the reader cannot reach.
+   */
+  onOpen?: () => void;
   onSelect: (name: string) => void;
 }
 
@@ -19,6 +25,7 @@ export default function StashedGames({
   stash,
   value,
   locked = null,
+  onOpen,
   onSelect,
 }: StashedGamesProps) {
   const empty = stash.length === 0;
@@ -30,8 +37,12 @@ export default function StashedGames({
         id="stashed-game"
         className="game-select"
         value={value ?? ""}
-        disabled={empty || locked !== null}
+        disabled={locked !== null}
         title={locked ?? (empty ? "Nothing stashed yet" : undefined)}
+        /* Both, because either can open a list: a pointer on the way down, and
+           a keyboard arriving at it. */
+        onMouseDown={onOpen}
+        onFocus={onOpen}
         onChange={(event) => {
           if (event.target.value !== "") {
             onSelect(event.target.value);

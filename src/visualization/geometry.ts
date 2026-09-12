@@ -190,11 +190,18 @@ export function rayStopTip(
   const step = stepVector(direction, orientation);
   const length = Math.hypot(step.x, step.y);
   const along = { x: step.x / length, y: step.y / length };
-  // How far the inner square reaches along the ray: to a corner on a diagonal,
-  // to the middle of a side otherwise.
-  const reach = halfSide * (Math.abs(along.x) + Math.abs(along.y));
+  /*
+    Half a side along the ray, whichever way it runs — not as far as the corner
+    on a diagonal.
+
+    An inner square measured to its corner reaches half again as far on a
+    diagonal as on a rank, so a queen's eight marks began and ended at two
+    different distances and her figure came out square-ish rather than even.
+    Measured this way the eight are all the same distance out, and the cuts,
+    each square across its own ray, are the sides of a regular octagon.
+  */
   const center = squareCenter(square, orientation);
-  return { x: center.x + along.x * reach, y: center.y + along.y * reach };
+  return { x: center.x + along.x * halfSide, y: center.y + along.y * halfSide };
 }
 
 export function rayStopWedgePath(
@@ -227,62 +234,77 @@ export function rayStopWedgePath(
 }
 
 /**
- * The region a ray may occupy from where it starts: everything at or beyond a
- * straight cut taken square across the ray.
+ * Where a ray picks up again once it has passed through a piece: everything
+ * beyond where it stopped on that piece's square.
  *
- * The cut runs between the two points where the ray's own sides meet the inner
- * square. On a diagonal those two points lie level with each other — each side
- * crosses one of the two faces the ray heads between, and by symmetry both do
- * so at the same depth — so the ray begins on a chord of the square instead of
- * being notched by its corner. A rank or file crosses a single face square on,
- * where it is level already and its width makes no difference.
+ * The complement of the wedge `rayStopWedgePath` gives, so that the stretch
+ * before a piece and the stretch after it are exactly the two halves of one
+ * ray: the brighter one ends in a point on the small inner square, and the
+ * dimmer one begins in the notch that point leaves. Nothing is drawn twice and
+ * nothing is missed, whatever either stretch is drawn with.
+ *
+ * A ray that sets off from a piece begins on a straight cut instead — see
+ * `rayStartPlanePath` — and leaves the clear gap around the glyph that a mark
+ * arriving at that square also leaves. One passed straight through has no such
+ * gap to leave: what is on the far side is the same ray, carried on.
+ *
+ * Two subpaths, the board and the wedge, to be filled even-odd: the caller has
+ * to say `clip-rule="evenodd"`, or it will get the wedge itself back.
+ */
+export function rayResumePath(
+  square: Square,
+  direction: readonly [number, number],
+  halfSide: number,
+  orientation: Orientation = "white"
+): string {
+  /* Wide enough to hold every square of the board and whatever a mark paints
+     past its edge; the wedge may run outside it, which even-odd does not
+     mind. */
+  const far = BOARD_SIZE;
+  const board = [
+    `M ${-far} ${-far}`,
+    `h ${far * 3}`,
+    `v ${far * 3}`,
+    `h ${-far * 3}`,
+    "Z",
+  ].join(" ");
+  return `${board} ${rayStopWedgePath(square, direction, halfSide, orientation)}`;
+}
+
+/**
+ * The region a ray may occupy from where it starts: everything at or beyond a
+ * straight cut taken square across the ray, half a side out from the centre.
+ *
+ * Half a side whichever way the ray runs, so that the eight marks of a queen
+ * set off from one octagon rather than reaching further on the diagonals than
+ * on the ranks and files. The cut is square across the ray, and on a diagonal
+ * that makes it a chord of the inner square rather than anything to do with
+ * its corner.
  */
 /**
- * Where a needle's base sits: the two corners at which a ray of this width
- * leaves the square it starts from.
+ * Where a needle's base sits: a chord square across the ray, half a side out
+ * from the centre.
  *
- * Each corner is followed out along the ray until it crosses that square's
- * boundary, rather than both being cut on one line square across the ray. On a
- * rank or a file the two answers are the same and the base is a flat end on one
- * side; on a diagonal they are the same by symmetry and the base is a chord
- * across the corner; on a knight's oblique line they differ, and each corner
- * still lands exactly on the boundary — which is the point. A base drawn at one
- * distance for both would hang off the square at one end or fall short at the
- * other.
- *
- * `halfSide` is the square the ray sets off from, half a side across. The width
- * kept exactly is the width across the ray — the one a reader sets — so on an
- * oblique line the base is a slanted chord, longer than that but no wider, with
- * both of its corners on the square. On a rank, a file or a diagonal the two
- * corners come out level and the base is square across the ray.
+ * The same distance whichever way the ray runs, so the eight bases of a queen
+ * stand on one octagon; and square across, so the base is the width the reader
+ * set, exactly, on a diagonal as on a file. A knight's eight are measured the
+ * same way, their lines being oblique to the board but no different in this.
  */
-export function rayBaseCorners(
+export function rayBaseChord(
   center: { x: number; y: number },
   along: { x: number; y: number },
   halfSide: number,
   halfWidth: number
 ): [{ x: number; y: number }, { x: number; y: number }] {
   const across = { x: -along.y, y: along.x };
-  const corner = (sense: 1 | -1) => {
-    const offset = { x: across.x * halfWidth * sense, y: across.y * halfWidth * sense };
-    /* How far along the ray this side of it may run before leaving the square:
-       whichever of the two walls it meets first. A wall the ray runs parallel
-       to is never met. */
-    const walls = [
-      along.x === 0
-        ? Infinity
-        : ((along.x > 0 ? halfSide : -halfSide) - offset.x) / along.x,
-      along.y === 0
-        ? Infinity
-        : ((along.y > 0 ? halfSide : -halfSide) - offset.y) / along.y,
-    ];
-    const run = Math.max(Math.min(...walls), 0);
-    return {
-      x: center.x + along.x * run + offset.x,
-      y: center.y + along.y * run + offset.y,
-    };
+  const from = {
+    x: center.x + along.x * halfSide,
+    y: center.y + along.y * halfSide,
   };
-  return [corner(1), corner(-1)];
+  return [
+    { x: from.x + across.x * halfWidth, y: from.y + across.y * halfWidth },
+    { x: from.x - across.x * halfWidth, y: from.y - across.y * halfWidth },
+  ];
 }
 
 /** The two shapes a needle can be given: straight-sided, or curved. */
@@ -359,26 +381,73 @@ export function rayStartPlanePath(
   square: Square,
   direction: readonly [number, number],
   halfSide: number,
-  halfWidth: number,
   orientation: Orientation = "white"
+): string {
+  return cutPlanePath(square, direction, halfSide, orientation, 1);
+}
+
+/**
+ * The other half of the same cut: everything a ray covers before it reaches
+ * that square's inner square.
+ *
+ * The two together are the whole of the ray, divided on one straight line —
+ * which is what a weight that changes part way along a single shape wants. The
+ * line is square across the ray: on a rank or a file it lies along the face of
+ * the inner square the ray meets; on a diagonal it joins the two points where
+ * the ray's own sides cross that square, which for a ray at 45 degrees is a
+ * line at 45 degrees the other way.
+ */
+export function rayBeforeCutPath(
+  square: Square,
+  direction: readonly [number, number],
+  halfSide: number,
+  orientation: Orientation = "white"
+): string {
+  return cutPlanePath(square, direction, halfSide, orientation, -1);
+}
+
+/** One side or the other of the cut both of the above are taken from. */
+function cutPlanePath(
+  square: Square,
+  direction: readonly [number, number],
+  halfSide: number,
+  orientation: Orientation,
+  sense: 1 | -1
 ): string {
   const step = stepVector(direction, orientation);
   const length = Math.hypot(step.x, step.y);
   const along = { x: step.x / length, y: step.y / length };
-  const diagonal = direction[0] !== 0 && direction[1] !== 0;
+  return cutPlaneFrom(
+    squareCenter(square, orientation),
+    along,
+    halfSide,
+    sense
+  );
+}
 
-  // How far the inner square reaches along the ray, then back by the width the
-  // ray's own sides cut off. Never behind the centre: a ray broader than the
-  // square it leaves would otherwise start on the far side of its own piece.
-  const reach = halfSide * (Math.abs(along.x) + Math.abs(along.y));
-  const start = Math.max(reach - (diagonal ? halfWidth : 0), 0);
+/**
+ * The same cut, taken from a centre and a heading rather than from a square and
+ * one of the board's own directions.
+ *
+ * For a knight, whose eight marks run at angles the board has no name for: the
+ * rule they start by is the rule everything else starts by — half a side out,
+ * square across the ray — and it is written once, here.
+ */
+export function cutPlaneFrom(
+  center: Point,
+  along: Point,
+  halfSide: number,
+  sense: 1 | -1 = 1
+): string {
+  // Half a side out, the same on every ray; never behind the centre.
+  const start = Math.max(halfSide, 0);
 
-  const center = squareCenter(square, orientation);
   const from = { x: center.x + along.x * start, y: center.y + along.y * start };
   const across = { x: -along.y, y: along.x };
 
   // Long enough that the region leaves the board on every side.
   const far = 4 * BOARD_SIZE;
+  const away = { x: along.x * far * sense, y: along.y * far * sense };
   const corners = [
     { x: from.x + across.x * far, y: from.y + across.y * far },
     { x: from.x - across.x * far, y: from.y - across.y * far },
@@ -386,8 +455,8 @@ export function rayStartPlanePath(
   return [
     `M ${corners[0].x} ${corners[0].y}`,
     `L ${corners[1].x} ${corners[1].y}`,
-    `L ${corners[1].x + along.x * far} ${corners[1].y + along.y * far}`,
-    `L ${corners[0].x + along.x * far} ${corners[0].y + along.y * far}`,
+    `L ${corners[1].x + away.x} ${corners[1].y + away.y}`,
+    `L ${corners[0].x + away.x} ${corners[0].y + away.y}`,
     "Z",
   ].join(" ");
 }

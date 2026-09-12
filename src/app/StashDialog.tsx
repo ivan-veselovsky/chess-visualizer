@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 interface StashDialogProps {
   open: boolean;
@@ -12,7 +12,12 @@ interface StashDialogProps {
   dismissLabel?: string;
   /** What the way in is called, when it is not simply stashing. */
   submitLabel?: string;
-  onSubmit: (name: string) => void;
+  /**
+   * Takes the name, or gives back why it cannot be taken — which is shown, and
+   * the question stays open for another answer. Another tab of the same app
+   * having stashed under that name is the reason there is one.
+   */
+  onSubmit: (name: string) => string | void;
   onClose: () => void;
 }
 
@@ -35,6 +40,13 @@ export default function StashDialog({
   onClose,
 }: StashDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
+  /*
+    One of these is asked before a game goes up and another when the reader asks
+    to stash; both are in the document at once, open or not. An id written out
+    would be the same id twice, and a label would then name the field of
+    whichever came first — the closed one.
+  */
+  const field = useId();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [replacing, setReplacing] = useState(false);
@@ -65,7 +77,12 @@ export default function StashDialog({
       setReplacing(true);
       return;
     }
-    onSubmit(trimmed);
+    const refused = onSubmit(trimmed);
+    if (typeof refused === "string") {
+      setError(refused);
+      setReplacing(false);
+      return;
+    }
     onClose();
   }
 
@@ -73,11 +90,11 @@ export default function StashDialog({
     // onClose also fires for Escape and the backdrop, keeping the flag in step.
     <dialog ref={dialog} className="pgn-dialog stash-dialog" onClose={onClose}>
       {prompt !== undefined && <p className="stash-prompt">{prompt}</p>}
-      <label htmlFor="stash-name">
+      <label htmlFor={field}>
         {prompt === undefined ? "Stash the game as" : "Keep it as"}
       </label>
       <input
-        id="stash-name"
+        id={field}
         type="text"
         className="fen-input"
         value={name}
@@ -108,12 +125,18 @@ export default function StashDialog({
         </p>
       )}
       <div className="pgn-dialog-actions">
-        <button type="button" className="reset-button" onClick={onClose}>
-          {dismissLabel}
-        </button>
-        <button type="button" className="reset-button" onClick={stash}>
-          {replacing ? "Replace" : (submitLabel ?? "Stash")}
-        </button>
+        {/* The two ways out, at one width and held apart: see `.button-pair`.
+            Either answer is a whole decision — put the game aside, or let it
+            go — and a pair says that where two buttons of different widths
+            crowded into a corner do not. */}
+        <div className="button-pair">
+          <button type="button" className="reset-button" onClick={onClose}>
+            {dismissLabel}
+          </button>
+          <button type="button" className="reset-button" onClick={stash}>
+            {replacing ? "Replace" : (submitLabel ?? "Stash")}
+          </button>
+        </div>
       </div>
     </dialog>
   );

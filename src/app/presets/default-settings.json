@@ -39,7 +39,7 @@
     "fadeTimeMs": 250
   },
   "lab": {
-    "playPeriodPerPositionSec": 0.5,
+    "playPeriodPerPositionSec": 0.75,
     "shareGameWithAutoplay": true
   },
   "attacks": {
@@ -92,8 +92,8 @@
       },
       "geometry": {
         "me": {
-          "smallInnerSquare": 0.55,
-          "largeInnerSquare": 0.7,
+          "smallInnerSquare": 0.7,
+          "largeInnerSquare": 0.8,
           "kingRay": {
             "rayWidth": 0.16,
             "gapWidth": 0
@@ -112,7 +112,7 @@
           },
           "knightRing": {
             "innerRadius": 2.3,
-            "width": 0.16,
+            "width": 0.15,
             "gapWidth": 0
           },
           "pawnRay": {
@@ -121,8 +121,8 @@
           }
         },
         "opponent": {
-          "smallInnerSquare": 0.55,
-          "largeInnerSquare": 0.7,
+          "smallInnerSquare": 0.7,
+          "largeInnerSquare": 0.8,
           "kingRay": {
             "rayWidth": 0.16,
             "gapWidth": 0
@@ -141,7 +141,7 @@
           },
           "knightRing": {
             "innerRadius": 2.3,
-            "width": 0.16,
+            "width": 0.15,
             "gapWidth": 0
           },
           "pawnRay": {

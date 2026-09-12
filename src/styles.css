@@ -949,8 +949,15 @@ body {
   A needle is a filled shape rather than a stroked line, so it takes its
   colour on `fill` where a stripe takes it on `stroke`. The piece's own class
   carries the colour either way; this says which property to put it on.
+
+  Said with both classes so that it beats the piece rules whatever order they
+  are written in. With one class it tied with them, and the three declared
+  after it — rook, bishop and pawn — went on stroking their needles: a hairline
+  of the piece's colour around a shape whose fill alone carries how strongly it
+  is drawn. On a ray dimmed by an x-ray that left the outline at full strength
+  around a body that had all but gone.
 */
-.attack-needle {
+.attack-stripe.attack-needle {
   stroke: none;
 }
 
@@ -2255,6 +2262,18 @@ input[type="color"]::-moz-color-swatch {
   /* At the far end, under "Reset to defaults": the left of this panel is a
      column of settings, and this is not one of them. */
   justify-content: flex-end;
+  align-items: center;
+}
+
+/*
+  And anything else on that line goes to the other end of it.
+
+  Said on the item rather than on the row, because the row's rule is shared with
+  the question about unsaved settings further up, which has one thing on it and
+  wants that thing where it has always been.
+*/
+.settings-logging > .reset-button {
+  margin-right: auto;
 }
 
 /*

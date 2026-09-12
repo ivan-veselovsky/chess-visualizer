@@ -40,6 +40,13 @@ import {
   stashedGame,
   type GameStash,
 } from "../chess/stash";
+import {
+  clearStash,
+  loadStash,
+  mergeStash,
+  saveStash,
+  strangeNames,
+} from "./stashStore";
 import { parseFen } from "../chess/position";
 import { boardDuring, moveBetween, travellersOf } from "../chess/flight";
 import { moveSpeed } from "../visualization/moveSpeed";
@@ -420,11 +427,16 @@ export default function App() {
   const [libraryGameError, setLibraryGameError] = useState<string | null>(null);
   const [pgnExportOpen, setPgnExportOpen] = useState(false);
   /*
-    Games put aside for the session, and the name the one on the board goes by.
-    The name is what "Stash it" writes back over; until the game has been given
-    one there is nothing to write to, which is what disables that button.
+    Games put aside, and the name the one on the board goes by. The name is what
+    "Stash it" writes back over; until the game has been given one there is
+    nothing to write to, which is what disables that button.
+
+    Read from this browser's store on the way in and written back on every
+    change, so a stash outlives the tab it was made in. Another tab of the same
+    app writes to the same place, so what is read here may be behind: it is read
+    again whenever the list is about to be used or written to. See `stashStore`.
   */
-  const [stash, setStash] = useState<GameStash>([]);
+  const [stash, setStash] = useState<GameStash>(() => loadStash());
   const [stashName, setStashName] = useState<string | null>(null);
   const [stashDialogOpen, setStashDialogOpen] = useState(false);
 
@@ -576,9 +588,56 @@ export default function App() {
     setStashName(null);
   }
 
+  /**
+   * This browser's stash as it stands now, taking in whatever another tab has
+   * put aside since this one last looked.
+   *
+   * Called when the list is about to be read or written to, which is as often
+   * as is worth reading a browser store.
+   */
+  const freshStash = useCallback((): GameStash => {
+    const merged = mergeStash(stash, loadStash());
+    if (merged.length !== stash.length) {
+      setStash(merged);
+    }
+    return merged;
+  }, [stash]);
+
+  /**
+   * Puts the game aside under a name, and says why not where it will not.
+   *
+   * A name this tab knows is its own to write over — that is what stashing
+   * again is for, and the dialog has already asked. A name only the store
+   * knows belongs to another tab: writing there would throw away a game this
+   * tab cannot offer back, so the reader is asked for another name instead.
+   */
+  function putAside(name: string, line = history): string | void {
+    const held = freshStash();
+    if (strangeNames(stash, held).includes(name)) {
+      return `Another tab has stashed a game as \u201c${name}\u201d. Try another name.`;
+    }
+    setStash(saveStash(stashGame(held, name, line)));
+  }
+
+  /**
+   * Throws away everything put aside, in this browser rather than in this tab.
+   *
+   * The game on the board is left where it is — it is what the reader is
+   * looking at — but it stops being a stashed game, so "Stash game" has
+   * nothing to write back over until it is given a name again.
+   */
+  function forgetStashes() {
+    clearStash();
+    setStash([]);
+    setStashName(null);
+  }
+
   /** Puts the game aside under the name it already goes by. */
-  function stashHere(name: string) {
-    setStash(stashGame(stash, name, history));
+  function stashHere(name: string): string | void {
+    const refused = putAside(name);
+    if (refused !== undefined) {
+      return refused;
+    }
     setStashName(name);
   }
 
@@ -587,7 +646,7 @@ export default function App() {
    * line, at the same position in it — and still going by the same name.
    */
   function loadStashedGame(name: string) {
-    const game = stashedGame(stash, name);
+    const game = stashedGame(freshStash(), name);
     if (game === undefined) {
       return;
     }
@@ -1977,6 +2036,9 @@ export default function App() {
                 stash={stash}
                 value={stashName}
                 locked={inGame}
+                /* Read afresh as the list is opened, so a game another tab put
+                   aside a moment ago is in it. */
+                onOpen={freshStash}
                 onSelect={loadStashedGame}
               />
             </div>
@@ -2339,6 +2401,10 @@ export default function App() {
                   setAskBeforeDiscard(on);
                   setAsking(on);
                 }}
+                /* Read afresh as the tab is drawn, so the count is this
+                   browser's rather than this tab's. */
+                stashed={stash.length}
+                onForgetStashes={forgetStashes}
                 presets={
                   <section className="preset-panel" aria-label="Settings presets">
                     <p className="invite-heading">Settings presets</p>
@@ -2552,7 +2618,10 @@ export default function App() {
         submitLabel="Stash"
         dismissLabel="Discard"
         onSubmit={(name) => {
-          setStash(stashGame(stash, name, history));
+          const refused = putAside(name);
+          if (refused !== undefined) {
+            return refused;
+          }
           if (waitingToStart !== null) {
             putUp(waitingToStart);
           }

@@ -310,6 +310,13 @@ function renameWithinVersion(candidate: Record<string, unknown>): void {
     delete node[was];
   };
   move(attacks.rays, "opacity", "maxOpacity");
+  /* A needle was briefly given a say in how it shows an x-ray; it has one way
+     of showing one again, so a record that carries that answer has it taken
+     out rather than kept as a setting nothing reads. */
+  const rays = attacks.rays as Record<string, unknown> | null | undefined;
+  if (rays !== undefined && rays !== null && typeof rays === "object") {
+    delete rays.xRayNeedles;
+  }
   move(attacks.heatmap, "strength", "maxStrength");
   /* And the per-side switches, which arrived in the same version. */
   for (const node of [attacks.rays, attacks.heatmap]) {

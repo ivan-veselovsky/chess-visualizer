@@ -4,8 +4,10 @@ import {
   SQUARE_SIZE,
   needlePath,
   perpendicular,
-  rayBaseCorners,
+  rayBaseChord,
+  rayBeforeCutPath,
   rayPoint,
+  rayResumePath,
   rayStopTip,
   rayStartPlanePath,
   rayStopWedgePath,
@@ -129,13 +131,12 @@ export default function RayStripes({
 
   /** Everything from where a ray sets off from `square`, as a half-plane. */
   const from = (square: Square, direction: readonly [number, number]): string =>
-    rayStartPlanePath(
-      square,
-      direction,
-      largeHalfSide,
-      halfWidth,
-      orientation
-    );
+    rayStartPlanePath(square, direction, largeHalfSide, orientation);
+
+  /** Everything past where a ray stopped on `square`, for the stretch beyond a
+      piece it x-rays through: the complement of that stop. */
+  const past = (square: Square, direction: readonly [number, number]): string =>
+    rayResumePath(square, direction, smallHalfSide, orientation);
 
   /** Everything up to where a ray stops on `square`, as a wedge. */
   const upTo = (square: Square, direction: readonly [number, number]): string =>
@@ -162,62 +163,131 @@ export default function RayStripes({
         const rays = senses.map(({ key, sense, ray }) => {
           const direction = [df * sense, dr * sense] as const;
           const reach = ray[ray.length - 1].distance + 0.5;
-          /* Where the ray stops, which is where a needle comes to its point:
-             the far side of the last square's small inner square. A needle is
-             one triangle from the piece to there, and the clips below show
-             whichever stretch of it belongs to each intensity. */
-          const point = rayStopTip(
-            ray[ray.length - 1].square,
-            direction,
-            smallHalfSide,
-            orientation
-          );
-          /* And where it starts: on the large inner square, at the width the
+          /* Where a needle starts: on the large inner square, at the width the
              reader asked for — the same place and width a stripe begins with,
-             so the two kinds of ray leave a piece alike. */
+             so the two kinds of ray leave a piece alike. Where each of them
+             ends is asked per stretch below. */
           const middle = rayPoint(origin, axis.direction, 0, orientation);
           const onward = rayPoint(origin, axis.direction, sense, orientation);
           const run = { x: onward.x - middle.x, y: onward.y - middle.y };
           const length = Math.hypot(run.x, run.y);
           const along = { x: run.x / length, y: run.y / length };
-          const base = rayBaseCorners(middle, along, largeHalfSide, halfWidth);
+          const base = rayBaseChord(middle, along, largeHalfSide, halfWidth);
+
+          const stretches = raySegments(origin, ray);
+
+          /*
+            A needle is one shape from the piece to where the ray stops, dimmed
+            in steps along its length where the ray passes through a man — the
+            way a stripe is drawn, and for the same reason: it is one ray, and
+            what changes along it is its weight.
+
+            Each stretch is the whole of that needle, shown only between the two
+            cuts that bound it: straight lines square across the ray, half a
+            side out from the centre of the man it passes. A stripe is cut with
+            a chevron there, which is the shape its own end has; a needle has an
+            end of its own and a step in its weight should not look like a
+            second shape beginning.
+
+            The first stretch has nothing behind it and the last nothing ahead:
+            a needle starts at its base on the large inner square and ends in
+            its own point, which is what the two clips of a stripe are for.
+          */
+          if (shape !== "stripe") {
+            const furthest = needlePath(
+              base,
+              rayStopTip(
+                ray[ray.length - 1].square,
+                direction,
+                smallHalfSide,
+                orientation
+              ),
+              shape
+            );
+            return (
+              <g key={key}>
+                {stretches.map((stretch, index) => {
+                  const beyondId = `${axisId}-${key}-from${index}`;
+                  const untilId = `${axisId}-${key}-until${index}`;
+                  const opens =
+                    index === 0
+                      ? null
+                      : rayStartPlanePath(
+                          stretches[index - 1].end,
+                          direction,
+                          smallHalfSide,
+                          orientation
+                        );
+                  const closes =
+                    index === stretches.length - 1
+                      ? null
+                      : rayBeforeCutPath(
+                          stretch.end,
+                          direction,
+                          smallHalfSide,
+                          orientation
+                        );
+                  let mark = (
+                    <path
+                      d={furthest}
+                      className={`${stripeClass} attack-needle`}
+                      fillOpacity={stretch.intensity}
+                    />
+                  );
+                  if (closes !== null) {
+                    mark = <g clipPath={`url(#${untilId})`}>{mark}</g>;
+                  }
+                  if (opens !== null) {
+                    mark = <g clipPath={`url(#${beyondId})`}>{mark}</g>;
+                  }
+                  return (
+                    <g key={index}>
+                      {opens !== null && (
+                        <clipPath id={beyondId}>
+                          <path d={opens} />
+                        </clipPath>
+                      )}
+                      {closes !== null && (
+                        <clipPath id={untilId}>
+                          <path d={closes} />
+                        </clipPath>
+                      )}
+                      {mark}
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          }
 
           return (
             <g key={key}>
-              {raySegments(origin, ray).map((segment, index) => {
-                // Every stretch is bounded the same way, whether it sets off
-                // from the piece itself or resumes past one it x-rays through:
-                // a straight cut across the large inner square behind it, and
-                // a point on the small inner square ahead. The two are nested
-                // rather than combined, one clip path not intersecting two.
+              {stretches.map((segment, index) => {
+                /*
+                  Every stretch stops the same way: in a point on the small
+                  inner square of the square it reaches.
+
+                  Where it begins depends on what is behind it. The first
+                  stretch sets off from the piece, on a straight cut across its
+                  large inner square, leaving the clear gap around the glyph
+                  that every mark leaves. A stretch that resumes past a piece
+                  the ray x-rays through begins exactly where the stretch
+                  before it ended — in the notch that stretch's point left — so
+                  the two read as one ray that changes weight rather than as
+                  two rays with a gap between them.
+
+                  The two bounds are nested rather than combined, one clip path
+                  not intersecting two.
+                */
                 const beyondId = `${axisId}-${key}-beyond${index}`;
                 const upToId = `${axisId}-${key}-upto${index}`;
-                return (
-                  <g key={index}>
-                    <clipPath id={beyondId}>
-                      <path d={from(segment.start, direction)} />
-                    </clipPath>
-                    <clipPath id={upToId}>
-                      <path d={upTo(segment.end, direction)} />
-                    </clipPath>
-                    <g clipPath={`url(#${beyondId})`}>
-                      <g clipPath={`url(#${upToId})`}>
-                        {/*
-                          A needle is one shape from the piece to the square it
-                          reaches, so the bands — a stripe split either side of
-                          a gap — have nothing to say about it. Everything else
-                          is the same: the clips above cut it where they cut a
-                          stripe, which is what keeps the dimming through an
-                          x-rayed piece and the stop on the far square.
-                        */}
-                        {shape !== "stripe" ? (
-                          <path
-                            d={needlePath(base, point, shape)}
-                            className={`${stripeClass} attack-needle`}
-                            fillOpacity={segment.intensity}
-                          />
-                        ) : null}
-                        {shape === "stripe" && bands.map((band, bandIndex) => {
+                const opening =
+                  segment.start === origin
+                    ? from(segment.start, direction)
+                    : past(segment.start, direction);
+                const marks = (
+                  <>
+                    {bands.map((band, bandIndex) => {
                           const from = rayPoint(
                             origin,
                             axis.direction,
@@ -234,20 +304,31 @@ export default function RayStripes({
                             x: normal.x * band.offset,
                             y: normal.y * band.offset,
                           };
-                          return (
-                            <line
-                              key={bandIndex}
-                              x1={from.x + shift.x}
-                              y1={from.y + shift.y}
-                              x2={to.x + shift.x}
-                              y2={to.y + shift.y}
-                              className={stripeClass}
-                              strokeWidth={band.width}
-                              strokeOpacity={segment.intensity}
-                            />
-                          );
-                        })}
-                      </g>
+                      return (
+                        <line
+                          key={bandIndex}
+                          x1={from.x + shift.x}
+                          y1={from.y + shift.y}
+                          x2={to.x + shift.x}
+                          y2={to.y + shift.y}
+                          className={stripeClass}
+                          strokeWidth={band.width}
+                          strokeOpacity={segment.intensity}
+                        />
+                      );
+                    })}
+                  </>
+                );
+                return (
+                  <g key={index}>
+                    <clipPath id={beyondId} clipRule="evenodd">
+                      <path clipRule="evenodd" d={opening} />
+                    </clipPath>
+                    <clipPath id={upToId}>
+                      <path d={upTo(segment.end, direction)} />
+                    </clipPath>
+                    <g clipPath={`url(#${beyondId})`}>
+                      <g clipPath={`url(#${upToId})`}>{marks}</g>
                     </g>
                   </g>
                 );

@@ -1,10 +1,10 @@
 import { Fragment, type ReactElement } from "react";
 import { knightAttackedSquares } from "../../../chess/attacks";
 import {
-  BOARD_SIZE,
   SQUARE_SIZE,
+  cutPlaneFrom,
   needlePath,
-  rayBaseCorners,
+  rayBaseChord,
   ringCapSpanInsideRect,
   ringSectorInsideRect,
   sectorPath,
@@ -22,16 +22,6 @@ import {
   targetSides,
 } from "./knightGamma";
 import type { PieceAttackProps } from "./types";
-
-/** A rectangle as a closed subpath, for combining with others. */
-function rectPath(box: {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}): string {
-  return `M ${box.x} ${box.y} h ${box.width} v ${box.height} h ${-box.width} Z`;
-}
 
 /**
  * One knight move as a straight ray: a stripe of the ring's own thickness, run
@@ -143,9 +133,14 @@ export default function KnightAttacks({
       the settings give; where it arrives it is drawn plainly. The decay is a
       factor rather than an opacity, and what it is a factor of is applied
       outside this layer: `AttackLayer` puts the side's ray opacity on the whole
-      piece at once, so the two multiply and the trails follow the rays. Passing
-      over its own square is exempted inside the large inner square, so eight
-      stripes do not converge on the glyph.
+      piece at once, so the two multiply and the trails follow the rays.
+
+      Each starts where every other piece's ray starts: half the large inner
+      square's side out from the centre, on a cut square across its own aim. So
+      eight of them leave the glyph alone and stand on one octagon, as a queen's
+      eight do — which they did not while the knight's own square was punched
+      out instead, that square being met at a different distance by every one of
+      the eight.
     */
     const moves = targets.map((target) => {
       const middle = squareCenter(target, orientation);
@@ -158,73 +153,56 @@ export default function KnightAttacks({
       */
       const half = thickness / 2;
       const reach = Math.sqrt(Math.max(outer * outer - half * half, 0));
+      const along = { x: Math.cos(aim), y: Math.sin(aim) };
+      const large = innerSquares(geometry).large;
       return {
         target,
+        /* Where this one begins: the cut every ray begins on. A needle's base
+           is that cut, so it needs no clipping; a stripe has no start of its
+           own and is cut by it. */
+        start: cutPlaneFrom(center, along, large),
         d:
           rays.shape !== "stripe"
             ? needlePath(
-                /* On the knight's own large inner square, where the stripe is
-                   punched out below — an oblique line, so the two corners of
-                   the base leave that square at different distances and each
-                   is followed to where it does. */
-                rayBaseCorners(
-                  center,
-                  { x: Math.cos(aim), y: Math.sin(aim) },
-                  innerSquares(geometry).large,
-                  half
-                ),
+                rayBaseChord(center, along, large, half),
                 {
-                  x: center.x + Math.cos(aim) * (reach + half),
-                  y: center.y + Math.sin(aim) * (reach + half),
+                  x: center.x + along.x * (reach + half),
+                  y: center.y + along.y * (reach + half),
                 },
                 rays.shape
               )
             : straightRayPath(center, aim, outer, thickness),
       };
     });
-    const large = innerSquares(geometry).large;
 
     return (
       <g>
-        <clipPath id={`${idPrefix}-passing`} clipRule="evenodd">
-          {/* The board with the knight's large inner square punched out. */}
-          <path
-            clipRule="evenodd"
-            d={
-              rectPath({ x: 0, y: 0, width: BOARD_SIZE, height: BOARD_SIZE }) +
-              " " +
-              rectPath({
-                x: center.x - large,
-                y: center.y - large,
-                width: large * 2,
-                height: large * 2,
-              })
-            }
-          />
-        </clipPath>
-        {targets.map((target) => (
-          <clipPath key={target} id={`${idPrefix}-${target}-square`}>
-            <rect {...squareBox(target, orientation)} />
-          </clipPath>
-        ))}
-
-        <g
-          clipPath={`url(#${idPrefix}-passing)`}
-          fillOpacity={rays.straightRayOpacityDecay}
-        >
-          {moves.map(({ target, d }) => (
-            <path
-              key={target}
-              d={d}
-              className="attack-area attack-knight-area"
-            />
-          ))}
-        </g>
-        {moves.map(({ target, d }) => (
-          <g key={target} clipPath={`url(#${idPrefix}-${target}-square)`}>
-            <path d={d} className="attack-area attack-knight-area" />
-          </g>
-        ))}
+        {moves.map(({ target, d, start }) => {
+          const startId = `${idPrefix}-${target}-start`;
+          const squareId = `${idPrefix}-${target}-square`;
+          return (
+            <g key={target}>
+              <clipPath id={startId}>
+                <path d={start} />
+              </clipPath>
+              <clipPath id={squareId}>
+                <rect {...squareBox(target, orientation)} />
+              </clipPath>
+              <g clipPath={`url(#${startId})`}>
+                {/* The whole length, faintly; and then again, plainly, on the
+                    square it arrives at. */}
+                <path
+                  d={d}
+                  className="attack-area attack-knight-area"
+                  fillOpacity={rays.straightRayOpacityDecay}
+                />
+                <g clipPath={`url(#${squareId})`}>
+                  <path d={d} className="attack-area attack-knight-area" />
+                </g>
+              </g>
+            </g>
+          );
+        })}
       </g>
     );
   }

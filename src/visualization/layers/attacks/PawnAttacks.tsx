@@ -3,7 +3,7 @@ import {
   SQUARE_SIZE,
   needlePath,
   perpendicular,
-  rayBaseCorners,
+  rayBaseChord,
   rayPoint,
   rayStartPlanePath,
   rayStopTip,
@@ -69,7 +69,7 @@ export default function PawnAttacks({
       return (
         <path
           d={needlePath(
-            rayBaseCorners(center, along, largeHalfSide, halfWidth),
+            rayBaseChord(center, along, largeHalfSide, halfWidth),
             rayStopTip(
               attack.square,
               attack.direction,
@@ -112,9 +112,20 @@ export default function PawnAttacks({
         const startId = `${idPrefix}-${attack.square}-start`;
         const stopId = `${idPrefix}-${attack.square}-stop`;
         const squaresId = `${idPrefix}-${attack.square}-squares`;
+        /*
+          A needle is not cut off at the end: it already ends where the mark
+          ends, and the wedge that cuts a stripe there would shave its sides
+          instead — closing at a fixed angle, it sharpens a needle wider than
+          that angle admits into a point of its own making.
+        */
+        const cutOff = rays.shape === "stripe";
         const bounded = (
           <g clipPath={`url(#${startId})`}>
-            <g clipPath={`url(#${stopId})`}>{mark(attack)}</g>
+            {cutOff ? (
+              <g clipPath={`url(#${stopId})`}>{mark(attack)}</g>
+            ) : (
+              mark(attack)
+            )}
           </g>
         );
 
@@ -126,7 +137,6 @@ export default function PawnAttacks({
                   piece.square,
                   attack.direction,
                   largeHalfSide,
-                  halfWidth,
                   orientation
                 )}
               />

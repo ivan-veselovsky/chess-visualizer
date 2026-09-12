@@ -63,6 +63,10 @@ interface SettingsPanelProps {
   /** Whether unsaved settings are asked about before they are thrown away. */
   askBeforeDiscard: boolean;
   onAskBeforeDiscard: (on: boolean) => void;
+  /** How many games are put aside, which is what there is to throw away. */
+  stashed: number;
+  /** Throws all of them away, in this browser rather than in this tab. */
+  onForgetStashes: () => void;
 }
 
 export default function SettingsPanel({
@@ -74,8 +78,21 @@ export default function SettingsPanel({
   onBring,
   askBeforeDiscard,
   onAskBeforeDiscard,
+  stashed,
+  onForgetStashes,
 }: SettingsPanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
+  /*
+    Whether the button that throws away every stashed game has been pressed
+    once.
+
+    Asked in place rather than in a dialog, the way a name already stashed is
+    asked about: there is nothing to read and nothing to type, only a second
+    press or a step away. Cleared when the pointer leaves it and when the
+    keyboard does, so a press left half-made does not sit there waiting to be
+    finished by accident.
+  */
+  const [forgetting, setForgetting] = useState(false);
   /*
     Whether the app is writing down what it does, which is not a setting.
 
@@ -752,6 +769,34 @@ export default function SettingsPanel({
           */}
           <div className="settings-tail">
           <div className="board-controls settings-logging">
+            {/* At the other end of the line from the switch: one throws
+                something away and the other turns something on, and they have
+                nothing to do with each other beyond both being about this
+                browser rather than about the settings. */}
+            <button
+              type="button"
+              className="reset-button"
+              disabled={stashed === 0}
+              title={
+                stashed === 0
+                  ? "Nothing is put aside"
+                  : forgetting
+                    ? "Press again to throw them all away"
+                    : `Throw away all ${stashed} stashed game${stashed === 1 ? "" : "s"}, in this browser`
+              }
+              onClick={() => {
+                if (!forgetting) {
+                  setForgetting(true);
+                  return;
+                }
+                setForgetting(false);
+                onForgetStashes();
+              }}
+              onMouseLeave={() => setForgetting(false)}
+              onBlur={() => setForgetting(false)}
+            >
+              {forgetting ? "Remove all stashes?" : "Remove all stashes"}
+            </button>
             <ToggleField
               id="client-logging"
               label="Enable client logging"

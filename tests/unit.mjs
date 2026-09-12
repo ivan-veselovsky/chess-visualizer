@@ -285,8 +285,14 @@ console.log("\nWhat an exported file is called\n");
 
 console.log("\nRays drawn as needles\n");
 {
-  const { needlePath, rayBaseCorners, rayStopTip, rayStopWedgePath, squareCenter } =
-    await import("../src/visualization/geometry.ts");
+  const {
+    cutPlaneFrom,
+    needlePath,
+    rayBaseChord,
+    rayStopTip,
+    rayStopWedgePath,
+    squareCenter,
+  } = await import("../src/visualization/geometry.ts");
 
   /* A needle has a base across the piece and a point where the ray stops. Read
      the corners back out of the path it draws. */
@@ -296,7 +302,7 @@ console.log("\nRays drawn as needles\n");
       .slice(1)
       .map((pair) => pair.replace("Z", "").trim().split(/\s+/).map(Number));
 
-  const base = rayBaseCorners({ x: 0, y: 0 }, { x: 1, y: 0 }, 20, 6);
+  const base = rayBaseChord({ x: 0, y: 0 }, { x: 1, y: 0 }, 20, 6);
 
   /* Straight-sided, it is three corners: the two of the base, and the point. */
   const straight = needlePath(base, { x: 100, y: 0 }, "triangle");
@@ -325,39 +331,93 @@ console.log("\nRays drawn as needles\n");
   check("its long radius runs to the point and its short one is the width",
     arcs.every((arc) => arc[0] === 80 && arc[1] === 6), said);
 
-  /*
-    The base lies on the large inner square — every corner of it, whichever way
-    the ray runs — and is the width that was asked for.
-  */
-  const onSquare = (point, halfSide) =>
-    Math.abs(Math.max(Math.abs(point.x), Math.abs(point.y)) - halfSide) < 1e-9;
-  /* How wide the base is across the ray, which is the width a reader set. On an
-     oblique line the two corners leave the square at different distances along
-     it, so the base is slanted and longer than that — but no wider. */
+  /* How wide a base is across the ray, which is the width a reader set. */
   const width = (pair, along) => {
     const across = { x: -along.y, y: along.x };
     return Math.abs(
       (pair[0].x - pair[1].x) * across.x + (pair[0].y - pair[1].y) * across.y
     );
   };
-  for (const [name, along] of [
+  /* A ray on one of the board's own lines starts on a chord instead: half a
+     side out, whichever way it runs, so the eight of a queen stand on one
+     octagon. */
+  const lines = [
     ["a file", { x: 0, y: -1 }],
     ["a rank", { x: 1, y: 0 }],
     ["a diagonal", { x: Math.SQRT1_2, y: Math.SQRT1_2 }],
+    ["the other diagonal", { x: -Math.SQRT1_2, y: Math.SQRT1_2 }],
     ["a knight's line", { x: 2 / Math.sqrt(5), y: 1 / Math.sqrt(5) }],
-  ]) {
-    const pair = rayBaseCorners({ x: 0, y: 0 }, along, 20, 6);
-    check(`both corners of a needle along ${name} sit on the large inner square`,
-      onSquare(pair[0], 20) && onSquare(pair[1], 20), JSON.stringify(pair));
-    check(`and it is the width it was given across the ray, along ${name}`,
+  ];
+  for (const [name, along] of lines) {
+    const pair = rayBaseChord({ x: 0, y: 0 }, along, 20, 6);
+    const middle = {
+      x: (pair[0].x + pair[1].x) / 2,
+      y: (pair[0].y + pair[1].y) / 2,
+    };
+    check(`a ray along ${name} starts half a side out from the centre`,
+      Math.abs(Math.hypot(middle.x, middle.y) - 20) < 1e-9,
+      String(Math.hypot(middle.x, middle.y)));
+    check(`and its base is square across the ray, along ${name}`,
+      Math.abs((pair[0].x - pair[1].x) * along.x + (pair[0].y - pair[1].y) * along.y) < 1e-9);
+    check(`and exactly the width it was given, along ${name}`,
       Math.abs(width(pair, along) - 12) < 1e-9, String(width(pair, along)));
   }
 
-  /* A ray wider than the square it leaves would start behind its own piece if
-     the corners were followed backwards; they stop at the middle instead. */
-  const fat = rayBaseCorners({ x: 0, y: 0 }, { x: 1, y: 0 }, 5, 40);
-  check("a needle broader than its square still starts at the piece, not behind it",
-    fat[0].x >= 0 && fat[1].x >= 0, JSON.stringify(fat));
+  /* A knight's eight run at angles the board has no name for, and start on the
+     same rule: half a side out, square across each one's own aim. */
+  const knightLines = [
+    [2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2], [1, -2], [2, -1],
+  ].map(([dx, dy]) => {
+    const length = Math.hypot(dx, dy);
+    return { x: dx / length, y: dy / length };
+  });
+  const knightStarts = knightLines.map((along) => {
+    const d = cutPlaneFrom({ x: 0, y: 0 }, along, 20);
+    const n = d.match(/-?[\d.]+/g).map(Number);
+    /* The cut is the line between the first two corners; how far out the ray
+       begins is that line's nearest point to the centre. */
+    const a = { x: n[0], y: n[1] };
+    const b = { x: n[2], y: n[3] };
+    const run = { x: b.x - a.x, y: b.y - a.y };
+    const at = -(a.x * run.x + a.y * run.y) / (run.x * run.x + run.y * run.y);
+    return Math.hypot(a.x + run.x * at, a.y + run.y * at);
+  });
+  check("a knight's eight start half a side out, like everything else",
+    knightStarts.every((far) => Math.abs(far - 20) < 1e-9),
+    JSON.stringify(knightStarts.map((far) => +far.toFixed(3))));
+  check("and each on a cut square across its own aim",
+    knightLines.every((along) => {
+      const n = cutPlaneFrom({ x: 0, y: 0 }, along, 20).match(/-?[\d.]+/g).map(Number);
+      const run = { x: n[2] - n[0], y: n[3] - n[1] };
+      return Math.abs(run.x * along.x + run.y * along.y) < 1e-9;
+    }));
+
+  /* Which is the same as saying the eight bases of a queen are one octagon. */
+  const round = [
+    { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 },
+    { x: Math.SQRT1_2, y: Math.SQRT1_2 }, { x: -Math.SQRT1_2, y: Math.SQRT1_2 },
+    { x: Math.SQRT1_2, y: -Math.SQRT1_2 }, { x: -Math.SQRT1_2, y: -Math.SQRT1_2 },
+  ].map((along) => {
+    const pair = rayBaseChord({ x: 0, y: 0 }, along, 20, 6);
+    return Math.hypot((pair[0].x + pair[1].x) / 2, (pair[0].y + pair[1].y) / 2);
+  });
+  check("so a queen's eight rays all set off from one octagon",
+    round.every((far) => Math.abs(far - 20) < 1e-9), JSON.stringify(round));
+
+  /* And they stop as evenly as they start: a diagonal no longer reaches half
+     again as far into the square it ends on. */
+  const stops = [
+    ["d4", [1, 0]],
+    ["d4", [0, 1]],
+    ["d4", [1, 1]],
+    ["d4", [-1, 1]],
+  ].map(([square, direction]) => {
+    const tip = rayStopTip(square, direction, 12);
+    const middle = squareCenter(square);
+    return Math.hypot(tip.x - middle.x, tip.y - middle.y);
+  });
+  check("and every ray stops the same distance into the square it reaches",
+    stops.every((far) => Math.abs(far - 12) < 1e-9), JSON.stringify(stops));
 
   /* The point is where a stripe stops: the wedge below starts at the same
      place, which is what keeps the two kinds of ray the same length. */
@@ -375,6 +435,126 @@ console.log("\nRays drawn as needles\n");
   check("which is past the middle of that square",
     beyond.x > middle.x && Math.abs(beyond.y - middle.y) < 1e-9);
 
+}
+
+console.log("\nA ray through a piece, as needles\n");
+{
+  const { needlePath, rayBaseChord } =
+    await import("../src/visualization/geometry.ts");
+
+  /* One base, and a needle to each of the places the ray stops: the first man
+     it meets, the second, and the end of the board. */
+  const base = rayBaseChord({ x: 0, y: 0 }, { x: 1, y: 0 }, 20, 10);
+  const tips = [80, 200, 320].map((far) => ({ x: far, y: 0 }));
+
+  /* How wide a needle is at a given distance along it, read off the shape. */
+  const across = (shape, tip, at) => {
+    if (shape === "triangle") {
+      /* Straight sides, from the base's half-width down to nothing. */
+      const half = Math.abs(base[0].y);
+      return half * (1 - at / tip.x) * 2;
+    }
+    const half = Math.abs(base[0].y);
+    const along = tip.x - base[0].x;
+    const from = at - base[0].x;
+    return 2 * half * Math.sqrt(Math.max(1 - (from / along) ** 2, 0));
+  };
+
+  for (const shape of ["triangle", "ellipse"]) {
+    /* Nested: a needle that reaches further is wider everywhere between. The
+       drawing leans on this — each is drawn with the one inside it cut out,
+       and a shape that broke out of its neighbour would leave the cut showing
+       through as a hole. */
+    let holds = true;
+    for (let at = base[0].x + 1; at < tips[0].x; at += 5) {
+      const widths = tips.map((tip) => across(shape, tip, at));
+      holds &&= widths[0] < widths[1] && widths[1] < widths[2];
+    }
+    check(`a ${shape} needle that reaches further is the wider one all the way`,
+      holds);
+
+    /* And what is drawn for a stretch past the first man is the two shapes in
+       one path, to be filled even-odd — the band between them. */
+    const band = `${needlePath(base, tips[1], shape)} ${needlePath(base, tips[0], shape)}`;
+    check(`so a dimmer ${shape} stretch is drawn as one shape inside another`,
+      (band.match(/M /g) ?? []).length === 2 &&
+        band.startsWith(needlePath(base, tips[1], shape)),
+      band.slice(0, 60));
+  }
+}
+
+console.log("\nWhere a ray picks up again\n");
+{
+  const { BOARD_SIZE, rayResumePath, rayStopTip, rayStopWedgePath, squareCenter } =
+    await import("../src/visualization/geometry.ts");
+
+  /* The two subpaths the resume region is made of, read back as polygons: a
+     board-sized rectangle, and the wedge the ray stopped in. */
+  const polygons = (d) =>
+    d
+      .split("M ")
+      .slice(1)
+      .map((piece) => {
+        const numbers = piece.match(/-?[\d.]+/g).map(Number);
+        const points = [];
+        let x = numbers[0];
+        let y = numbers[1];
+        points.push([x, y]);
+        /* Either absolute corners, or the h/v run the rectangle is written in. */
+        const steps = piece.trim().slice(piece.trim().indexOf(" ", piece.trim().indexOf(" ") + 1));
+        for (const move of steps.matchAll(/([hvL])\s*(-?[\d.]+)(?:\s+(-?[\d.]+))?/g)) {
+          if (move[1] === "h") x += Number(move[2]);
+          else if (move[1] === "v") y += Number(move[2]);
+          else {
+            x = Number(move[2]);
+            y = Number(move[3]);
+          }
+          points.push([x, y]);
+        }
+        return points;
+      });
+
+  /* Even-odd, as the clip is filled: a point is in the region when it is inside
+     an odd number of the subpaths. */
+  const inside = (shapes, [px, py]) =>
+    shapes.filter((points) =>
+      points.reduce((got, [x1, y1], i) => {
+        const [x2, y2] = points[(i + 1) % points.length];
+        const crosses =
+          y1 > py !== y2 > py && px < ((x2 - x1) * (py - y1)) / (y2 - y1) + x1;
+        return crosses ? !got : got;
+      }, false)
+    ).length % 2 === 1;
+
+  const half = 0.55 * 64;
+  for (const [square, direction, name] of [
+    ["d4", [0, 1], "up a file"],
+    ["d4", [1, 0], "along a rank"],
+    ["d4", [1, 1], "up a diagonal"],
+  ]) {
+    const shapes = polygons(rayResumePath(square, direction, half));
+    const tip = rayStopTip(square, direction, half);
+    const step = { x: tip.x - squareCenter(square).x, y: tip.y - squareCenter(square).y };
+    const length = Math.hypot(step.x, step.y);
+    const along = { x: step.x / length, y: step.y / length };
+    const at = (far) => [tip.x + along.x * far, tip.y + along.y * far];
+    check(`a ray ${name} picks up at the point it stopped at`,
+      inside(shapes, at(0.5)) && !inside(shapes, at(-0.5)),
+      JSON.stringify({ beyond: inside(shapes, at(0.5)), behind: inside(shapes, at(-0.5)) }));
+    check(`and is drawn all the way out from there, ${name}`,
+      inside(shapes, at(30)) && inside(shapes, at(120)));
+    /* What it does not take is what the stretch before it already has: the
+       wedge behind that point. */
+    check(`while the stretch before it keeps its own wedge, ${name}`,
+      !inside(shapes, at(-20)));
+  }
+
+  /* And the two really are complementary: the stop wedge is the whole of what
+     the resume region leaves out. */
+  const d = rayResumePath("d4", [1, 1], half);
+  check("the region is the board with that wedge taken out of it",
+    d.endsWith(rayStopWedgePath("d4", [1, 1], half)) && d.startsWith(`M ${-BOARD_SIZE}`),
+    d.slice(0, 40));
 }
 
 console.log("\nDrawn at all, or not\n");
@@ -634,6 +814,7 @@ console.log("\nRecords written while this version was being written\n");
   delete held.attacks.rays.maxOpacity;
   held.attacks.heatmap.strength = held.attacks.heatmap.maxStrength;
   delete held.attacks.heatmap.maxStrength;
+  held.attacks.rays.xRayNeedles = "each";
 
   const read = parseSettings(JSON.stringify(held)).settings;
   check("a record from mid-version is read under the names in use now",
@@ -648,6 +829,10 @@ console.log("\nRecords written while this version was being written\n");
   check("and the names it was written under are gone",
     !("opacity" in read.attacks.rays) &&
       !("strength" in read.attacks.heatmap));
+  /* And a setting that was tried and taken away again goes with them, rather
+     than riding along in every file written from here on. */
+  check("as is the say a needle briefly had over x-rays",
+    !("xRayNeedles" in read.attacks.rays));
 
   /* And a record already in the shape this build writes is left alone. */
   const now = parseSettings(JSON.stringify(DEFAULT_SETTINGS)).settings;
@@ -771,6 +956,100 @@ console.log("\nWhich way round the board faces\n");
     read.settings !== null && !("orientation" in read.settings));
 
   globalThis.window = undefined;
+}
+
+console.log("\nGames put aside, kept between visits\n");
+{
+  /* One browser's store, and two tabs reading and writing it. */
+  const store = new Map();
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => store.set(key, String(value)),
+      removeItem: (key) => store.delete(key),
+    },
+  };
+  const { STASH_KEY, loadStash, mergeStash, saveStash, strangeNames } =
+    await import("../src/app/stashStore.ts");
+  const { stashGame } = await import("../src/chess/stash.ts");
+
+  const line = (fen) => ({ entries: [{ fen, move: null }], current: 0 });
+  const opening = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+  check("a browser that has stashed nothing opens with nothing",
+    loadStash().length === 0);
+
+  const mine = stashGame([], "Tuesday", line(opening));
+  saveStash(mine);
+  check("what is put aside is written, and reads back the same",
+    JSON.stringify(loadStash()) === JSON.stringify(mine),
+    JSON.stringify(loadStash()));
+  check("under one key of its own",
+    store.size === 1 && store.has(STASH_KEY));
+
+  /* Another tab, which knows what was there when it opened and stashes its own
+     game beside it. */
+  const theirs = stashGame(loadStash(), "Wednesday", line(opening));
+  saveStash(theirs);
+
+  /* This tab still has only its own, and merging takes in the other's. */
+  check("a tab that has not looked since does not know of the other's",
+    mine.length === 1);
+  const merged = mergeStash(mine, loadStash());
+  check("and picks it up on looking again",
+    merged.map((game) => game.name).join(", ") === "Tuesday, Wednesday",
+    JSON.stringify(merged.map((game) => game.name)));
+  check("which is the name it never used",
+    JSON.stringify(strangeNames(mine, loadStash())) === '["Wednesday"]');
+  check("while a name it does know is its own to write over",
+    !strangeNames(mine, loadStash()).includes("Tuesday"));
+
+  /* Writing after a merge keeps both, which is the point of merging first. */
+  const both = stashGame(merged, "Tuesday", line("8/8/8/8/8/8/8/K6k w - - 0 1"));
+  saveStash(both);
+  const back = loadStash();
+  check("writing one back does not take the other with it",
+    back.length === 2 && back[1].name === "Wednesday");
+  check("and the one written over is the one that changed",
+    back[0].history.entries[0].fen.startsWith("8/8"));
+
+  /* A store that holds nonsense costs the nonsense, not the stash. */
+  store.set(STASH_KEY, JSON.stringify({
+    version: 1,
+    savedAt: Date.now(),
+    games: [
+      { name: "Good", history: line(opening) },
+      { name: "No history" },
+      { history: line(opening) },
+      { name: "Past the end", history: { entries: [{ fen: opening, move: null }], current: 3 } },
+    ],
+  }));
+  check("a game that cannot be read is dropped, and the rest kept",
+    loadStash().map((game) => game.name).join() === "Good",
+    JSON.stringify(loadStash().map((game) => game.name)));
+
+  store.set(STASH_KEY, "{not json");
+  check("and a record that is not a record at all reads as nothing",
+    loadStash().length === 0);
+  store.set(STASH_KEY, JSON.stringify({ version: 99, games: [] }));
+  check("as does one from a version this build does not know",
+    loadStash().length === 0);
+
+  /* Throwing them all away takes the record out of the store, so a browser
+     that has emptied its stash and one that never had a game look alike. */
+  const { clearStash } = await import("../src/app/stashStore.ts");
+  saveStash(mine);
+  clearStash();
+  check("removing them all leaves nothing in the store",
+    !store.has(STASH_KEY) && loadStash().length === 0);
+
+  /* A store that refuses leaves the games in hand rather than losing them. */
+  store.clear();
+  globalThis.window.localStorage.setItem = () => {
+    throw new Error("no room");
+  };
+  check("a browser that will not keep them still lets this visit have them",
+    saveStash(mine).length === 1 && store.size === 0);
 }
 
 console.log("\nSettings kept between visits\n");
