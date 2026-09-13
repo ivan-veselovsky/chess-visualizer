@@ -6,38 +6,38 @@ Love chess but hate missing the obvious?
 
 ### Put visual intuition to work alongside analysis.
 
-Chess Visualizer is an educational software that reveals the structure of a position at a glance: critical, weak, and contested squares—and how pieces attack, support, and constrain one another.
+Chess Visualizer is an educational tool that reveals the structure of a position at a glance: critical, weak, and contested squares—and how pieces attack, support, and constrain one another.
 
 ### Features
 
-- **Attack rays and heatmap** — see exactly which squares every piece attacks.
+- **Attack rays and a heatmap** — see exactly which squares every piece attacks.
   ![Attack rays and heatmap](img/attack-rays-and-heatmap.png)
 
-- **Fully customizable visualization** — configure every color and nearly every aspect of the visualization geometry.
+- **Fully customizable visualization** — configure every color and nearly every aspect of its geometry.
 
-- **It takes two to tango** — play online with a friend, no sign-up; play several games in parallel; play with odds or from a non-standard position, and allow takebacks.
+- **It takes two to tango** — play online with a friend—no sign-up required; play several games in parallel; play with odds or from a non-standard position; and enable takebacks.
 
-- **Classic games and PGN / FEN support** — explore famous games from the built-in library, import and export games and positions in PGN / FEN format.
+- **Classic games and PGN/FEN support** — explore famous games from the built-in library, and import or export games in PGN and positions in FEN.
 
-- **And plenty more** — auto-play games, share a position or a game as a link, read the material balance off the captured-pieces bar, put a game aside in the stash while you look at another.
+- **And plenty more** — autoplay games, share a position or game via a link, see the material balance on the captured-pieces bar, or stash one game while you look at another.
 
 Learn. Play. Enjoy!
 
 **Give it a try and share your thoughts!**
 
-### [Try Chess Visualizer online](https://chess-visualizer.ivan-a87.workers.dev).
+### [Try Chess Visualizer online](https://chess-visualizer.ivan-a87.workers.dev)
 
 Chess Visualizer is open source and released under the [MIT License](LICENSE).
 
-Like this project? You can [♥$ support](https://github.com/sponsors/ivan-veselovsky) the developer.
+Like this project? You can [support the developer ♥$](https://github.com/sponsors/ivan-veselovsky).
 
 ## More screenshots
 
-Adolf Anderssen - Jean Dufresne - 1852
-![Adolf Anderssen - Jean Dufresne - 1852](img/image-01.png)
+Adolf Anderssen – Jean Dufresne, 1852
+![Adolf Anderssen – Jean Dufresne, 1852](img/image-01.png)
 
-Richard Reti - Jose Raul Capablanca - 1924
-![Richard Reti - Jose Raul Capablanca - 1924](img/image-02.png)
+Richard Réti – José Raúl Capablanca, 1924
+![Richard Réti – José Raúl Capablanca, 1924](img/image-02.png)
 
 ## Development
 
