@@ -1,6 +1,6 @@
 # Chess Visualizer
 
-## Blunder less. See the board. Spot the threats. Plan attacks.
+## Play without blunders. See the board. Spot the threats. Plan attacks.
 
 Love chess but hate missing the obvious?
 
@@ -10,23 +10,18 @@ Chess Visualizer is an educational software that reveals the structure of a posi
 
 ### Features
 
-- **Attack rays** — see exactly which squares every piece attacks.
-
-  ![Attack rays](img/attack-rays.png)
-
-- **Attack heatmap** — color-shaded squares by attacking side and pressure intensity.
-
-  ![Attack heatmap](img/attack-heatmap.png)
+- **Attack rays and heatmap** — see exactly which squares every piece attacks.
+  ![Attack rays and heatmap](img/attack-rays-and-heatmap.png)
 
 - **Fully customizable visualization** — configure every color and nearly every aspect of the visualization geometry.
 
-- **It takes two to tango** — play online with a friend, no sign-up; resume a game, take up an unfinished one from a PGN, play with odds, and allow takebacks.
+- **It takes two to tango** — play online with a friend, no sign-up; play several games in parallel; play with odds or from a non-standard position, and allow takebacks.
 
 - **Classic games and PGN / FEN support** — explore famous games from the built-in library, import and export games and positions in PGN / FEN format.
 
-- **And plenty more** — share a position or a game as a link, read the material balance off the captured-pieces bar, and put a game aside in the stash while you look at another.
+- **And plenty more** — auto-play games, share a position or a game as a link, read the material balance off the captured-pieces bar, put a game aside in the stash while you look at another.
 
-Learn. Play. Enjoy.
+Learn. Play. Enjoy!
 
 **Give it a try and share your thoughts!**
 
