@@ -1,4 +1,4 @@
-# Chess Visualizer
+<h1><img src="img/title.svg" alt="Chess Visualizer" width="336" height="30"></h1>
 
 ## Play without blunders. See the board. Spot the threats. Plan attacks.
 
