@@ -124,6 +124,34 @@ function barsShown(candidate: Record<string, unknown>): void {
 }
 
 /**
+ * The wait before a game that has been set playing makes its first move,
+ * filled in where a record does not carry it.
+ *
+ * Until it was a setting it was a quarter of the period, and only on the
+ * opening position. A record from then has nothing to say about it, and the
+ * value it gets is the one a new reader gets: a fifth of a second, which is
+ * near enough what the quarter came to at the period most people played at
+ * that the start of a game feels the same as it did.
+ *
+ * Deliberately not worked out from the record's own period, to reproduce the
+ * old wait exactly. The two are separate settings now because they answer
+ * separate questions, and tying one to the other on the way in would carry the
+ * old coupling into every record that passed through here.
+ */
+function initialDelayGiven(candidate: Record<string, unknown>): void {
+  const lab = candidate.lab;
+  if (lab === null || typeof lab !== "object") {
+    return;
+  }
+  const node = lab as Record<string, unknown>;
+  if (typeof node.playInitialDelaySec !== "number") {
+    node.playInitialDelaySec = 0.2;
+  }
+  /* First, as the interface declares it and as the Lab tab shows it. */
+  inOrder(node, ["playInitialDelaySec", "playPeriodPerPositionSec"]);
+}
+
+/**
  * Version 46's ray settings, gathered into the `rays` node version 47 keeps
  * them in.
  *
@@ -403,8 +431,10 @@ export function parseSettings(text: string): ImportResult {
       error: `Those settings are version ${version}; this build reads ${SETTINGS_SCHEMA_VERSION}.`,
     };
   }
-  /* Whichever way it arrived, the `pieces` node is where it belongs by now. */
+  /* Whichever way it arrived, the `pieces` and `lab` nodes are where they
+     belong by now. */
   barsShown(candidate);
+  initialDelayGiven(candidate);
 
   // The version says the shape should be right, but a truncated file would
   // still pass it, and a missing group renders as a blank screen rather than

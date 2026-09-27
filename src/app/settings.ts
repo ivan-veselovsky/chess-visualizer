@@ -143,6 +143,20 @@ export interface PieceSettings {
  */
 export interface LabSettings {
   /**
+   * How long a game that has been set playing waits before its first move, in
+   * seconds — from the press of Play or Resume, wherever in the game that is.
+   *
+   * Its own setting rather than a share of the period, which is what it was: a
+   * quarter of it, and only on the opening position, on the grounds that the
+   * start of a game is the one position every reader already knows. That was
+   * right for reading and wrong for recording. Somebody filming the board
+   * presses Play and then has to get the board into frame — in two board mode
+   * the button is under the boards, so the page has to be scrolled back up —
+   * and how long that takes has nothing to do with how long a position should
+   * be read for. Nought starts the game at once.
+   */
+  playInitialDelaySec: number;
+  /**
    * How long each position is left standing when a game plays itself, in
    * seconds — counted from the moment a piece lands to the moment the next one
    * sets off, so a move slower than this is never cut in half by the next.

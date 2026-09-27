@@ -246,6 +246,27 @@ export function usePresets({ settings, apply, opened }: UsePresetsProps) {
   );
 
   /**
+   * What a preset holds, by name, without going to it.
+   *
+   * For a board drawn from a preset that is not the one in hand — the second
+   * board, which is there to hold one set of settings up against another. It
+   * answers with what is saved under the name, which for the preset in hand is
+   * not what is on the board: settings are the preset while they are in hand,
+   * and only written into the list when they are written. That is the right
+   * answer here. A reader comparing two presets means the two as they stand,
+   * and a right board that followed the left one's unsaved edits would be
+   * comparing the left board with itself.
+   *
+   * Null for a name that answers to nothing — one deleted in another tab, or a
+   * built-in renamed between two builds.
+   */
+  const settingsNamed = useCallback(
+    (name: string | null): Settings | null =>
+      name === null ? null : (builtIn(name)?.settings ?? sets[name] ?? null),
+    [sets]
+  );
+
+  /**
    * Goes to a preset, having written what the one being left had come to.
    *
    * The settings on the board are the preset in hand while they are in hand —
@@ -379,6 +400,7 @@ export function usePresets({ settings, apply, opened }: UsePresetsProps) {
 
   return {
     rows,
+    settingsNamed,
     target,
     dirty,
     pending,

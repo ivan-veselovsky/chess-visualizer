@@ -18,6 +18,12 @@ interface SelectFieldProps<T extends string> {
    * the same margin between two boxes.
    */
   apart?: boolean;
+  /**
+   * Present but not in force, because the switch above it is off. Faded and
+   * unclickable rather than gone: a field that disappears leaves the reader
+   * wondering whether they imagined it.
+   */
+  disabled?: boolean;
   onChange: (value: T) => void;
 }
 
@@ -29,11 +35,14 @@ export default function SelectField<T extends string>({
   choices,
   hint,
   apart = false,
+  disabled = false,
   onChange,
 }: SelectFieldProps<T>) {
   return (
     <div
-      className={`number-field field-inline${apart ? " field-apart" : ""}`}
+      className={`number-field field-inline${apart ? " field-apart" : ""}${
+        disabled ? " field-disabled" : ""
+      }`}
       title={hint}
     >
       <label htmlFor={id}>{label}</label>
@@ -41,6 +50,7 @@ export default function SelectField<T extends string>({
         id={id}
         className="game-select choice-select"
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value as T)}
       >
         {choices.map((choice) => (

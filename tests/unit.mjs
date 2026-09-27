@@ -667,6 +667,9 @@ console.log("\nSettings written for version 46\n");
        Flattening today's defaults leaves it lying at the top with the rest;
        a record actually written by 46 never had it anywhere. */
     delete older.showAvailable;
+    /* Nor a wait of its own before a game's first move: that was a quarter of
+       the period, worked out rather than stored. */
+    delete older.playInitialDelaySec;
     return older;
   };
 
@@ -718,6 +721,8 @@ console.log("\nSettings written for version 46\n");
       !("playPeriodPerPositionSec" in read));
   check("and sharing with autoplay, which 46 never wrote down, comes back on",
     read?.lab.shareGameWithAutoplay === true);
+  check("and the wait before the first move, which it worked out, is a fifth of a second",
+    read?.lab.playInitialDelaySec === 0.2, String(read?.lab.playInitialDelaySec));
   /* And it is written the way this build writes a settings file: same keys, in
      the same order, so an export of a migrated record and one of a shipped
      preset differ only where a setting differs. */
@@ -1544,6 +1549,41 @@ console.log("\nA piece in the air\n");
     nextStashName(["Ruy Lopez", "Endgame"], day) === first);
   check("and a gap in the numbers is filled rather than stepped over",
     nextStashName([first, first + " (3)"], day) === first + " (2)");
+}
+
+console.log("\nSettings added since a record was written\n");
+{
+  /*
+    A record this build's own version wrote before two settings were added to
+    it: the switch for the second bar of men, and the wait before a game's
+    first move. Stored settings are read through the same door as a file, so
+    this is also what a browser that was open through the change comes back to.
+  */
+  const earlier = structuredClone(DEFAULT_SETTINGS);
+  delete earlier.pieces.showAvailable;
+  delete earlier.lab.playInitialDelaySec;
+  const back = parseSettings(JSON.stringify(earlier)).settings;
+  check("a record from before the second bar reads back with it off",
+    back?.pieces.showAvailable === false, String(back?.pieces.showAvailable));
+  check("and one from before the initial delay, with a fifth of a second",
+    back?.lab.playInitialDelaySec === 0.2, String(back?.lab.playInitialDelaySec));
+  check("each where the interface puts it",
+    JSON.stringify(Object.keys(back?.pieces ?? {})) ===
+      JSON.stringify(Object.keys(DEFAULT_SETTINGS.pieces)) &&
+      JSON.stringify(Object.keys(back?.lab ?? {})) ===
+        JSON.stringify(Object.keys(DEFAULT_SETTINGS.lab)),
+    JSON.stringify({ pieces: Object.keys(back?.pieces ?? {}), lab: Object.keys(back?.lab ?? {}) }));
+
+  const own = structuredClone(DEFAULT_SETTINGS);
+  own.lab.playInitialDelaySec = 3;
+  check("while a record that says its own delay keeps it",
+    parseSettings(JSON.stringify(own)).settings?.lab.playInitialDelaySec === 3);
+  /* Nought is a value, and a check for a missing one that tested for a falsy
+     one would quietly turn "start at once" into a fifth of a second. */
+  const none = structuredClone(DEFAULT_SETTINGS);
+  none.lab.playInitialDelaySec = 0;
+  check("including nought, which is no delay rather than a missing one",
+    parseSettings(JSON.stringify(none)).settings?.lab.playInitialDelaySec === 0);
 }
 
 console.log("\nThe men still standing\n");

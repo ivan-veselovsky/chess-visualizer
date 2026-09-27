@@ -77,6 +77,7 @@ import StepIcon from "./StepIcon";
 import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
 import AvailableBar from "./AvailableBar";
+import { keyboardIsOn } from "./keyboardOn";
 import CapturedBar from "./CapturedBar";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
@@ -108,6 +109,12 @@ import type { Orientation } from "../visualization/geometry";
 import { loadSettings } from "./settingsStore";
 import { usePresets, nameTrouble } from "./usePresets";
 import { asking, setAsking } from "./asking";
+import {
+  setTwoBoardMode,
+  setTwoBoardPreset,
+  twoBoardMode,
+  twoBoardPreset,
+} from "./twoBoard";
 import SaveAsDialog from "./SaveAsDialog";
 import PresetList from "./PresetList";
 import type { SideIntensity } from "../visualization/settings";
@@ -234,6 +241,36 @@ export default function App() {
       question about settings with nowhere to go. */
   const [namingPreset, setNamingPreset] = useState(false);
   const [askBeforeDiscard, setAskBeforeDiscard] = useState(asking);
+  /*
+    The second board, and which preset draws it. Both live in this browser
+    rather than in the settings; see `twoBoard.ts` for why.
+  */
+  const [twoBoard, setTwoBoard] = useState(twoBoardMode);
+  const [rightPreset, setRightPreset] = useState(twoBoardPreset);
+  /*
+    Every preset the right board could be drawn with, and the one it is.
+
+    The ones this build cannot read are left off the list: a row that is there
+    to say "these are from another version" is not something to draw a board
+    from. What is left is the built-ins and the reader's own.
+
+    A name can stop answering — a preset deleted in another tab, or one from a
+    choice made before it was — so the name is checked against the list rather
+    than trusted, and the first row stands in for one that no longer does. The
+    stored answer is left alone: the reader chose it, and a preset that comes
+    back is a preset they get back.
+  */
+  const rightChoices = presets.rows
+    .filter((row) => row.fromVersion === undefined)
+    .map((row) => row.name);
+  const rightNamed =
+    rightPreset !== null && rightChoices.includes(rightPreset)
+      ? rightPreset
+      : (rightChoices[0] ?? presets.target);
+  /* And what it holds. Falling back to the left board's own settings leaves
+     two boards drawn alike, which says plainly that the choice did not land —
+     better than a blank half of the page. */
+  const rightSettings = presets.settingsNamed(rightNamed) ?? settings;
 
   /*
     One colour speaks for a side's rays, though the settings keep one per piece
@@ -406,6 +443,16 @@ export default function App() {
   /* How long a position is held while a game plays itself: a setting, like the
      pace a piece travels at, and kept in the same file. */
   const period = settings.lab.playPeriodPerPositionSec;
+  /* And how long it waits before the first of them, from the press of Play. */
+  const initialDelay = settings.lab.playInitialDelaySec;
+  /*
+    The position the game was set playing from, while it is still the one on
+    the board: that is the step the initial delay is for. Null while nothing is
+    playing. Kept by the timer below rather than by the button, so that every
+    way a game starts playing — the button, or a link that asks for it — is
+    timed the same.
+  */
+  const playedFrom = useRef<string | null>(null);
   /* Whether a shared link should set the game playing for whoever opens it. */
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
@@ -1407,6 +1454,7 @@ export default function App() {
   */
   useEffect(() => {
     if (!playing) {
+      playedFrom.current = null;
       return;
     }
     if (!canGoNext(history)) {
@@ -1419,19 +1467,113 @@ export default function App() {
       return;
     }
     /*
-      A quarter of the period on the opening position. A game nearly always
-      starts from the same board, and holding the one position every reader
-      already knows for as long as the ones they are watching for makes the
-      start of every playback a wait.
+      The first step waits the initial delay, and every step after it the
+      period.
+
+      The first step is the one taken from the position the game was set
+      playing on — noted the first time through after it starts, and matched
+      by the position itself rather than by its place in the list, which moves
+      when a move arrives from a game being played. A position cannot come
+      round again later in the same line: the move counters in it only go up.
+
+      Wherever in the game that is. The delay used to be a quarter of the
+      period and apply only on the opening position, which made a game resumed
+      from the middle wait a whole period instead. What it is for now — time
+      to get the board into frame after pressing the button — is the same
+      whichever position the button was pressed on.
+
+      Matching by position also means a delay that is changed while it is
+      being waited out starts again at the new length, rather than being cut
+      short by a timer booked under the old one.
     */
-    const share = canGoPrevious(history) ? 1 : 0.25;
-    const wait = Math.max(period, 0.1) * 1000 * share;
+    const here = currentPosition(history);
+    if (playedFrom.current === null) {
+      playedFrom.current = here;
+    }
+    const wait =
+      playedFrom.current === here
+        ? Math.max(initialDelay, 0) * 1000
+        : Math.max(period, 0.1) * 1000;
     const next = window.setTimeout(() => showHistory(goNext(history)), wait);
     return () => window.clearTimeout(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `showHistory`
     // only sets state; taking it as a dependency would book a fresh timer on
     // every render and the game would never reach the end of a period.
-  }, [playing, history, period, inGame, flight]);
+  }, [playing, history, period, initialDelay, inGame, flight]);
+
+  /*
+    The Lab's keys: Space plays and holds, the arrows step, and with Ctrl they
+    run to either end.
+
+    Live only while the Lab tab is the one open and there is a line on the
+    board to walk. A board with no moves behind it has nothing for them to do,
+    and leaves the keys to the page. While they are live they are the Lab's
+    even where the step they ask for is not there to take: Space at the end of
+    a game plays nothing, rather than scrolling a page somebody is filming —
+    which in two board mode, with the boards filling the window and the panel
+    under them, is what Space would otherwise do.
+
+    Each key does what its button does, through the same function, so a key
+    and a click cannot come to mean different things: a step taken by hand
+    stops a game that is playing, and Space does nothing at the last position
+    for the reason the button is closed there.
+
+    Not taken from anything that already has a use for them. The keyboard may
+    be on something — see `keyboardIsOn` — and then the key is that thing's; a
+    control may have answered the key itself, as the tab strip does, and then
+    it has had it; a dialog, while one is open, has the whole keyboard; and a
+    key pressed with Alt, Shift or the command key is somebody else's shortcut:
+    Alt+← is the browser's Back.
+  */
+  useEffect(() => {
+    if (tab !== "game" || history.entries.length < 2) {
+      return;
+    }
+    const listen = (event: KeyboardEvent) => {
+      const { key } = event;
+      if (key !== " " && key !== "ArrowLeft" && key !== "ArrowRight") {
+        return;
+      }
+      if (event.defaultPrevented || event.isComposing) {
+        return;
+      }
+      if (event.altKey || event.shiftKey || event.metaKey) {
+        return;
+      }
+      if (key === " " && event.ctrlKey) {
+        return;
+      }
+      if (document.querySelector("dialog[open]") !== null) {
+        return;
+      }
+      if (keyboardIsOn(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      if (key === " ") {
+        /* Held down, Space would repeat, and a game that starts and stops
+           thirty times a second is not what anybody holding it meant. */
+        if (!event.repeat && (playing || canGoNext(history))) {
+          playOrStop();
+        }
+        return;
+      }
+      const back = key === "ArrowLeft";
+      if (back ? !canGoPrevious(history) : !canGoNext(history)) {
+        return;
+      }
+      stepHistory(
+        event.ctrlKey
+          ? back ? "first" : "last"
+          : back ? "previous" : "next"
+      );
+    };
+    window.addEventListener("keydown", listen);
+    return () => window.removeEventListener("keydown", listen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `stepHistory`
+    // and `playOrStop` are made afresh every render from exactly these three;
+    // listening again whenever one of those changes is listening to them.
+  }, [tab, history, playing]);
 
   /*
     Whether a takeback can be asked for, and when it cannot, why not.
@@ -1620,9 +1762,16 @@ export default function App() {
 
   return (
     <main
-      className={
-        atAGame ? "app app-playing" : "app"
-      }
+      className={[
+        "app",
+        atAGame ? "app-playing" : "",
+        /* Two boards take the width the panel had, so the panel goes under
+           them and the page grows a scroller. The shape of the page is
+           decided here, in one class, rather than in each part of it. */
+        twoBoard ? "app-two-up" : "",
+      ]
+        .filter((name) => name !== "")
+        .join(" ")}
     >
       <header className="app-header">
         <h1>
@@ -1732,6 +1881,10 @@ export default function App() {
                 />
               )}
               <div className="board-with-bars">
+                {/* The boards, which in two board mode are two. Held in a box
+                    of their own so the air between them is theirs and not the
+                    thinner gap the bars stand off by. */}
+                <div className="boards">
                 <Board
                 position={shown}
                 colors={settings.board.squares}
@@ -1767,6 +1920,40 @@ export default function App() {
                 lastMoveMark={settings.board.lastMove}
                 orientation={side}
               />
+                {/*
+                  And the same position again, drawn from another preset.
+
+                  Everything about the picture is the other preset's; everything
+                  about the position is this one's, down to the move in the air,
+                  so the two boards are one board seen twice rather than two
+                  boards that agree. It faces the same way for the same reason:
+                  which way round the board is turned is where the reader is
+                  sitting, and they are sitting in one place.
+
+                  No `onMove` and no `onFlightLanded`: moves are played on the
+                  left board. A second board that took them would leave the
+                  reader guessing which of two identical positions is the game,
+                  and two boards reporting one landing would say it twice.
+                */}
+                {twoBoard && (
+                  <Board
+                    position={shown}
+                    colors={rightSettings.board.squares}
+                    hedge={rightSettings.board.hedging}
+                    pieceTint={rightSettings.pieces.tint}
+                    attacks={rightSettings.attacks}
+                    fadeTimeMs={rightSettings.pieces.fadeTimeMs}
+                    flight={flight}
+                    showing={during?.board ?? null}
+                    flying={during?.flying ?? []}
+                    grid={rightSettings.board.grid}
+                    frozen
+                    lastMove={lastMove}
+                    lastMoveMark={rightSettings.board.lastMove}
+                    orientation={side}
+                  />
+                )}
+                </div>
                 {settings.pieces.showCaptured && (
                   <CapturedBar
                     captures={captures}
@@ -1862,8 +2049,9 @@ export default function App() {
                 <button
                   type="button"
                   className="reset-button step-button step-button-end"
-                  title="First position"
+                  title="First position (Ctrl+←)"
                   aria-label="First position"
+                  aria-keyshortcuts="Control+ArrowLeft"
                   disabled={!canGoPrevious(history)}
                   onClick={() => stepHistory("first")}
                 >
@@ -1873,8 +2061,9 @@ export default function App() {
                   type="button"
                   className="reset-button step-button"
                   aria-label="Previous position"
+                  aria-keyshortcuts="ArrowLeft"
                   disabled={!canGoPrevious(history)}
-                  title="Previous position"
+                  title="Previous position (←)"
                   onClick={() => stepHistory("previous")}
                 >
                   <StepIcon direction="previous" />
@@ -1882,8 +2071,9 @@ export default function App() {
                 <button
                   type="button"
                   className="reset-button step-button"
-                  title="Next position"
+                  title="Next position (→)"
                   aria-label="Next position"
+                  aria-keyshortcuts="ArrowRight"
                   disabled={!canGoNext(history)}
                   onClick={() => stepHistory("next")}
                 >
@@ -1892,8 +2082,9 @@ export default function App() {
                 <button
                   type="button"
                   className="reset-button step-button step-button-end"
-                  title="Last position"
+                  title="Last position (Ctrl+→)"
                   aria-label="Last position"
+                  aria-keyshortcuts="Control+ArrowRight"
                   disabled={!canGoNext(history)}
                   onClick={() => stepHistory("last")}
                 >
@@ -1907,10 +2098,11 @@ export default function App() {
                   title={
                     inGame ??
                     (playing
-                      ? "Hold the game where it stands"
-                      : "Play the game through, a position at a time — from wherever it stands")
+                      ? "Hold the game where it stands (Space)"
+                      : "Play the game through, a position at a time — from wherever it stands (Space)")
                   }
                   aria-pressed={playing}
+                  aria-keyshortcuts="Space"
                   /* Nothing ahead of it is nothing to play: at the last
                      position the button has no work to do, and saying so is
                      better than starting the game again from the top under a
@@ -1925,6 +2117,30 @@ export default function App() {
                   <PlayIcon playing={playing} />
                   {playing ? "Pause / Stop" : "Play / Resume"}
                 </button>
+                {/* Beside the button it times, and above the period it comes
+                    before: read top to bottom, the two fields are the order
+                    the waits happen in. */}
+                <NumberField
+                  id="play-initial-delay"
+                  inline
+                  narrow
+                  allowZero
+                  label="Initial delay"
+                  suffix="seconds"
+                  step={0.1}
+                  value={initialDelay}
+                  hint={
+                    "How long the game waits after Play before its first move, wherever in the game it starts. " +
+                    "Time to get the board into view — when recording in two board mode, this button is below the boards. " +
+                    "Nought starts at once."
+                  }
+                  onChange={(playInitialDelaySec) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playInitialDelaySec },
+                    })
+                  }
+                />
                 <NumberField
                   id="play-period"
                   inline
@@ -2427,6 +2643,17 @@ export default function App() {
                    browser's rather than this tab's. */
                 stashed={stash.length}
                 onForgetStashes={forgetStashes}
+                twoBoard={twoBoard}
+                onTwoBoard={(on) => {
+                  setTwoBoard(on);
+                  setTwoBoardMode(on);
+                }}
+                rightPreset={rightNamed}
+                rightPresetChoices={rightChoices}
+                onRightPreset={(name) => {
+                  setRightPreset(name);
+                  setTwoBoardPreset(name);
+                }}
                 presets={
                   <section className="preset-panel" aria-label="Settings presets">
                     <p className="invite-heading">Settings presets</p>

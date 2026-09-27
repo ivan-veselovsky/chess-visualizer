@@ -67,6 +67,13 @@ interface SettingsPanelProps {
   stashed: number;
   /** Throws all of them away, in this browser rather than in this tab. */
   onForgetStashes: () => void;
+  /** Whether a second board stands beside the first, drawn from another preset. */
+  twoBoard: boolean;
+  onTwoBoard: (on: boolean) => void;
+  /** Which preset that board is drawn with, and every preset it could be. */
+  rightPreset: string;
+  rightPresetChoices: readonly string[];
+  onRightPreset: (name: string) => void;
 }
 
 export default function SettingsPanel({
@@ -80,6 +87,11 @@ export default function SettingsPanel({
   onAskBeforeDiscard,
   stashed,
   onForgetStashes,
+  twoBoard,
+  onTwoBoard,
+  rightPreset,
+  rightPresetChoices,
+  onRightPreset,
 }: SettingsPanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   /*
@@ -709,6 +721,44 @@ export default function SettingsPanel({
             it is the same act said in the same place as picking any other.
           */}
           {presets}
+
+          {/*
+            Two of them at once, which is what the list above is for once there
+            is more than one set worth looking at.
+
+            Here rather than on the Board tab because it is not about a board:
+            it is about the presets — which two of them, held side by side —
+            and this is the tab the presets are on. Like the switch below it,
+            it is kept in this browser rather than in the settings, so it
+            neither travels in an exported file nor changes with the preset in
+            use.
+          */}
+          <div className="settings-two-up">
+            <ToggleField
+              id="two-board-mode"
+              label="Two board mode"
+              hint="Draw a second board beside the first, from another preset, so two sets of settings can be read against each other on the same position. The second board is a view rather than a game: moves are played on the first."
+              checked={twoBoard}
+              onChange={onTwoBoard}
+            />
+            <SelectField
+              id="two-board-preset"
+              label="Settings for the right board"
+              apart
+              disabled={!twoBoard}
+              hint={
+                twoBoard
+                  ? "Which preset the right board is drawn with. It shows the preset as it is saved, so the left board's unsaved edits are not in it — which is what makes the two comparable."
+                  : "Turn on two board mode to choose one."
+              }
+              value={rightPreset}
+              choices={rightPresetChoices.map((name) => ({
+                value: name,
+                label: name,
+              }))}
+              onChange={onRightPreset}
+            />
+          </div>
 
           {/* Above the two file buttons rather than below them: it is about
               the presets over it — what happens to settings that have nowhere

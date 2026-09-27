@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from "react";
+import { focusFromKeyboard } from "./keyboardOn";
 
 export interface Tab<Id extends string> {
   id: Id;
@@ -59,6 +60,17 @@ export default function TabBar<Id extends string>({
           tabIndex={id === active ? 0 : -1}
           onClick={() => onSelect(id)}
           onKeyDown={(event) => {
+            /*
+              Only while the strip is being worked from the keyboard: reached
+              by Tab, and moved along by the arrows from there. A tab that has
+              the focus because it was clicked leaves the keys to the page —
+              the Lab steps through a game with the arrows, and a reader who
+              clicked the tab and then pressed → meant the game, not the tab
+              beside it.
+            */
+            if (!focusFromKeyboard()) {
+              return;
+            }
             const by =
               event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
             if (by !== 0) {

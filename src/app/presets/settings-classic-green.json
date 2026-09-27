@@ -40,6 +40,7 @@
     "fadeTimeMs": 250
   },
   "lab": {
+    "playInitialDelaySec": 0.2,
     "playPeriodPerPositionSec": 1,
     "shareGameWithAutoplay": true
   },

@@ -83,6 +83,10 @@
     hold them and a parent cannot read a property set on its child.
   */
   --men-bars: 0;
+  /* The air between two boards, when there are two. Wider than the gap a bar
+     stands off by, and for the opposite reason: a bar is part of the board it
+     reports on, and the second board is not. */
+  --two-up-gap: 1em;
 }
 
 /* Set by App from the theme option. */
@@ -544,18 +548,43 @@ body {
 
 /* At the far end of the row, away from the button: it is read once and set
    rarely, and standing next to the button it read as half of it. */
-/* Stood off from the steps above it and the position below: playing a game
-   through is a different act from stepping along it by hand, and at the
-   panel's own spacing the three rows read as one block of controls. */
+/*
+  Stood off from the steps above it and the position below: playing a game
+  through is a different act from stepping along it by hand, and at the
+  panel's own spacing the three rows read as one block of controls.
+
+  Two rows in two columns: the button at the left of the first, and the two
+  waits at the right, one over the other — the initial delay beside the button
+  it times, the period under it. A grid rather than the flex row the controls
+  round it use, because the two fields have to share a right-hand edge: set
+  flush right with the same input and the same unit after it, their inputs
+  stand in one column however long the labels in front of them are.
+
+  The first field is given the second column, which puts it beside the button.
+  The second is given the whole width, which the first row has no room left
+  for, so the grid's own placement puts it on the row below. It is the longer
+  label of the two, and held to the second column it wrapped on the narrowest
+  panel; across the row, with nothing in the first column to stand beside, it
+  has the room.
+*/
 .play-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.75em;
+  row-gap: 0.5rem;
   margin-top: 1em;
   margin-bottom: 1em;
 }
 
 .play-row > .number-field {
-  flex: 0 0 auto;
+  grid-column: 2;
+  justify-self: end;
   margin-bottom: 0;
-  margin-left: auto;
+}
+
+.play-row > .number-field ~ .number-field {
+  grid-column: 1 / -1;
 }
 
 /*
@@ -2743,8 +2772,25 @@ input[type="color"]::-moz-color-swatch {
   min-width: 0;
 }
 
+/*
+  The boards themselves, inside the row the bars also stand in.
+
+  A box of their own rather than laid straight in the row, because the two gaps
+  are different gaps: the air between two boards is wide enough to read as two
+  boards, and the air a bar stands off by is the thin one it has always been.
+  One flex row cannot hold two gaps, so there are two rows.
+
+  With one board it is a box round one thing and changes nothing.
+*/
+.boards {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--two-up-gap);
+}
+
 /* Shrinks by the bars' width rather than pushing them out of the column. */
-.board-with-bars > .board-holder {
+.boards > .board-holder {
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -2884,6 +2930,133 @@ input[type="color"]::-moz-color-swatch {
     color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
     white 25%
   );
+}
+
+/* --- Two boards --------------------------------------------------------- */
+
+/*
+  Two boards side by side, drawn from two presets, with the page given over to
+  them.
+
+  What changes is only the shape of the page. Every part of it is the part it
+  was — the same header, the same board, the same bars, the same panel — and
+  none of them is told there are two boards. They are stacked instead of set
+  side by side, and the boards are given a size; that is the whole of it.
+*/
+
+/*
+  The panel goes under the boards rather than beside them, and the page grows a
+  scroller. Two boards want the width the panel had, and a panel squeezed in
+  beside them would leave three things too narrow instead of two things the
+  right size.
+*/
+.app-two-up .app-body {
+  flex-direction: column;
+}
+
+/*
+  Neither part takes a share of a height nothing is dividing. In a column the
+  basis is a height, and the two were written as widths for a row — left alone,
+  the board pane would be asked to be 27rem tall.
+*/
+.app-two-up .board-pane,
+.app-two-up .side-column {
+  flex: 0 0 auto;
+}
+
+/*
+  The board pane takes the width, and holds the height whether or not it needs
+  it.
+
+  The height is what keeps the panel under the fold: with the window wide, the
+  boards are as tall as the page can make them and reach it on their own, but
+  on a narrow window the width runs out first and the boards come up short. The
+  floor makes what is left over empty page rather than the top of the settings,
+  which is what "just the boards" has to mean at every width.
+
+  It is the board's own ceiling plus whatever the names above and below it take
+  — which together are the page less what the header and the padding keep — and
+  then what the page keeps below the pane as well: the gap to the panel, and the
+  padding under that. Without those last two the panel's own top edge came to
+  rest a few pixels inside the window, which is the one thing this is for.
+*/
+.app-two-up .board-pane {
+  min-height: calc(var(--board-cap) + var(--player-names) + 1rem + 1rem);
+}
+
+/*
+  How big each board is, and so how wide the pair is.
+
+  Both are worked out here, once, and read by the row of names above the left
+  board, which has to know where that board ends, and by the box the boards sit
+  in. Written on the column rather than on either, and safe to read from both
+  only because the two are the same width: the `100%` in it resolves against
+  the containing block of whichever element reads it, not of this one. Anything
+  further in — a board inside the box of boards — would resolve it against
+  something narrower and get an answer that is quietly wrong.
+
+  The pair is as wide as the column allows, less the bars beside it, and never
+  wider than two boards at their own ceiling. Whichever of the two binds, the
+  remainder is left as page: to the right when the height runs out first, below
+  when the width does.
+*/
+.app-two-up .board-and-players {
+  --two-up-boards: min(
+    calc(100% - var(--men-bars-extent)),
+    calc(var(--board-cap) * 2 + var(--two-up-gap))
+  );
+  --two-up-size: calc((var(--two-up-boards) - var(--two-up-gap)) / 2);
+}
+
+/*
+  So the boards take exactly that and the bars stand against the right-hand one
+  rather than against the far edge of the column.
+
+  `flex: 0 0 auto` on a stated width, because the row is wider than the pair
+  whenever the height is what bound: left to grow, the box would take the slack
+  and carry the bars off to the right of it.
+*/
+.app-two-up .boards {
+  flex: 0 0 auto;
+  width: var(--two-up-boards);
+}
+
+/*
+  And each board is half of it — taken from the box rather than stated.
+
+  `--two-up-size` is the same half and is the right answer in the row of names
+  below, but it is the wrong way to say it here, because it is written with a
+  percentage in it. A percentage inside a custom property is resolved against
+  the containing block of whatever *uses* the property, not of whatever
+  declared it — so a board reading it resolves the `100%` against the box of
+  boards it is already inside, subtracts the bars a second time, and comes out
+  a bar's width short. Splitting the box between them says the same thing with
+  nothing to resolve.
+
+  The `width: 100%` and the ceiling a board carries otherwise are what make it
+  fill a column of its own. Here the column is the pair: filling it would make
+  two boards each as wide as both, and the ceiling is already in the width of
+  the box above.
+*/
+.app-two-up .boards > .board-holder {
+  flex: 1 1 0;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+}
+
+/*
+  The names, the result and where in the game the board stands belong to the
+  left board, so they are held to its width rather than to the pair's.
+
+  Everything to the right of that board — the air between the two, the right
+  board, and the bars — is padding, for the reason the bars alone were padding
+  before: the row's columns are measured inside it, and what is not padded out
+  is carried into the middle of something wider than the board it is naming.
+*/
+.app-two-up .board-and-players > .player-name {
+  padding-left: calc(var(--two-up-size) * 24 / 536);
+  padding-right: calc(100% - var(--two-up-size));
 }
 
 /* --- Playing with a friend ---------------------------------------------- */
@@ -3405,6 +3578,25 @@ input[type="color"]::-moz-color-swatch {
   controls. A line of air says which way the question faces.
 */
 .settings-ask {
+  margin-bottom: 2em;
+}
+
+/*
+  The two-board pair: a switch, and under it the preset the second board is
+  drawn with.
+
+  A column down the left, where every setting on every other tab stands, and
+  not at the far end where the switch below it sits. That one is about this
+  browser and is deliberately out of the way of the settings; these two are
+  about the presets listed above them, and belong in the same column the reader
+  is already reading down.
+
+  Stacked rather than laid in a row, so the second reads as the first one's
+  answer — the row they were in before put them side by side while they fitted
+  and wrapped the field underneath, right-aligned, when they did not.
+*/
+.settings-two-up {
+  margin-top: calc(1.1rem + 0.5em);
   margin-bottom: 2em;
 }
 
