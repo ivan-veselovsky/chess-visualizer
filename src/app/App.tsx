@@ -34,7 +34,7 @@ import {
   type PgnEnding,
   type PgnPlayers,
 } from "../chess/pgn";
-import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
+import type { LibraryGame } from "../chess/gameLibrary";
 import {
   nextStashName,
   stashGame,
@@ -458,20 +458,37 @@ export default function App() {
   // Which library game the board is on, so the list can keep naming it, and why
   // one would not load, if ever one does not.
   /*
-    A game read in from somewhere else — the library, or a file — and who it
-    was between.
+    A game read in from somewhere else — the library, a file, or a link — and
+    who it was between.
 
     Kept beside the line it arrived as, because the names belong to that line
     and not to the board. Step through it and they stand; play a move of your
     own and the line stops being that game, so they go and the board is nobody's
     but yours. See `readGame` below, which is what the two are compared to.
+
+    A link that carried a game opens as one read in, when its PGN says who
+    played or how it ended: it is a game somebody handed over, and it should
+    arrive the way it left — named over the board, and written out whole again
+    if it is passed on. See `Opening.game` for the links that do not.
   */
   const [read, setRead] = useState<{
     players: { white: string; black: string };
     /** As the file said it: "1-0", "0-1", "1/2-1/2", or nothing. */
     result: string | null;
     line: { initialFEN: string; moves: string[] };
-  } | null>(null);
+    /**
+     * The text it was read from, exactly as it came.
+     *
+     * Kept so the game can be written out again without being rebuilt: the
+     * text carries everything a file can say about a game — the players and
+     * the result, and the event, the date, the comments, the variations — and
+     * a game rebuilt from its moves keeps only the moves. While the line is
+     * the one read, it is the same game, and it goes out as it came in.
+     */
+    pgn: string;
+  } | null>(() =>
+    opening?.game == null ? null : { ...opening.game, line: lineOf(history) }
+  );
   const [libraryGame, setLibraryGame] = useState<string | null>(null);
   const [libraryGameError, setLibraryGameError] = useState<string | null>(null);
   const [pgnExportOpen, setPgnExportOpen] = useState(false);
@@ -504,7 +521,7 @@ export default function App() {
     showPosition(currentPosition(loaded));
     /* Read in from somewhere that still has it. */
     handed.current = lineOf(loaded);
-    setRead({ players, result, line: lineOf(loaded) });
+    setRead({ players, result, line: lineOf(loaded), pgn });
     setLibraryGame(null);
     setStashName(null);
     return null;
@@ -537,28 +554,25 @@ export default function App() {
   }
 
   /**
-   * The file a library game came from, while the board still holds that game
-   * unchanged.
+   * The text a game read in came from — pasted in, picked from the library, or
+   * carried by a link — while the board still holds that game unchanged.
    *
-   * Worth going back for rather than writing the game out again: the file
-   * carries the tags the game is actually known by — who played it, where and
-   * when — and replaying the moves through chess.js would put a roster of
-   * question marks in their place. As soon as a move of one's own is played
-   * the line stops being that game, and writing it out is the only honest
-   * thing left to do.
+   * Worth going back for rather than writing the game out again: the text
+   * carries the tags the game is actually known by — who played it, how it
+   * ended, where and when — and everything else a file can say, and replaying
+   * the moves through chess.js would put a roster of question marks in their
+   * place. As soon as a move of one's own is played the line stops being that
+   * game, and writing it out is the only honest thing left to do.
+   *
+   * This used to be asked of the library alone, and a game pasted in was
+   * written out from its moves: the names and the result it came with were
+   * lost on the way out, while the board went on showing them. It is now asked
+   * of `readGame`, the one answer there is to "is this still the game that was
+   * read?" — the same answer the names over the board are drawn from, so the
+   * two cannot disagree about it.
    */
   function originalPgn(): string | null {
-    if (libraryGame === null) {
-      return null;
-    }
-    const game = GAME_LIBRARY.find((candidate) => candidate.id === libraryGame);
-    if (game === undefined) {
-      return null;
-    }
-    const { entries } = parsePgn(game.pgn);
-    return entries !== null && sameLine(entries, history.entries)
-      ? game.pgn
-      : null;
+    return readGame?.pgn ?? null;
   }
 
   /** The game as it would be written out, for exporting or for sharing. */

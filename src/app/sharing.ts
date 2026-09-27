@@ -5,7 +5,7 @@
   these two are values rather than types, so they have to resolve at run time.
 */
 import type { HistoryEntry } from "../chess/history";
-import { parsePgn } from "../chess/pgn.ts";
+import { NOBODY, parsePgn } from "../chess/pgn.ts";
 import { parseFen } from "../chess/position.ts";
 
 /** The query parameters a link can carry. */
@@ -27,6 +27,28 @@ export interface Opening {
    * fast they are allowed to read.
    */
   autoplay: boolean;
+  /**
+   * The game as the link's PGN tells it — who played it, how it ended, and the
+   * text itself — so the page can open it the way a game read in from a file
+   * opens: named over the board, and written back out whole while the line is
+   * untouched.
+   *
+   * Null for a position, and for a game whose PGN names nobody and gives no
+   * result. That is what this app writes for a line somebody pushed around a
+   * board on their own, and opened as a game read in it would stand between
+   * two players called Unknown — where the person who shared it saw no names
+   * at all. Opened as a plain line it looks as it did to them.
+   */
+  game: SharedGame | null;
+}
+
+/** Who played a game, how it came out, and the PGN that said so. */
+export interface SharedGame {
+  players: { white: string; black: string };
+  /** In PGN's own words, or null where it gives none. */
+  result: string | null;
+  /** The text the link carried, exactly. */
+  pgn: string;
 }
 
 /**
@@ -44,8 +66,10 @@ export function openingFromUrl(search: string): Opening | null {
 
   const pgn = asked.get(GAME_PARAM);
   if (pgn !== null) {
-    const { entries } = parsePgn(pgn);
+    const { entries, players, result } = parsePgn(pgn);
     if (entries !== null && entries.length > 0) {
+      const told =
+        players.white !== NOBODY || players.black !== NOBODY || result !== null;
       /*
         The position the board opens on, which must be the one the line is
         opened at or the two disagree: the history lands at the last move, so
@@ -56,6 +80,7 @@ export function openingFromUrl(search: string): Opening | null {
         entries,
         fen: entries[0].fen,
         autoplay: asked.get(AUTOPLAY_PARAM) === "1",
+        game: told ? { players, result, pgn } : null,
       };
     }
   }
@@ -66,7 +91,7 @@ export function openingFromUrl(search: string): Opening | null {
     if (parseFen(wanted).position !== null) {
       // Nothing to play: a position is one board, and there is no line for it
       // to walk.
-      return { entries: null, fen: wanted, autoplay: false };
+      return { entries: null, fen: wanted, autoplay: false, game: null };
     }
   }
   return null;

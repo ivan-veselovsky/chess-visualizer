@@ -22,10 +22,17 @@ export interface PgnImport {
   error: string | null;
 }
 
+/**
+ * The name given to a player a file says nothing about. Exported so that
+ * whatever needs to know whether a file named anybody asks the same question
+ * this answers, rather than a copy of the word.
+ */
+export const NOBODY = "Unknown";
+
 /** What a file says a player was called, or that nobody knows. */
 function playerNamed(said: string | undefined): string {
   const name = (said ?? "").trim();
-  return name === "" || name === "?" ? "Unknown" : name;
+  return name === "" || name === "?" ? NOBODY : name;
 }
 
 /**
@@ -38,7 +45,7 @@ function playerNamed(said: string | undefined): string {
  * Entries come back newest first, matching how a history is ordered.
  */
 export function parsePgn(text: string): PgnImport {
-  const nobody = { white: "Unknown", black: "Unknown" };
+  const nobody = { white: NOBODY, black: NOBODY };
   if (text.trim() === "") {
     return {
       entries: null,

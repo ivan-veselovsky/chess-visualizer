@@ -1393,6 +1393,38 @@ console.log("\nWhat a shared link asks for\n");
   check("a position alone never plays, whatever the link says",
     spot !== null && spot.entries === null && spot.autoplay === false,
     JSON.stringify(spot));
+
+  /*
+    What a link carries beyond the moves. Encoded the way a link is built —
+    `URLSearchParams` is what `gameLink` writes with — so the round trip here
+    is the one a real link makes.
+  */
+  const linked = (text) => openingFromUrl("?" + new URLSearchParams({ game: text }));
+  const named = [
+    '[Event "Club championship"]',
+    '[White "Anna"]',
+    '[Black "Boris"]',
+    '[Result "0-1"]',
+    "",
+    "1. e4 {the usual} e5 $1 2. Nf3 (2. f4 exf4) Nc6 0-1",
+    "",
+  ].join("\n");
+  const arrived = linked(named);
+  check("a game that names its players arrives with them",
+    arrived?.game?.players.white === "Anna" && arrived?.game?.players.black === "Boris",
+    JSON.stringify(arrived?.game?.players));
+  check("and with how it ended", arrived?.game?.result === "0-1", String(arrived?.game?.result));
+  check("and as the very text it was — tags, comment, variation and all",
+    arrived?.game?.pgn === named, JSON.stringify(arrived?.game?.pgn));
+  const scored = linked('[Result "1/2-1/2"]\n\n1. d4 d5 1/2-1/2\n');
+  check("a result with nobody named is still a game to open as one read in",
+    scored?.game?.result === "1/2-1/2", JSON.stringify(scored?.game));
+  check("while one that names nobody and says nothing of how it ended opens as a plain line",
+    quiet !== null && quiet.game === null, JSON.stringify(quiet?.game));
+  const own = toPgn(lineOf(["e4", "e5", "Nf3"]), null, null);
+  check("which is what this app writes for a line with nobody in it",
+    linked(own)?.game === null, JSON.stringify(linked(own)?.game));
+  check("and a position carries no game at all", spot?.game === null);
 }
 
 console.log("\nA piece in the air\n");
