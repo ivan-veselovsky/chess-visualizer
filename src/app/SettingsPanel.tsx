@@ -374,13 +374,22 @@ export default function SettingsPanel({
               onChange={(darkenBlack) => updatePieceTint({ darkenBlack })}
             />
           </div>
-          <SectionRule name="Captured pieces" />
+          <SectionRule name="Material balance" />
 
           <ToggleField
             id="show-taken-pieces"
             label="Show captured pieces"
+            hint="The men taken so far, in a bar beside the board, with the difference in material against whoever is ahead. Read back from the moves played, so a position that arrived as a FEN has nothing behind it and the bar stays empty."
             checked={settings.pieces.showCaptured}
             onChange={(showCaptured) => updatePieces({ showCaptured })}
+          />
+
+          <ToggleField
+            id="show-available-pieces"
+            label="Show available pieces"
+            hint="The men still on the board, in a bar beside that one. Counted off the board itself, so odds and promotions are already in it: a game that began a rook short opens a rook short, and a promoted pawn stands as the queen he became."
+            checked={settings.pieces.showAvailable}
+            onChange={(showAvailable) => updatePieces({ showAvailable })}
           />
 
           <SectionRule name="Moves" />

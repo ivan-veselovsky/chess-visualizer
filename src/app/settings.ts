@@ -95,6 +95,15 @@ export interface PieceSettings {
   tint: PieceTint;
   /** The bar of captured men beside the board. */
   showCaptured: boolean;
+  /**
+   * And the bar of men still standing, which goes beside that one.
+   *
+   * Its own switch rather than a choice between the two: they answer different
+   * questions — what has been won, and what there is left to play with — and a
+   * reader who wants both on at once is asking for the whole account of the
+   * material, which is a reasonable thing to want.
+   */
+  showAvailable: boolean;
   /** How a piece travels between squares when a move is played. */
   moveMotion: MoveMotion;
   /**

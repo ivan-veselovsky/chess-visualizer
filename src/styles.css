@@ -69,10 +69,20 @@
      does not bring the scrollbar back. */
   /* The board's cap is worked out on `.app`, which is where the room the two
      player names need is known. */
-  /* The bar of taken men, and the air between it and the board. Named here
-     because the board's own column has to make room for both. */
-  --captured-bar-width: 1.7rem;
-  --captured-bar-gap: 0.4rem;
+  /* One bar of men, and the air between it and whatever it stands beside.
+     Named here because the board's own column has to make room for both. */
+  --men-bar-width: 1.7rem;
+  --men-bar-gap: 0.4rem;
+  /*
+    How many such bars are up — none, one, or both — which App publishes on the
+    board's pane from the two switches that raise them.
+
+    A count rather than a width, because a width would have to be worked out in
+    two places and kept in step; and published on the pane rather than on the
+    row the bars are in, because the pane is what has to be narrow enough to
+    hold them and a parent cannot read a property set on its child.
+  */
+  --men-bars: 0;
 }
 
 /* Set by App from the theme option. */
@@ -255,9 +265,21 @@ body {
 
 /* Holds the board and nothing else, so its width is the board's height. */
 .board-pane {
-  /* The board's own height, and the bar's width on top of it: the cap is what
-     the board may be, and the bar stands beside it rather than inside it. */
-  flex: 0 1 calc(var(--board-cap) + var(--captured-bar-width) + var(--captured-bar-gap));
+  /*
+    What the bars take out of this column, worked out once here and read by the
+    basis below and by the player names inside.
+
+    Declared on the same element `--men-bars` is set on, which is this one: a
+    custom property built out of another resolves against the element it is
+    declared on, so the sum would be stuck at nought if it were written on
+    `:root` and the count set further down.
+  */
+  --men-bars-extent: calc(
+    var(--men-bars) * (var(--men-bar-width) + var(--men-bar-gap))
+  );
+  /* The board's own height, and the bars' width on top of it: the cap is what
+     the board may be, and a bar stands beside it rather than inside it. */
+  flex: 0 1 calc(var(--board-cap) + var(--men-bars-extent));
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2706,34 +2728,35 @@ input[type="color"]::-moz-color-swatch {
   background: var(--hover-bg);
 }
 
-/* --- Captured pieces ---------------------------------------------------- */
+/* --- The bars of men beside the board ----------------------------------- */
 
 /*
-  The board and the bar of men taken off it, side by side. Stretching rather
-  than sizing: the bar takes the row's height, which the board sets, so the two
-  stay the same height however the board is scaled.
+  The board and the bars of men beside it, side by side: the men taken off it
+  first, then the men still on it, so the row reads outwards from the board.
+  Stretching rather than sizing: a bar takes the row's height, which the board
+  sets, so all of them stay the same height however the board is scaled.
 */
-.board-with-captured {
+.board-with-bars {
   display: flex;
   align-items: stretch;
-  gap: var(--captured-bar-gap);
+  gap: var(--men-bar-gap);
   min-width: 0;
 }
 
-/* Shrinks by the bar's width rather than pushing it out of the column. */
-.board-with-captured > .board-holder {
+/* Shrinks by the bars' width rather than pushing them out of the column. */
+.board-with-bars > .board-holder {
   flex: 1 1 auto;
   min-width: 0;
 }
 
 /*
-  A column beside the board with a group of trophies hanging from each end: the
-  near player's along the bottom, the far player's along the top, both ordered
-  so the queens meet in the middle.
+  A column beside the board with a group of men hanging from each end: the near
+  player's along the bottom, the far player's along the top, both ordered so the
+  queens meet in the middle.
 */
-.captured-bar {
+.men-bar {
   flex: 0 0 auto;
-  width: var(--captured-bar-width);
+  width: var(--men-bar-width);
   display: flex;
   flex-direction: column;
 }
@@ -2745,7 +2768,7 @@ input[type="color"]::-moz-color-swatch {
   leaves it flush with the board's own first and last ranks, so the trophies
   line up with the squares rather than with the letters under them.
 */
-.captured-column {
+.men-bar-column {
   height: calc(100% * 512 / 536);
   display: flex;
   flex-direction: column;
@@ -2763,8 +2786,8 @@ input[type="color"]::-moz-color-swatch {
   between men of a kind is the better thing to give up, so that is what the bar
   now does, and the men keep the size at which they can be told apart.
 */
-.captured-group,
-.captured-run {
+.men-bar-group,
+.men-bar-run {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2781,8 +2804,8 @@ input[type="color"]::-moz-color-swatch {
   hold against the room it has. The value here is only what they lie by when
   there is room to spare.
 */
-.captured-run > .captured-piece + .captured-piece {
-  margin-top: calc(-1 * var(--captured-overlap, 0.35em));
+.men-bar-run > .men-bar-piece + .men-bar-piece {
+  margin-top: calc(-1 * var(--men-bar-overlap, 0.35em));
 }
 
 /*
@@ -2791,13 +2814,37 @@ input[type="color"]::-moz-color-swatch {
   comes out at three quarters of this — smaller than one on the board, these
   being a tally rather than a position.
 */
-.captured-piece {
+.men-bar-piece {
   display: block;
   flex: 0 0 auto;
-  width: var(--captured-size, 1.5em);
-  height: var(--captured-size, 1.5em);
+  width: var(--men-bar-size, 1.5em);
+  height: var(--men-bar-size, 1.5em);
   min-height: 0;
   overflow: visible;
+}
+
+/*
+  The line scored through a man who is off the board.
+
+  One dark grey for both armies. Being off the board is not something that
+  differs between the two sides, so neither does the mark that says it — and a
+  score in the man's own colours would read as part of the man rather than as
+  something done to him.
+
+  The grey is set against the dark page, a shade up from its ground: dark enough
+  to read as a score rather than as a highlight, and light enough to be seen on
+  it where a line of the ground's own colour would vanish. Stated rather than
+  mixed from `--app-bg`, because mixing towards white would leave the light
+  page's version white on white.
+
+  The width is in board units, like every other stroke here, so it thickens with
+  the men rather than staying a fixed number of pixels while they shrink to fit.
+*/
+.men-bar-strike {
+  fill: none;
+  stroke: #2e3035;
+  stroke-width: 5;
+  stroke-linecap: round;
 }
 
 /*
@@ -2814,7 +2861,7 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* How far ahead, against whoever is: at the group's inner end, by the queens. */
-.captured-lead {
+.men-bar-lead {
   flex: 0 0 auto;
   margin: 0.15em 0;
   font-size: 0.8rem;
@@ -2824,14 +2871,14 @@ input[type="color"]::-moz-color-swatch {
 
 /*
   A black man on the dark page's own ground is very nearly that ground: the
-  board's men are laid on squares, which stay light under either theme, but
-  these are laid on the page. A quarter of the way to white is enough to tell
+  board's men are laid on squares, which stay light under either theme, but the
+  men on either bar are laid on the page. A quarter of the way to white is enough to tell
   them from it while leaving them the colour they were tinted with — further
   than that and they stop reading as the black army.
 
   The board's own men are untouched, standing where they always did.
 */
-:root[data-theme="dark"] .captured-bar .piece-black {
+:root[data-theme="dark"] .men-bar .piece-black {
   fill: color-mix(
     in srgb,
     color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
@@ -3705,9 +3752,7 @@ input[type="color"]::-moz-color-swatch {
      lower one needs none: the file letters run between it and the board and
      are gap enough. */
   margin-bottom: calc(0.25rem + 0.5em);
-  padding-left: calc(
-    (100% - var(--captured-bar-width) - var(--captured-bar-gap)) * 24 / 536
-  );
+  padding-left: calc((100% - var(--men-bars-extent)) * 24 / 536);
   /*
     And set in on the right by the bar the column also holds, so what is left
     between the two is the board itself.
@@ -3716,7 +3761,7 @@ input[type="color"]::-moz-color-swatch {
     columns are measured inside the padding, and with nothing here they ran on
     over the bar and carried the score half its width to the right.
   */
-  padding-right: calc(var(--captured-bar-width) + var(--captured-bar-gap));
+  padding-right: var(--men-bars-extent);
   font-size: 0.95rem;
 }
 
@@ -3775,12 +3820,6 @@ input[type="color"]::-moz-color-swatch {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* With the bar hidden, the board is the whole column. */
-.board-and-players-bare {
-  --captured-bar-width: 0px;
-  --captured-bar-gap: 0px;
 }
 
 /* Which army, said in the colour rather than in a word. */

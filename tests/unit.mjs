@@ -17,6 +17,7 @@ import { reachSignature } from "../src/chess/attacks.ts";
 import { halfMoves } from "../src/app/friend/counting.ts";
 import { nextStashName } from "../src/chess/stash.ts";
 import { pinnedSquares } from "../src/chess/pins.ts";
+import { availableFor, materialOn } from "../src/chess/available.ts";
 import {
   attackersOn,
   boardDuring,
@@ -662,6 +663,10 @@ console.log("\nSettings written for version 46\n");
     }
     /* 46 had no answer to this one at all: the tab asked afresh every visit. */
     delete older.shareGameWithAutoplay;
+    /* And it had one bar of men rather than two, so no switch for the second.
+       Flattening today's defaults leaves it lying at the top with the rest;
+       a record actually written by 46 never had it anywhere. */
+    delete older.showAvailable;
     return older;
   };
 
@@ -1539,6 +1544,58 @@ console.log("\nA piece in the air\n");
     nextStashName(["Ruy Lopez", "Endgame"], day) === first);
   check("and a gap in the numbers is filled rather than stepped over",
     nextStashName([first, first + " (3)"], day) === first + " (2)");
+}
+
+console.log("\nThe men still standing\n");
+{
+  /*
+    The bar of available men is read off the board and nothing else, which is
+    what these check: the opening set, a set short of a man because the game is
+    at odds, and a pawn who became a queen. Each is a position that the other
+    sum — a starting set less what was taken — gets wrong.
+  */
+  const opening = new Chess();
+  const kinds = (position, color) =>
+    availableFor(position, color)
+      .map(({ type, count }) => `${type}${count}`)
+      .join(" ");
+  check("the opening set is the opening position, heaviest first",
+    kinds(opening, "w") === "q1 r2 b2 n2 p8", kinds(opening, "w"));
+  check("and the king, who is on the board at every moment, is on neither bar",
+    availableFor(opening, "w").every(({ type }) => type !== "k"),
+    kinds(opening, "w"));
+  check("and both armies weigh the same",
+    materialOn(opening, "w") === materialOn(opening, "b") &&
+      materialOn(opening, "w") === 39,
+    `${materialOn(opening, "w")} vs ${materialOn(opening, "b")}`);
+
+  /* Rook odds, as the friendly game offers them: White starts without a1. */
+  const odds = new Chess(positionWithHandicap(
+    { giver: "challenger", piece: "rook" }, "w"));
+  check("a game at odds opens a man short, and says which man",
+    kinds(odds, "w") === "q1 r1 b2 n2 p8", kinds(odds, "w"));
+  check("and the odds are the difference the bar shows",
+    materialOn(odds, "b") - materialOn(odds, "w") === 5,
+    `${materialOn(odds, "w")} vs ${materialOn(odds, "b")}`);
+
+  /*
+    A pawn who reaches the eighth rank is a queen on the board and a queen
+    here. The count moves by the 8 the two men differ by, which is the thing a
+    tally of captures alone cannot see.
+  */
+  const promoting = new Chess("7k/P7/8/8/8/8/8/7K w - - 0 1");
+  const before = materialOn(promoting, "w");
+  promoting.move({ from: "a7", to: "a8", promotion: "q" });
+  check("a pawn promoted is the queen he became",
+    kinds(promoting, "w") === "q1", kinds(promoting, "w"));
+  check("and moves the count by the 8 the two men differ by",
+    materialOn(promoting, "w") - before === 8,
+    `${before} -> ${materialOn(promoting, "w")}`);
+
+  check("an army down to its king alone has nothing on the bar",
+    kinds(promoting, "b") === "", kinds(promoting, "b"));
+  check("though he still stands, and is still worth nothing",
+    materialOn(promoting, "b") === 0, String(materialOn(promoting, "b")));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

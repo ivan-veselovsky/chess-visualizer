@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { CSSProperties } from "react";
 import { Chess, DEFAULT_POSITION, type Color, type Square } from "chess.js";
 import { PIECE_GLYPHS } from "../chess/model";
 import {
@@ -75,6 +76,7 @@ import SectionRule from "./SectionRule";
 import StepIcon from "./StepIcon";
 import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
+import AvailableBar from "./AvailableBar";
 import CapturedBar from "./CapturedBar";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
@@ -1656,16 +1658,25 @@ export default function App() {
       </header>
 
       <div className="app-body">
-        {/* Left: the board and the men taken off it, as tall as the window allows. */}
-        <section className="board-pane">
+        {/* Left: the board and the bars of men beside it, as tall as the
+            window allows. How many bars are up is published here rather than
+            read off the two switches in the stylesheet: the width they take is
+            wanted by this pane — which is their parent, and so cannot see a
+            property set further down — and by the player names inside it. One
+            number, set where both can reach it. */}
+        <section
+          className="board-pane"
+          style={
+            {
+              "--men-bars": String(
+                (settings.pieces.showCaptured ? 1 : 0) +
+                  (settings.pieces.showAvailable ? 1 : 0)
+              ),
+            } as CSSProperties
+          }
+        >
           {shown !== null && (
-            <div
-              className={
-                settings.pieces.showCaptured
-                  ? "board-and-players"
-                  : "board-and-players board-and-players-bare"
-              }
-            >
+            <div className="board-and-players">
               {/*
                 Where the board stands, for a board that is nobody's game.
 
@@ -1720,7 +1731,7 @@ export default function App() {
                   }
                 />
               )}
-              <div className="board-with-captured">
+              <div className="board-with-bars">
                 <Board
                 position={shown}
                 colors={settings.board.squares}
@@ -1759,6 +1770,17 @@ export default function App() {
                 {settings.pieces.showCaptured && (
                   <CapturedBar
                     captures={captures}
+                    orientation={side}
+                    pieceTint={settings.pieces.tint}
+                    attacks={settings.attacks}
+                  />
+                )}
+                {/* And the men still standing, immediately outside the men who
+                    are not — so the board, what it has lost, and what it has
+                    left read outwards in that order. */}
+                {settings.pieces.showAvailable && (
+                  <AvailableBar
+                    position={shown}
                     orientation={side}
                     pieceTint={settings.pieces.tint}
                     attacks={settings.attacks}

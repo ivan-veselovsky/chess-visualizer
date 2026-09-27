@@ -96,6 +96,34 @@ function sidesShown(node: Record<string, unknown>): void {
 }
 
 /**
+ * The switches for the two bars beside the board, filled in where a record does
+ * not carry them.
+
+ * The bar of men still standing arrived after the bar of men taken, so a record
+ * written between the two carries one switch and not the other — as does every
+ * record from 46, which predates both bars having a choice about the second.
+ * Read as it stands, a missing switch is `undefined`: it draws as off and saves
+ * as off, which is where this puts it, but arrived at by dereferencing
+ * something that is not there rather than by saying so.
+ *
+ * Off is the right place for a new bar. It takes width from the board, and a
+ * reader who has not asked for it should find the page as they left it.
+ */
+function barsShown(candidate: Record<string, unknown>): void {
+  const pieces = candidate.pieces;
+  if (pieces === null || typeof pieces !== "object") {
+    return;
+  }
+  const node = pieces as Record<string, unknown>;
+  if (typeof node.showAvailable !== "boolean") {
+    node.showAvailable = false;
+  }
+  /* Beside the switch it belongs with, rather than on the end, so a file this
+     build exports reads in the order the interface declares. */
+  inOrder(node, ["tint", "showCaptured", "showAvailable"]);
+}
+
+/**
  * Version 46's ray settings, gathered into the `rays` node version 47 keeps
  * them in.
  *
@@ -375,6 +403,8 @@ export function parseSettings(text: string): ImportResult {
       error: `Those settings are version ${version}; this build reads ${SETTINGS_SCHEMA_VERSION}.`,
     };
   }
+  /* Whichever way it arrived, the `pieces` node is where it belongs by now. */
+  barsShown(candidate);
 
   // The version says the shape should be right, but a truncated file would
   // still pass it, and a missing group renders as a blank screen rather than

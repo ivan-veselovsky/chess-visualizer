@@ -31,6 +31,7 @@
       "darkenBlack": 1
     },
     "showCaptured": true,
+    "showAvailable": false,
     "moveMotion": {
       "speed": 10,
       "time": 0.75,
