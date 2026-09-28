@@ -101,7 +101,7 @@ import { useFriendGame } from "./friend/useFriendGame";
 import type { Heatmap, Settings } from "./settings";
 import { OPPONENT_CHOOSES } from "../../worker/protocol";
 import type { ColorChoice, Terms } from "../../worker/protocol";
-import { DEFAULT_SETTINGS } from "./presets";
+import { DEFAULT_SETTINGS, PRESETS } from "./presets";
 import { boardSide, setBoardSide } from "./boardSide";
 import LockIcon from "./LockIcon";
 import ExitIcon from "./ExitIcon";
@@ -254,19 +254,40 @@ export default function App() {
     to say "these are from another version" is not something to draw a board
     from. What is left is the built-ins and the reader's own.
 
+    Until the reader chooses one, the right board is drawn in Classic green: a
+    second board is there to be set against the first, and one that opened in
+    the same colours as the first would have nothing to show until somebody
+    went and found the switch. It used to take the first row of the list,
+    which is the preset the app opens with — so for nearly everybody, the very
+    set the left board was already in.
+
+    For the same reason, a left board already in Classic green gets the
+    default set on the right instead. And once a preset has been chosen,
+    neither applies: the choice stands, whatever the left board is doing.
+
+    The two are looked up by the built-ins' ids rather than their names, which
+    are what the list shows and can be reworded.
+
     A name can stop answering — a preset deleted in another tab, or one from a
     choice made before it was — so the name is checked against the list rather
-    than trusted, and the first row stands in for one that no longer does. The
-    stored answer is left alone: the reader chose it, and a preset that comes
-    back is a preset they get back.
+    than trusted, and the same default stands in for one that no longer does.
+    The stored answer is left alone: the reader chose it, and a preset that
+    comes back is a preset they get back.
   */
   const rightChoices = presets.rows
     .filter((row) => row.fromVersion === undefined)
     .map((row) => row.name);
+  const builtInNamed = (id: string) =>
+    PRESETS.find((preset) => preset.id === id)?.name ?? null;
+  const green = builtInNamed("classic-green");
+  const rightDefault =
+    (presets.target === green ? builtInNamed("default") : green) ??
+    rightChoices[0] ??
+    presets.target;
   const rightNamed =
     rightPreset !== null && rightChoices.includes(rightPreset)
       ? rightPreset
-      : (rightChoices[0] ?? presets.target);
+      : rightDefault;
   /* And what it holds. Falling back to the left board's own settings leaves
      two boards drawn alike, which says plainly that the choice did not land —
      better than a blank half of the page. */
