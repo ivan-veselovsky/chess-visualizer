@@ -18,6 +18,10 @@ import { halfMoves } from "../src/app/friend/counting.ts";
 import { nextStashName } from "../src/chess/stash.ts";
 import { pinnedSquares } from "../src/chess/pins.ts";
 import { availableFor, materialOn } from "../src/chess/available.ts";
+import { createGifWriter } from "../src/app/gif/encoder.ts";
+import { asGifName, suggestedGifName, surnameOf } from "../src/app/gif/fileName.ts";
+import { FRAME_STEPS, frameStepLabel, restAfterFade } from "../src/app/gif/timing.ts";
+import { readGif } from "./gif.mjs";
 import {
   attackersOn,
   boardDuring,
@@ -918,18 +922,18 @@ console.log("\nWho played a game that was read in\n");
     JSON.stringify(named.players));
 
   const bare = parsePgn("1. e4 e5 2. Nf3 *");
-  check("a file that names nobody says so rather than leaving a blank",
-    bare.players.white === "Unknown" && bare.players.black === "Unknown",
+  check("a file that names nobody calls the players by their colours rather than leaving a blank",
+    bare.players.white === "White" && bare.players.black === "Black",
     JSON.stringify(bare.players));
 
   const asked = parsePgn('[White "?"]\n[Black "  "]\n\n1. e4 *');
   check("and PGN's own question mark is nobody too",
-    asked.players.white === "Unknown" && asked.players.black === "Unknown",
+    asked.players.white === "White" && asked.players.black === "Black",
     JSON.stringify(asked.players));
 
   const broken = parsePgn("this is not a game");
   check("a file that will not read still answers about its players",
-    broken.entries === null && broken.players.white === "Unknown");
+    broken.entries === null && broken.players.white === "White" && broken.players.black === "Black");
 }
 
 console.log("\nWhich way round the board faces\n");
@@ -1668,6 +1672,139 @@ console.log("\nThe men still standing\n");
     kinds(promoting, "b") === "", kinds(promoting, "b"));
   check("though he still stands, and is still worth nothing",
     materialOn(promoting, "b") === 0, String(materialOn(promoting, "b")));
+}
+
+console.log("\nAnimated GIF\n");
+{
+  /*
+    A little board, the way a real one changes: a flat ground, a dark piece
+    travelling across it, and a band of many colours that changes every frame
+    — standing in for a fade, and crowding each frame's palette the way a fade
+    does on a real board. That crowding is what once left a ghost of the piece
+    wherever it had been: the ground it uncovered came out a level or two off.
+  */
+  const W = 48;
+  const H = 24;
+  const GROUND = [204, 220, 204];
+  const scene = (pieceX, shade) => {
+    const rgba = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y += 1) {
+      for (let x = 0; x < W; x += 1) {
+        const p = (y * W + x) * 4;
+        let colour = GROUND;
+        if (y >= 16) {
+          /* The crowded band: a different colour at every pixel. */
+          colour = [(x * 5 + shade) % 256, (y * 11 + shade * 3) % 256, (x * 3 + y * 7 + shade) % 256];
+        } else if (x >= pieceX && x < pieceX + 8 && y >= 4 && y < 12) {
+          colour = [60, 30, 20];
+        }
+        rgba.set([...colour, 255], p);
+      }
+    }
+    return rgba;
+  };
+  const plan = [
+    { rgba: scene(2, 0), delay: 1000, still: true },
+    { rgba: scene(10, 40), delay: 40, still: false },
+    { rgba: scene(18, 80), delay: 40, still: false },
+    { rgba: scene(26, 120), delay: 750, still: true },
+  ];
+  const worstOff = (one, other) => {
+    let worst = 0;
+    for (let i = 0; i < one.length; i += 4) {
+      worst = Math.max(worst, Math.abs(one[i] - other[i]), Math.abs(one[i + 1] - other[i + 1]), Math.abs(one[i + 2] - other[i + 2]));
+    }
+    return worst;
+  };
+  for (const store of ["changed", "full"]) {
+    const writer = createGifWriter(W, H, store);
+    plan.forEach(({ rgba, delay, still }) => writer.add(rgba, delay, still));
+    const bytes = writer.finish();
+    const gif = readGif(bytes);
+    check(`${store}: a GIF of the right size, looping for ever`,
+      gif.width === W && gif.height === H && gif.loops === 0, JSON.stringify({ w: gif.width, h: gif.height, loops: gif.loops }));
+    check(`${store}: one frame for each, each up for as long as it was asked`,
+      gif.frames.map((frame) => frame.delayMs).join() === "1000,40,40,750",
+      gif.frames.map((frame) => frame.delayMs).join());
+    /* Where the piece was and is no more: the ground, exactly. */
+    const left = gif.frames[3].rgba;
+    const uncovered = [];
+    for (let y = 4; y < 12; y += 1) {
+      for (let x = 2; x < 26; x += 1) {
+        const p = (y * W + x) * 4;
+        uncovered.push(left[p] === GROUND[0] && left[p + 1] === GROUND[1] && left[p + 2] === GROUND[2]);
+      }
+    }
+    check(`${store}: what a piece uncovers is the ground exactly — no ghost of it left behind`,
+      uncovered.every(Boolean), `${uncovered.filter((ok) => !ok).length} pixels off`);
+    /* The band holds more colours than one frame of a GIF can — every pixel of
+       it different — so it can only come back close; the rest of the picture is
+       flat colours, and at rest comes back exactly. */
+    const flat = (rgba) => rgba.subarray(0, 16 * W * 4);
+    check(`${store}: at rest, everything flat comes back exactly`,
+      worstOff(flat(gif.frames[0].rgba), flat(plan[0].rgba)) === 0 && worstOff(flat(gif.frames[3].rgba), flat(plan[3].rgba)) === 0,
+      `${worstOff(flat(gif.frames[0].rgba), flat(plan[0].rgba))} / ${worstOff(flat(gif.frames[3].rgba), flat(plan[3].rgba))}`);
+    check(`${store}: and every frame is near enough to be the same picture, band and all`,
+      gif.frames.every((frame, i) => worstOff(frame.rgba, plan[i].rgba) <= 24),
+      gif.frames.map((frame, i) => worstOff(frame.rgba, plan[i].rgba)).join(" / "));
+  }
+  {
+    /* As a board changes from frame to frame: a piece moving, and the rest the same. */
+    const moving = [2, 6, 10, 14, 18, 22, 26].map((x) => scene(x, 0));
+    const size = (store) => {
+      const writer = createGifWriter(W, H, store);
+      moving.forEach((rgba, i) => writer.add(rgba, 40, i === 0 || i === moving.length - 1));
+      return writer.finish().length;
+    };
+    const changed = size("changed");
+    const full = size("full");
+    check("storing only what changed is much smaller than every frame whole, when little changes",
+      changed * 2 < full, JSON.stringify({ changed, full }));
+  }
+  {
+    const writer = createGifWriter(W, H, "changed");
+    writer.add(plan[0].rgba, 0, true);
+    writer.add(plan[1].rgba, 5, false);
+    const gif = readGif(writer.finish());
+    check("a delay shorter than two hundredths is made two, which browsers keep to",
+      gif.frames.every((frame) => frame.delayMs === 20), gif.frames.map((frame) => frame.delayMs).join());
+  }
+  {
+    const writer = createGifWriter(W, H, "changed");
+    writer.add(plan[0].rgba, 1000, true);
+    writer.add(plan[0].rgba, 500, true);
+    const gif = readGif(writer.finish());
+    check("a frame with nothing new in it shows the frame before, for longer",
+      worstOff(gif.frames[1].rgba, gif.frames[0].rgba) === 0 && gif.frames[1].delayMs === 500,
+      `${worstOff(gif.frames[1].rgba, gif.frames[0].rgba)} / ${gif.frames[1].delayMs}`);
+  }
+
+  check("the frame rates are the ones a GIF keeps exactly: a hundred over a whole number",
+    FRAME_STEPS.every((step) => Number.isInteger(step) && step >= 2) && frameStepLabel(4) === "25 fps (40 ms a frame)",
+    frameStepLabel(4));
+  check("a position rests for what is left of the period once its fade has been shown",
+    restAfterFade(750, 240, 40) === 510, String(restAfterFade(750, 240, 40)));
+  check("and never for less than a frame",
+    restAfterFade(100, 240, 40) === 40, String(restAfterFade(100, 240, 40)));
+
+  check("a PGN name comes down to the surname",
+    surnameOf("Krylov, Mikhail (2489)") === "Krylov" && surnameOf("Magnus Carlsen") === "Magnus Carlsen",
+    `${surnameOf("Krylov, Mikhail (2489)")} / ${surnameOf("Magnus Carlsen")}`);
+  check("a game between two players is named after them",
+    suggestedGifName({ white: "Krylov, Mikhail (2489)", black: "Arslanov, Shamil (2411)" }, null) === "Krylov - Arslanov.gif",
+    suggestedGifName({ white: "Krylov, Mikhail (2489)", black: "Arslanov, Shamil (2411)" }, null));
+  check("one between nobody — White and Black — goes by the name it is kept under",
+    suggestedGifName({ white: "White", black: "Black" }, "Rook endings") === "Rook endings.gif",
+    suggestedGifName({ white: "White", black: "Black" }, "Rook endings"));
+  check("while somebody actually called White is somebody",
+    suggestedGifName({ white: "White, John", black: "Kowalski, Jan" }, null) === "White - Kowalski.gif",
+    suggestedGifName({ white: "White, John", black: "Kowalski, Jan" }, null));
+  check("and with no name at all, by the app and the day",
+    suggestedGifName(null, null, new Date(2026, 8, 28)) === "chess-visualizer-2026-09-28.gif",
+    suggestedGifName(null, null, new Date(2026, 8, 28)));
+  check("a typed name loses what no file system allows, and ends in .gif once",
+    asGifName("Club: round 1 / game?.GIF") === "Club round 1 game.gif" && asGifName("  ") === "",
+    asGifName("Club: round 1 / game?.GIF"));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

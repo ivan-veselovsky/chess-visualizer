@@ -1,4 +1,5 @@
 import { useLayoutEffect, useReducer, useRef, type TransitionEvent } from "react";
+import { reducedMotion } from "./motion";
 
 /** A thing to draw, and whether it is on its way out. */
 export interface Fading<T> {
@@ -22,12 +23,12 @@ interface Held<T> {
   fading: boolean;
 }
 
-/** Whether the reader has asked for no movement, which means no fades to wait on. */
+/**
+ * Whether the reader has asked for no movement, which means no fades to wait
+ * on — unless an export is holding the movement on; see `motion.ts`.
+ */
 function stillness() {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
+  return reducedMotion();
 }
 
 /**

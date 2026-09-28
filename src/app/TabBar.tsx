@@ -18,6 +18,8 @@ interface TabBarProps<Id extends string> {
   /** Named for the reader of a screen reader, who cannot see what these switch. */
   label: string;
   onSelect: (id: Id) => void;
+  /** Closed to the reader for now: something is using the page. */
+  inert?: boolean;
 }
 
 /**
@@ -34,6 +36,7 @@ export default function TabBar<Id extends string>({
   active,
   label,
   onSelect,
+  inert = false,
 }: TabBarProps<Id>) {
   const row = useRef<HTMLDivElement>(null);
 
@@ -45,7 +48,7 @@ export default function TabBar<Id extends string>({
   }
 
   return (
-    <div className="tab-bar" role="tablist" aria-label={label} ref={row}>
+    <div className="tab-bar" role="tablist" aria-label={label} ref={row} inert={inert}>
       {tabs.map(({ id, label: text, name }, index) => (
         <button
           key={id}

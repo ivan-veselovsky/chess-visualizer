@@ -7,10 +7,12 @@ export interface PgnImport {
   /**
    * Who played it, as the file says.
    *
-   * Exactly as written, and "Unknown" where a file says nothing: a game with
-   * nobody in it is still a game between two people, and a blank over the board
-   * reads as a fault rather than as an absence. PGN's own "?" is treated as
-   * nothing said, since that is what it means.
+   * Exactly as written, and the colour they played — "White", "Black" — where
+   * a file says nothing: a game with nobody in it is still a game between two
+   * people, and a blank over the board reads as a fault rather than as an
+   * absence. The colour is the one thing about a nameless player that is
+   * known, and it says which row is which at a glance. PGN's own "?" is treated
+   * as nothing said, since that is what it means.
    */
   players: { white: string; black: string };
   /**
@@ -23,16 +25,16 @@ export interface PgnImport {
 }
 
 /**
- * The name given to a player a file says nothing about. Exported so that
- * whatever needs to know whether a file named anybody asks the same question
- * this answers, rather than a copy of the word.
+ * What a player a file says nothing about is called: the colour they played.
+ * Exported so that whatever needs to know whether a file named anybody asks
+ * the same question this answers, rather than a copy of the words.
  */
-export const NOBODY = "Unknown";
+export const UNNAMED = { white: "White", black: "Black" } as const;
 
-/** What a file says a player was called, or that nobody knows. */
-function playerNamed(said: string | undefined): string {
+/** What a file says a player was called, or the colour they played. */
+function playerNamed(said: string | undefined, side: "white" | "black"): string {
   const name = (said ?? "").trim();
-  return name === "" || name === "?" ? NOBODY : name;
+  return name === "" || name === "?" ? UNNAMED[side] : name;
 }
 
 /**
@@ -45,7 +47,7 @@ function playerNamed(said: string | undefined): string {
  * Entries come back newest first, matching how a history is ordered.
  */
 export function parsePgn(text: string): PgnImport {
-  const nobody = { white: NOBODY, black: NOBODY };
+  const nobody = { white: UNNAMED.white, black: UNNAMED.black };
   if (text.trim() === "") {
     return {
       entries: null,
@@ -70,8 +72,8 @@ export function parsePgn(text: string): PgnImport {
 
   const moves = game.history({ verbose: true });
   const players = {
-    white: playerNamed(game.getHeaders().White),
-    black: playerNamed(game.getHeaders().Black),
+    white: playerNamed(game.getHeaders().White, "white"),
+    black: playerNamed(game.getHeaders().Black, "black"),
   };
   const said = (game.getHeaders().Result ?? "").trim();
   const result = said === "" || said === "*" ? null : said;

@@ -387,14 +387,16 @@ body {
   }
 }
 
-/* Whoever asked for no motion is not asking for this either. */
+/* Whoever asked for no motion is not asking for this either — except while an
+   animated GIF is being made, which is a picture for other people's screens and
+   keeps its movement; see `motion.ts`. */
 @media (prefers-reduced-motion: reduce) {
-  .heatmap-square {
+  :root:not(.motion-forced) .heatmap-square {
     transition: none;
   }
 
-  .mark-coming,
-  .mark-going {
+  :root:not(.motion-forced) .mark-coming,
+  :root:not(.motion-forced) .mark-going {
     transition: none;
   }
 }
@@ -2930,6 +2932,97 @@ input[type="color"]::-moz-color-swatch {
     color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
     white 25%
   );
+}
+
+/* --- Animated GIF export ------------------------------------------------ */
+
+/* What goes into the GIF, said once at the top, in the panel's quieter voice. */
+.gif-about {
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+/*
+  Where the file goes: the words at the left, the buttons that change it at the
+  far end. Wraps rather than squeezes, since a folder's name can be long.
+*/
+.gif-folder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0.9rem 0 0;
+  font-size: 0.9rem;
+}
+
+.gif-folder-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gif-folder-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.gif-folder-note {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+/* The button, and beside it how big the GIF will come out. */
+.gif-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  margin: 1.2rem 0 0;
+}
+
+.gif-size {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+/*
+  How far an export has got. A track and a fill, drawn in the page's own livery
+  so it reads as the app working rather than as another control; the fill moves
+  in steps as frames are finished, and needs no animation of its own to look
+  like it is going.
+*/
+.gif-progress {
+  margin: 1rem 0 0;
+}
+
+.gif-progress-track {
+  height: 0.55rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+.gif-progress-fill {
+  height: 100%;
+  background: var(--livery);
+}
+
+.gif-progress-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.gif-done {
+  overflow-wrap: anywhere;
 }
 
 /* --- Two boards --------------------------------------------------------- */

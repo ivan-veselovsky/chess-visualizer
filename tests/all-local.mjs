@@ -7,8 +7,8 @@
  * talk to. What is here is what a machine can be handed with no setup beyond
  * `npm install`, and what a pull request has to be green on.
  *
- * Three suites: the unit tests, the board's behaviour in a real browser, and
- * the picture it draws. Each suite is its own process, so
+ * Four suites: the unit tests, the board's behaviour in a real browser, the
+ * picture it draws, and the animated GIF it exports. Each suite is its own process, so
  * one that hangs a socket or leaves a browser behind cannot take the rest down
  * with it, and each reports its own tally before this one adds them up.
  *
@@ -39,6 +39,7 @@ const suites = [
   { name: "unit", file: "unit.mjs", args: ["--experimental-strip-types"] },
   { name: "board", file: "board.mjs", args: [] },
   { name: "rendering", file: "e2e-rendering.mjs", args: [] },
+  { name: "gif export", file: "gif-export.mjs", args: [] },
 ];
 
 const run = (command, args, options = {}) =>

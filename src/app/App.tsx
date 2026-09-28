@@ -1,4 +1,6 @@
 import {
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useMemo,
@@ -6,6 +8,7 @@ import {
   useState,
 } from "react";
 import type { CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import { Chess, DEFAULT_POSITION, type Color, type Square } from "chess.js";
 import { PIECE_GLYPHS } from "../chess/model";
 import {
@@ -66,6 +69,8 @@ import FieldWithHelp from "./FieldWithHelp";
 import MovesSelect from "./MovesSelect";
 import NumberField from "./NumberField";
 import GearIcon from "./GearIcon";
+import ClapperboardIcon from "./ClapperboardIcon";
+import type { GifDriver } from "./gif/capture";
 import IntensityChooser from "./IntensityChooser";
 import LinkIcon from "./LinkIcon";
 import GitHubIcon from "./GitHubIcon";
@@ -78,6 +83,7 @@ import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
 import AvailableBar from "./AvailableBar";
 import { keyboardIsOn } from "./keyboardOn";
+import { reducedMotion } from "../visualization/motion";
 import CapturedBar from "./CapturedBar";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
@@ -128,7 +134,14 @@ import {
  * What the right-hand column can show. The game comes first and opens by
  * default: it is what the page is for, and the rest is how it looks.
  */
-type PanelTab = "game" | "match" | "balance" | SettingsGroup;
+type PanelTab = "game" | "match" | "balance" | "gif" | SettingsGroup;
+
+/*
+  Fetched the first time its tab is opened rather than with the page: making a
+  GIF is something a reader does now and then, and the encoder and the rest of
+  it are no reason for everybody else's page to be bigger.
+*/
+const GifExportPanel = lazy(() => import("./GifExportPanel"));
 
 const TABS: readonly Tab<PanelTab>[] = [
   // Where a position is worked on: set up, stepped through, played out against
@@ -149,6 +162,10 @@ const TABS: readonly Tab<PanelTab>[] = [
   { id: "heatmap", label: "Heatmap", name: "Attack heatmap" },
   { id: "check", label: "Check", name: "Check and checkmate" },
   { id: "pins", label: "Pin", name: "Pins" },
+  // What the board is made into rather than how it is drawn, so it stands
+  // apart from the settings, beside the gear; marked, like the gear, since the
+  // strip has no room left for a word.
+  { id: "gif", label: <ClapperboardIcon />, name: "Animated GIF export" },
   // Marked rather than named: it holds the settings themselves — the file they
   // are written to and read from — rather than any setting, and a gear says
   // that in the space a word would need.
@@ -246,6 +263,16 @@ export default function App() {
     rather than in the settings; see `twoBoard.ts` for why.
   */
   const [twoBoard, setTwoBoard] = useState(twoBoardMode);
+  /*
+    An animated GIF being made. The board is the export's while it runs: it is
+    stepped through the game and its animations held and set by hand, so the
+    board and the tabs are closed to the reader until it is done. Held in a ref
+    as well, for the one reader of it that is not a render — the stop that lands
+    a piece whose flight has gone on too long, which an export's frames, made
+    slower than the flight they show, would otherwise set off.
+  */
+  const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
   const [rightPreset, setRightPreset] = useState(twoBoardPreset);
   /*
     Every preset the right board could be drawn with, and the one it is.
@@ -815,6 +842,38 @@ export default function App() {
     setPlaying(!playing);
   }
 
+  /*
+    The board as the GIF export drives it: the line, a jump to any position in
+    it, and one move played as the board plays one.
+
+    Each is committed before it returns — `flushSync` — so the export finds the
+    board already moved, and the flight already set off, the moment it asks.
+    The export runs across many turns of the event loop and a render happens
+    between most of them, so what it calls is read from the latest render
+    rather than from the one it was made in.
+  */
+  const latest = useRef({ history, showHistory, stepHistory });
+  latest.current = { history, showHistory, stepHistory };
+  const gifDriver = useMemo<GifDriver>(
+    () => ({
+      line: () => {
+        const { history: now } = latest.current;
+        return { count: now.entries.length, at: now.entries.length - 1 - now.current };
+      },
+      jump: (at) => {
+        flushSync(() => {
+          setPlaying(false);
+          const { history: now, showHistory: show } = latest.current;
+          show(goToPosition(now, now.entries.length - 1 - at));
+        });
+      },
+      step: () => {
+        flushSync(() => latest.current.stepHistory("next"));
+      },
+    }),
+    []
+  );
+
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
 
   /*
@@ -911,7 +970,7 @@ export default function App() {
     if (
       before === after ||
       settings.pieces.moveMotion.speed <= 0 ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      reducedMotion()
     ) {
       return null;
     }
@@ -1033,7 +1092,7 @@ export default function App() {
     and the rest of its journey became a jump.
   */
   useEffect(() => {
-    if (flight === null) {
+    if (flight === null || exportingRef.current) {
       return;
     }
     const landed = window.setTimeout(() => {
@@ -1850,6 +1909,7 @@ export default function App() {
             number, set where both can reach it. */}
         <section
           className="board-pane"
+          inert={exporting}
           style={
             {
               "--men-bars": String(
@@ -2039,6 +2099,7 @@ export default function App() {
             active={tab}
             label="Game and settings"
             onSelect={setTab}
+            inert={exporting}
           />
 
           {/*
@@ -2652,7 +2713,32 @@ export default function App() {
             </div>
           )}
 
-          {tab !== "game" && tab !== "match" && tab !== "balance" && (
+          {tab === "gif" && (
+            <div
+              className="tab-panel"
+              role="tabpanel"
+              id="panel-gif"
+              aria-labelledby="tab-gif"
+            >
+              <Suspense fallback={<p className="invite-note">Loading…</p>}>
+              <GifExportPanel
+                driver={gifDriver}
+                initialDelayMs={settings.lab.playInitialDelaySec * 1000}
+                periodMs={Math.max(settings.lab.playPeriodPerPositionSec, 0.1) * 1000}
+                players={named === null ? null : { white: named.names.w, black: named.names.b }}
+                keptAs={stashName}
+                twoBoards={twoBoard}
+                positions={history.entries.length}
+                onExporting={(on) => {
+                  exportingRef.current = on;
+                  setExporting(on);
+                }}
+              />
+              </Suspense>
+            </div>
+          )}
+
+          {tab !== "game" && tab !== "match" && tab !== "balance" && tab !== "gif" && (
             <div
               /* The rays are the longest of the settings groups and open with a
                  row of their own rather than with a name, so they keep the thin

@@ -5,7 +5,7 @@
   these two are values rather than types, so they have to resolve at run time.
 */
 import type { HistoryEntry } from "../chess/history";
-import { NOBODY, parsePgn } from "../chess/pgn.ts";
+import { UNNAMED, parsePgn } from "../chess/pgn.ts";
 import { parseFen } from "../chess/position.ts";
 
 /** The query parameters a link can carry. */
@@ -36,8 +36,8 @@ export interface Opening {
    * Null for a position, and for a game whose PGN names nobody and gives no
    * result. That is what this app writes for a line somebody pushed around a
    * board on their own, and opened as a game read in it would stand between
-   * two players called Unknown — where the person who shared it saw no names
-   * at all. Opened as a plain line it looks as it did to them.
+   * two players called White and Black — where the person who shared it saw no
+   * names at all. Opened as a plain line it looks as it did to them.
    */
   game: SharedGame | null;
 }
@@ -69,7 +69,7 @@ export function openingFromUrl(search: string): Opening | null {
     const { entries, players, result } = parsePgn(pgn);
     if (entries !== null && entries.length > 0) {
       const told =
-        players.white !== NOBODY || players.black !== NOBODY || result !== null;
+        players.white !== UNNAMED.white || players.black !== UNNAMED.black || result !== null;
       /*
         The position the board opens on, which must be the one the line is
         opened at or the two disagree: the history lands at the last move, so
