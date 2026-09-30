@@ -129,6 +129,41 @@ export interface PgnEnding {
   how: string;
 }
 
+/**
+ * How the game ended, where the last position says so by itself: a mate, a
+ * stalemate, or too little left for either side to mate. Those end a game by
+ * the rules, with nobody having to claim anything, so a line that reaches one
+ * is over, and a PGN of it that called it unfinished would be wrong.
+ *
+ * A repetition or fifty moves without a capture are left alone: they end a
+ * game only when a player claims them, and a line being studied can pass
+ * through either on its way somewhere.
+ *
+ * The words are the ones `describeEnding` gives the same endings, so a game
+ * ended on the board reads as one that ended in play.
+ */
+function endingOnBoard(game: Chess): PgnEnding | null {
+  if (game.isCheckmate()) {
+    return { result: game.turn() === "w" ? "0-1" : "1-0", how: "Checkmate" };
+  }
+  if (game.isStalemate()) {
+    return { result: "1/2-1/2", how: "Stalemate" };
+  }
+  if (game.isInsufficientMaterial()) {
+    return { result: "1/2-1/2", how: "Draw — too little material to mate" };
+  }
+  return null;
+}
+
+/**
+ * The result a position has settled by itself, as PGN writes it, or null for
+ * one still open: for the board to say over a line nobody named, as a file
+ * of it would.
+ */
+export function resultOnBoard(game: Chess): PgnEnding["result"] | null {
+  return endingOnBoard(game)?.result ?? null;
+}
+
 export function toPgn(
   history: PositionHistory,
   event: string | null = null,
@@ -172,6 +207,11 @@ export function toPgn(
     game.setHeader("Black", players.black);
   }
 
+  /* Worked out from the board, rather than said by whoever called this. */
+  const onBoard = ending === null;
+  if (ending === null) {
+    ending = endingOnBoard(game);
+  }
   if (ending !== null) {
     game.setHeader("Result", ending.result);
     /*
@@ -180,7 +220,14 @@ export function toPgn(
       happened goes in a comment after the last move, where a reader will see
       it and no parser will trip over it.
     */
-    if (ending.result !== "*") {
+    /*
+      Not for a line with nobody in it — a task, an exercise — that the board
+      alone ended: it is kept as short as it goes, its result saying who won
+      and its last move's "#" already saying how. A game somebody played says
+      it in full, and so does any ending the board could not show, such as a
+      resignation, which the comment is the only record of.
+    */
+    if (ending.result !== "*" && !(onBoard && players === null)) {
       game.setHeader("Termination", "normal");
       game.setComment(ending.how);
     }

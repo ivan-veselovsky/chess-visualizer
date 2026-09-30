@@ -96,6 +96,18 @@ interface BoardProps {
    * a board with no side is not.
    */
   frozen?: boolean;
+  /**
+   * Told when a piece is picked up on this board, by a press or a click: the
+   * way two boards showing one game hear of each other, so that only one of
+   * them has a piece in hand at a time.
+   */
+  onPickUp?: () => void;
+  /**
+   * A piece has been picked up on another board showing the same game, and
+   * whatever this one has picked out is let go: the reader's hand is on the
+   * other board now, and one piece in hand is all there is.
+   */
+  pickedUpElsewhere?: boolean;
   /** Thin lines on the square edges, and what they are drawn in. */
   grid: GridLines;
   /** The move that reached this position, to shade the squares it used. */
@@ -140,6 +152,8 @@ export default function Board({
   grid,
   playable = null,
   frozen = false,
+  onPickUp,
+  pickedUpElsewhere = false,
   lastMove = null,
   lastMoveMark = {
     color: "#000000",
@@ -167,6 +181,13 @@ export default function Board({
   // A different position is a different board: whatever was picked out on the
   // old one may not even be there any more.
   useEffect(() => setSelected(null), [position]);
+
+  // And so is a piece picked up on the other board.
+  useEffect(() => {
+    if (pickedUpElsewhere) {
+      setSelected(null);
+    }
+  }, [pickedUpElsewhere]);
 
   /*
     Only the side to move can be in check, so there is at most one king to
@@ -327,6 +348,7 @@ export default function Board({
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setDrag({ from, targets, at });
+    onPickUp?.();
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>) {

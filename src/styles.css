@@ -2992,12 +2992,28 @@ input[type="color"]::-moz-color-swatch {
   than that and they stop reading as the black army.
 
   The board's own men are untouched, standing where they always did.
+
+  And never darker than the move counter's text. A quarter of the way from a
+  black that is black to begin with is still a dark grey on a nearly black
+  page, and hard to see; so a man that comes out darker than the counter's
+  text is lifted to its lightness, in its own hue, and one already lighter is
+  left as it is. The counter's lightness is worked out where the text colour is
+  known, and published as `--men-bar-floor`; see `App`.
 */
 :root[data-theme="dark"] .men-bar .piece-black {
   fill: color-mix(
     in srgb,
     color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
     white 25%
+  );
+  fill: oklch(
+    from
+      color-mix(
+        in srgb,
+        color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
+        white 25%
+      )
+      max(l, var(--men-bar-floor, 0)) c h
   );
 }
 
@@ -4058,25 +4074,37 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  /* So the counter over a board that is nobody's game can be hung above the
-     column without taking a line out of it. */
+  /* Once the box the counter over a board of one's own hung from; kept as the
+     box anything inside the column is placed against. */
   position: relative;
 }
 
 /*
-  That counter: the same row a game has, at the same end and the same inset, but
-  lifted out of the flow and sat in the air above the board.
+  That row: the same row a game has over its board, at the same inset, holding
+  what there is to say about a board with nobody's names on it.
 
-  The board keeps its full height this way — nothing is reserved — and the strip
-  it lands in is the space under the page's title, which holds nothing on this
-  side of the page.
+  In the flow, and there whether or not it has anything in it yet, so the board
+  is one size from the first position to the last. It was once lifted out and
+  hung in the air under the page's title, which kept the board a row taller;
+  with only the counter in it that strip was empty, but with a line's name
+  starting where the first file does it ran into the title, and in two board
+  mode the counter ran into the links across from it. A board without names
+  gives up one row for this, where a game with them gives up two.
 */
-.board-counter {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  margin: 0;
+/*
+  Set up closer under the page's title than a row of names is, by 0.7em: it is
+  the board's one row here, and air over it is height the board goes without.
+  Said on both classes, since the names' own margin comes later in this sheet
+  and would win against either alone.
+*/
+.player-name.board-counter {
+  margin-top: calc(0.25rem - 0.7em);
+}
+
+/* Which line of a game is up, where a name would stand: on one line, and cut
+   short before it runs into the result in the middle. */
+.board-counter .branch-path {
+  white-space: nowrap;
 }
 
 /*

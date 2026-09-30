@@ -328,6 +328,98 @@ try {
     `${inTheAir.length} frames in the air, ${new Set(startedLeaving).size} marks left during them`
   );
 
+  console.log("\nPlaying on either of two boards\n");
+
+  /*
+    After 1. Nf3 Nf6, White to move: a move clicked and a move dragged on the
+    right board, a drag from one board let go over the other,
+    and the left board still taking moves after it all.
+  */
+  await page.run(`${HELPERS}
+    document.querySelector("#tab-manage").click(); await sleep(400);
+    const two = document.querySelector("#two-board-mode"); if (!two.checked) two.click(); await sleep(700);
+    window.__tab("Lab"); await sleep(300);
+    [...document.querySelectorAll("button")].find((b) => /import game/i.test(b.textContent)).click(); await sleep(400);
+    const box = document.querySelector("#pgn-text");
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box,
+      '1. Nf3 Nf6 *\\n');
+    box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+    /* At the last position, where a move plays on rather than starting a line. */
+    const moves = document.querySelector(".moves-select");
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(moves, "0");
+    moves.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
+    /* Where a square is on one board or the other: 0 the left, 1 the right. */
+    window.__on = (board, name) => {
+      const rects = [...document.querySelectorAll(".board-holder svg")[board].querySelectorAll(".square-layer rect")];
+      const xs = rects.map((r) => +r.getAttribute("x"));
+      const x0 = Math.min(...xs), step = (Math.max(...xs) - x0) / 7;
+      const y0 = Math.min(...rects.map((r) => +r.getAttribute("y")));
+      const hit = rects.find((r) =>
+        Math.abs(+r.getAttribute("x") - (x0 + (name.charCodeAt(0) - 97) * step)) < 1 &&
+        Math.abs(+r.getAttribute("y") - (y0 + (8 - +name[1]) * step)) < 1);
+      const b = hit.getBoundingClientRect();
+      return { cx: Math.round(b.x + b.width / 2), cy: Math.round(b.y + b.height / 2) };
+    };
+    window.__played = () => document.querySelector(".moves-select").options.length - 1;
+    window.__marked = () => [...document.querySelectorAll(".board-holder svg")].map((svg) => svg.querySelectorAll(".drag-target").length);
+    return "ok";`);
+  const at = (board, square) => page.run(`return window.__on(${board}, "${square}");`);
+  const played = async () => Number(await page.run(`return String(window.__played());`));
+  const marked = async () => JSON.parse(await page.run(`return JSON.stringify(window.__marked());`));
+  /* Pressed on one square and let go on another, the pointer moving between. */
+  const drag = async (a, b) => {
+    await page.send("Input.dispatchMouseEvent", { type: "mousePressed", x: a.cx, y: a.cy, button: "left", buttons: 1, clickCount: 1 });
+    for (let i = 1; i <= 10; i += 1) {
+      await page.send("Input.dispatchMouseEvent", {
+        type: "mouseMoved", button: "left", buttons: 1,
+        x: Math.round(a.cx + ((b.cx - a.cx) * i) / 10), y: Math.round(a.cy + ((b.cy - a.cy) * i) / 10),
+      });
+      await pause(20);
+    }
+    await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: b.cx, y: b.cy, button: "left", buttons: 0, clickCount: 1 });
+    await pause(1500);
+  };
+
+  const atFirst = await played();
+  const e2 = await at(1, "e2");
+  await page.click(e2.cx, e2.cy);
+  await pause(300);
+  const picked = await marked();
+  check("a piece clicked on the right board is picked up there, and only there",
+    picked[0] === 0 && picked[1] === 2, JSON.stringify(picked));
+  /* One piece in hand at a time: picked out on the other board, the first
+     one is let go, whichever way round. */
+  const d2 = await at(0, "d2");
+  await page.click(d2.cx, d2.cy);
+  await pause(300);
+  const switched = await marked();
+  await page.click(e2.cx, e2.cy);
+  await pause(300);
+  const back = await marked();
+  check("a piece picked out on the other board lets go of the first one, whichever board it is",
+    switched[0] === 2 && switched[1] === 0 && back[0] === 0 && back[1] === 2,
+    `left then right: ${JSON.stringify(switched)} ${JSON.stringify(back)}`);
+  const e4 = await at(1, "e4");
+  await page.click(e4.cx, e4.cy);
+  await pause(1500);
+  check("and a second click there plays the move", (await played()) === atFirst + 1, `${await played()} played`);
+
+  await drag(await at(1, "b8"), await at(1, "c6"));
+  check("a piece dragged on the right board is played", (await played()) === atFirst + 2, `${await played()} played`);
+
+  await drag(await at(0, "b1"), await at(1, "c3"));
+  check("a piece dragged off the left board and let go over the right one is not played",
+    (await played()) === atFirst + 2, `${await played()} played`);
+  await drag(await at(1, "b1"), await at(0, "c3"));
+  const across = await marked();
+  check("nor the other way round, and neither board is left with a piece picked up",
+    (await played()) === atFirst + 2 && across[0] === 0 && across[1] === 0,
+    `${await played()} played, marks ${JSON.stringify(across)}`);
+
+  await drag(await at(0, "b1"), await at(0, "c3"));
+  check("while the left board takes a move as it always did", (await played()) === atFirst + 3, `${await played()} played`);
+
   console.log("\nThe panel under two boards\n");
 
   /*

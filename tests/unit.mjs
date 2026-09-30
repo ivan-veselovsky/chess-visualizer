@@ -50,7 +50,7 @@ import {
 } from "../src/app/friend/storage.ts";
 import { friendlyGameName } from "../src/app/friend/gameName.ts";
 import { describeEnding } from "../src/app/friend/ending.ts";
-import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
+import { lightness, mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { Chess } from "chess.js";
 
 let passed = 0;
@@ -139,6 +139,33 @@ console.log("\nHow a game ended\n");
   check("a mate on the board reads the same way",
     /\[Result "0-1"\]/.test(pgn ?? "") && /\{Checkmate\} 0-1$/.test((pgn ?? "").trim()),
     (pgn ?? "").slice(-70));
+}
+{
+  // The same mate, studied rather than played: nobody says how it ended but the board.
+  const pgn = toPgn(lineOf(["f3", "e5", "g4", "Qh4#"]), null, null, null);
+  const tag = (name) => new RegExp(`\\[${name} "([^"]*)"\\]`).exec(pgn)?.[1];
+  check("a line that ends in mate is won, with nobody having said so",
+    tag("Result") === "0-1" && /Qh4# 0-1$/.test((pgn ?? "").trim()), (pgn ?? "").slice(-70));
+  check("and a line with nobody in it says no more than that: no comment, no Termination",
+    !/\{/.test(pgn ?? "") && tag("Termination") === undefined, (pgn ?? "").slice(-70));
+  const scholar = toPgn(lineOf(["e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7#"]), null, null, null);
+  check("by White as well as by Black",
+    /\[Result "1-0"\]/.test(scholar ?? "") && /Qxf7# 1-0$/.test((scholar ?? "").trim()),
+    (scholar ?? "").slice(-70));
+  const named = toPgn(lineOf(["e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7#"]), null,
+    { white: "Bob", black: "Alice", site: "here" }, null);
+  check("while a game somebody played says how it ended, in words and in the Termination tag",
+    /\[Termination "normal"\]/.test(named ?? "") && /\{Checkmate\} 1-0$/.test((named ?? "").trim()),
+    (named ?? "").slice(-70));
+  // Sam Loyd's stalemate in ten.
+  const loyd = toPgn(lineOf(["e3", "a5", "Qh5", "Ra6", "Qxa5", "h5", "h4", "Rah6", "Qxc7", "f6", "Qxd7+", "Kf7",
+    "Qxb7", "Qd3", "Qxb8", "Qh7", "Qxc8", "Kg6", "Qe6"]), null, null, null);
+  check("a line that ends in stalemate is drawn",
+    /\[Result "1\/2-1\/2"\]/.test(loyd ?? "") && /Qe6 1\/2-1\/2$/.test((loyd ?? "").trim()),
+    (loyd ?? "").slice(-70));
+  const going = toPgn(lineOf(["e4", "e5", "Qh5"]), null, null, null);
+  check("and one that has only reached a check or a threat is still unfinished",
+    /\[Result "\*"\]/.test(going ?? "") && !/Termination/.test(going ?? ""), (going ?? "").slice(-40));
 }
 
 console.log("\nOdds\n");
@@ -1994,6 +2021,17 @@ console.log("\nA video's colours\n");
     [...planes.subarray(0, 9)].join(" ") === "16 16 235 16 16 235 16 16 235", [...planes.subarray(0, 9)].join(" "));
   check("and says it is BT.709 in the video range",
     VIDEO_COLOUR_SPACE.matrix === "bt709" && VIDEO_COLOUR_SPACE.transfer === "bt709" && VIDEO_COLOUR_SPACE.fullRange === false);
+}
+
+console.log("\nHow light a colour looks\n");
+{
+  /* OKLab's L, as CSS's oklch() has it: black 0, white 1, and a mid grey
+     about 0.6 — well over half, since the eye is more sensitive in the dark. */
+  const l = (hex) => lightness(readRgb(hex));
+  check("black is 0 and white is 1", Math.abs(l("#000000")) < 1e-6 && Math.abs(l("#ffffff") - 1) < 1e-4,
+    `${l("#000000")} / ${l("#ffffff")}`);
+  check("a mid grey is about 0.6, as CSS says of #808080", Math.abs(l("#808080") - 0.5999) < 0.001, String(l("#808080")));
+  check("and pure red is 0.628, as CSS says", Math.abs(l("#ff0000") - 0.628) < 0.001, String(l("#ff0000")));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

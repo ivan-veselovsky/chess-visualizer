@@ -13,6 +13,7 @@
  * run across both.
  */
 import { check, HELPERS, open, pause, summary } from "./browser.mjs";
+import DEFAULTS from "../src/app/presets/default-settings.json" with { type: "json" };
 
 const PORT = Number(process.env.PORT ?? 4191);
 const DEBUG_PORT = Number(process.env.CDP_PORT ?? 9436);
@@ -209,12 +210,14 @@ try {
     A fade a landing sets off, longer than the rest after its move, is fitted
     into it, so it has finished by the time the next move sets off: the steps
     back, which rest a tenth of a second, fade in a tenth as they land. Every
-    other landing keeps the quarter-second fade the settings give, and so does
+    other landing keeps the fade the settings give, and so does
     the board once the game has stopped. What a piece held as it lifts fades
     for the whole of its flight, and is gone as the piece lands: a mate's disc
     no longer goes in a flicker when the game steps back from it.
   */
-  const FADE = "250ms";
+  /* The preset's own fade, which this suite does not set: longer than a step
+     back's tenth, as a fade has to be for there to be anything to fit. */
+  const FADE = `${DEFAULTS.pieces.fadeTimeMs}ms`;
   const fitted = [FADE, FADE, FADE, "100ms", FADE, FADE, FADE, "100ms", FADE, FADE, FADE];
   check("a fade a landing sets off, longer than the rest after it, is shortened to fit it, and no other",
     JSON.stringify(played.lands) === JSON.stringify(fitted), played.lands.join(", "));
@@ -387,6 +390,86 @@ try {
     `${(two.branch.left + two.score.right) / 2} vs ${(firstFile + two.right.right) / 2}`);
   check("and the name begins over the first file",
     Math.abs(two.who.left - firstFile) < 2, `${two.who.left} vs ${firstFile}`);
+
+  console.log("\nA game with nobody named, and a move of one's own\n");
+  /*
+    Names over the board only where the file gives them. A task names nobody,
+    and gets the one row a board of one's own has: which line is up from where
+    the first file begins, its result in the middle, the counter at the end —
+    one row given up rather than two, so a bigger board, and the same size
+    whatever is played on it.
+  */
+  const NAMELESS = PGN.replace(/\[(White|Black) "[^"]*"\]\n/g, "");
+  const rows = `({
+    named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
+    row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent),
+    branch: box(".board-counter .branch-path"),
+    board: box(".board-holder svg"),
+  })`;
+  const at = (square) => page.run(`${HELPERS} return window.__sq("${square}");`);
+  const handMove = async (from, to) => {
+    const a = await at(from);
+    await page.click(a.cx, a.cy);
+    await pause(200);
+    const b = await at(to);
+    await page.click(b.cx, b.cy);
+    await pause(1500);
+  };
+  const namesOff = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    document.querySelector("#tab-manage").click(); await sleep(400);
+    const toggle = document.querySelector("#two-board-mode"); if (toggle.checked) toggle.click(); await sleep(700);
+    await load(${JSON.stringify(PGN)});
+    const named = ${rows};
+    await load(${JSON.stringify(NAMELESS)});
+    window.scrollTo(0, 0); await sleep(200);
+    return JSON.stringify({ named, nameless: ${rows} });`));
+  const { named: withNames, nameless } = namesOff;
+  const noNamesFirstFile = nameless.board.left + (nameless.board.width * 24) / 536;
+  check("a file that names nobody puts no names over the board",
+    withNames.named === 2 && nameless.named === 0, `${withNames.named} rows with names, ${nameless.named} without`);
+  check("but one row: the line, its result, and where the board stands in it",
+    nameless.row.length === 3 && /^Branch 1 of 3:/.test(nameless.row[0]) && nameless.row[1] === "1 : 0" &&
+      nameless.row[2] === "half-move 3 of 3",
+    JSON.stringify(nameless.row));
+  check("the line's name beginning where the first file does",
+    nameless.branch !== null && Math.abs(nameless.branch.left - noNamesFirstFile) < 2,
+    `${nameless.branch?.left} vs ${noNamesFirstFile}`);
+  check("and the board a row's height bigger than a game with names has",
+    nameless.board.height > withNames.board.height + 5, `${nameless.board.height} vs ${withNames.board.height}`);
+  /* A move of one's own on it, from the position before the mate. */
+  await page.run(`${WHERE} key("ArrowLeft"); await sleep(900); return "ok";`);
+  await handMove("a7", "b7");
+  const ownOnNameless = JSON.parse(await page.run(`${HELPERS}${WHERE} return JSON.stringify(${rows});`));
+  check("a move of one's own leaves the board the size it was, with the line's name gone",
+    Math.abs(ownOnNameless.board.height - nameless.board.height) < 1 && ownOnNameless.named === 0 &&
+      ownOnNameless.row[0] === "" && ownOnNameless.row[2] === "half-move 3 of 3",
+    `${ownOnNameless.board.height} vs ${nameless.board.height}; ${JSON.stringify(ownOnNameless.row)}`);
+
+  /*
+    And a game that does name its players loses them at the first move the
+    reader makes — any move, even the file's own. Played by hand, the mate
+    that ends the first line is the reader's line, not the game's, and the
+    names do not come back with it.
+  */
+  await page.run(`${HELPERS}${WHERE} await load(${JSON.stringify(PGN)}); key("ArrowLeft"); await sleep(900); return "ok";`);
+  const before = JSON.parse(await page.run(`${HELPERS}${WHERE} return JSON.stringify(${rows});`));
+  await handMove("g7", "g8");
+  const own = JSON.parse(await page.run(`${HELPERS}${WHERE} return JSON.stringify(${rows});`));
+  check("a game with names keeps them while it is walked",
+    before.named === 2, `${before.named} rows with names`);
+  check("and loses them at a move of one's own, even the file's own mate",
+    own.named === 0 && own.row[0] === "" && own.row[1] === "1 : 0" && own.row[2] === "half-move 3 of 3",
+    `${own.named} rows with names; ${JSON.stringify(own.row)}`);
+  /* As it does at a position typed in, which starts a board of one's own. */
+  const typed = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    await load(${JSON.stringify(PGN)});
+    const withNames = ${rows}.named;
+    window.__tab("Lab"); await sleep(300);
+    __set("#fen", "4k3/8/8/8/8/8/8/R3K3 w Q - 0 1"); await sleep(900);
+    return JSON.stringify({ withNames, after: ${rows} });`));
+  check("and at a position typed in",
+    typed.withNames === 2 && typed.after.named === 0 && typed.after.row.join("") === "",
+    `${typed.withNames} rows with names before, ${typed.after.named} after; ${JSON.stringify(typed.after.row)}`);
 } catch (error) {
   check("the branch tests could not run", false, error.message);
 }

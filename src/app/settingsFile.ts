@@ -151,10 +151,10 @@ function initialDelayGiven(candidate: Record<string, unknown>): void {
      back to a fork, and the hold at the end of a line — again what a new
      reader gets. */
   if (typeof node.playBackStepSec !== "number") {
-    node.playBackStepSec = 0.2;
+    node.playBackStepSec = 0.1;
   }
   if (typeof node.playLineEndHoldSec !== "number") {
-    node.playLineEndHoldSec = 1;
+    node.playLineEndHoldSec = 1.5;
   }
   /* In the order the interface declares them and the Lab tab shows them. */
   inOrder(node, [

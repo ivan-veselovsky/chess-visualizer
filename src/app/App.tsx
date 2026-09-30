@@ -42,10 +42,13 @@ import {
   type TreeLine,
 } from "../chess/variations";
 import { capturesUpTo } from "../chess/captures";
+import { lightness, readRgb } from "../visualization/color";
 import { applyMove } from "../chess/moves";
 import {
   parsePgn,
+  resultOnBoard,
   toPgn,
+  UNNAMED,
   type PgnEnding,
   type PgnPlayers,
 } from "../chess/pgn";
@@ -180,6 +183,15 @@ function gameLines(pgn: string, given: PositionHistory): TreeLine[] {
 */
 const GifExportPanel = lazy(() => import("./GifExportPanel"));
 
+/*
+  How light a black man on the bars beside the board must be at the least, as a
+  share of how light the move counter's text is. All of it lifted the darkest
+  men to the counter's own grey, which read as a grey army rather than a black
+  one; seven tenths left the queen, the most finely drawn of them, too dark to
+  make out. Between the two.
+*/
+const MEN_BAR_FLOOR_SHARE = 0.85;
+
 const TABS: readonly Tab<PanelTab>[] = [
   // Where a position is worked on: set up, stepped through, played out against
   // nobody, shared. "Lab" rather than "Game" because the tab beside it is a
@@ -300,6 +312,9 @@ export default function App() {
     rather than in the settings; see `twoBoard.ts` for why.
   */
   const [twoBoard, setTwoBoard] = useState(twoBoardMode);
+  /* Which of the two boards last had a piece picked up on it: the other lets go
+     of whatever it had picked out, so there is one piece in hand at a time. */
+  const [inHand, setInHand] = useState<"left" | "right" | null>(null);
   /*
     An animated GIF being made. The board is the export's while it runs: it is
     stepped through the game and its animations held and set by hand, so the
@@ -899,8 +914,10 @@ export default function App() {
     showPosition(next);
     setHistory(startHistory(next));
     /* Typed, pasted or reset: whatever follows from here is the board's own
-       and nobody else's copy of it. */
+       and nobody else's copy of it — nor any game's that was read in, whose
+       names and lines go with it, as they do at a move of one's own. */
     handed.current = null;
+    setRead(null);
     setLibraryGame(null);
     setLibraryGameError(null);
     setStashName(null);
@@ -1529,11 +1546,22 @@ export default function App() {
   const scoreOf = (result: string) =>
     result === "1-0" ? "1 : 0" : result === "0-1" ? "0 : 1" : "½ : ½";
 
+  /*
+    Whether the game read in says who played it — either of them. A file that
+    names nobody is a task or an exercise, and its players are only the colours
+    they have; the board says those already, and two rows of "White" and
+    "Black" with flowers beside them would take height from it to say nothing.
+    Such a game is shown as a board of one's own is, whatever is done on it,
+    so nothing over it changes shape as its lines are walked or left.
+  */
+  const namesKnown =
+    readGame !== null &&
+    (readGame.players.white !== UNNAMED.white || readGame.players.black !== UNNAMED.black);
   const namesShown = useRef(false);
   const atOne =
     friend.phase.kind === "playing" ||
     friend.phase.kind === "waiting" ||
-    (friend.phase.kind === "idle" && readGame !== null);
+    (friend.phase.kind === "idle" && namesKnown);
   if (friend.phase.kind !== "opening") {
     namesShown.current = atOne;
   }
@@ -2098,6 +2126,23 @@ export default function App() {
       "--dark-theme-fg",
       settings.board.darkThemeTextColor,
     );
+    /*
+      How light the move counter's text looks on the dark page: the text colour
+      at the three quarters the counter is drawn at, over the page's ground,
+      mixed as a browser lays translucent text on a page. The men on the bars
+      beside the board are never drawn darker than `MEN_BAR_FLOOR_SHARE` of
+      that — a black man is otherwise very nearly the ground it lies on — and
+      it is worked out here because the text colour is the reader's to choose.
+      See `.men-bar .piece-black` in the stylesheet.
+    */
+    const root = document.documentElement;
+    const ground = getComputedStyle(root).getPropertyValue("--app-bg").trim();
+    if (/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(ground) && /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(settings.board.darkThemeTextColor)) {
+      const text = readRgb(settings.board.darkThemeTextColor);
+      const under = readRgb(ground);
+      const ink = text.map((channel, i) => channel * 0.75 + under[i] * 0.25) as [number, number, number];
+      root.style.setProperty("--men-bar-floor", (lightness(ink) * MEN_BAR_FLOOR_SHARE).toFixed(3));
+    }
   }, [settings.board.theme, settings.board.darkThemeTextColor]);
 
   // A FEN is unparseable for most of the time it takes to type one, so the
@@ -2107,6 +2152,27 @@ export default function App() {
     lastValid.current = position;
   }
   const shown = position ?? lastValid.current;
+  /*
+    Which of a game's lines is on the board, said the same way over a board
+    with names and over one without — in the middle of the names' row, and at
+    the start of the row that stands in for it.
+  */
+  const branchLabel =
+    branch !== null && branch.path.length > 0 ? (
+      <span className="branch-path">
+        <span className="branch-count">
+          Branch {branch.number} of {branch.of}:
+        </span>{" "}
+        {branch.path.join(" › ")}
+      </span>
+    ) : null;
+  /*
+    And how the line on a board without names comes out: the file's word for
+    it, while the board holds one of the file's lines, and otherwise the
+    board's own, for a line the reader has played to a mate or a stalemate.
+  */
+  const unnamedResult =
+    readGame !== null ? readResult : shown === null ? null : resultOnBoard(shown);
 
   /** Moves come back from the board as squares; the position that follows is
    *  a new FEN, so editing by hand and playing by hand feed the same state. */
@@ -2143,8 +2209,35 @@ export default function App() {
       friend.move(history.entries.length - 1, next.san);
       return;
     }
+    /*
+      A move of the reader's own leaves a game read in behind, whatever move it
+      is: the board is theirs from here, without the game's names, its lines or
+      its result. Even a move the file has too, and even one that goes on to
+      finish one of its lines — the game's names coming back at a mate the
+      reader played by hand said the board was that game again, when it was the
+      reader's own line all along.
+    */
+    setRead(null);
     playPosition(next.fen, next.san);
   }
+
+  /*
+    Who may move on the boards, and when none may — said once, for both
+    boards, which take moves by the same rules.
+
+    Stepping back through a game is reading it. Playing on from an earlier
+    position would be starting a different game, and the one being played is
+    not this browser's to fork.
+
+    A challenge is frozen outright: there is no game to move in until somebody
+    answers it, and a board that took moves would be offering to play against
+    nobody. Stepping away is what hands the position back to the reader.
+  */
+  const playable = friend.phase.kind === "playing" ? friend.phase.you : null;
+  const frozen =
+    friend.phase.kind === "waiting" ||
+    (friend.phase.kind === "playing" &&
+      (history.current !== 0 || !friend.link.mine));
 
   return (
     <main
@@ -2214,20 +2307,27 @@ export default function App() {
           {shown !== null && (
             <div className="board-and-players">
               {/*
-                Where the board stands, for a board that is nobody's game.
+                Where the board stands, for a board that is nobody's game — one
+                of the reader's own, or a game whose file names nobody: which
+                of its lines is up, how that comes out, and how far along it
+                the board is.
 
-                Over the board and at the same end of the row as it is in a
-                game, so the reader looks in one place for it either way — but
-                out of the flow, so it takes no height from the column. A board
-                of one's own is drawn at its full size, and a line reserved
-                above it would shrink it by exactly the thing this is trying not
-                to cost. What it sits in is the air under the page's title,
-                which is going spare.
+                Over the board and in the same places along the row as they are
+                in a game, so the reader looks in one place for each either
+                way. Always there on a board without names, empty or not, so
+                that the board does not change size at the first move; see
+                `.board-counter`.
               */}
-              {!atAGame && playedSoFar > 0 && (
+              {!atAGame && (
                 <p className="player-name board-counter">
-                  <span className="player-who" />
-                  <span className="player-result" />
+                  {/* Where a name would be, as there is none: which line of
+                      the game is up, from where the first file begins. */}
+                  <span className="player-who">{branchLabel}</span>
+                  <span className="player-result">
+                    {unnamedResult !== null && (
+                      <span className="player-score">{scoreOf(unnamedResult)}</span>
+                    )}
+                  </span>
                   <span className="player-position">{counted}</span>
                 </p>
               )}
@@ -2256,15 +2356,8 @@ export default function App() {
                         was taken from the height of the board.
                       */
                       <>
-                        {branch !== null && branch.path.length > 0 && (
-                          <span className="branch-path">
-                            <span className="branch-count">
-                              Branch {branch.number} of {branch.of}:
-                            </span>{" "}
-                            {branch.path.join(" › ")}
-                          </span>
-                        )}
-                        {branch !== null && branch.path.length > 0 && readResult !== null && (
+                        {branchLabel}
+                        {branchLabel !== null && readResult !== null && (
                           <span className="branch-sep" aria-hidden="true">
                             ·
                           </span>
@@ -2309,24 +2402,10 @@ export default function App() {
                 showing={during?.board ?? null}
                 flying={during?.flying ?? []}
                 grid={settings.board.grid}
-                playable={
-                  friend.phase.kind === "playing" ? friend.phase.you : null
-                }
-                /*
-                  Stepping back through a game is reading it. Playing on from an
-                  earlier position would be starting a different game, and the
-                  one being played is not this browser's to fork.
-
-                  A challenge is frozen outright: there is no game to move in
-                  until somebody answers it, and a board that took moves would
-                  be offering to play against nobody. Stepping away is what
-                  hands the position back to the reader.
-                */
-                frozen={
-                  friend.phase.kind === "waiting" ||
-                  (friend.phase.kind === "playing" &&
-                    (history.current !== 0 || !friend.link.mine))
-                }
+                playable={playable}
+                frozen={frozen}
+                onPickUp={() => setInHand("left")}
+                pickedUpElsewhere={inHand === "right"}
                 lastMove={lastMove}
                 lastMoveMark={settings.board.lastMove}
                 orientation={side}
@@ -2341,10 +2420,19 @@ export default function App() {
                   which way round the board is turned is where the reader is
                   sitting, and they are sitting in one place.
 
-                  No `onMove` and no `onFlightLanded`: moves are played on the
-                  left board. A second board that took them would leave the
-                  reader guessing which of two identical positions is the game,
-                  and two boards reporting one landing would say it twice.
+                  Moves are played on it as on the left one, by the same rules —
+                  a piece is dragged or clicked on either board, since the
+                  reader's eye may be on either. What a board holds while a
+                  move is being made is its own: the piece picked up, and where
+                  it may go, show on that board alone — and picking one up on
+                  either board lets go of one picked out on the other, since the
+                  reader has one hand. A piece dragged off
+                  one board goes back to it rather than onto the other, the
+                  pointer being that board's until it is let go. The move, once
+                  made, is the game's, and both boards play it.
+
+                  No `onFlightLanded`: the left board reports the landing, and
+                  two boards reporting one landing would say it twice.
                 */}
                 {twoBoard && (
                   <Board
@@ -2358,7 +2446,11 @@ export default function App() {
                     showing={during?.board ?? null}
                     flying={during?.flying ?? []}
                     grid={rightSettings.board.grid}
-                    frozen
+                    onMove={handleMove}
+                    playable={playable}
+                    frozen={frozen}
+                    onPickUp={() => setInHand("right")}
+                    pickedUpElsewhere={inHand === "left"}
                     lastMove={lastMove}
                     lastMoveMark={rightSettings.board.lastMove}
                     orientation={side}

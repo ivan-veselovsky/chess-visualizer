@@ -37,13 +37,13 @@
       "time": 0.5,
       "blend": 0.93
     },
-    "fadeTimeMs": 250
+    "fadeTimeMs": 200
   },
   "lab": {
     "playInitialDelaySec": 1,
     "playPeriodPerPositionSec": 1,
-    "playBackStepSec": 0.2,
-    "playLineEndHoldSec": 1,
+    "playBackStepSec": 0.1,
+    "playLineEndHoldSec": 1.5,
     "shareGameWithAutoplay": true
   },
   "attacks": {
