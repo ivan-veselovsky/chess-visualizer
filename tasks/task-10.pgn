@@ -1,0 +1,7 @@
+[SetUp "1"]
+[FEN "k1N5/BrB5/N1K5/8/8/8/8/8 w - - 0 1"]
+
+1. Bcb8 Rxb8 {case A} 
+    (1... Rb6+ {case B} 2. Nxb6# ) 
+    (1... Rh7  {case C} 2. Nb6#  ) 
+        2. Nc7# 1-0
