@@ -13,6 +13,9 @@
  *     for one — must not appear until the piece has landed;
  *   - and when it is all over, nothing may be left running or left behind.
  *
+ * And one about the panel beside the board, once there are two boards and it
+ * goes under them instead: that what it draws keeps its size there.
+ *
  * It drives the built app rather than the sources: this is about what is
  * shipped, and the dev server's own machinery has no business in it.
  */
@@ -323,6 +326,32 @@ try {
     "the marks of a piece being taken stay while the piece is still travelling",
     inTheAir.length > 0 && startedLeaving.length === 0,
     `${inTheAir.length} frames in the air, ${new Set(startedLeaving).size} marks left during them`
+  );
+
+  console.log("\nThe panel under two boards\n");
+
+  /*
+    The colour balance choosers are squares sized from the height of the frame
+    they stand in, and that height is given from outside. Beside the board the
+    column runs to the board's foot and there is plenty; under two boards the
+    column was only as tall as its contents, and the squares went to nothing,
+    with their words piled on one another.
+  */
+  const balance = JSON.parse(await page.run(`
+    document.querySelector("#tab-manage").click(); await sleep(400);
+    const two = document.querySelector("#two-board-mode"); if (!two.checked) two.click(); await sleep(700);
+    document.querySelector("#tab-balance").click(); await sleep(700);
+    const squares = [...document.querySelectorAll(".intensity-box")].map((box) => {
+      const r = box.getBoundingClientRect();
+      return [Math.round(r.width), Math.round(r.height)];
+    });
+    document.querySelector("#tab-manage").click(); await sleep(400);
+    if (two.checked) two.click(); await sleep(700);
+    return JSON.stringify({ squares });`));
+  check(
+    "the colour balance choosers keep their size under two boards",
+    balance.squares.length === 2 && balance.squares.every(([w, h]) => w >= 150 && w === h),
+    JSON.stringify(balance.squares)
   );
 
   page.close();

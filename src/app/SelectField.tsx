@@ -24,6 +24,12 @@ interface SelectFieldProps<T extends string> {
    * wondering whether they imagined it.
    */
   disabled?: boolean;
+  /**
+   * Held to a width rather than as wide as its longest choice, for choices
+   * that can run long: the names of a game's lines carry what the file says
+   * about them, and one sentence of it would push the row off the panel.
+   */
+  capped?: boolean;
   onChange: (value: T) => void;
 }
 
@@ -36,6 +42,7 @@ export default function SelectField<T extends string>({
   hint,
   apart = false,
   disabled = false,
+  capped = false,
   onChange,
 }: SelectFieldProps<T>) {
   return (
@@ -48,7 +55,7 @@ export default function SelectField<T extends string>({
       <label htmlFor={id}>{label}</label>
       <select
         id={id}
-        className="game-select choice-select"
+        className={`game-select choice-select${capped ? " choice-select-capped" : ""}`}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value as T)}

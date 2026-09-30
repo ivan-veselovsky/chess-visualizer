@@ -29,6 +29,18 @@ import {
   type PositionHistory,
   type HistoryEntry,
 } from "../chess/history";
+import {
+  lineIndex,
+  linesOf,
+  pathSoFar,
+  readTree,
+  resultShown,
+  sharedMoves,
+  soleLine,
+  walk,
+  type Step,
+  type TreeLine,
+} from "../chess/variations";
 import { capturesUpTo } from "../chess/captures";
 import { applyMove } from "../chess/moves";
 import {
@@ -79,6 +91,7 @@ import SponsorIcon from "./SponsorIcon";
 import PlayIcon from "./PlayIcon";
 import SectionRule from "./SectionRule";
 import StepIcon from "./StepIcon";
+import SelectField from "./SelectField";
 import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
 import AvailableBar from "./AvailableBar";
@@ -135,6 +148,30 @@ import {
  * default: it is what the page is for, and the rest is how it looks.
  */
 type PanelTab = "game" | "match" | "balance" | "gif" | SettingsGroup;
+
+/**
+ * Every line of a game read from a PGN — each way through its variations — or
+ * the one line it has, where it has none.
+ *
+ * The main line comes first, and it has to be the line the board was given:
+ * that is read by chess.js, and the variations by `readTree`. Should the two
+ * ever disagree about the main line, the variations are let go rather than
+ * trusted — a game with one line and no surprises is better than one whose
+ * branches start from a board it was never on.
+ */
+function gameLines(pgn: string, given: PositionHistory): TreeLine[] {
+  const tree = readTree(pgn);
+  const lines = tree === null ? [] : linesOf(tree);
+  const main = lineOf(given);
+  if (
+    lines.length === 0 ||
+    lines[0].entries[lines[0].entries.length - 1].fen !== main.initialFEN ||
+    lines[0].moves.join(" ") !== main.moves.join(" ")
+  ) {
+    return [soleLine(given.entries, main.moves)];
+  }
+  return lines;
+}
 
 /*
   Fetched the first time its tab is opened rather than with the page: making a
@@ -319,6 +356,14 @@ export default function App() {
      two boards drawn alike, which says plainly that the choice did not land —
      better than a blank half of the page. */
   const rightSettings = presets.settingsNamed(rightNamed) ?? settings;
+  /*
+    How the GIF would look, for the export tab to tell when an estimate of its
+    size has gone stale: both boards' settings, the second only while it is up.
+  */
+  const gifLook = useMemo(
+    () => ({ settings, right: twoBoard ? rightSettings : null }),
+    [settings, rightSettings, twoBoard]
+  );
 
   /*
     One colour speaks for a side's rays, though the settings keep one per piece
@@ -493,14 +538,76 @@ export default function App() {
   const period = settings.lab.playPeriodPerPositionSec;
   /* And how long it waits before the first of them, from the press of Play. */
   const initialDelay = settings.lab.playInitialDelaySec;
+  /* The two paces of a game with variations: back to a fork, and the hold at
+     the end of a line. */
+  const backStep = settings.lab.playBackStepSec;
+  const lineEndHold = settings.lab.playLineEndHoldSec;
   /*
-    The position the game was set playing from, while it is still the one on
-    the board: that is the step the initial delay is for. Null while nothing is
-    playing. Kept by the timer below rather than by the button, so that every
-    way a game starts playing — the button, or a link that asks for it — is
-    timed the same.
+    The walk a game playing itself still has to take, and the step it took
+    last.
+
+    Worked out when the game is set playing, from wherever the board is and on
+    whichever line, and taken a step at a time: on to the end of the line, back
+    to where the next line leaves it, over to that line, and on again. A game
+    with no variations is one line, and the walk is simply its moves. Kept by
+    the timer below rather than by the button, so that every way a game starts
+    playing — the button, or a link that asks for it — is walked the same.
+
+    `at` is the board as the walk last left it, and `paused` says the game was
+    stopped there: set playing again with the board unmoved, it carries on with
+    the same walk rather than working out a new one from the position — which,
+    halfway back to a fork, would go forward to the end of the line again.
   */
-  const playedFrom = useRef<string | null>(null);
+  const tour = useRef<{
+    steps: Step[];
+    last: Step | null;
+    at: PositionHistory;
+    paused: boolean;
+  } | null>(null);
+  /*
+    The longest the fade a landing sets off may take while a game plays itself
+    — in the Lab, or into a GIF: how long the board will stand once the move
+    being played is down.
+
+    A fade longer than that was still going when the next move set off, and was
+    cut off partway, its marks never reaching what they were fading to. The
+    back step period is the pace it happened at most: shorter than the fade by
+    default, on purpose, since going back is meant to be quick. Fitted to the
+    rest instead, a fade always finishes, and the pace is the one that was set.
+
+    Null while the reader steps by hand: their moves come when they come, and
+    the fade is the one the settings say.
+  */
+  const [fadeWithin, setFadeWithin] = useState<number | null>(null);
+  /*
+    And the fit waiting for the piece in the air to land. Only the fade a
+    landing sets off has the next move coming after it; the marks a piece
+    takes with it as it lifts fade while it travels — see `fitted` — and, cut
+    to the pace of a step back, a mate's disc went in a flicker where it had
+    come in slowly. So a move clears the fit as it sets off, and `land` puts
+    this one in its place.
+  */
+  const landingFade = useRef<number | null>(null);
+  /*
+    How long the board's marks take to change, as they change now.
+
+    While a piece is in the air, whatever it set fading as it lifted — the
+    marks it held, the last move's spots going over to the move it is making,
+    a mate's disc as the game steps back from it — has the whole of its flight
+    to fade in, and takes it. The flight is the move: half a second, where a
+    mark gone in the first fifth of it was gone before the eye had followed the
+    piece off its square. From the landing on it is the settings' fade, fitted
+    into the rest after the move while a game plays itself; see `fadeWithin`.
+    None at all where the settings ask for none.
+  */
+  const fitted = (fadeMs: number) =>
+    fadeMs <= 0
+      ? 0
+      : flight !== null
+        ? flight.ms
+        : fadeWithin === null
+          ? fadeMs
+          : Math.min(fadeMs, fadeWithin);
   /* Whether a shared link should set the game playing for whoever opens it. */
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
@@ -523,7 +630,12 @@ export default function App() {
     players: { white: string; black: string };
     /** As the file said it: "1-0", "0-1", "1/2-1/2", or nothing. */
     result: string | null;
-    line: { initialFEN: string; moves: string[] };
+    /**
+     * Every way through the game: the main line, and one more for each
+     * variation the file gives. The board holds one of them at a time, and is
+     * still this game for as long as it does.
+     */
+    lines: TreeLine[];
     /**
      * The text it was read from, exactly as it came.
      *
@@ -535,7 +647,7 @@ export default function App() {
      */
     pgn: string;
   } | null>(() =>
-    opening?.game == null ? null : { ...opening.game, line: lineOf(history) }
+    opening?.game == null ? null : { ...opening.game, lines: gameLines(opening.game.pgn, history) }
   );
   const [libraryGame, setLibraryGame] = useState<string | null>(null);
   const [libraryGameError, setLibraryGameError] = useState<string | null>(null);
@@ -569,7 +681,7 @@ export default function App() {
     showPosition(currentPosition(loaded));
     /* Read in from somewhere that still has it. */
     handed.current = lineOf(loaded);
-    setRead({ players, result, line: lineOf(loaded), pgn });
+    setRead({ players, result, lines: gameLines(pgn, loaded), pgn });
     setLibraryGame(null);
     setStashName(null);
     return null;
@@ -827,6 +939,18 @@ export default function App() {
     /* A hand on the controls takes the game back off the clock: whoever is
        stepping through it themselves has stopped watching it play. */
     setPlaying(false);
+    /*
+      The first position of a game with variations is its first line's: back
+      to the start, and over to the main line, whichever line the board was
+      on — so that Play from there walks every line, the first first, which is
+      what going back to the beginning is nearly always for. Stepping back one
+      position at a time stays on the line the board is on: that is reading
+      the line, and its first position is where it stops.
+    */
+    if (direction === "first" && readGame !== null && readGame.lines.length > 1) {
+      switchLine(0, 0);
+      return;
+    }
     const walk = { first: goFirst, previous: goPrevious, next: goNext, last: goLast };
     showHistory(walk[direction](history));
   }
@@ -842,9 +966,31 @@ export default function App() {
     setPlaying(!playing);
   }
 
+  /**
+   * Puts another of the game's lines on the board, at `depth` moves from the
+   * start — the fork where it parts from the line that was there, or before
+   * it — so that nothing on the board moves, and the next move played is the
+   * new line's.
+   */
+  function switchLine(index: number, depth: number): PositionHistory | null {
+    const line = read?.lines[index];
+    if (line === undefined) {
+      return null;
+    }
+    const moved: PositionHistory = {
+      entries: line.entries,
+      current: Math.max(0, line.entries.length - 1 - depth),
+    };
+    /* Handed over by the game itself: nothing of the reader's is on the board. */
+    handed.current = lineOf(moved);
+    showHistory(moved);
+    return moved;
+  }
+
   /*
-    The board as the GIF export drives it: the line, a jump to any position in
-    it, and one move played as the board plays one.
+    The board as the GIF export drives it: the walk through the game, a move on
+    or back as the board plays one, and another of the game's lines taken up at
+    a fork.
 
     Each is committed before it returns — `flushSync` — so the export finds the
     board already moved, and the flight already set off, the moment it asks.
@@ -852,27 +998,65 @@ export default function App() {
     between most of them, so what it calls is read from the latest render
     rather than from the one it was made in.
   */
-  const latest = useRef({ history, showHistory, stepHistory });
-  latest.current = { history, showHistory, stepHistory };
-  const gifDriver = useMemo<GifDriver>(
-    () => ({
-      line: () => {
-        const { history: now } = latest.current;
-        return { count: now.entries.length, at: now.entries.length - 1 - now.current };
-      },
-      jump: (at) => {
+  const latest = useRef({ history, read, showHistory, switchLine });
+  latest.current = { history, read, showHistory, switchLine };
+  const gifDriver = useMemo<GifDriver>(() => {
+    /* The lines to walk: the game's own, while the board holds one of them,
+       and otherwise the one line the board has. */
+    const linesNow = (): TreeLine[] => {
+      const { history: now, read: game } = latest.current;
+      const here = lineOf(now);
+      const index = game === null ? -1 : lineIndex(game.lines, here.initialFEN, here.moves);
+      return index >= 0 && game !== null
+        ? game.lines
+        : [soleLine(now.entries, here.moves)];
+    };
+    return {
+      begin: () => {
+        const was = latest.current.history;
+        const handedWas = handed.current;
+        const first = linesNow()[0];
         flushSync(() => {
           setPlaying(false);
-          const { history: now, showHistory: show } = latest.current;
-          show(goToPosition(now, now.entries.length - 1 - at));
+          landingFade.current = null;
+          setFadeWithin(null);
+          const start: PositionHistory = { entries: first.entries, current: first.entries.length - 1 };
+          handed.current = lineOf(start);
+          latest.current.showHistory(start);
+        });
+        /* And back: the line the reader was on, where they were on it, and
+           whatever the board thought of it as — theirs, or handed to it. */
+        return () =>
+          flushSync(() => {
+            landingFade.current = null;
+            setFadeWithin(null);
+            handed.current = handedWas;
+            latest.current.showHistory(was);
+          });
+      },
+      steps: () => walk(linesNow(), 0, 0),
+      forward: (restMs) => {
+        flushSync(() => {
+          landingFade.current = restMs;
+          setFadeWithin(null);
+          latest.current.showHistory(goNext(latest.current.history));
         });
       },
-      step: () => {
-        flushSync(() => latest.current.stepHistory("next"));
+      back: (restMs) => {
+        flushSync(() => {
+          landingFade.current = restMs;
+          setFadeWithin(null);
+          latest.current.showHistory(goPrevious(latest.current.history));
+        });
       },
-    }),
-    []
-  );
+      switchTo: (line) => {
+        flushSync(() => {
+          const now = latest.current.history;
+          latest.current.switchLine(line, now.entries.length - 1 - now.current);
+        });
+      },
+    };
+  }, []);
 
   const { position, error } = useMemo(() => parseFen(fen), [fen]);
 
@@ -1129,6 +1313,7 @@ export default function App() {
   function land() {
     setFlight(null);
     setDuring(null);
+    setFadeWithin(landingFade.current);
   }
 
   /** Everything taken on the way to the position on the board. */
@@ -1249,7 +1434,8 @@ export default function App() {
     one.
   */
   /*
-    A game read in, while the board still holds it as it was read.
+    A game read in, while the board still holds it as it was read — or holds
+    another of its lines, which is the same game read a different way.
 
     Stepping about in it keeps the names — that is reading the game. Playing a
     move of one's own does not: the line stops being that game at the first
@@ -1258,12 +1444,44 @@ export default function App() {
     start and forward again is not a change.
   */
   const here = lineOf(history);
-  const readGame =
-    read !== null &&
-    read.line.initialFEN === here.initialFEN &&
-    read.line.moves.join(" ") === here.moves.join(" ")
-      ? read
+  /* Which of the game's lines the board holds — any of them is the game. */
+  const onLine = read === null ? -1 : lineIndex(read.lines, here.initialFEN, here.moves);
+  const readGame = onLine >= 0 ? read : null;
+  /*
+    The lines the board can walk, and what is left of the walk from where it
+    stands: every line of a game read in, while the board holds one of them,
+    and otherwise the one line the board has. Nothing left is nothing to play.
+  */
+  const walkLines: TreeLine[] =
+    readGame !== null ? readGame.lines : [soleLine(history.entries, here.moves)];
+  const walkLine = readGame !== null ? onLine : 0;
+  const still = walk(walkLines, walkLine, history.entries.length - 1 - history.current);
+  /*
+    Which way a game with variations has gone, to be said over the board: the
+    line it is on, counted among the rest, and its choice at each fork the
+    board has come to. Nothing before the first fork, where it is every line at
+    once — and nothing at all for a game that only goes one way.
+  */
+  const branch =
+    readGame !== null && readGame.lines.length > 1
+      ? {
+          number: onLine + 1,
+          of: readGame.lines.length,
+          path: pathSoFar(readGame.lines[onLine], history.entries.length - 1 - history.current),
+        }
       : null;
+  /*
+    And how it came out, which a game with variations says line by line: each
+    line's own ending goes up with its name, and changes when the name does.
+  */
+  const readResult =
+    readGame === null
+      ? null
+      : resultShown(readGame.lines, onLine, history.entries.length - 1 - history.current, readGame.result);
+  /* Whether "First position" has anywhere to go: back along the line, or —
+     at the start of any line of a game with variations but the first — over
+     to the first line. See `stepHistory`. */
+  const canGoFirst = canGoPrevious(history) || (branch !== null && onLine !== 0);
 
   /*
     Standing somewhere earlier in a game that is still being played.
@@ -1535,8 +1753,9 @@ export default function App() {
     One position at a time, each left standing for its period.
 
     The timer is set again on every change of position, which is what makes the
-    game walk forward: each step changes `history`, this runs again, and the
-    next step is booked. It ends itself at the last position — there is nothing
+    game walk: each step changes `history`, this runs again, and the next step
+    is booked. The steps are the walk through every line of the game — see
+    `walk` — and it ends itself at the end of the last one: there is nothing
     to step to, and a game that has played to its end has stopped.
 
     The period is the time a position stands still, and nothing else: it is
@@ -1548,11 +1767,18 @@ export default function App() {
   */
   useEffect(() => {
     if (!playing) {
-      playedFrom.current = null;
-      return;
-    }
-    if (!canGoNext(history)) {
-      setPlaying(false);
+      /*
+        Stopped: the walk is kept for Play to take up again, and the fades go
+        back to the settings' own — once, as it stops. This runs again on every
+        change of position while stopped, and a GIF being made changes it with
+        every move, its fades fitted by the export; clearing them each time
+        undid the fit before the piece had landed.
+      */
+      if (tour.current !== null && !tour.current.paused) {
+        tour.current.paused = true;
+        landingFade.current = null;
+        setFadeWithin(null);
+      }
       return;
     }
     /* Still travelling: the clock has not started. It starts when the board
@@ -1561,39 +1787,104 @@ export default function App() {
       return;
     }
     /*
-      The first step waits the initial delay, and every step after it the
-      period.
-
-      The first step is the one taken from the position the game was set
-      playing on — noted the first time through after it starts, and matched
-      by the position itself rather than by its place in the list, which moves
-      when a move arrives from a game being played. A position cannot come
-      round again later in the same line: the move counters in it only go up.
-
-      Wherever in the game that is. The delay used to be a quarter of the
-      period and apply only on the opening position, which made a game resumed
-      from the middle wait a whole period instead. What it is for now — time
-      to get the board into frame after pressing the button — is the same
-      whichever position the button was pressed on.
-
-      Matching by position also means a delay that is changed while it is
-      being waited out starts again at the new length, rather than being cut
-      short by a timer booked under the old one.
+      Worked out afresh from wherever the board is when there is no walk to
+      carry on with — the first Play, or the board moved since the walk left
+      it: by hand while stopped, or by something else while playing, a move
+      arriving in a game being played or another game loaded — so no step
+      meant for one line is ever taken on another. A walk that was going when
+      that happened keeps its pace; it is only the first step after Play that
+      waits the initial delay.
     */
-    const here = currentPosition(history);
-    if (playedFrom.current === null) {
-      playedFrom.current = here;
+    const kept = tour.current;
+    const walking =
+      kept === null || kept.at !== history
+        ? {
+            steps: still,
+            last: kept !== null && !kept.paused ? kept.last : null,
+            at: history,
+            paused: false,
+          }
+        : kept;
+    if (walking.paused) {
+      walking.paused = false;
+      walking.last = null;
     }
-    const wait =
-      playedFrom.current === here
-        ? Math.max(initialDelay, 0) * 1000
-        : Math.max(period, 0.1) * 1000;
-    const next = window.setTimeout(() => showHistory(goNext(history)), wait);
+    tour.current = walking;
+    const step = walking.steps[0];
+    if (step === undefined) {
+      setPlaying(false);
+      return;
+    }
+    /*
+      How long the board stands before the step: the initial delay before the
+      first, and after that the pace of what comes next — the period before a
+      move on, the hold at the end of a line before turning back, the back-step
+      period on the way to the fork. Taking up the next line at the fork moves
+      nothing, and is done the moment the board gets there: the new line's name
+      goes up while the fork is on the board, and the period that follows is
+      the time there is to read it.
+
+      The first step is the first taken since the game was set playing — counted,
+      not recognised by its position. A game with variations comes back to its
+      forks, and a fork at the very start of the game would otherwise have its
+      first position mistaken for where the playing began, and be held for the
+      initial delay every time the walk came back to it.
+    */
+    const paceBefore = (next: Step, before: Step): number =>
+      next.kind === "switch"
+        ? 0
+        : next.kind === "back"
+          ? before.kind === "forward"
+            ? Math.max(lineEndHold, 0)
+            : Math.max(backStep, 0)
+          : Math.max(period, 0.1);
+    const last = walking.last;
+    const wait = last === null ? Math.max(initialDelay, 0) : paceBefore(step, last);
+    /* Cleared by the cleanup below whenever the game stops or the board
+       changes, so the walk it fires on is always the one it was booked for. */
+    const next = window.setTimeout(() => {
+      walking.steps.shift();
+      walking.last = step;
+      /* How long the board will stand once this move is down — to the next
+         move, over the fork if the next line is taken up there, and not at all
+         at the end — which is as long as its fades may take. */
+      if (step.kind !== "switch") {
+        let before: Step = step;
+        let rest: number | null = null;
+        for (const next of walking.steps) {
+          if (next.kind !== "switch") {
+            rest = paceBefore(next, before);
+            break;
+          }
+          before = next;
+        }
+        landingFade.current = rest === null ? null : rest * 1000;
+        setFadeWithin(null);
+      }
+      const moved =
+        step.kind === "forward"
+          ? goNext(history)
+          : step.kind === "back"
+            ? goPrevious(history)
+            : switchLine(step.line, history.entries.length - 1 - history.current);
+      /* A step that goes nowhere books no timer after it, and the game would
+         sit there playing nothing; it is stopped instead. The walk and the
+         lines come from the same render, so it is not expected to happen. */
+      if (moved === null || moved === history) {
+        setPlaying(false);
+        return;
+      }
+      walking.at = moved;
+      if (step.kind !== "switch") {
+        showHistory(moved);
+      }
+    }, wait * 1000);
     return () => window.clearTimeout(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `showHistory`
-    // only sets state; taking it as a dependency would book a fresh timer on
-    // every render and the game would never reach the end of a period.
-  }, [playing, history, period, initialDelay, inGame, flight]);
+    // and `switchLine` only set state; taking them as dependencies would book a
+    // fresh timer on every render and the game would never reach the end of a
+    // period.
+  }, [playing, history, period, initialDelay, backStep, lineEndHold, inGame, flight]);
 
   /*
     The Lab's keys: Space plays and holds, the arrows step, and with Ctrl they
@@ -1647,13 +1938,13 @@ export default function App() {
       if (key === " ") {
         /* Held down, Space would repeat, and a game that starts and stops
            thirty times a second is not what anybody holding it meant. */
-        if (!event.repeat && (playing || canGoNext(history))) {
+        if (!event.repeat && (playing || still.length > 0)) {
           playOrStop();
         }
         return;
       }
       const back = key === "ArrowLeft";
-      if (back ? !canGoPrevious(history) : !canGoNext(history)) {
+      if (back ? !(event.ctrlKey ? canGoFirst : canGoPrevious(history)) : !canGoNext(history)) {
         return;
       }
       stepHistory(
@@ -1665,9 +1956,10 @@ export default function App() {
     window.addEventListener("keydown", listen);
     return () => window.removeEventListener("keydown", listen);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `stepHistory`
-    // and `playOrStop` are made afresh every render from exactly these three;
-    // listening again whenever one of those changes is listening to them.
-  }, [tab, history, playing]);
+    // and `playOrStop` are made afresh every render from exactly these four —
+    // the game read in says where "first" is; listening again whenever one of
+    // those changes is listening to them.
+  }, [tab, history, playing, read]);
 
   /*
     Whether a takeback can be asked for, and when it cannot, why not.
@@ -1955,9 +2247,33 @@ export default function App() {
                         <span className="player-live" aria-hidden="true" />
                         In play
                       </>
-                    ) : readGame?.result != null ? (
-                      scoreOf(readGame.result)
-                    ) : null
+                    ) : (
+                      /*
+                        A game read in: which of its lines is on the board, once
+                        it has come to a fork and there is more than one, and
+                        how that line comes out. In the middle of the row,
+                        rather than on a row of its own: a line over the names
+                        was taken from the height of the board.
+                      */
+                      <>
+                        {branch !== null && branch.path.length > 0 && (
+                          <span className="branch-path">
+                            <span className="branch-count">
+                              Branch {branch.number} of {branch.of}:
+                            </span>{" "}
+                            {branch.path.join(" › ")}
+                          </span>
+                        )}
+                        {branch !== null && branch.path.length > 0 && readResult !== null && (
+                          <span className="branch-sep" aria-hidden="true">
+                            ·
+                          </span>
+                        )}
+                        {readResult !== null && (
+                          <span className="player-score">{scoreOf(readResult)}</span>
+                        )}
+                      </>
+                    )
                   }
                   position={
                     named === null ? null : (
@@ -1986,7 +2302,7 @@ export default function App() {
               hedge={settings.board.hedging}
                 pieceTint={settings.pieces.tint}
                 attacks={settings.attacks}
-                fadeTimeMs={settings.pieces.fadeTimeMs}
+                fadeTimeMs={fitted(settings.pieces.fadeTimeMs)}
                 onMove={handleMove}
                 flight={flight}
                 onFlightLanded={land}
@@ -2037,7 +2353,7 @@ export default function App() {
                     hedge={rightSettings.board.hedging}
                     pieceTint={rightSettings.pieces.tint}
                     attacks={rightSettings.attacks}
-                    fadeTimeMs={rightSettings.pieces.fadeTimeMs}
+                    fadeTimeMs={fitted(rightSettings.pieces.fadeTimeMs)}
                     flight={flight}
                     showing={during?.board ?? null}
                     flying={during?.flying ?? []}
@@ -2148,7 +2464,7 @@ export default function App() {
                   title="First position (Ctrl+←)"
                   aria-label="First position"
                   aria-keyshortcuts="Control+ArrowLeft"
-                  disabled={!canGoPrevious(history)}
+                  disabled={!canGoFirst}
                   onClick={() => stepHistory("first")}
                 >
                   <StepIcon direction="first" />
@@ -2207,15 +2523,21 @@ export default function App() {
                      game through is the same walk taken at a pace, and while a
                      game with somebody else is on it is reading rather than
                      playing — which is exactly what stepping through it is. */
-                  disabled={!playing && !canGoNext(history)}
+                  disabled={!playing && still.length === 0}
                   onClick={playOrStop}
                 >
                   <PlayIcon playing={playing} />
                   {playing ? "Pause / Stop" : "Play / Resume"}
                 </button>
-                {/* Beside the button it times, and above the period it comes
-                    before: read top to bottom, the two fields are the order
-                    the waits happen in. */}
+                {/*
+                  The paces it plays at, each flush right, so their boxes and
+                  their units stand in columns: the wait before the first move
+                  and the one between moves, then the two a game with
+                  variations adds — the way back to a fork, and the hold at the
+                  end of each line. Two to a row where the panel is wide enough
+                  for that, under the button; one to a row otherwise, the first
+                  beside it. See `.play-row`.
+                */}
                 <NumberField
                   id="play-initial-delay"
                   inline
@@ -2255,8 +2577,67 @@ export default function App() {
                     })
                   }
                 />
+                <NumberField
+                  id="play-back-step"
+                  inline
+                  narrow
+                  allowZero
+                  label="Back step period"
+                  suffix="seconds"
+                  step={0.1}
+                  value={backStep}
+                  hint="In a game with variations, how long each position stands on the way back to the fork the next line leaves from. Nobody is reading them, so it can be short."
+                  onChange={(playBackStepSec) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playBackStepSec },
+                    })
+                  }
+                />
+                <NumberField
+                  id="play-line-end"
+                  inline
+                  narrow
+                  allowZero
+                  label="Hold at the end of branch"
+                  suffix="seconds"
+                  step={0.5}
+                  value={lineEndHold}
+                  hint="How long the last position of each line of a game with variations stands before the game goes back for the next — the mate the line was played to show. An animated GIF holds its very last position this long before it starts again, whatever the game."
+                  onChange={(playLineEndHoldSec) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playLineEndHoldSec },
+                    })
+                  }
+                />
               </div>
-              <div className="board-controls">
+              <div className="board-controls lines-row">
+                {/* Which line of a game with variations is on the board, to
+                    choose one by hand: the walk plays them all, and this is how
+                    to stop at one and study it. */}
+                {readGame !== null && readGame.lines.length > 1 && (
+                  <SelectField
+                    id="branch"
+                    label="Branch"
+                    capped
+                    value={String(onLine)}
+                    choices={readGame.lines.map((line, index) => ({
+                      value: String(index),
+                      label: `${index + 1} of ${readGame.lines.length}: ${line.choices.join(" › ")}`,
+                    }))}
+                    hint="Which line of the game's variations is on the board. The board stays where it is if the new line passes through it, and otherwise goes back to where the two lines part."
+                    onChange={(value) => {
+                      const target = Number(value);
+                      const depth = Math.min(
+                        history.entries.length - 1 - history.current,
+                        sharedMoves(readGame.lines[onLine], readGame.lines[target])
+                      );
+                      setPlaying(false);
+                      switchLine(target, depth);
+                    }}
+                  />
+                )}
                 <MovesSelect
                   entries={history.entries}
                   current={history.current}
@@ -2725,10 +3106,15 @@ export default function App() {
                 driver={gifDriver}
                 initialDelayMs={settings.lab.playInitialDelaySec * 1000}
                 periodMs={Math.max(settings.lab.playPeriodPerPositionSec, 0.1) * 1000}
+                backStepMs={settings.lab.playBackStepSec * 1000}
+                lineEndHoldMs={settings.lab.playLineEndHoldSec * 1000}
                 players={named === null ? null : { white: named.names.w, black: named.names.b }}
                 keptAs={stashName}
                 twoBoards={twoBoard}
                 positions={history.entries.length}
+                branches={readGame === null ? 1 : readGame.lines.length}
+                look={gifLook}
+                game={readGame !== null ? readGame.pgn : `${here.initialFEN} ${here.moves.join(" ")}`}
                 onExporting={(on) => {
                   exportingRef.current = on;
                   setExporting(on);

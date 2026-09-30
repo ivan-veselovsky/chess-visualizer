@@ -15,12 +15,15 @@
     "test:board": "npm run build && node tests/board.mjs",
     "test:e2e-rendering": "npm run build && node tests/e2e-rendering.mjs",
     "test:gif-export": "npm run build && node tests/gif-export.mjs",
+    "test:branches": "npm run build && node tests/branches.mjs",
+    "test:firefox": "npm run build && node tests/firefox.mjs",
     "test:all-local": "node tests/all-local.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
     "chess.js": "^1.4.0",
     "gifenc": "^1.0.3",
+    "mediabunny": "^1.60.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.8.0",

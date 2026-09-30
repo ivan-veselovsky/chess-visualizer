@@ -469,7 +469,7 @@ export default function SettingsPanel({
             suffix="ms"
             step={10}
             allowZero
-            hint="How long a change to the board's colouring takes to cross: the wash on the squares, the rays, the check disc, the last move's spots, the pin rings. Nought draws every change in the frame it happens, which reads as a flash."
+            hint="How long a change to the board's colouring takes to cross: the wash on the squares, the rays, the check disc, the last move's spots, the pin rings. Nought draws every change in the frame it happens, which reads as a flash. What a piece held fades for as long as the piece is in the air, finishing as it lands. While a game plays itself, a fade longer than the position stands is shortened to fit, so it always finishes before the next move."
             value={settings.pieces.fadeTimeMs}
             onChange={(fadeTimeMs) => updatePieces({ fadeTimeMs })}
           />

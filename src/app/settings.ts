@@ -166,6 +166,22 @@ export interface LabSettings {
    */
   playPeriodPerPositionSec: number;
   /**
+   * How long each position stands on the way back to a fork, when a game with
+   * variations plays itself through every line, in seconds — counted from the
+   * landing, as the period is. Shorter than the period: going back is getting
+   * to the next line, and nobody is reading the positions on the way.
+   */
+  playBackStepSec: number;
+  /**
+   * How long the last position of a line stands, in seconds: before the game
+   * goes back for the next line, and — at the end of the last — before an
+   * animated GIF starts again from the top. Longer than the period: the end of
+   * a line is what it was played to show — the mate, the win — and it goes by
+   * as fast as any other position unless it is held. A game with no variations
+   * has one line, and this is how long its last position is held.
+   */
+  playLineEndHoldSec: number;
+  /**
    * Whether a shared game link sets the game playing on arrival.
    *
    * The link carries the answer, and whoever opens it plays at their own pace —

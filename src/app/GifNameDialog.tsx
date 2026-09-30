@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { asGifName } from "./gif/fileName";
+import { asFileName } from "./gif/fileName";
 
 interface GifNameDialogProps {
   open: boolean;
   /** The name offered: the players, where the board names them. */
   suggested: string;
+  /** What the file is, said in the question — "animated GIF", "video" — and what it ends in. */
+  what: string;
+  extension: string;
   /** Where it will go: the chosen folder's name, or null for the downloads. */
   folder: string | null;
   /** Whether the folder already has a file of this name; null where that cannot be asked. */
@@ -14,7 +17,7 @@ interface GifNameDialogProps {
 }
 
 /**
- * What to call the GIF about to be made, asked before it is made rather than
+ * What to call the file about to be made, asked before it is made rather than
  * after: an export takes a while, and a question waiting at the end of it is a
  * question nobody is there to answer.
  *
@@ -26,6 +29,8 @@ interface GifNameDialogProps {
 export default function GifNameDialog({
   open,
   suggested,
+  what,
+  extension,
   folder,
   exists,
   onExport,
@@ -45,19 +50,19 @@ export default function GifNameDialog({
       setName(suggested);
       element.showModal();
       /* The name is what is being asked, so it starts selected, ready to be
-         typed over or kept with Enter. The part before `.gif` only: that is the
-         part anybody would want to change. */
+         typed over or kept with Enter. The part before the ending only: that is
+         the part anybody would want to change. */
       window.setTimeout(() => {
         const input = field.current;
         input?.focus();
-        input?.setSelectionRange(0, suggested.replace(/\.gif$/i, "").length);
+        input?.setSelectionRange(0, suggested.replace(/\.(gif|mp4)$/i, "").length);
       }, 0);
     } else if (!open && element.open) {
       element.close();
     }
   }, [open, suggested]);
 
-  const fileName = asGifName(name);
+  const fileName = asFileName(name, extension);
   const ready = fileName !== "";
 
   /* Asked as it is typed, and the answer only kept if it is still the name. */
@@ -79,14 +84,14 @@ export default function GifNameDialog({
 
   return (
     <dialog ref={dialog} className="pgn-dialog save-as-dialog" onClose={onClose}>
-      <p className="confirm-question">Save the animated GIF as</p>
+      <p className="confirm-question">Save the {what} as</p>
       <div className="board-controls">
         <input
           id="gif-name"
           ref={field}
           type="text"
           className="fen-input"
-          aria-label="A name for the GIF"
+          aria-label={`A name for the ${what}`}
           value={name}
           maxLength={128}
           spellCheck={false}

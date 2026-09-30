@@ -21,11 +21,18 @@ export function fileSafe(name: string): string {
     .slice(0, 120);
 }
 
-/** A name as typed, made into a file name: safe, and ending in `.gif` once. */
-export function asGifName(typed: string): string {
-  const safe = fileSafe(typed.replace(/\.gif$/i, ""));
-  return safe === "" ? "" : `${safe}.gif`;
+/**
+ * A name as typed, made into a file name: safe, and ending in `.extension`
+ * once. Either of the endings this app writes is taken off first, so a name
+ * kept from a GIF of the same game does not become "Game.gif.mp4".
+ */
+export function asFileName(typed: string, extension: string): string {
+  const safe = fileSafe(typed.replace(/\.(gif|mp4)$/i, ""));
+  return safe === "" ? "" : `${safe}.${extension}`;
 }
+
+/** A name as typed, made into a file name: safe, and ending in `.gif` once. */
+export const asGifName = (typed: string): string => asFileName(typed, "gif");
 
 /**
  * Names that name nobody: what a PGN writes for a player it does not know,
@@ -37,7 +44,8 @@ const unnamed = (name: string, colour: string) =>
   PLACEHOLDERS.has(name.trim()) || name.trim() === colour;
 
 /**
- * The name offered for a GIF of what is on the board.
+ * The name offered for a file made of what is on the board — a GIF or a video,
+ * which `extension` says.
  *
  * Who played it, where the board says so — "Krylov - Arslanov.gif" — which is
  * what somebody would look for it by. A board that names nobody — its rows say
@@ -45,24 +53,32 @@ const unnamed = (name: string, colour: string) =>
  * nothing a reader could find it by, so it goes by the name it is kept under,
  * if it has one, and otherwise by the app and the day.
  */
-export function suggestedGifName(
+export function suggestedFileName(
   players: { white: string; black: string } | null,
   keptAs: string | null,
+  extension: string,
   today: Date = new Date()
 ): string {
   /* Asked of the whole name, not the surname: "White, John" is somebody. */
   if (players !== null && !unnamed(players.white, "White") && !unnamed(players.black, "Black")) {
-    const named = asGifName(`${surnameOf(players.white)} - ${surnameOf(players.black)}`);
+    const named = asFileName(`${surnameOf(players.white)} - ${surnameOf(players.black)}`, extension);
     if (named !== "") {
       return named;
     }
   }
   if (keptAs !== null) {
-    const kept = asGifName(keptAs);
+    const kept = asFileName(keptAs, extension);
     if (kept !== "") {
       return kept;
     }
   }
   const pad = (value: number) => String(value).padStart(2, "0");
-  return `chess-visualizer-${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}.gif`;
+  return `chess-visualizer-${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}.${extension}`;
 }
+
+/** The name offered for a GIF of what is on the board; see `suggestedFileName`. */
+export const suggestedGifName = (
+  players: { white: string; black: string } | null,
+  keptAs: string | null,
+  today: Date = new Date()
+): string => suggestedFileName(players, keptAs, "gif", today);

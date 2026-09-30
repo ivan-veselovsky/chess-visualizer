@@ -398,79 +398,146 @@ export function createPainter(roots: StageRoots, stage: Stage): Painter {
   return { roots, stage, canvas, context, images: new Map() };
 }
 
-/** The frame as it stands now, as pixels. */
+/** One thing to draw, with where and how already settled. */
+type Stroke =
+  | {
+      kind: "box";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      radius: number;
+      colour: string;
+      opacity: number;
+    }
+  | { kind: "text"; text: string; font: string; colour: string; x: number; y: number; opacity: number }
+  | { kind: "svg"; markup: string; left: number; top: number; width: number; height: number; opacity: number };
+
+type Corner = { x: number; y: number };
+
+/**
+ * The frame as it stands now, as pixels.
+ *
+ * Everything is measured first, in one go, and only then is anything waited
+ * for. Drawing a board means waiting for the browser to decode it as an image,
+ * and the page does not hold still while it waits: a reader who scrolled while
+ * a GIF was being made — up from the Export button to watch the boards — had
+ * the right board, the bars and the names below measured after the scroll and
+ * the title and the left board before it, and those frames came out with the
+ * right-hand half dropped a hundred pixels, for a frame at a time. Measured in
+ * one uninterrupted pass, a frame is the page as it was at one moment, however
+ * long it then takes to draw.
+ */
 export async function paintFrame(painter: Painter): Promise<Uint8ClampedArray> {
+  await drawFrame(painter);
+  const { stage, context } = painter;
+  return context.getImageData(0, 0, stage.pixelWidth, stage.pixelHeight).data;
+}
+
+/**
+ * The frame as it stands now, drawn on the painter's canvas and left there —
+ * for whatever takes a canvas as it is, as a video encoder does, rather than
+ * its pixels. See `paintFrame`.
+ */
+export async function drawFrame(painter: Painter): Promise<void> {
   const { roots, stage, context } = painter;
   const origin = roots.app.getBoundingClientRect();
   /* Where the frame's corner is on the screen now. */
   const at = { x: origin.left + stage.left, y: origin.top + stage.top };
+  const strokes: Stroke[] = [];
+  plan(painter, roots.title, at, 1, strokes);
+  plan(painter, roots.column, at, 1, strokes);
+
+  const images = await Promise.all(
+    strokes.map((stroke) => (stroke.kind === "svg" ? imageOf(painter, stroke.markup) : null))
+  );
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.globalAlpha = 1;
   context.fillStyle = stage.ground;
   context.fillRect(0, 0, stage.pixelWidth, stage.pixelHeight);
-  await paintTree(painter, roots.title, at, 1);
-  await paintTree(painter, roots.column, at, 1);
-  return context.getImageData(0, 0, stage.pixelWidth, stage.pixelHeight).data;
+  strokes.forEach((stroke, index) => draw(context, stroke, images[index]));
 }
 
-async function paintTree(
-  painter: Painter,
-  element: Element,
-  at: { x: number; y: number },
-  opacity: number
-): Promise<void> {
+function draw(context: CanvasRenderingContext2D, stroke: Stroke, image: HTMLImageElement | null): void {
+  context.globalAlpha = stroke.opacity;
+  if (stroke.kind === "box") {
+    context.fillStyle = stroke.colour;
+    context.beginPath();
+    context.roundRect(stroke.x, stroke.y, stroke.width, stroke.height, stroke.radius);
+    context.fill();
+  } else if (stroke.kind === "text") {
+    context.fillStyle = stroke.colour;
+    context.font = stroke.font;
+    context.textAlign = "left";
+    context.textBaseline = "alphabetic";
+    context.fillText(stroke.text, stroke.x, stroke.y);
+  } else if (image !== null) {
+    context.drawImage(image, stroke.left, stroke.top, stroke.width, stroke.height);
+  }
+}
+
+/** What `element` draws, stroke by stroke, in the order it is drawn. */
+function plan(painter: Painter, element: Element, at: Corner, opacity: number, into: Stroke[]): void {
   const seen = getComputedStyle(element);
   if (unseen(element, seen)) {
     return;
   }
   const here = opacity * Number(seen.opacity);
   if (element instanceof SVGSVGElement) {
-    await paintSvg(painter, element, at, here);
+    const stroke = planSvg(painter, element, at, here);
+    if (stroke !== null) {
+      into.push(stroke);
+    }
     return;
   }
   if (seen.visibility === "visible") {
-    paintBox(painter, element, seen, at, here);
+    const stroke = planBox(painter, element, seen, at, here);
+    if (stroke !== null) {
+      into.push(stroke);
+    }
   }
   for (const child of element.childNodes) {
     if (child instanceof Text) {
-      paintText(painter, child, at, here);
+      const stroke = planText(painter, child, at, here);
+      if (stroke !== null) {
+        into.push(stroke);
+      }
     } else if (child instanceof Element) {
-      await paintTree(painter, child, at, here);
+      plan(painter, child, at, here, into);
     }
   }
 }
 
 /** A box with a colour of its own, as a rounded rectangle. */
-function paintBox(
+function planBox(
   painter: Painter,
   element: Element,
   seen: CSSStyleDeclaration,
-  at: { x: number; y: number },
+  at: Corner,
   opacity: number
-): void {
+): Stroke | null {
   const colour = seen.backgroundColor;
   if (!hasColour(colour)) {
-    return;
+    return null;
   }
   const rect = element.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) {
-    return;
+    return null;
   }
-  const { context, stage } = painter;
+  const { scale } = painter.stage;
   const radius = seen.borderTopLeftRadius.endsWith("%")
     ? (parseFloat(seen.borderTopLeftRadius) / 100) * Math.min(rect.width, rect.height)
     : parseFloat(seen.borderTopLeftRadius) || 0;
-  context.globalAlpha = opacity;
-  context.fillStyle = colour;
-  context.beginPath();
-  context.roundRect(
-    (rect.left - at.x) * stage.scale,
-    (rect.top - at.y) * stage.scale,
-    rect.width * stage.scale,
-    rect.height * stage.scale,
-    radius * stage.scale
-  );
-  context.fill();
+  return {
+    kind: "box",
+    x: (rect.left - at.x) * scale,
+    y: (rect.top - at.y) * scale,
+    width: rect.width * scale,
+    height: rect.height * scale,
+    radius: radius * scale,
+    colour,
+    opacity,
+  };
 }
 
 /**
@@ -481,25 +548,20 @@ function paintBox(
  * knows the same font's ascent. A name cut short with an ellipsis on the page is
  * cut short with one here, at the same width.
  */
-function paintText(
-  painter: Painter,
-  node: Text,
-  at: { x: number; y: number },
-  opacity: number
-): void {
+function planText(painter: Painter, node: Text, at: Corner, opacity: number): Stroke | null {
   const parent = node.parentElement;
   if (parent === null || node.data.trim() === "") {
-    return;
+    return null;
   }
   const seen = getComputedStyle(parent);
   if (seen.visibility !== "visible") {
-    return;
+    return null;
   }
   const range = document.createRange();
   range.selectNodeContents(node);
   const rect = [...range.getClientRects()].find((box) => box.width > 0);
   if (rect === undefined) {
-    return;
+    return null;
   }
   let text = node.data.replace(/\s+/g, " ");
   if (seen.textTransform === "uppercase") {
@@ -508,11 +570,8 @@ function paintText(
     text = text.toLowerCase();
   }
   const { context, stage } = painter;
-  context.globalAlpha = opacity;
-  context.fillStyle = seen.color;
-  context.font = `${seen.fontStyle} ${seen.fontWeight} ${parseFloat(seen.fontSize) * stage.scale}px ${seen.fontFamily}`;
-  context.textAlign = "left";
-  context.textBaseline = "alphabetic";
+  const font = `${seen.fontStyle} ${seen.fontWeight} ${parseFloat(seen.fontSize) * stage.scale}px ${seen.fontFamily}`;
+  context.font = font;
 
   /* Cut short where the page cuts it short: at the inner edge of whichever box
      round it ends its text with an ellipsis, which need not be its own. */
@@ -540,31 +599,34 @@ function paintText(
     }
   }
   const ascent = context.measureText(text).fontBoundingBoxAscent;
-  context.fillText(text, (rect.left - at.x) * stage.scale, (rect.top - at.y) * stage.scale + ascent);
+  return {
+    kind: "text",
+    text,
+    font,
+    colour: seen.color,
+    x: (rect.left - at.x) * stage.scale,
+    y: (rect.top - at.y) * stage.scale + ascent,
+    opacity,
+  };
 }
 
 /**
- * An `<svg>`, drawn as the browser draws it, at the size the GIF wants.
+ * An `<svg>`, to be drawn as the browser draws it, at the size the GIF wants.
  *
  * Copied with its styles written in (see `PAINT`), and with its view set to
  * what shows of it (see `svgShown`): widened where it spills over its own box,
  * as the petals round a name do, since an image cannot spill over its edges the
  * way an element on the page can.
  *
- * Placed on whole pixels and drawn at exactly the size it was rasterised at, so
- * nothing is resampled and nothing goes soft.
+ * Placed on whole pixels, to be drawn at exactly the size it is rasterised at,
+ * so nothing is resampled and nothing goes soft.
  */
-async function paintSvg(
-  painter: Painter,
-  svg: SVGSVGElement,
-  at: { x: number; y: number },
-  opacity: number
-): Promise<void> {
+function planSvg(painter: Painter, svg: SVGSVGElement, at: Corner, opacity: number): Stroke | null {
   const drawn = svgShown(svg);
   if (drawn === null) {
-    return;
+    return null;
   }
-  const { context, stage } = painter;
+  const { stage } = painter;
   const { view: box, shown, onScreen } = drawn;
   const perUnit = svg.getBoundingClientRect().width / box.width;
   const left = Math.round((onScreen.left - at.x) * stage.scale);
@@ -574,7 +636,7 @@ async function paintSvg(
   const width = right - left;
   const height = bottom - top;
   if (width <= 0 || height <= 0) {
-    return;
+    return null;
   }
 
   const copy = svg.cloneNode(true) as SVGSVGElement;
@@ -589,11 +651,15 @@ async function paintSvg(
   copy.setAttribute("height", String(height));
   copy.setAttribute("preserveAspectRatio", "none");
   copy.removeAttribute("class");
-
-  const markup = new XMLSerializer().serializeToString(copy);
-  const image = await imageOf(painter, markup);
-  context.globalAlpha = opacity;
-  context.drawImage(image, left, top, width, height);
+  return {
+    kind: "svg",
+    markup: new XMLSerializer().serializeToString(copy),
+    left,
+    top,
+    width,
+    height,
+    opacity,
+  };
 }
 
 /**

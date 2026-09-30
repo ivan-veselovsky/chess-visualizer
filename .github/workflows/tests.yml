@@ -1,7 +1,8 @@
 # What a change has to be green on before it goes in.
 #
 # Everything that needs nothing but this checkout: the unit tests, the board's
-# behaviour in a real browser, and the picture it draws. The worker's own suites
+# behaviour in a real browser, the picture it draws, and what it exports, in
+# Chrome and in Firefox. The worker's own suites
 # are not here — they need a worker running to talk to, which is a service to
 # start rather than a file to run.
 name: Tests
@@ -49,6 +50,10 @@ jobs:
       # with one line rather than inside a suite with a timeout.
       - name: Chrome
         run: google-chrome --version
+
+      # And Firefox, for the suite that holds its export up against Chrome's.
+      - name: Firefox
+        run: firefox --version
 
       - name: Test
         run: npm run test:all-local

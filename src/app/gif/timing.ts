@@ -37,9 +37,9 @@ export function scaleLabel(scale: Scale): string {
  *
  * The period is counted as the board counts it, from the moment the piece
  * lands, and the fade runs inside it rather than after it — so a GIF of a game
- * keeps the pace the game plays at on the board. A fade longer than the period
- * is shown whole, since a move started halfway through the last one's fade is
- * something the board can do and a sequence of frames cannot.
+ * keeps the pace the game plays at on the board. The board fits a fade into
+ * the rest after its move, so there is always some of the period left over; a
+ * frame is the least a position is shown for all the same.
  */
 export function restAfterFade(periodMs: number, fadeShownMs: number, stepMs: number): number {
   return Math.max(periodMs - fadeShownMs, stepMs);

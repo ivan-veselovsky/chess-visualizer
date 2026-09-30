@@ -132,17 +132,22 @@ export async function fileExists(folder: FolderHandle, name: string): Promise<bo
   }
 }
 
-/** Writes the GIF into the folder, over a file of the same name if there is one. */
-export async function writeGif(folder: FolderHandle, name: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
+/** Writes the file into the folder, over a file of the same name if there is one. */
+export async function writeFile(
+  folder: FolderHandle,
+  name: string,
+  bytes: Uint8Array<ArrayBuffer>,
+  type: string
+): Promise<void> {
   const file = await folder.getFileHandle(name, { create: true });
   const writable = await file.createWritable();
-  await writable.write(new Blob([bytes], { type: "image/gif" }));
+  await writable.write(new Blob([bytes], { type }));
   await writable.close();
 }
 
-/** Hands the GIF to the browser to download, under the name given. */
-export function downloadGif(name: string, bytes: Uint8Array<ArrayBuffer>): void {
-  const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
+/** Hands the file to the browser to download, under the name given. */
+export function downloadFile(name: string, bytes: Uint8Array<ArrayBuffer>, type: string): void {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
   const link = document.createElement("a");
   link.href = url;
   link.download = name;

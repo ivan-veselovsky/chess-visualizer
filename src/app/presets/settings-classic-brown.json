@@ -40,8 +40,10 @@
     "fadeTimeMs": 250
   },
   "lab": {
-    "playInitialDelaySec": 0.2,
+    "playInitialDelaySec": 1,
     "playPeriodPerPositionSec": 1,
+    "playBackStepSec": 0.2,
+    "playLineEndHoldSec": 1,
     "shareGameWithAutoplay": true
   },
   "attacks": {

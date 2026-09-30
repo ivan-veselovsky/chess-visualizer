@@ -6,7 +6,8 @@
  * Run straight from the TypeScript: node strips the types, so there is no build
  * step between what is written and what is checked.
  */
-import { toPgn } from "../src/chess/pgn.ts";
+import { parsePgn, toPgn } from "../src/chess/pgn.ts";
+import { lineIndex, linesOf, pathSoFar, readTree, resultShown, soleLine, walk } from "../src/chess/variations.ts";
 import { parseSettings, settingsToJson } from "../src/app/settingsFile.ts";
 import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
 import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
@@ -19,8 +20,9 @@ import { nextStashName } from "../src/chess/stash.ts";
 import { pinnedSquares } from "../src/chess/pins.ts";
 import { availableFor, materialOn } from "../src/chess/available.ts";
 import { createGifWriter } from "../src/app/gif/encoder.ts";
-import { asGifName, suggestedGifName, surnameOf } from "../src/app/gif/fileName.ts";
+import { asFileName, asGifName, suggestedFileName, suggestedGifName, surnameOf } from "../src/app/gif/fileName.ts";
 import { FRAME_STEPS, frameStepLabel, restAfterFade } from "../src/app/gif/timing.ts";
+import { i420Size, toI420, VIDEO_COLOUR_SPACE } from "../src/app/gif/yuv.ts";
 import { readGif } from "./gif.mjs";
 import {
   attackersOn,
@@ -674,6 +676,9 @@ console.log("\nSettings written for version 46\n");
     /* Nor a wait of its own before a game's first move: that was a quarter of
        the period, worked out rather than stored. */
     delete older.playInitialDelaySec;
+    /* Nor the paces for a game with variations, which it could not play. */
+    delete older.playBackStepSec;
+    delete older.playLineEndHoldSec;
     return older;
   };
 
@@ -725,8 +730,12 @@ console.log("\nSettings written for version 46\n");
       !("playPeriodPerPositionSec" in read));
   check("and sharing with autoplay, which 46 never wrote down, comes back on",
     read?.lab.shareGameWithAutoplay === true);
-  check("and the wait before the first move, which it worked out, is a fifth of a second",
-    read?.lab.playInitialDelaySec === 0.2, String(read?.lab.playInitialDelaySec));
+  check("and the wait before the first move, which it worked out, is the one a new reader gets",
+    read?.lab.playInitialDelaySec === DEFAULT_SETTINGS.lab.playInitialDelaySec, String(read?.lab.playInitialDelaySec));
+  check("and the paces for variations, which it never had, are this build's",
+    read?.lab.playBackStepSec === DEFAULT_SETTINGS.lab.playBackStepSec &&
+      read?.lab.playLineEndHoldSec === DEFAULT_SETTINGS.lab.playLineEndHoldSec,
+    JSON.stringify(read?.lab));
   /* And it is written the way this build writes a settings file: same keys, in
      the same order, so an export of a migrated record and one of a shipped
      preset differ only where a setting differs. */
@@ -1598,11 +1607,17 @@ console.log("\nSettings added since a record was written\n");
   const earlier = structuredClone(DEFAULT_SETTINGS);
   delete earlier.pieces.showAvailable;
   delete earlier.lab.playInitialDelaySec;
+  delete earlier.lab.playBackStepSec;
+  delete earlier.lab.playLineEndHoldSec;
   const back = parseSettings(JSON.stringify(earlier)).settings;
   check("a record from before the second bar reads back with it off",
     back?.pieces.showAvailable === false, String(back?.pieces.showAvailable));
-  check("and one from before the initial delay, with a fifth of a second",
-    back?.lab.playInitialDelaySec === 0.2, String(back?.lab.playInitialDelaySec));
+  check("and one from before the initial delay, with the one a new reader gets",
+    back?.lab.playInitialDelaySec === DEFAULT_SETTINGS.lab.playInitialDelaySec, String(back?.lab.playInitialDelaySec));
+  check("and one from before variations were played, with the paces a new reader gets",
+    back?.lab.playBackStepSec === DEFAULT_SETTINGS.lab.playBackStepSec &&
+      back?.lab.playLineEndHoldSec === DEFAULT_SETTINGS.lab.playLineEndHoldSec,
+    JSON.stringify(back?.lab));
   check("each where the interface puts it",
     JSON.stringify(Object.keys(back?.pieces ?? {})) ===
       JSON.stringify(Object.keys(DEFAULT_SETTINGS.pieces)) &&
@@ -1615,11 +1630,18 @@ console.log("\nSettings added since a record was written\n");
   check("while a record that says its own delay keeps it",
     parseSettings(JSON.stringify(own)).settings?.lab.playInitialDelaySec === 3);
   /* Nought is a value, and a check for a missing one that tested for a falsy
-     one would quietly turn "start at once" into a fifth of a second. */
+     one would quietly turn "start at once" into a whole second. */
   const none = structuredClone(DEFAULT_SETTINGS);
   none.lab.playInitialDelaySec = 0;
   check("including nought, which is no delay rather than a missing one",
     parseSettings(JSON.stringify(none)).settings?.lab.playInitialDelaySec === 0);
+  const quick = structuredClone(DEFAULT_SETTINGS);
+  quick.lab.playBackStepSec = 0;
+  quick.lab.playLineEndHoldSec = 0;
+  const quickBack = parseSettings(JSON.stringify(quick)).settings;
+  check("and so do the paces for variations, nought and all",
+    quickBack?.lab.playBackStepSec === 0 && quickBack?.lab.playLineEndHoldSec === 0,
+    JSON.stringify(quickBack?.lab));
 }
 
 console.log("\nThe men still standing\n");
@@ -1805,6 +1827,173 @@ console.log("\nAnimated GIF\n");
   check("a typed name loses what no file system allows, and ends in .gif once",
     asGifName("Club: round 1 / game?.GIF") === "Club round 1 game.gif" && asGifName("  ") === "",
     asGifName("Club: round 1 / game?.GIF"));
+  check("a video is named the same way, ending in .mp4",
+    suggestedFileName({ white: "Krylov, Mikhail (2489)", black: "Arslanov, Shamil (2411)" }, null, "mp4") === "Krylov - Arslanov.mp4" &&
+      suggestedFileName(null, null, "mp4", new Date(2026, 8, 28)) === "chess-visualizer-2026-09-28.mp4",
+    suggestedFileName({ white: "Krylov, Mikhail (2489)", black: "Arslanov, Shamil (2411)" }, null, "mp4"));
+  check("and a name kept from a GIF of the same game does not end up ending in both",
+    asFileName("Krylov - Arslanov.gif", "mp4") === "Krylov - Arslanov.mp4" &&
+      asFileName("Krylov - Arslanov.MP4", "gif") === "Krylov - Arslanov.gif",
+    asFileName("Krylov - Arslanov.gif", "mp4"));
+}
+
+console.log("\nA game with variations\n");
+{
+  /* A mate in two with three defences, each answered: the example the feature
+     was asked for with. */
+  const TASK = [
+    '[FEN "3k4/R6R/3n4/8/8/8/8/K7 w - - 0 1"]',
+    '[SetUp "1"]',
+    "",
+    "1. Rhg7 Nf7 {case A} (1... Ne8 {case B} 2. Ra8#) (1... Ke8 {case C} 2. Rg8#) 2. Rg8# 1-0",
+  ].join("\n");
+  const lines = linesOf(readTree(TASK));
+  const said = (steps) =>
+    steps.map((step) => (step.kind === "switch" ? `>${step.line}` : step.kind === "forward" ? "f" : "b")).join(" ");
+  check("every way through the game is a line of its own, the main line first",
+    JSON.stringify(lines.map((line) => line.moves.join(" "))) ===
+      JSON.stringify(["Rhg7 Nf7 Rg8#", "Rhg7 Ne8 Ra8#", "Rhg7 Ke8 Rg8#"]),
+    JSON.stringify(lines.map((line) => line.moves)));
+  check("each named by its move at the fork, numbered as it is written, and by the file's comment on it",
+    JSON.stringify(lines.map((line) => line.choices)) ===
+      JSON.stringify([["1… Nf7 {case A}"], ["1… Ne8 {case B}"], ["1… Ke8 {case C}"]]),
+    JSON.stringify(lines.map((line) => line.choices)));
+  const main = parsePgn(TASK).entries;
+  check("and the main line is the very line chess.js reads, position for position",
+    JSON.stringify(lines[0].entries) === JSON.stringify(main), JSON.stringify(lines[0].entries[2]));
+  check("walked as the board walks it: to each end, back to the fork, over, and on",
+    said(walk(lines, 0, 0)) === "f f f b b >1 f f b b >2 f f", said(walk(lines, 0, 0)));
+  check("and from the middle of a line, only what is left of the walk",
+    said(walk(lines, 1, 2)) === "f b b >2 f f" && said(walk(lines, 2, 3)) === "",
+    `${said(walk(lines, 1, 2))} / ${said(walk(lines, 2, 3))}`);
+  check("the way it has gone says nothing before the fork, and the choice from the fork on",
+    pathSoFar(lines[1], 0).length === 0 && JSON.stringify(pathSoFar(lines[1], 1)) === JSON.stringify(["1… Ne8 {case B}"]),
+    JSON.stringify([pathSoFar(lines[1], 0), pathSoFar(lines[1], 1)]));
+  const start = lines[0].entries[lines[0].entries.length - 1].fen;
+  check("the board's own line is found among them, and a line of the reader's own is not",
+    lineIndex(lines, start, ["Rhg7", "Ke8", "Rg8#"]) === 2 &&
+      lineIndex(lines, start, ["Rhg7", "Ke8"]) === -1 &&
+      lineIndex(lines, start, ["Rhg7", "Kc8"]) === -1);
+
+  /* Variations inside variations, each one's own before those that leave
+     earlier, and a path that grows a choice at every fork it comes to. */
+  const NESTED = "1. e4 e5 (1... c5 2. Nf3 (2. c3 d5) d6) 2. Nf3 Nc6 *";
+  const nested = linesOf(readTree(NESTED));
+  check("a variation inside a variation is a line as well",
+    JSON.stringify(nested.map((line) => line.moves.join(" "))) ===
+      JSON.stringify(["e4 e5 Nf3 Nc6", "e4 c5 Nf3 d6", "e4 c5 c3 d5"]),
+    JSON.stringify(nested.map((line) => line.moves)));
+  check("and its path names both forks",
+    JSON.stringify(nested[2].choices) === JSON.stringify(["1… c5", "2. c3"]) &&
+      JSON.stringify(nested[2].forks) === JSON.stringify([1, 2]),
+    JSON.stringify(nested[2]));
+  check("of which only the ones the board has come to are said",
+    JSON.stringify(pathSoFar(nested[2], 1)) === JSON.stringify(["1… c5"]) &&
+      JSON.stringify(pathSoFar(nested[2], 4)) === JSON.stringify(["1… c5", "2. c3"]));
+  check("the walk goes back only as far as each fork",
+    said(walk(nested, 0, 0)) === "f f f f b b b >1 f f f b b >2 f f", said(walk(nested, 0, 0)));
+
+  /* How files are actually written. */
+  const TIDY = linesOf(readTree("1. e4 e5 (1... c5 2. Nf3) 2. Nf3 *")).map((line) => line.moves.join(" "));
+  const MESSY = linesOf(readTree(
+    '[Event "?"] [White "A"] [Black "B"]\n1.e4!? {best by test} e5 $1 (1...c5?! ; a comment to the end of the line\n2.Nf3) 2.Nf3 *'
+  )).map((line) => line.moves.join(" "));
+  check("tags on one line, comments, glyphs and move numbers glued on read the same as a tidy file",
+    JSON.stringify(MESSY) === JSON.stringify(TIDY), JSON.stringify(MESSY));
+  const slip = linesOf(readTree("1. e4 e5 (1... c5 2. Ke3 d6) 2. Nf3 *")).map((line) => line.moves.join(" "));
+  check("a variation that goes wrong is kept as far as it went right",
+    JSON.stringify(slip) === JSON.stringify(["e4 e5 Nf3", "e4 c5"]), JSON.stringify(slip));
+  const again = linesOf(readTree("1. e4 e5 (1... e5 2. d4) 2. Nf3 *"));
+  check("a variation that starts with the move already played forks where it first differs",
+    JSON.stringify(again.map((line) => line.choices)) === JSON.stringify([["2. Nf3"], ["2. d4"]]),
+    JSON.stringify(again.map((line) => line.choices)));
+  const plain = linesOf(readTree("1. e4 e5 2. Nf3 *"));
+  check("a game with no variations is one line, with no choices in it",
+    plain.length === 1 && plain[0].choices.length === 0 && said(walk(plain, 0, 1)) === "f f");
+  /* chess.js writes back only an en passant square a pawn can take on; the
+     board's line starts where chess.js says, so the tree has to as well. */
+  const PASSANT = '[FEN "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"]\n\n2. Nf3 Nc6 (2... d6) *';
+  const passant = linesOf(readTree(PASSANT));
+  check("a start position is written the way the board writes it",
+    passant[0].entries[passant[0].entries.length - 1].fen ===
+      parsePgn(PASSANT).entries[parsePgn(PASSANT).entries.length - 1].fen,
+    passant[0].entries[passant[0].entries.length - 1].fen);
+  check("and a file that will not read at all is no tree", readTree('[FEN "not a position"]\n\n1. e4 *') === null);
+
+  /* What a line is called: the file's comment on the move it turns on. */
+  const named = (pgn) => linesOf(readTree(pgn)).map((line) => line.choices);
+  check("a variation may say what it is called at its opening instead",
+    JSON.stringify(named("1. e4 e5 ({Sicilian} 1... c5 2. Nf3) 2. Nf3 *")) ===
+      JSON.stringify([["1… e5"], ["1… c5 {Sicilian}"]]),
+    JSON.stringify(named("1. e4 e5 ({Sicilian} 1... c5 2. Nf3) 2. Nf3 *")));
+  check("while the game's own opening comment is about the game, and names no line",
+    JSON.stringify(named("{Which first move?} 1. e4 (1. d4) *")) === JSON.stringify([["1. e4"], ["1. d4"]]),
+    JSON.stringify(named("{Which first move?} 1. e4 (1. d4) *")));
+  check("a comment after the variations against a move is that move's",
+    JSON.stringify(named("1. e4 (1. d4 {Queen's pawn}) {King's pawn} *")) ===
+      JSON.stringify([["1. e4 {King's pawn}"], ["1. d4 {Queen's pawn}"]]),
+    JSON.stringify(named("1. e4 (1. d4 {Queen's pawn}) {King's pawn} *")));
+  check("each fork of a nested line keeps its own name",
+    JSON.stringify(named("1. e4 e5 (1... c5 {Sicilian} 2. Nf3 (2. c3 {Alapin} d5) d6) 2. Nf3 *")[2]) ===
+      JSON.stringify(["1… c5 {Sicilian}", "2. c3 {Alapin}"]),
+    JSON.stringify(named("1. e4 e5 (1... c5 {Sicilian} 2. Nf3 (2. c3 {Alapin} d5) d6) 2. Nf3 *")));
+  check("the commands programs keep in comments are left out, and so is a comment of nothing else",
+    JSON.stringify(named("1. e4 { [%clk 0:05:00] } (1. d4 { [%clk 0:04:59] Queen's\n  pawn [%eval 0.2] }) *")) ===
+      JSON.stringify([["1. e4"], ["1. d4 {Queen's pawn}"]]),
+    JSON.stringify(named("1. e4 { [%clk 0:05:00] } (1. d4 { [%clk 0:04:59] Queen's\n  pawn [%eval 0.2] }) *")));
+  const long = named("1. e4 (1. d4 {The quieter way, and the one this whole book is about in the end}) *")[1][0];
+  check("and a paragraph is cut short at a word", long === "1. d4 {The quieter way, and the one this whole…}", long);
+
+  /* Each line's own ending, from its last position: the file's result is the
+     main line's and says nothing about where a variation goes. */
+  check("a line ending in mate has the mating side's result",
+    lines.every((line) => line.result === "1-0"), JSON.stringify(lines.map((line) => line.result)));
+  const ENDINGS = '[FEN "7k/8/5KQ1/8/8/8/8/8 w - - 0 1"]\n\n1. Qg7# (1. Qf7) (1. Qe8+ Kh7) *';
+  const endings = linesOf(readTree(ENDINGS));
+  check("stalemate is a draw, and a line that simply stops has no result",
+    JSON.stringify(endings.map((line) => line.result)) === JSON.stringify(["1-0", "1/2-1/2", null]),
+    JSON.stringify(endings.map((line) => line.result)));
+  const bare = linesOf(readTree('[FEN "8/8/8/8/3k4/8/1r6/K7 w - - 0 1"]\n\n1. Kxb2 *'));
+  check("and so is a board with too little left to mate with",
+    bare[0].result === "1/2-1/2", String(bare[0].result));
+  const FOOL = "1. f3 e5 (1... e6 2. g4 Qh4#) 2. e4 1-0";
+  const fool = linesOf(readTree(FOOL));
+  check("a mate by Black is Black's",
+    fool[1].result === "0-1" && fool[0].result === null, JSON.stringify(fool.map((line) => line.result)));
+  check("the result over the board is the file's until a line is named",
+    resultShown(fool, 1, 0, "1-0") === "1-0", String(resultShown(fool, 1, 0, "1-0")));
+  check("and the named line's own from then on",
+    resultShown(fool, 1, 1, "1-0") === "0-1" && resultShown(fool, 1, 4, "1-0") === "0-1",
+    `${resultShown(fool, 1, 1, "1-0")} / ${resultShown(fool, 1, 4, "1-0")}`);
+  check("the main line's is the file's, where the file gives one, and its last position's where it does not",
+    resultShown(fool, 0, 3, "1-0") === "1-0" && resultShown(fool, 0, 3, null) === null &&
+      resultShown(endings, 0, 1, null) === "1-0",
+    `${resultShown(fool, 0, 3, "1-0")} / ${resultShown(fool, 0, 3, null)} / ${resultShown(endings, 0, 1, null)}`);
+  const only = soleLine(lineOf(["e4", "e5"]).entries, ["e4", "e5"]);
+  check("and a game that goes only one way says the file's result wherever it stands",
+    resultShown([only], 0, 0, "0-1") === "0-1" && resultShown([only], 0, 2, "0-1") === "0-1");
+}
+
+console.log("\nA video's colours\n");
+{
+  /* BT.709 in the video range, as the standard tabulates its colour bars. */
+  const one = (r, g, b) => [...toI420(new Uint8ClampedArray([r, g, b, 255]), 1, 1)];
+  const said = (colour) => colour.join(" ");
+  check("white is brightness 235, no colour", said(one(255, 255, 255)) === "235 128 128", said(one(255, 255, 255)));
+  check("black is 16", said(one(0, 0, 0)) === "16 128 128", said(one(0, 0, 0)));
+  check("red is 63 102 240", said(one(255, 0, 0)) === "63 102 240", said(one(255, 0, 0)));
+  check("green is 173 42 26", said(one(0, 255, 0)) === "173 42 26", said(one(0, 255, 0)));
+  check("blue is 32 240 118", said(one(0, 0, 255)) === "32 240 118", said(one(0, 0, 255)));
+  /* A 3 × 3 picture: black on the left two columns, white on the right. */
+  const rgba = new Uint8ClampedArray(3 * 3 * 4);
+  for (let p = 0; p < 9; p += 1) rgba.set(p % 3 === 2 ? [255, 255, 255, 255] : [0, 0, 0, 255], p * 4);
+  const planes = toI420(rgba, 3, 3);
+  check("an odd-sized picture has a colour sample for every 2 × 2 block, the edge's as far as it goes",
+    planes.length === i420Size(3, 3) && planes.length === 9 + 2 * 4, String(planes.length));
+  check("and every pixel its own brightness",
+    [...planes.subarray(0, 9)].join(" ") === "16 16 235 16 16 235 16 16 235", [...planes.subarray(0, 9)].join(" "));
+  check("and says it is BT.709 in the video range",
+    VIDEO_COLOUR_SPACE.matrix === "bt709" && VIDEO_COLOUR_SPACE.transfer === "bt709" && VIDEO_COLOUR_SPACE.fullRange === false);
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

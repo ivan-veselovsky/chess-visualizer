@@ -129,9 +129,9 @@ function barsShown(candidate: Record<string, unknown>): void {
  *
  * Until it was a setting it was a quarter of the period, and only on the
  * opening position. A record from then has nothing to say about it, and the
- * value it gets is the one a new reader gets: a fifth of a second, which is
- * near enough what the quarter came to at the period most people played at
- * that the start of a game feels the same as it did.
+ * value it gets is the one a new reader gets: a second, as every preset the
+ * app ships with has it. Kept the same as the presets by the tests, which
+ * compare the two.
  *
  * Deliberately not worked out from the record's own period, to reproduce the
  * old wait exactly. The two are separate settings now because they answer
@@ -145,10 +145,24 @@ function initialDelayGiven(candidate: Record<string, unknown>): void {
   }
   const node = lab as Record<string, unknown>;
   if (typeof node.playInitialDelaySec !== "number") {
-    node.playInitialDelaySec = 0.2;
+    node.playInitialDelaySec = 1;
   }
-  /* First, as the interface declares it and as the Lab tab shows it. */
-  inOrder(node, ["playInitialDelaySec", "playPeriodPerPositionSec"]);
+  /* The two paces for a game with variations, which came later still: the way
+     back to a fork, and the hold at the end of a line — again what a new
+     reader gets. */
+  if (typeof node.playBackStepSec !== "number") {
+    node.playBackStepSec = 0.2;
+  }
+  if (typeof node.playLineEndHoldSec !== "number") {
+    node.playLineEndHoldSec = 1;
+  }
+  /* In the order the interface declares them and the Lab tab shows them. */
+  inOrder(node, [
+    "playInitialDelaySec",
+    "playPeriodPerPositionSec",
+    "playBackStepSec",
+    "playLineEndHoldSec",
+  ]);
 }
 
 /**

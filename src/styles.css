@@ -499,6 +499,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5em;
+  /* Measured by the play row, which puts its paces two to a row when this is
+     wide enough for them. */
+  container: lab-controls / inline-size;
   /* Above only. The space under it fell between the list of positions and the
      FEN, which belong together — both say where the board stands. It is spent
      under the FEN instead, where the panel turns to whole games. */
@@ -553,21 +556,14 @@ body {
 /*
   Stood off from the steps above it and the position below: playing a game
   through is a different act from stepping along it by hand, and at the
-  panel's own spacing the three rows read as one block of controls.
+  panel's own spacing the rows read as one block of controls.
 
-  Two rows in two columns: the button at the left of the first, and the two
-  waits at the right, one over the other — the initial delay beside the button
-  it times, the period under it. A grid rather than the flex row the controls
-  round it use, because the two fields have to share a right-hand edge: set
-  flush right with the same input and the same unit after it, their inputs
-  stand in one column however long the labels in front of them are.
-
-  The first field is given the second column, which puts it beside the button.
-  The second is given the whole width, which the first row has no room left
-  for, so the grid's own placement puts it on the row below. It is the longer
-  label of the two, and held to the second column it wrapped on the narrowest
-  panel; across the row, with nothing in the first column to stand beside, it
-  has the room.
+  The four paces the button plays at, each flush right, so that their boxes
+  and their units stand in columns however long the labels in front of them
+  are. Where the panel has room for two to a row — see below — they go two to
+  a row under the button. Where it has not, one to a row: the first beside the
+  button, which leaves room for one field and no more, and the rest under it
+  across the whole width, where the longer labels have the room they need.
 */
 .play-row {
   display: grid;
@@ -587,6 +583,34 @@ body {
 
 .play-row > .number-field ~ .number-field {
   grid-column: 1 / -1;
+}
+
+/*
+  Two to a row, when the controls are wide enough for both columns of fields
+  side by side — the longer label and its box and unit in each, and the gap:
+  some 37 rems. The button has the first row to itself, at the left; the
+  fields take the two columns at the right, the first and third of them in the
+  one, the second and fourth in the other, and whatever is left over stands
+  between the two.
+*/
+@container lab-controls (min-width: 37.5rem) {
+  .play-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 1.5rem;
+  }
+
+  .play-row > .play-button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .play-row > .number-field:nth-of-type(odd) {
+    grid-column: 2;
+  }
+
+  .play-row > .number-field:nth-of-type(even) {
+    grid-column: 3;
+  }
 }
 
 /*
@@ -705,6 +729,14 @@ body {
   min-width: 10em;
 }
 
+/* One whose choices can run long, cut off at the end of a row's worth rather
+   than carrying the row past the edge of the panel. The list it opens is the
+   platform's, and shows each choice whole. */
+.choice-select-capped {
+  max-width: 22rem;
+  text-overflow: ellipsis;
+}
+
 /*
   The odds are three choices answering one question, and they belong on one
   line. A select is by default as wide as its longest option — "The game on my
@@ -734,6 +766,31 @@ body {
   /* Along its own row now, so it starts where the steps above it do rather
      than being pushed to the far end of a row it shared. */
   flex: 1;
+}
+
+/*
+  The line of a game with variations and the move in it, side by side and
+  held on one row, with a good gap between them: the two are answers to
+  different questions, and at the controls' own spacing they read as one.
+  Where the row is short of room it is the line's name that gives way — it
+  can run long, and is cut short — rather than the moves being pushed onto a
+  row of their own.
+*/
+.lines-row {
+  flex-wrap: nowrap;
+  column-gap: 4em;
+}
+
+.lines-row > .number-field {
+  flex: 0 1 auto;
+  min-width: 0;
+  /* Level with the moves: an inline field keeps room under itself, for the
+     field below it in a column of them, and here there is none. */
+  margin-bottom: 0;
+}
+
+.lines-row .choice-select {
+  min-width: 6em;
 }
 
 .moves-field > label {
@@ -1344,7 +1401,17 @@ body {
 .intensity-frame {
   position: relative;
   flex: 1;
-  min-height: 0;
+  /*
+    Its height is given it from outside — a size container takes none from
+    what it holds — and beside the board it is given plenty: the column runs
+    to the board's foot. Under the boards, where two board mode puts the panel
+    and a narrow window puts it too, the column is only as tall as its
+    contents, and with nothing to hold it open the frame shrank to its padding:
+    the square went to nothing, and its words and handle fell on top of one
+    another. This is the height that gives it a square of some 200 pixels
+    there, and it is well under what the column gives it beside the board.
+  */
+  min-height: 19.5rem;
   width: 100%;
   /*
     Sides: for the 0 and the 1, which hang off the box's left and right edges.
@@ -2974,7 +3041,8 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* The button, and beside it how big the GIF will come out. */
-.gif-go {
+/* What the file would come to, over the button that makes it. */
+.gif-estimate {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2982,7 +3050,16 @@ input[type="color"]::-moz-color-swatch {
   margin: 1.2rem 0 0;
 }
 
-.gif-size {
+.gif-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  margin: 0.6rem 0 0;
+}
+
+.gif-size,
+.gif-estimate-value {
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, currentColor 70%, transparent);
@@ -3080,13 +3157,14 @@ input[type="color"]::-moz-color-swatch {
 /*
   How big each board is, and so how wide the pair is.
 
-  Both are worked out here, once, and read by the row of names above the left
-  board, which has to know where that board ends, and by the box the boards sit
-  in. Written on the column rather than on either, and safe to read from both
-  only because the two are the same width: the `100%` in it resolves against
-  the containing block of whichever element reads it, not of this one. Anything
-  further in — a board inside the box of boards — would resolve it against
-  something narrower and get an answer that is quietly wrong.
+  Both are worked out here, once, and read by the rows of names, which have to
+  know where the pair ends and where the left board's coordinates are, and by
+  the box the boards sit in. Written on the column rather than on either, and
+  safe to read from both only because the two are the same width: the `100%`
+  in it resolves against the containing block of whichever element reads it,
+  not of this one. Anything further in — a board inside the box of boards —
+  would resolve it against something narrower and get an answer that is
+  quietly wrong.
 
   The pair is as wide as the column allows, less the bars beside it, and never
   wider than two boards at their own ceiling. Whichever of the two binds, the
@@ -3139,17 +3217,21 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
-  The names, the result and where in the game the board stands belong to the
-  left board, so they are held to its width rather than to the pair's.
+  The rows over and under the boards run across both: the name at the left end,
+  the result over the middle of the pair, and where in the game the boards
+  stand at the right end, over the right-hand board. Held to the left board
+  alone, the row crowded three things into half the width and left the other
+  half empty, over a board showing the same position.
 
-  Everything to the right of that board — the air between the two, the right
-  board, and the bars — is padding, for the reason the bars alone were padding
-  before: the row's columns are measured inside it, and what is not padded out
-  is carried into the middle of something wider than the board it is naming.
+  They begin where the left board's first file does. Everything to the right of
+  the pair — the bars, and whatever the page has spare beyond them — is padding,
+  for the reason the bars alone were padding before: the row's columns are
+  measured inside it, and what is not padded out is carried into the middle of
+  something wider than the boards it is naming.
 */
 .app-two-up .board-and-players > .player-name {
   padding-left: calc(var(--two-up-size) * 24 / 536);
-  padding-right: calc(100% - var(--two-up-size));
+  padding-right: calc(100% - var(--two-up-boards));
 }
 
 /* --- Playing with a friend ---------------------------------------------- */
@@ -4015,7 +4097,19 @@ input[type="color"]::-moz-color-swatch {
 */
 .player-name {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  /*
+    The middle as wide as what it says, and the two ends sharing the rest — so
+    the middle stays the middle — until the middle says more than there is
+    room for: the name of a line in a game with variations can run long. Then
+    it gives way, and each end keeps a floor of its own, enough for where the
+    game is standing to be read whole.
+  */
+  grid-template-columns:
+    minmax(min(10rem, 30%), 1fr)
+    minmax(0, max-content)
+    minmax(min(10rem, 30%), 1fr);
+  /* So a name cut short and a middle cut short never run into each other. */
+  column-gap: 1em;
   align-items: center;
   margin: 0.25rem 0;
   /*
@@ -4075,14 +4169,44 @@ input[type="color"]::-moz-color-swatch {
   background: #35b45a;
 }
 
-/* How the game came out, in the middle of the board's width. */
+/*
+  How the game came out, in the middle of the board's width — and in a game
+  with variations, which line is up before it. Filling the middle of the row
+  rather than sitting in it, so that a line's name too long for it is cut
+  short at the edge of the middle, rather than running on under the ends.
+*/
 .player-result {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45em;
-  justify-self: center;
+  justify-self: stretch;
+  min-width: 0;
+  overflow: hidden;
   white-space: nowrap;
   color: color-mix(in srgb, currentColor 75%, transparent);
+}
+
+/*
+  Which of a game's lines is on the board, and which way it went at each fork
+  it has come to: the moves in the text's own colour, since they are what is
+  being read, and cut short rather than pushing the result out.
+*/
+.branch-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--app-fg);
+}
+
+/* "Branch 2 of 3:" in the quieter colour the result has. */
+.branch-count {
+  color: color-mix(in srgb, currentColor 75%, transparent);
+}
+
+.branch-sep,
+.player-score {
+  flex: none;
 }
 
 /* And where in the game the board is standing, at the far end of the row. */
