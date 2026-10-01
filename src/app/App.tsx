@@ -46,7 +46,6 @@ import {
   type TreeLine,
 } from "../chess/variations";
 import { capturesUpTo } from "../chess/captures";
-import { lightness, readRgb } from "../visualization/color";
 import { applyMove, isPromotion, type PromotionPiece } from "../chess/moves";
 import {
   parsePgn,
@@ -188,14 +187,6 @@ function gameLines(pgn: string, given: PositionHistory): TreeLine[] {
 */
 const GifExportPanel = lazy(() => import("./GifExportPanel"));
 
-/*
-  How light a black man on the bars beside the board must be at the least, as a
-  share of how light the move counter's text is. All of it lifted the darkest
-  men to the counter's own grey, which read as a grey army rather than a black
-  one; seven tenths left the queen, the most finely drawn of them, too dark to
-  make out. Between the two.
-*/
-const MEN_BAR_FLOOR_SHARE = 0.85;
 
 const TABS: readonly Tab<PanelTab>[] = [
   // Where a position is worked on: set up, stepped through, played out against
@@ -2196,23 +2187,6 @@ export default function App() {
       "--dark-theme-fg",
       settings.board.darkThemeTextColor,
     );
-    /*
-      How light the move counter's text looks on the dark page: the text colour
-      at the three quarters the counter is drawn at, over the page's ground,
-      mixed as a browser lays translucent text on a page. The men on the bars
-      beside the board are never drawn darker than `MEN_BAR_FLOOR_SHARE` of
-      that — a black man is otherwise very nearly the ground it lies on — and
-      it is worked out here because the text colour is the reader's to choose.
-      See `.men-bar .piece-black` in the stylesheet.
-    */
-    const root = document.documentElement;
-    const ground = getComputedStyle(root).getPropertyValue("--app-bg").trim();
-    if (/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(ground) && /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(settings.board.darkThemeTextColor)) {
-      const text = readRgb(settings.board.darkThemeTextColor);
-      const under = readRgb(ground);
-      const ink = text.map((channel, i) => channel * 0.75 + under[i] * 0.25) as [number, number, number];
-      root.style.setProperty("--men-bar-floor", (lightness(ink) * MEN_BAR_FLOOR_SHARE).toFixed(3));
-    }
   }, [settings.board.theme, settings.board.darkThemeTextColor]);
 
   // A FEN is unparseable for most of the time it takes to type one, so the

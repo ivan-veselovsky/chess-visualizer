@@ -56,19 +56,6 @@ export function toHex(rgb: [number, number, number]): string {
 }
 
 /**
- * How light a colour looks, from 0 for black to 1 for white: OKLab's L, the
- * same number CSS's `oklch()` has for it, so a lightness worked out here can be
- * handed to a stylesheet and mean there what it meant here.
- */
-export function lightness(rgb: [number, number, number]): number {
-  const [r, g, b] = rgb.map(toLinear);
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-  return 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
-}
-
-/**
  * Two colours mixed as two lights would mix, `share` of the first to the rest of
  * the second: decode both, average, encode the answer.
  *

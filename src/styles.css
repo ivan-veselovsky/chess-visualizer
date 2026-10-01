@@ -3202,36 +3202,19 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
-  A black man on the dark page's own ground is very nearly that ground: the
-  board's men are laid on squares, which stay light under either theme, but the
-  men on either bar are laid on the page. A quarter of the way to white is enough to tell
-  them from it while leaving them the colour they were tinted with — further
-  than that and they stop reading as the black army.
-
-  The board's own men are untouched, standing where they always did.
-
-  And never darker than the move counter's text. A quarter of the way from a
-  black that is black to begin with is still a dark grey on a nearly black
-  page, and hard to see; so a man that comes out darker than the counter's
-  text is lifted to its lightness, in its own hue, and one already lighter is
-  left as it is. The counter's lightness is worked out where the text colour is
-  known, and published as `--men-bar-floor`; see `App`.
+  The disc a black man lies on in either bar, which is what lets him keep his
+  board colour on the dark page: very nearly the page's own ground, a black man
+  laid on it straight would all but vanish. In the page's text colour, the
+  grey everything else on the dark page is read in. The light page shows a
+  black man well enough as he is, and draws none.
 */
-:root[data-theme="dark"] .men-bar .piece-black {
-  fill: color-mix(
-    in srgb,
-    color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
-    white 25%
-  );
-  fill: oklch(
-    from
-      color-mix(
-        in srgb,
-        color-mix(in srgb, var(--piece-color), black var(--piece-darken)),
-        white 25%
-      )
-      max(l, var(--men-bar-floor, 0)) c h
-  );
+.men-bar-ground {
+  display: none;
+}
+
+:root[data-theme="dark"] .men-bar-ground {
+  display: inline;
+  fill: var(--app-fg);
 }
 
 /* --- Animated GIF export ------------------------------------------------ */

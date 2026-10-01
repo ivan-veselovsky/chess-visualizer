@@ -132,6 +132,15 @@ function MenGroupColumn({
               viewBox="0 0 64 64"
               aria-hidden="true"
             >
+              {/*
+                Under each of Black's men, a disc of the page's text colour.
+                On the dark page a black man is very nearly the ground he lies
+                on; laid on a disc he keeps the colour he has on the board and
+                is still seen. The discs of a kind overlap as the men do. Drawn
+                by the dark theme only — see `.men-bar-ground` — the light page
+                being ground enough for a black man as he is.
+              */}
+              {army === "b" && <circle cx={32} cy={32} r={29} className="men-bar-ground" />}
               {/* Turned a quarter clockwise, so the men lie down. */}
               <text
                 x={32}

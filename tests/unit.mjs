@@ -50,7 +50,7 @@ import {
 } from "../src/app/friend/storage.ts";
 import { friendlyGameName } from "../src/app/friend/gameName.ts";
 import { describeEnding } from "../src/app/friend/ending.ts";
-import { lightness, mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
+import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { applyMove, isPromotion } from "../src/chess/moves.ts";
 import { Chess } from "chess.js";
 
@@ -2026,17 +2026,6 @@ console.log("\nA video's colours\n");
     [...planes.subarray(0, 9)].join(" ") === "16 16 235 16 16 235 16 16 235", [...planes.subarray(0, 9)].join(" "));
   check("and says it is BT.709 in the video range",
     VIDEO_COLOUR_SPACE.matrix === "bt709" && VIDEO_COLOUR_SPACE.transfer === "bt709" && VIDEO_COLOUR_SPACE.fullRange === false);
-}
-
-console.log("\nHow light a colour looks\n");
-{
-  /* OKLab's L, as CSS's oklch() has it: black 0, white 1, and a mid grey
-     about 0.6 — well over half, since the eye is more sensitive in the dark. */
-  const l = (hex) => lightness(readRgb(hex));
-  check("black is 0 and white is 1", Math.abs(l("#000000")) < 1e-6 && Math.abs(l("#ffffff") - 1) < 1e-4,
-    `${l("#000000")} / ${l("#ffffff")}`);
-  check("a mid grey is about 0.6, as CSS says of #808080", Math.abs(l("#808080") - 0.5999) < 0.001, String(l("#808080")));
-  check("and pure red is 0.628, as CSS says", Math.abs(l("#ff0000") - 0.628) < 0.001, String(l("#ff0000")));
 }
 
 console.log("\nA tree of moves, grown and written out\n");
