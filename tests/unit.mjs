@@ -51,6 +51,7 @@ import {
 import { friendlyGameName } from "../src/app/friend/gameName.ts";
 import { describeEnding } from "../src/app/friend/ending.ts";
 import { lightness, mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
+import { applyMove, isPromotion } from "../src/chess/moves.ts";
 import { Chess } from "chess.js";
 
 let passed = 0;
@@ -2069,6 +2070,16 @@ console.log("\nA tree of moves, grown and written out\n");
   const separated = readTree('[SetUp "1"]\n[FEN "7K/3kq1PP/8/8/8/8/8/8 b - - 0 1"]\n\n1. ... Qe5 2. Kg8 Qe8# 0-1');
   check("a Black move numbered with its dots apart from it — \"1. ... Qe5\" — is read",
     linesOf(separated)[0].moves.join(" ") === "Qe5 Kg8 Qe8#", linesOf(separated)[0].moves.join(" "));
+}
+
+console.log("\nPromotion\n");
+{
+  const board = new Chess("8/4P3/8/8/8/8/k7/4K3 w - - 0 1");
+  check("a pawn's move to the last rank is a promotion, and a king's is not",
+    isPromotion(board, "e7", "e8") && !isPromotion(board, "e1", "e2"));
+  const made = ["q", "r", "b", "n"].map((piece) => applyMove(board, "e7", "e8", piece)?.san);
+  check("and becomes the piece asked for", JSON.stringify(made) === JSON.stringify(["e8=Q", "e8=R", "e8=B", "e8=N"]), made.join(" "));
+  check("a queen when nothing is asked", applyMove(board, "e7", "e8")?.san === "e8=Q");
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

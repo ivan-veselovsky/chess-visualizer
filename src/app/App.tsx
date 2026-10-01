@@ -47,7 +47,7 @@ import {
 } from "../chess/variations";
 import { capturesUpTo } from "../chess/captures";
 import { lightness, readRgb } from "../visualization/color";
-import { applyMove } from "../chess/moves";
+import { applyMove, isPromotion, type PromotionPiece } from "../chess/moves";
 import {
   parsePgn,
   resultOnBoard,
@@ -108,6 +108,7 @@ import CapturedBar from "./CapturedBar";
 import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
+import PromotionChooser from "./PromotionChooser";
 import StashDialog from "./StashDialog";
 import StashedGames from "./StashedGames";
 import ToggleField from "./ToggleField";
@@ -327,6 +328,20 @@ export default function App() {
      lost, which is what a reader working through a task wants more often than
      not; switching it off is the way back to one line. */
   const [treeMode, setTreeMode] = useState(true);
+  /*
+    A pawn's move to the last rank, waiting for the reader to say what it
+    becomes; see `PromotionChooser`. Held with the position it was made in, so
+    an answer that comes after the board has moved on is not played on a
+    position it was not asked about.
+  */
+  const [promoting, setPromoting] = useState<{
+    from: Square;
+    to: Square;
+    color: Color;
+    fen: string;
+    /** Which board it was played on, the left or the right: the chooser stands at its square. */
+    board: number;
+  } | null>(null);
   /* Which of the two boards last had a piece picked up on it: the other lets go
      of whatever it had picked out, so there is one piece in hand at a time. */
   const [inHand, setInHand] = useState<"left" | "right" | null>(null);
@@ -2229,10 +2244,28 @@ export default function App() {
   const unnamedResult =
     readGame !== null ? readResult : shown === null ? null : resultOnBoard(shown);
 
+  /* A question about a promotion goes with the position it was asked in: the
+     board moving on — a step, a game arriving — takes it away for good. */
+  useEffect(() => {
+    if (promoting !== null && shown?.fen() !== promoting.fen) {
+      setPromoting(null);
+    }
+  }, [shown, promoting]);
+
   /** Moves come back from the board as squares; the position that follows is
    *  a new FEN, so editing by hand and playing by hand feed the same state. */
-  function handleMove(from: Square, to: Square, dragged = false) {
+  function handleMove(from: Square, to: Square, dragged = false, promotion?: PromotionPiece, board = 0) {
     if (shown === null) {
+      return;
+    }
+    /*
+      A pawn reaching the last rank waits to be told what it becomes. The move
+      is played once that is answered — and flown, dragged or not: while the
+      question was open the pawn went back to its square, and it is from there
+      that the reader sees it go.
+    */
+    if (promotion === undefined && isPromotion(shown, from, to)) {
+      setPromoting({ from, to, color: shown.turn(), fen: shown.fen(), board });
       return;
     }
     /*
@@ -2243,7 +2276,7 @@ export default function App() {
     if (dragged) {
       draggedTo.current = to;
     }
-    const next = applyMove(shown, from, to);
+    const next = applyMove(shown, from, to, promotion);
     if (next === null) {
       return;
     }
@@ -2560,7 +2593,7 @@ export default function App() {
                     showing={during?.board ?? null}
                     flying={during?.flying ?? []}
                     grid={rightSettings.board.grid}
-                    onMove={handleMove}
+                    onMove={(from, to, dragged) => handleMove(from, to, dragged, undefined, 1)}
                     playable={playable}
                     frozen={frozen}
                     onPickUp={() => setInHand("right")}
@@ -3660,6 +3693,28 @@ export default function App() {
         pgn={pgnExportOpen ? sharablePgn() : null}
         onClose={() => setPgnExportOpen(false)}
       />
+      {/* What a pawn reaching the last rank becomes; see `handleMove`. Only
+          while the board still holds the position it was asked about. */}
+      {promoting !== null && shown !== null && shown.fen() === promoting.fen && (
+        <PromotionChooser
+          color={promoting.color}
+          square={() =>
+            document
+              .querySelectorAll(".board-holder svg")
+              [promoting.board]?.querySelector(`.square-layer [data-square="${promoting.to}"]`)
+              ?.getBoundingClientRect() ?? null
+          }
+          /* White promotes on the eighth rank, at the top when White is at the
+             bottom; Black on the first. */
+          at={(promoting.color === "w") === (side === "white") ? "top" : "bottom"}
+          onChoose={(piece) => {
+            const asked = promoting;
+            setPromoting(null);
+            handleMove(asked.from, asked.to, false, piece);
+          }}
+          onCancel={() => setPromoting(null)}
+        />
+      )}
     </main>
   );
 }

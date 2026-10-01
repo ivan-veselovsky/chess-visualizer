@@ -959,6 +959,70 @@ body {
 }
 
 /*
+  The question a pawn reaching the last rank asks: four pieces in a row, and
+  nothing more — the question is plain from the board, and a press anywhere
+  else takes the move back. Placed by `PromotionChooser` at the square, which
+  sets `--choice` smaller where the strip there is narrow; the browser's
+  centring of a popover is undone, as it is for the info boxes.
+*/
+.promotion-chooser {
+  --choice: 3.2rem;
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0.35rem;
+  color: var(--app-fg);
+  background: var(--app-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 30%);
+}
+
+.promotion-chooser:popover-open {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/*
+  Each piece on a light square, as a board's men stand, so either side's reads
+  at once under either theme: White's in white with a dark edge, Black's in
+  black. The board's own glyphs and font, at a size to be hit without aiming.
+*/
+.promotion-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--choice);
+  height: var(--choice);
+  padding: 0;
+  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
+  font-size: calc(var(--choice) * 0.72);
+  line-height: 1;
+  background: #dcdcdc;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.promotion-choice:hover,
+.promotion-choice:focus-visible {
+  background: #f0f0f0;
+  outline: 2px solid var(--livery);
+  outline-offset: 1px;
+}
+
+.promotion-white {
+  color: #ffffff;
+  -webkit-text-stroke: 1.2px #222222;
+  paint-order: stroke fill;
+}
+
+.promotion-black {
+  color: #111111;
+}
+
+/*
   In the attack table, where the columns are the width of a number: a column's
   heading has its (i) under the word rather than beside it, which would run it
   into the next heading; and a row's name flows as text, so a long one wraps

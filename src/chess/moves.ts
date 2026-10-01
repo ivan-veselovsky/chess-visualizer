@@ -22,20 +22,31 @@ export interface PlayedMove {
   san: string;
 }
 
+/** What a pawn reaching the last rank may become. */
+export type PromotionPiece = "q" | "r" | "b" | "n";
+
+/** Whether moving from `from` to `to` is a pawn reaching the last rank, which has to say what it becomes. */
+export function isPromotion(position: Chess, from: Square, to: Square): boolean {
+  return position
+    .moves({ square: from, verbose: true })
+    .some((move) => move.to === to && move.promotion !== undefined);
+}
+
 /**
  * Plays a move and returns the FEN that follows, or null if it is not legal.
  *
  * The given position is left untouched: it is derived from the FEN in state,
  * and the move's result is a new FEN rather than a mutation of it.
  *
- * A pawn reaching the last rank must name what it becomes. Rather than ask,
- * this promotes to a queen — the choice in nearly every game, and a position
- * wanting anything else can be typed straight into the FEN.
+ * A pawn reaching the last rank becomes `promotion` — asked of the reader
+ * before this is called; see `isPromotion` — and a queen when nothing says
+ * otherwise.
  */
 export function applyMove(
   position: Chess,
   from: Square,
-  to: Square
+  to: Square,
+  promotion: PromotionPiece = "q"
 ): PlayedMove | null {
   const candidates = position
     .moves({ square: from, verbose: true })
@@ -49,7 +60,7 @@ export function applyMove(
   const played = next.move({
     from,
     to,
-    ...(candidates[0].promotion === undefined ? {} : { promotion: "q" }),
+    ...(candidates[0].promotion === undefined ? {} : { promotion }),
   });
   return { fen: next.fen(), san: played.san };
 }

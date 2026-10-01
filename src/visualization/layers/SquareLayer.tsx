@@ -27,6 +27,9 @@ export default function SquareLayer({
               y={y}
               width={SQUARE_SIZE}
               height={SQUARE_SIZE}
+              /* Which square it is, for whatever on the page has to find one:
+                 the promotion chooser stands at the square it is asked about. */
+              data-square={`${FILES[file]}${RANKS[rank]}`}
               className={isLightSquare(file, rank) ? "square-light" : "square-dark"}
             />
           );

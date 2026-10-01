@@ -446,6 +446,89 @@ try {
     JSON.stringify(balance.squares)
   );
 
+  console.log("\nWhat a pawn becomes\n");
+
+  /*
+    A pawn reaching the last rank asks what it becomes — four pieces, centred
+    on the square it is reaching and just off the board there — and the move
+    waits for the answer. A press anywhere else takes it back and does nothing
+    more; Escape takes it back too; and a knight chosen is a knight played.
+  */
+  const promotionState = (board = 0, square = "e8") => page.run(`const box = document.querySelector(".promotion-chooser:popover-open");
+    const s = document.querySelectorAll(".board-holder svg")[${board}].querySelector('.square-layer [data-square="${square}"]').getBoundingClientRect();
+    const r = box?.getBoundingClientRect();
+    return JSON.stringify({
+      open: box !== null,
+      pieces: box ? [...box.querySelectorAll(".promotion-choice")].map((c) => c.getAttribute("aria-label")) : [],
+      centre: r === undefined ? null : Math.round(r.left + r.width / 2 - (s.left + s.width / 2)),
+      over: r === undefined ? null : Math.round(s.top - r.bottom),
+      closeButton: box?.querySelector(".info-close, .promotion-close") != null,
+      /* The list sets its numbers off with no-break spaces. */
+      played: document.querySelector(".moves-select").options[0].textContent.replace(/\\s+/g, " ").trim(),
+      marked: window.__marked ? window.__marked() : null,
+    });`);
+  const promotionAt = (two) => page.run(`${HELPERS}
+    document.querySelector("#tab-manage").click(); await sleep(400);
+    const toggle = document.querySelector("#two-board-mode"); if (toggle.checked !== ${two}) toggle.click(); await sleep(700);
+    window.__tab("Lab"); await sleep(300);
+    __set("#fen", "8/4P3/8/8/8/8/k7/4K3 w - - 0 1"); await sleep(800); window.scrollTo(0, 0); await sleep(200);
+    return "ok";`);
+  const escapeKey = async () => {
+    await page.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await page.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await pause(400);
+  };
+  await promotionAt(false);
+  const pawn = await at(0, "e7");
+  const queening = await at(0, "e8");
+  const king = await at(0, "e1");
+  await page.click(pawn.cx, pawn.cy);
+  await pause(200);
+  await page.click(queening.cx, queening.cy);
+  await pause(400);
+  const asked = JSON.parse(await promotionState());
+  check("a pawn played to the last rank asks what it becomes, and waits",
+    asked.open && JSON.stringify(asked.pieces) === JSON.stringify(["Queen", "Rook", "Bishop", "Knight"]) && asked.played === "start",
+    JSON.stringify(asked));
+  check("centred on the square it is reaching, just off the board there",
+    asked.centre !== null && Math.abs(asked.centre) <= 1 && asked.over >= 0 && asked.over <= 8,
+    `${asked.centre} px off centre, ${asked.over} px above the square`);
+  check("with nothing to close it by but a choice, or a press elsewhere", asked.closeButton === false);
+  await page.click(king.cx, king.cy);
+  await pause(500);
+  const pressedAway = JSON.parse(await promotionState());
+  check("a press elsewhere takes the move back, and picks nothing up",
+    !pressedAway.open && pressedAway.played === "start" && pressedAway.marked.every((count) => count === 0),
+    JSON.stringify(pressedAway));
+  await page.click(pawn.cx, pawn.cy);
+  await pause(200);
+  await page.click(queening.cx, queening.cy);
+  await pause(400);
+  await escapeKey();
+  const withdrawn = JSON.parse(await promotionState());
+  check("so does Escape", !withdrawn.open && withdrawn.played === "start", JSON.stringify(withdrawn));
+  await drag(pawn, queening);
+  const draggedThere = JSON.parse(await promotionState());
+  check("dragged there, it asks too", draggedThere.open && draggedThere.played === "start", JSON.stringify(draggedThere));
+  await page.run(`document.querySelector('.promotion-chooser:popover-open .promotion-choice[aria-label="Knight"]').click(); await sleep(1500); return "ok";`);
+  const knighted = JSON.parse(await promotionState());
+  check("and a knight chosen is a knight played", !knighted.open && knighted.played === "1. e8=N", JSON.stringify(knighted));
+
+  /* Played on the right-hand board, it stands at that board's square. */
+  await promotionAt(true);
+  const rightPawn = await at(1, "e7");
+  const rightQueening = await at(1, "e8");
+  await page.click(rightPawn.cx, rightPawn.cy);
+  await pause(200);
+  await page.click(rightQueening.cx, rightQueening.cy);
+  await pause(400);
+  const onRight = JSON.parse(await promotionState(1));
+  check("played on the right-hand board, it stands at that board's square",
+    onRight.open && onRight.centre !== null && Math.abs(onRight.centre) <= 1 && onRight.over >= 0 && onRight.over <= 8,
+    JSON.stringify(onRight));
+  await escapeKey();
+  await promotionAt(false);
+
   console.log("\nExplanations behind an (i)\n");
 
   /*
