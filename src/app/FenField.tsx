@@ -1,5 +1,5 @@
 import FenHelp from "./FenHelp";
-import FieldWithHelp from "./FieldWithHelp";
+import InfoButton from "./InfoButton";
 
 interface FenFieldProps {
   value: string;
@@ -27,10 +27,12 @@ export default function FenField({
       <div className="board-controls fen-row">
         {/* The label carries the explanation: hovering the field itself would
             put a panel over what is being typed. */}
-        <FieldWithHelp>
+        <span className="field-label">
           <label htmlFor="fen">Position (FEN)</label>
-          <FenHelp id="fen-help" />
-        </FieldWithHelp>
+          <InfoButton label="Position (FEN)">
+            <FenHelp />
+          </InfoButton>
+        </span>
         <input
           id="fen"
           type="text"
@@ -44,7 +46,7 @@ export default function FenField({
           autoComplete="off"
           autoCapitalize="off"
           aria-invalid={error !== null}
-          aria-describedby={error === null ? "fen-help" : "fen-help fen-error"}
+          aria-describedby={error === null ? undefined : "fen-error"}
           onChange={(event) => onChange(event.target.value)}
         />
       </div>

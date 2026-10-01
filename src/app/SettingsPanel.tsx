@@ -1,3 +1,4 @@
+import InfoButton from "./InfoButton";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import AboutBuild from "./AboutBuild";
 import AttackTable from "./AttackTable";
@@ -634,11 +635,13 @@ export default function SettingsPanel({
                 ))}
               </tr>
               <tr>
-                <th
-                  scope="row"
-                  title="The most colour one attacker of that side lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid, and the balance panel takes its own fraction of this."
-                >
-                  Heatmap max strength
+                <th scope="row">
+                  <span className="field-label">
+                    Heatmap max strength
+                    <InfoButton label="Heatmap max strength">
+                      The most colour one attacker of that side lays down. Each further attacker takes the same share of whatever is left, so a square is never painted solid, and the balance panel takes its own fraction of this.
+                    </InfoButton>
+                  </span>
                 </th>
                 {SIDES.map((side) => (
                   <td

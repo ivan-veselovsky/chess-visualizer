@@ -1,22 +1,13 @@
-interface PgnHelpProps {
-  /** Referenced by the button it describes, so the text reaches a reader too. */
-  id: string;
-}
-
 /**
  * What a PGN is, for the two buttons that read and write one.
  *
- * Markup rather than a title attribute, for the same reason the FEN field's is:
- * a title is one plain string, and the notation being described would be
+ * Markup rather than plain text, for the same reason the FEN field's is:
+ * one plain string, and the notation being described would be
  * indistinguishable from the prose describing it.
  */
-export default function PgnHelp({ id }: PgnHelpProps) {
+export default function PgnHelp() {
   return (
-    <span
-      id={id}
-      role="tooltip"
-      className="field-help"
-    >
+    <>
       A <strong>PGN (Portable Game Notation)</strong> document describes one or
       more complete chess games using two main sections:{" "}
       <strong>tag pairs</strong>, written as <code>{'[Name "Value"]'}</code>,
@@ -35,6 +26,6 @@ export default function PgnHelp({ id }: PgnHelpProps) {
         {'[White "Alice"] [Black "Bob"] [Result "1-0"] 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 1-0'}
       </code>
       .
-    </span>
+    </>
   );
 }

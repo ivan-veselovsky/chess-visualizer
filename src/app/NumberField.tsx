@@ -1,3 +1,4 @@
+import { LabelWithInfo } from "./InfoButton";
 import NumberInput from "./NumberInput";
 
 interface NumberFieldProps {
@@ -11,7 +12,7 @@ interface NumberFieldProps {
   allowZero?: boolean;
   /** Upper bound, when the option has one. */
   max?: number;
-  /** Explanation shown on hover, rather than as standing text. */
+  /** Explanation behind an (i) beside the label, rather than standing text. */
   hint?: string;
   /** Put the label and the input on one line instead of stacking them. */
   inline?: boolean;
@@ -49,8 +50,8 @@ export default function NumberField({
     .filter((name) => name !== "")
     .join(" ");
   return (
-    <div className={classes} title={hint}>
-      <label htmlFor={id}>{label}</label>
+    <div className={classes}>
+      <LabelWithInfo label={<label htmlFor={id}>{label}</label>} hint={hint} />
       <div className="number-field-inputs">
         <NumberInput
           id={id}

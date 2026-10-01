@@ -1,8 +1,10 @@
+import InfoButton from "./InfoButton";
+
 interface ToggleFieldProps {
   id: string;
   label: string;
   checked: boolean;
-  /** Explanation shown on hover, rather than as standing text. */
+  /** Explanation behind an (i) after the label, rather than standing text. */
   hint?: string;
   onChange: (checked: boolean) => void;
 }
@@ -16,7 +18,7 @@ export default function ToggleField({
   onChange,
 }: ToggleFieldProps) {
   return (
-    <div className="toggle-field" title={hint}>
+    <div className="toggle-field">
       <input
         id={id}
         type="checkbox"
@@ -24,6 +26,7 @@ export default function ToggleField({
         onChange={(event) => onChange(event.target.checked)}
       />
       <label htmlFor={id}>{label}</label>
+      {hint !== undefined && hint !== "" && <InfoButton label={label}>{hint}</InfoButton>}
     </div>
   );
 }

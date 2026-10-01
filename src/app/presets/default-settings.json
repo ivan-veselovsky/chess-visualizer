@@ -42,7 +42,8 @@
   "lab": {
     "playInitialDelaySec": 1,
     "playPeriodPerPositionSec": 1,
-    "playBackStepSec": 0.1,
+    "playBackStepSec": 0.05,
+    "playBackStepSpeedup": 1.3,
     "playLineEndHoldSec": 1.5,
     "shareGameWithAutoplay": true
   },

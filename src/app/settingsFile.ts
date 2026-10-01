@@ -151,16 +151,21 @@ function initialDelayGiven(candidate: Record<string, unknown>): void {
      back to a fork, and the hold at the end of a line — again what a new
      reader gets. */
   if (typeof node.playBackStepSec !== "number") {
-    node.playBackStepSec = 0.1;
+    node.playBackStepSec = 0.05;
   }
   if (typeof node.playLineEndHoldSec !== "number") {
     node.playLineEndHoldSec = 1.5;
+  }
+  /* And how much faster the steps back are played, later again. */
+  if (typeof node.playBackStepSpeedup !== "number") {
+    node.playBackStepSpeedup = 1.3;
   }
   /* In the order the interface declares them and the Lab tab shows them. */
   inOrder(node, [
     "playInitialDelaySec",
     "playPeriodPerPositionSec",
     "playBackStepSec",
+    "playBackStepSpeedup",
     "playLineEndHoldSec",
   ]);
 }

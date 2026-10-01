@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ColorDialog from "./ColorDialog";
+import InfoButton, { LabelWithInfo } from "./InfoButton";
 
 interface ColorFieldProps {
   id: string;
@@ -13,7 +14,7 @@ interface ColorFieldProps {
    * a screen reader is given and what the dialog is titled with.
    */
   wellOnly?: boolean;
-  /** Explanation shown on hover, rather than as standing text. */
+  /** Explanation behind an (i) beside the label, rather than standing text. */
   hint?: string;
   onChange: (color: string) => void;
 }
@@ -46,17 +47,18 @@ export default function ColorField({
         disabled ? " field-disabled" : ""
       }`}
     >
-      {!wellOnly && <label htmlFor={id}>{label}</label>}
+      {!wellOnly && <LabelWithInfo label={<label htmlFor={id}>{label}</label>} hint={hint} />}
       <button
         id={id}
         type="button"
         className="color-well"
         disabled={disabled}
         style={{ background: value }}
-        title={hint ?? value}
+        title={value}
         aria-label={`${label} (${value})`}
         onClick={() => setOpen(true)}
       />
+      {wellOnly && hint !== undefined && hint !== "" && <InfoButton label={label}>{hint}</InfoButton>}
       <ColorDialog
         open={open}
         label={label}

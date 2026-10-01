@@ -1,3 +1,5 @@
+import InfoButton from "./InfoButton";
+
 interface SliderFieldProps {
   id: string;
   /** What each end of the travel means, said at that end. */
@@ -7,6 +9,7 @@ interface SliderFieldProps {
   /** The values worth marking under the track, e.g. `[0, 0.5, 1]`. */
   ticks?: number[];
   step?: number;
+  /** Explanation behind an (i) after the far end's name. */
   hint?: string;
   onChange: (value: number) => void;
 }
@@ -30,7 +33,7 @@ export default function SliderField({
   onChange,
 }: SliderFieldProps) {
   return (
-    <div className="slider-field" title={hint}>
+    <div className="slider-field">
       {/* First row, middle column: what the handle currently says. */}
       <output className="slider-value" htmlFor={id}>
         {String(Math.round(value * 100) / 100)}
@@ -48,7 +51,12 @@ export default function SliderField({
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
-      <span className="slider-end slider-to">{to}</span>
+      <span className="slider-end slider-to">
+        {to}
+        {hint !== undefined && hint !== "" && (
+          <InfoButton label={`${from} to ${to}`}>{hint}</InfoButton>
+        )}
+      </span>
       {/* Second row, middle column: the figures line up with the travel they
           mark rather than with the row, which the names at the ends widen. */}
       {ticks.length > 0 && (

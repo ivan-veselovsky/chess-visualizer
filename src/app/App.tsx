@@ -32,12 +32,16 @@ import {
 import {
   lineIndex,
   linesOf,
+  lineTree,
   pathSoFar,
+  playInto,
   readTree,
   resultShown,
   sharedMoves,
   soleLine,
   walk,
+  writeMovetext,
+  type MoveTree,
   type Step,
   type TreeLine,
 } from "../chess/variations";
@@ -80,7 +84,7 @@ import Board from "../visualization/Board";
 import type { LastMove } from "../visualization/layers/HighlightLayer";
 import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
-import FieldWithHelp from "./FieldWithHelp";
+import InfoButton from "./InfoButton";
 import MovesSelect from "./MovesSelect";
 import NumberField from "./NumberField";
 import GearIcon from "./GearIcon";
@@ -312,6 +316,17 @@ export default function App() {
     rather than in the settings; see `twoBoard.ts` for why.
   */
   const [twoBoard, setTwoBoard] = useState(twoBoardMode);
+  /*
+    The Lab's "Keep variations": moves played on the board are kept as a tree
+    rather than as one line. A move from an earlier position does not throw away
+    what came after it there; it starts another branch, and every branch is
+    still there to walk, play and export. Off, the board holds one line, as it
+    always has. See `playInTree`.
+  */
+  /* On to begin with: a move tried from an earlier position is kept rather than
+     lost, which is what a reader working through a task wants more often than
+     not; switching it off is the way back to one line. */
+  const [treeMode, setTreeMode] = useState(true);
   /* Which of the two boards last had a piece picked up on it: the other lets go
      of whatever it had picked out, so there is one piece in hand at a time. */
   const [inHand, setInHand] = useState<"left" | "right" | null>(null);
@@ -659,8 +674,17 @@ export default function App() {
      * the result, and the event, the date, the comments, the variations — and
      * a game rebuilt from its moves keeps only the moves. While the line is
      * the one read, it is the same game, and it goes out as it came in.
+     *
+     * In the Lab's branched mode, written afresh at every move played: the
+     * tree the reader is building, tags and all.
      */
     pgn: string;
+    /**
+     * Built in the Lab's branched mode from a board that held no game, rather
+     * than read in: its tags are this app's own, written again from its main
+     * line at every move, since nothing else said them.
+     */
+    recorded?: boolean;
   } | null>(() =>
     opening?.game == null ? null : { ...opening.game, lines: gameLines(opening.game.pgn, history) }
   );
@@ -849,12 +873,14 @@ export default function App() {
    * knows belongs to another tab: writing there would throw away a game this
    * tab cannot offer back, so the reader is asked for another name instead.
    */
-  function putAside(name: string, line = history): string | void {
+  function putAside(name: string): string | void {
     const held = freshStash();
     if (strangeNames(stash, held).includes(name)) {
       return `Another tab has stashed a game as \u201c${name}\u201d. Try another name.`;
     }
-    setStash(saveStash(stashGame(held, name, line)));
+    /* What exporting it would write, kept with it: a stash and an export are
+       one thing, the game as PGN, kept in two places. */
+    setStash(saveStash(stashGame(held, name, history, sharablePgn() ?? undefined)));
   }
 
   /**
@@ -891,6 +917,22 @@ export default function App() {
     setHistory(game.history);
     showPosition(currentPosition(game.history));
     handed.current = lineOf(game.history);
+    /*
+      Read back as a PGN is read in: its lines, its names, its result — every
+      line the export held, where it held more than one — with the board on
+      the one it was on. A stash from before PGN was kept with it, or one whose
+      line its PGN does not hold, comes back as the line alone.
+    */
+    setRead(null);
+    if (game.pgn !== undefined) {
+      const kept = parsePgn(game.pgn);
+      const tree = readTree(game.pgn);
+      const lines = tree === null ? [] : linesOf(tree);
+      const stood = lineOf(game.history);
+      if (kept.entries !== null && lineIndex(lines, stood.initialFEN, stood.moves) >= 0) {
+        setRead({ players: kept.players, result: kept.result, lines, pgn: game.pgn });
+      }
+    }
     setStashName(name);
     setLibraryGame(null);
     setLibraryGameError(null);
@@ -1212,7 +1254,20 @@ export default function App() {
         squaresApart(piece.from, piece.to, side)
       )
     );
-    const ms = flightTime(squares, moveSpeed(settings.pieces.moveMotion, squares));
+    /*
+      A step back in a game playing itself, or in the frames of one being
+      exported, is the way to the next line rather than a move to watch, and
+      goes that much faster: the time it is given divided by the Lab's factor,
+      and the speed it is given multiplied. Stepping back by hand is reading
+      the move again, at its own pace.
+    */
+    const quicker = backward !== null && (playing || exporting) ? Math.max(settings.lab.playBackStepSpeedup, 0.1) : 1;
+    const motion = {
+      ...settings.pieces.moveMotion,
+      speed: settings.pieces.moveMotion.speed * quicker,
+      time: settings.pieces.moveMotion.time / quicker,
+    };
+    const ms = flightTime(squares, moveSpeed(motion, squares));
     if (ms <= 0) {
       return null;
     }
@@ -2161,7 +2216,7 @@ export default function App() {
     branch !== null && branch.path.length > 0 ? (
       <span className="branch-path">
         <span className="branch-count">
-          Branch {branch.number} of {branch.of}:
+          Line {branch.number} of {branch.of}:
         </span>{" "}
         {branch.path.join(" › ")}
       </span>
@@ -2217,8 +2272,67 @@ export default function App() {
       reader played by hand said the board was that game again, when it was the
       reader's own line all along.
     */
+    if (treeMode && playInTree(next.fen, next.san)) {
+      return;
+    }
     setRead(null);
     playPosition(next.fen, next.san);
+  }
+
+  /**
+   * A move played in the Lab's branched mode, into the tree the board holds:
+   * the game read in, or — where the board holds none — the line on it, from
+   * its first position to its last, which becomes the tree's main line.
+   *
+   * A move the tree already makes from here is followed rather than added: on
+   * along the line the board is on, if that is the way it goes, and otherwise
+   * along the first line that does. Any other is a new branch, put after the
+   * ones already leaving this position, and the board is taken onto it. Either
+   * way the game stays one game: its names, where it has them, stay over the
+   * board, and the whole tree is what exporting it writes.
+   *
+   * False where the board is somewhere the tree does not go, which it should
+   * never be, and the move is then played as it would be out of the mode.
+   */
+  function playInTree(fen: string, move: string): boolean {
+    const depth = history.entries.length - 1 - history.current;
+    const path = here.moves.slice(0, depth);
+    const tree: MoveTree | null = readGame !== null ? readTree(readGame.pgn) : lineTree(history.entries);
+    if (tree === null || playInto(tree, path, move, fen) === null) {
+      return false;
+    }
+    const lines = linesOf(tree);
+    const wanted = [...path, move];
+    const staying = onLine >= 0 && here.moves[depth] === move;
+    const index = staying
+      ? onLine
+      : lines.findIndex((line) => wanted.every((step, at) => line.moves[at] === step));
+    if (index < 0) {
+      return false;
+    }
+    const main = lines[0];
+    /* A game read in keeps the tags it came with; a tree begun here has them
+       written from its main line, as a line of its own would be exported. */
+    const recorded = readGame === null || readGame.recorded === true;
+    const tags = recorded
+      ? (toPgn({ entries: main.entries, current: 0 }, stashName, null, null) ?? "")
+          .split("\n")
+          .filter((row) => row.startsWith("["))
+          .join("\n")
+      : (readGame.pgn.match(/\[\s*\w+\s+"(?:[^"\\]|\\.)*"\s*\]/g) ?? []).join("\n");
+    const said = /\[\s*Result\s+"([^"]*)"\s*\]/.exec(tags)?.[1] ?? "*";
+    const pgn = `${tags}\n\n${writeMovetext(tree)} ${said}\n`;
+    setRead({
+      players: readGame?.players ?? { white: UNNAMED.white, black: UNNAMED.black },
+      result: recorded ? (said === "*" ? null : said) : readGame.result,
+      lines,
+      pgn,
+      recorded,
+    });
+    const line = lines[index];
+    setHistory({ entries: line.entries, current: line.moves.length - wanted.length });
+    showPosition(fen);
+    return true;
   }
 
   /*
@@ -2676,7 +2790,7 @@ export default function App() {
                   allowZero
                   label="Back step period"
                   suffix="seconds"
-                  step={0.1}
+                  step={0.05}
                   value={backStep}
                   hint="In a game with variations, how long each position stands on the way back to the fork the next line leaves from. Nobody is reading them, so it can be short."
                   onChange={(playBackStepSec) =>
@@ -2687,11 +2801,27 @@ export default function App() {
                   }
                 />
                 <NumberField
+                  id="play-back-speedup"
+                  inline
+                  narrow
+                  label="Back step speedup factor"
+                  suffix="×"
+                  step={0.05}
+                  value={settings.lab.playBackStepSpeedup}
+                  hint="How much faster a piece goes back on those steps than it moves forward: the move time is divided by this, and the move speed multiplied by it. 1 plays them at the pace of the moves. Stepping back by hand is not affected."
+                  onChange={(playBackStepSpeedup) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playBackStepSpeedup },
+                    })
+                  }
+                />
+                <NumberField
                   id="play-line-end"
                   inline
                   narrow
                   allowZero
-                  label="Hold at the end of branch"
+                  label="Hold at the end of a line"
                   suffix="seconds"
                   step={0.5}
                   value={lineEndHold}
@@ -2711,7 +2841,7 @@ export default function App() {
                 {readGame !== null && readGame.lines.length > 1 && (
                   <SelectField
                     id="branch"
-                    label="Branch"
+                    label="Line"
                     capped
                     value={String(onLine)}
                     choices={readGame.lines.map((line, index) => ({
@@ -2739,6 +2869,28 @@ export default function App() {
                   }}
                 />
               </div>
+              {/* Whether moves made on the board keep what they branch away
+                  from. Switched off, the tree goes, and all that is left of
+                  it is the way from the first position to the one on the
+                  board, as a line of the reader's own: nothing after where
+                  the board stands, in its line or any other — so switched
+                  off at the first position, nothing at all. A game with a
+                  friend is not the tree's, and keeps every move it has. */}
+              <ToggleField
+                id="keep-variations"
+                label="Keep variations"
+                checked={treeMode}
+                hint="Keeps every line played here. A move made from an earlier position starts a variation rather than replacing the moves that followed it, and every line can be chosen, played and exported as one game with variations — for recording a task's answer to each defence, say. Switched off, only the moves from the start to the position on the board are kept."
+                onChange={(on) => {
+                  setTreeMode(on);
+                  if (on || friend.phase.kind === "playing") {
+                    return;
+                  }
+                  setPlaying(false);
+                  setRead(null);
+                  setHistory({ entries: history.entries.slice(history.current), current: 0 });
+                }}
+              />
             </div>
 
             {/* Second row: what a whole game can be done with. */}
@@ -2755,30 +2907,27 @@ export default function App() {
 
             {/* The two that move a game in and out of PGN, and the link to it. */}
             <div className="board-controls">
-              <FieldWithHelp>
+              <span className="field-label">
                 <button
                   type="button"
                   className="reset-button"
-                  aria-describedby="import-pgn-help"
                   disabled={inGame !== null}
                   title={inGame ?? undefined}
                   onClick={() => setPgnOpen(true)}
                 >
                   Import game (PGN)
                 </button>
-                <PgnHelp id="import-pgn-help" />
-              </FieldWithHelp>
-              <FieldWithHelp>
-                <button
-                  type="button"
-                  className="reset-button"
-                  aria-describedby="export-pgn-help"
-                  onClick={() => setPgnExportOpen(true)}
-                >
-                  Export game (PGN)
-                </button>
-                <PgnHelp id="export-pgn-help" />
-              </FieldWithHelp>
+                <InfoButton label="PGN">
+                  <PgnHelp />
+                </InfoButton>
+              </span>
+              <button
+                type="button"
+                className="reset-button"
+                onClick={() => setPgnExportOpen(true)}
+              >
+                Export game (PGN)
+              </button>
               <div className="controls-end share-actions">
                 <ToggleField
                   id="share-autoplay"

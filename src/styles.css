@@ -126,8 +126,15 @@ body {
   cap resolves against whichever value of `--player-names` applies.
 */
 .app {
-  /* Only a game with a friend puts names round the board. */
-  --player-names: 0rem;
+  /*
+    What the rows over and under the board take from its height. A board with
+    no names on it still has one — the line on the board, its result and the
+    counter, over it — and it is in the flow, so the board gives up its height:
+    a line's text and its margins, the top one drawn up under the title. Left
+    at nothing, the board kept that height and the page ran a scroller's worth
+    past the bottom of the window, for some twenty pixels nobody needed.
+  */
+  --player-names: 1.6rem;
   /*
     What the page keeps for itself around the board, whatever else is on.
 
@@ -456,13 +463,13 @@ body {
   width: 100%;
 }
 
-.fen-row > .field-with-help {
+.fen-row > .field-label {
   flex: 0 0 auto;
   font-size: 0.9rem;
 }
 
 /* The colon belongs to the layout, not to the label. */
-.fen-row > .field-with-help label::after {
+.fen-row > .field-label label::after {
   content: ":";
 }
 
@@ -567,12 +574,17 @@ body {
 */
 .play-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  /* The field beside the button as wide as it needs, and the button in what is
+     left: where the two only just fit — a panel with a scrollbar down it — the
+     button gives up the room rather than the field running over it. */
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 0.75em;
   row-gap: 0.5rem;
   margin-top: 1em;
-  margin-bottom: 1em;
+  /* Less under it than over it: what follows — the line and the moves — is
+     the same game, where what comes before is the steps. */
+  margin-bottom: 0.4em;
 }
 
 .play-row > .number-field {
@@ -581,21 +593,43 @@ body {
   margin-bottom: 0;
 }
 
+/* The units after the boxes the width of the longest, "seconds", so a box
+   followed by a shorter one — the speedup's "×" — stands in the same column as
+   the rest. */
+.play-row .field-suffix {
+  min-width: 4.3em;
+}
+
+.play-row > .play-button {
+  justify-self: start;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .play-row > .number-field ~ .number-field {
   grid-column: 1 / -1;
 }
 
 /*
-  Two to a row, when the controls are wide enough for both columns of fields
-  side by side — the longer label and its box and unit in each, and the gap:
-  some 37 rems. The button has the first row to itself, at the left; the
-  fields take the two columns at the right, the first and third of them in the
-  one, the second and fourth in the other, and whatever is left over stands
-  between the two.
+  Two to a row, when the controls are wide enough for both columns side by
+  side — Initial delay beside Period per position, Back step period beside its
+  speedup, and the hold under the first:
+
+    Initial delay      Period per position
+    Back step period   Back step speedup factor
+    Hold at the end of a line
+
+  The button has the first row to itself, at the left. A name too long for its
+  column goes onto a second line, against its box, rather than the column
+  growing past the edge of the panel: with an (i) to each name and the steps
+  back's speedup beside them, the two columns no longer fit on one line each
+  at any width a panel beside the board has.
 */
-@container lab-controls (min-width: 37.5rem) {
+@container lab-controls (min-width: 36rem) {
   .play-row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     column-gap: 1.5rem;
   }
 
@@ -605,11 +639,28 @@ body {
   }
 
   .play-row > .number-field:nth-of-type(odd) {
-    grid-column: 2;
+    grid-column: 1;
   }
 
   .play-row > .number-field:nth-of-type(even) {
-    grid-column: 3;
+    grid-column: 2;
+  }
+
+  .play-row > .number-field {
+    min-width: 0;
+  }
+
+  /* Said on the field as well as the row, to outweigh the rules further down
+     that keep a name on one line where the paces stand one to a row. */
+  .play-row > .number-field > .field-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .play-row > .number-field > .field-label > label {
+    white-space: normal;
+    text-align: right;
   }
 }
 
@@ -799,68 +850,151 @@ body {
 }
 
 /*
-  A label that explains itself on hover. The cursor is the only sign that it
-  does: the label reads as a label, undecorated, and the change of pointer is
-  what says there is more to read.
+  A label with an (i) beside it, for a setting that has more to say than its
+  name: the two kept on one line and a little apart, wherever the label would
+  have stood on its own.
 */
-.field-with-help {
-  /* Nothing to be positioned against any more — the bubble is placed in the
-     window's coordinates, which no ancestor of it has a say in. */
-  display: inline-block;
-  cursor: help;
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-width: 0;
 }
 
 /*
-  Placed by `FieldWithHelp`, in the window's own coordinates rather than the
-  panel's.
-
-  Fixed, not absolute. An absolutely positioned bubble belongs to the box it
-  sits in and counts towards what that box has to scroll — so a panel with a
-  screenful of room to spare grew a scrollbar as soon as a pointer crossed a
-  button, for a paragraph nobody had asked to read. Fixed, it asks no scroll box
-  on the page for room, and where it stands is worked out where it can be:
-  below its control, or above it when the window has no room below.
-
-  An opaque background of its own: the page's shows through otherwise and the
-  two sets of text overlap.
+  The (i): small, round, and in the quieter colour the counters and units are
+  in, so a panel full of them reads as labels with something behind them rather
+  than as a row of buttons. It says what it is on hover and when it is open.
 */
-.field-help {
+.info-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  font: italic 700 0.75rem/1 Georgia, "Times New Roman", serif;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+  background: none;
+  border: 1.5px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.info-button:hover,
+.info-button:focus-visible,
+.info-button-open {
+  color: var(--app-fg);
+  border-color: currentColor;
+}
+
+/*
+  The explanation itself, beside its (i) — `InfoButton` places it — and above
+  everything, in the page's top layer. The browser's own centring of a popover
+  is undone: it is placed by hand.
+
+  An opaque background of its own, or the page's text would show through it.
+*/
+.info-box {
   position: fixed;
-  z-index: 20;
+  inset: auto;
+  margin: 0;
   /* Until it is placed, which happens before it can be seen. */
-  width: max(25rem, 100%);
-  padding: 0.7rem 0.85rem;
-  /* A bubble longer than the window scrolls within itself. Its height is
-     capped as it is placed; this says what to do with the rest. */
+  width: min(25rem, calc(100vw - 16px));
+  padding: 0.75rem 3rem 0.8rem 0.9rem;
+  /* A long explanation scrolls within itself. Its height is capped as it is
+     placed; this says what to do with the rest. */
   overflow-y: auto;
   font-size: 0.85rem;
   font-weight: 400;
   line-height: 1.5;
+  text-align: left;
+  white-space: normal;
   color: var(--app-fg);
   background: var(--app-bg);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
-  box-shadow: 0 8px 20px rgb(0 0 0 / 22%);
-  visibility: hidden;
-  opacity: 0;
-  /* Leaving: away at once, so it does not trail the pointer across the page. */
-  transition: opacity 120ms ease, visibility 0s linear 120ms;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 30%);
 }
 
 /*
-  Arriving: held back, so that passing over a label on the way somewhere else
-  does not throw a panel of text across the page. Longer than a browser waits
-  before a tooltip of its own: this one is a paragraph rather than a phrase, and
-  wants asking for rather than stumbling into.
+  The one way to put it away, so large enough to hit without aiming: a square
+  a finger's width across, in the corner, with the cross drawn to fill most of
+  it. The text keeps clear of it by the room it is given on the right.
 */
-.field-with-help:hover > .field-help,
-.field-with-help:focus-within > .field-help {
-  visibility: visible;
-  opacity: 1;
-  transition: opacity 140ms ease 900ms, visibility 0s linear 900ms;
+.info-close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  color: var(--app-fg);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
 }
 
-.field-help code {
+.info-close:hover,
+.info-close:focus-visible {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.info-close svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.info-text {
+  min-height: 1.6rem;
+}
+
+/*
+  In the attack table, where the columns are the width of a number: a column's
+  heading has its (i) under the word rather than beside it, which would run it
+  into the next heading; and a row's name flows as text, so a long one wraps
+  with its (i) after its last word rather than running into the fields.
+*/
+.stripe-table thead .field-label {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.stripe-table tbody th .field-label {
+  display: inline;
+  white-space: normal;
+}
+
+.stripe-table tbody th .info-button {
+  display: inline-flex;
+  margin-left: 0.35em;
+  vertical-align: -0.15em;
+}
+
+/* After the far end's name, kept a little apart from it. */
+.slider-to .info-button {
+  display: inline-flex;
+  margin-left: 0.4em;
+  vertical-align: -0.15em;
+}
+
+/* The Lab's paces keep their names on one line: the first stands beside the
+   Play button, where a name that wrapped would stand two lines tall. */
+.play-row .field-label > label {
+  white-space: nowrap;
+}
+
+.info-text code {
   padding: 0 0.15em;
   font-family: ui-monospace, monospace;
   font-size: 0.95em;
@@ -2247,14 +2381,18 @@ body {
   margin-bottom: 0.5rem;
 }
 
-.field-inline > label {
+.field-inline > label,
+.field-inline > .field-label {
   flex: 0 1 auto;
   font-size: 0.9rem;
 }
 
-/* The colon belongs to the layout, not to the label each caller passes in. */
+/* The colon belongs to the layout, not to the label each caller passes in —
+   and goes on the label, ahead of an (i) beside it. */
 .field-inline > label::after,
-.color-field > label::after {
+.field-inline > .field-label > label::after,
+.color-field > label::after,
+.color-field > .field-label > label::after {
   content: ":";
 }
 
@@ -2303,7 +2441,8 @@ body {
   border-color: var(--invalid);
 }
 
-.color-field > label {
+.color-field > label,
+.color-field > .field-label {
   flex: 0 0 auto;
   min-width: 7rem;
   font-size: 0.9rem;
@@ -2721,7 +2860,8 @@ input[type="color"]::-moz-color-swatch {
 
 /* And no colon on that one: a colon points at the control it labels, and this
    label has the well behind it rather than ahead. */
-.field-row-heatmap-colors > .color-field:last-of-type > label::after {
+.field-row-heatmap-colors > .color-field:last-of-type > label::after,
+.field-row-heatmap-colors > .color-field:last-of-type > .field-label > label::after {
   content: "";
 }
 
@@ -2747,6 +2887,13 @@ input[type="color"]::-moz-color-swatch {
 
 .number-field > label {
   display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+}
+
+/* The same, with an (i) beside the label: a line of its own over the box. */
+.number-field:not(.field-inline) > .field-label {
+  display: flex;
   margin-bottom: 0.3rem;
   font-size: 0.9rem;
 }
@@ -2784,6 +2931,12 @@ input[type="color"]::-moz-color-swatch {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: var(--field-gap, 0.85rem);
+}
+
+/* The Lab's switch for keeping variations stands under the row it changes,
+   and the panel's own gap is room enough after it before the position. */
+.toggle-field:has(> #keep-variations) {
+  margin-bottom: 0.25rem;
 }
 
 .toggle-field input[type="checkbox"] {
@@ -4544,10 +4697,11 @@ input[type="color"]::-moz-color-swatch {
   each side is written as what is wanted less what the gap already gives.
 */
 .tab-panel > .section-rule {
-  /* An em above, half an em below — which is what the settings panel comes to
-     once the rows there have added their own leading, and what keeps a heading
-     nearer the thing it names than the thing it follows. */
-  margin-top: calc(2em - var(--panel-gap));
+  /* Three quarters of an em above, half an em below: nearer the thing it
+     names than the thing it follows, and no more than that — two ems above
+     each of the Lab's four headings were the height of a row it then had to
+     scroll for. */
+  margin-top: calc(0.75em - var(--panel-gap));
   /*
     Half an em under the line as well, which is not what the settings panel
     says — but is what it looks like. There the rule is followed by a group

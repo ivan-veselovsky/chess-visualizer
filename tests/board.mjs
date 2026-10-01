@@ -446,6 +446,54 @@ try {
     JSON.stringify(balance.squares)
   );
 
+  console.log("\nExplanations behind an (i)\n");
+
+  /*
+    Nothing shown until the (i) is clicked, and nothing put away but by the
+    box's own close button: not a click elsewhere, not a key. Beside its (i)
+    rather than in the middle of the window, and one at a time.
+  */
+  const visibleInfo = `[...document.querySelectorAll(".info-button")].filter((b) => b.getBoundingClientRect().width > 0)`;
+  const openBoxes = () => page.run(`return String(document.querySelectorAll(".info-box:popover-open").length);`);
+  const centre = async (index) => JSON.parse(await page.run(`${HELPERS}
+    window.__tab("Pieces"); await sleep(400);
+    ${visibleInfo}[${index}].scrollIntoView({ block: "center" }); await sleep(300);
+    const r = ${visibleInfo}[${index}].getBoundingClientRect();
+    return JSON.stringify({ x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2), bottom: r.bottom, left: r.left });`));
+  const first = await centre(0);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: first.x, y: first.y });
+  await pause(1200);
+  check("hovering an (i) shows nothing", (await openBoxes()) === "0", await openBoxes());
+  await page.click(first.x, first.y);
+  await pause(300);
+  const shown = JSON.parse(await page.run(`const box = document.querySelector(".info-box:popover-open");
+    if (!box) return JSON.stringify(null);
+    const r = box.getBoundingClientRect(), c = box.querySelector(".info-close").getBoundingClientRect();
+    return JSON.stringify({ top: r.top, bottom: r.bottom, left: r.left, width: r.width, close: [c.width, c.height], text: box.textContent.trim().slice(0, 40) });`));
+  check("clicking it opens its explanation", shown !== null && shown.text.length > 10, JSON.stringify(shown));
+  check("beside the (i), not in the middle of the window",
+    shown !== null && Math.abs(shown.top - (first.bottom + 8)) < 2 && Math.abs(shown.left - (first.left - 8)) < 2,
+    shown === null ? "none" : `box at ${shown.left},${shown.top}; (i) ends at ${first.left},${first.bottom}`);
+  check("with a close button big enough to hit without aiming",
+    shown !== null && shown.close[0] >= 32 && shown.close[1] >= 32, JSON.stringify(shown?.close));
+  await page.click(300, 500);
+  await pause(300);
+  await page.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await page.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await pause(300);
+  check("a click elsewhere and Escape leave it open", (await openBoxes()) === "1", await openBoxes());
+  const second = await centre(3);
+  await page.click(second.x, second.y);
+  await pause(300);
+  const which = await page.run(`const open = [...document.querySelectorAll(".info-box:popover-open")];
+    return JSON.stringify(open.map((box) => document.querySelector('[aria-controls="' + box.id + '"]') === ${visibleInfo}[3]));`);
+  check("opening another closes the first", which === "[true]", which);
+  const close = JSON.parse(await page.run(`const r = document.querySelector(".info-box:popover-open .info-close").getBoundingClientRect();
+    return JSON.stringify({ x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) });`));
+  await page.click(close.x, close.y);
+  await pause(300);
+  check("and its close button puts it away", (await openBoxes()) === "0", await openBoxes());
+
   page.close();
 } catch (error) {
   check("the browser tests could not run", false, error.message);

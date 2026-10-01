@@ -1,3 +1,5 @@
+import { LabelWithInfo } from "./InfoButton";
+
 interface Choice<T extends string> {
   value: T;
   label: string;
@@ -8,7 +10,7 @@ interface SelectFieldProps<T extends string> {
   label: string;
   value: T;
   choices: readonly Choice<T>[];
-  /** Explanation shown on hover, rather than as standing text. */
+  /** Explanation behind an (i) beside the label, rather than standing text. */
   hint?: string;
   /**
    * A little more room above, on top of the gap every field leaves below it.
@@ -50,9 +52,8 @@ export default function SelectField<T extends string>({
       className={`number-field field-inline${apart ? " field-apart" : ""}${
         disabled ? " field-disabled" : ""
       }`}
-      title={hint}
     >
-      <label htmlFor={id}>{label}</label>
+      <LabelWithInfo label={<label htmlFor={id}>{label}</label>} hint={hint} />
       <select
         id={id}
         className={`game-select choice-select${capped ? " choice-select-capped" : ""}`}

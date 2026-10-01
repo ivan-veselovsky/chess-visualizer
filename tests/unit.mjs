@@ -7,7 +7,7 @@
  * step between what is written and what is checked.
  */
 import { parsePgn, toPgn } from "../src/chess/pgn.ts";
-import { lineIndex, linesOf, pathSoFar, readTree, resultShown, soleLine, walk } from "../src/chess/variations.ts";
+import { lineIndex, linesOf, lineTree, pathSoFar, playInto, readTree, resultShown, soleLine, walk, writeMovetext } from "../src/chess/variations.ts";
 import { parseSettings, settingsToJson } from "../src/app/settingsFile.ts";
 import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
 import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
@@ -705,6 +705,7 @@ console.log("\nSettings written for version 46\n");
     delete older.playInitialDelaySec;
     /* Nor the paces for a game with variations, which it could not play. */
     delete older.playBackStepSec;
+    delete older.playBackStepSpeedup;
     delete older.playLineEndHoldSec;
     return older;
   };
@@ -761,6 +762,7 @@ console.log("\nSettings written for version 46\n");
     read?.lab.playInitialDelaySec === DEFAULT_SETTINGS.lab.playInitialDelaySec, String(read?.lab.playInitialDelaySec));
   check("and the paces for variations, which it never had, are this build's",
     read?.lab.playBackStepSec === DEFAULT_SETTINGS.lab.playBackStepSec &&
+      read?.lab.playBackStepSpeedup === DEFAULT_SETTINGS.lab.playBackStepSpeedup &&
       read?.lab.playLineEndHoldSec === DEFAULT_SETTINGS.lab.playLineEndHoldSec,
     JSON.stringify(read?.lab));
   /* And it is written the way this build writes a settings file: same keys, in
@@ -1635,6 +1637,7 @@ console.log("\nSettings added since a record was written\n");
   delete earlier.pieces.showAvailable;
   delete earlier.lab.playInitialDelaySec;
   delete earlier.lab.playBackStepSec;
+  delete earlier.lab.playBackStepSpeedup;
   delete earlier.lab.playLineEndHoldSec;
   const back = parseSettings(JSON.stringify(earlier)).settings;
   check("a record from before the second bar reads back with it off",
@@ -1643,6 +1646,7 @@ console.log("\nSettings added since a record was written\n");
     back?.lab.playInitialDelaySec === DEFAULT_SETTINGS.lab.playInitialDelaySec, String(back?.lab.playInitialDelaySec));
   check("and one from before variations were played, with the paces a new reader gets",
     back?.lab.playBackStepSec === DEFAULT_SETTINGS.lab.playBackStepSec &&
+      back?.lab.playBackStepSpeedup === DEFAULT_SETTINGS.lab.playBackStepSpeedup &&
       back?.lab.playLineEndHoldSec === DEFAULT_SETTINGS.lab.playLineEndHoldSec,
     JSON.stringify(back?.lab));
   check("each where the interface puts it",
@@ -2032,6 +2036,39 @@ console.log("\nHow light a colour looks\n");
     `${l("#000000")} / ${l("#ffffff")}`);
   check("a mid grey is about 0.6, as CSS says of #808080", Math.abs(l("#808080") - 0.5999) < 0.001, String(l("#808080")));
   check("and pure red is 0.628, as CSS says", Math.abs(l("#ff0000") - 0.628) < 0.001, String(l("#ff0000")));
+}
+
+console.log("\nA tree of moves, grown and written out\n");
+{
+  const TEXT = "1. e4 {King's pawn} e5 (1... c5 {Sicilian} 2. Nf3 d6) 2. Nf3 Nc6 (2... d6 3. d4) 3. Bb5 *";
+  const tree = readTree(TEXT);
+  const written = writeMovetext(tree);
+  check("a tree is written as PGN writes one: comments, variations, and a Black move numbered after either",
+    written === "1. e4 {King's pawn} 1... e5 (1... c5 {Sicilian} 2. Nf3 d6) 2. Nf3 Nc6 (2... d6 3. d4) 3. Bb5", written);
+  const again = readTree(`${written} *`);
+  const shape = (t) => JSON.stringify(linesOf(t).map((line) => [line.moves, line.choices]));
+  check("and read back, it is the same tree", shape(again) === shape(tree), shape(again));
+  const long = readTree(`{${"a very long comment ".repeat(4)}} 1. e4 {${"said at length ".repeat(5)}} e5 *`);
+  check("with its comments whole, not cut down to a line's name",
+    writeMovetext(long).includes("said at length said at length said at length said at length said at length") &&
+      writeMovetext(long).startsWith("{a very long comment"),
+    writeMovetext(long).slice(0, 80));
+
+  const grown = lineTree(lineOf(["e4", "e5", "Nf3"]).entries);
+  const board = new Chess();
+  board.move("e4");
+  board.move("c5");
+  const added = playInto(grown, ["e4"], "c5", board.fen());
+  const followed = playInto(grown, ["e4"], "e5", "unused");
+  check("a move from an earlier position grows a branch after the line already there",
+    added?.grown === true && writeMovetext(grown) === "1. e4 e5 (1... c5) 2. Nf3", writeMovetext(grown));
+  check("and one the tree already makes is followed, not added",
+    followed?.grown === false && linesOf(grown).length === 2, String(linesOf(grown).length));
+  check("and a way the tree does not go is refused", playInto(grown, ["d4"], "d5", "unused") === null);
+
+  const separated = readTree('[SetUp "1"]\n[FEN "7K/3kq1PP/8/8/8/8/8/8 b - - 0 1"]\n\n1. ... Qe5 2. Kg8 Qe8# 0-1');
+  check("a Black move numbered with its dots apart from it — \"1. ... Qe5\" — is read",
+    linesOf(separated)[0].moves.join(" ") === "Qe5 Kg8 Qe8#", linesOf(separated)[0].moves.join(" "));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

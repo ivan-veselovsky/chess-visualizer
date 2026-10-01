@@ -26,6 +26,14 @@ export interface MoveTree {
    * it says nothing. See `noteFrom` for how it is tidied.
    */
   note: string;
+  /**
+   * What the file writes after the move, whole — every comment there, joined
+   * — and, for the first move of a line, what it writes before it: `note` is
+   * these cut down to a name, and these are what a tree written back out
+   * carries, so a file read in and written out again keeps what it said.
+   */
+  comment: string;
+  lead: string;
   next: MoveTree[];
 }
 
@@ -100,8 +108,10 @@ function tokens(movetext: string): Token[] {
       at = end;
       /* A move number may be glued to its move: "1.e4", "12...Nf6". */
       const move = word.replace(/^\d+\.+/, "").replace(/[!?]+$/, "");
+      /* And the dots of a Black move's number written apart from it: "1. ... Qe5". */
       if (
         move === "" ||
+        /^\.+$/.test(move) ||
         move.startsWith("$") ||
         /^(1-0|0-1|1\/2-1\/2|\*)$/.test(move)
       ) {
@@ -227,7 +237,7 @@ export function readTree(pgn: string): MoveTree | null {
   }
   /* The tags, wherever they stand — some files put several on one line. */
   const movetext = pgn.replace(/\[\s*\w+\s+"(?:[^"\\]|\\.)*"\s*\]/g, " ");
-  const root: MoveTree = { fen: start, move: null, note: "", next: [] };
+  const root: MoveTree = { fen: start, move: null, note: "", comment: "", lead: "", next: [] };
 
   /* The position a move leads to from `here`: the one already in the tree when
      the move has been written before, a new one otherwise, and none when the
@@ -244,7 +254,7 @@ export function readTree(pgn: string): MoveTree | null {
     }
     let child = here.next.find((node) => node.move === played);
     if (child === undefined) {
-      child = { fen, move: played, note: "", next: [] };
+      child = { fen, move: played, note: "", comment: "", lead: "", next: [] };
       here.next.push(child);
     }
     return child;
@@ -267,6 +277,12 @@ export function readTree(pgn: string): MoveTree | null {
         next.note = noteFrom(
           variation && index === 0 && written.before !== "" ? written.before : written.after
         );
+      }
+      if (next.comment === "") {
+        next.comment = written.after.trim();
+      }
+      if (index === 0 && next.lead === "") {
+        next.lead = written.before.trim();
       }
       here = next;
     }
@@ -426,4 +442,76 @@ export function lineIndex(lines: TreeLine[], initialFEN: string, moves: string[]
   return lines.findIndex(
     (line) => line.entries[line.entries.length - 1].fen === initialFEN && line.moves.join(" ") === wanted
   );
+}
+
+/**
+ * A line of positions as a tree with no forks: what a board that has only ever
+ * gone one way holds, ready to be grown into more.
+ */
+export function lineTree(entries: HistoryEntry[]): MoveTree {
+  const oldestFirst = [...entries].reverse();
+  const root: MoveTree = { fen: oldestFirst[0].fen, move: null, note: "", comment: "", lead: "", next: [] };
+  let here = root;
+  for (const entry of oldestFirst.slice(1)) {
+    const child: MoveTree = { fen: entry.fen, move: entry.move, note: "", comment: "", lead: "", next: [] };
+    here.next.push(child);
+    here = child;
+  }
+  return root;
+}
+
+/**
+ * A move played from `path` into the tree: the position it reaches, found
+ * where the tree already goes that way, and grown where it does not — as the
+ * last way on from there, so the ways already there keep their order and the
+ * first one played from a position stays its main line. Changes the tree it is
+ * given. Null when `path` is not a way through it.
+ */
+export function playInto(tree: MoveTree, path: string[], move: string, fen: string): { grown: boolean } | null {
+  let here = tree;
+  for (const step of path) {
+    const next = here.next.find((child) => child.move === step);
+    if (next === undefined) {
+      return null;
+    }
+    here = next;
+  }
+  if (here.next.some((child) => child.move === move)) {
+    return { grown: false };
+  }
+  here.next.push({ fen, move, note: "", comment: "", lead: "", next: [] });
+  return { grown: true };
+}
+
+/**
+ * The tree's moves as a PGN writes them, variations and comments and all: each
+ * move, what is said after it, the variations against it in parentheses, and
+ * then the line going on. A move is numbered where White plays it, and where
+ * Black does at the start of a line or after a comment or a variation has come
+ * between it and the move before — "1. e4 (1. d4) 1... e5" — as PGN has it.
+ */
+export function writeMovetext(tree: MoveTree): string {
+  const said = (text: string) => (text === "" ? [] : [`{${text}}`]);
+  const written = (before: MoveTree, child: MoveTree, numbered: boolean): string => {
+    const [, side, , , , full] = before.fen.split(" ");
+    const number = side === "w" ? `${full}. ` : numbered ? `${full}... ` : "";
+    return `${number}${child.move}`;
+  };
+  const line = (from: MoveTree, numbered: boolean): string[] => {
+    const out: string[] = [];
+    let here = from;
+    let number = numbered;
+    while (here.next.length > 0) {
+      const [main, ...others] = here.next;
+      out.push(...said(main.lead), written(here, main, number || main.lead !== ""), ...said(main.comment));
+      for (const other of others) {
+        const inner = [...said(other.lead), written(here, other, true), ...said(other.comment), ...line(other, other.comment !== "")];
+        out.push(`(${inner.join(" ")})`);
+      }
+      number = others.length > 0 || main.comment !== "";
+      here = main;
+    }
+    return out;
+  };
+  return line(tree, true).join(" ");
 }

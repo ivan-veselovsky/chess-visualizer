@@ -53,7 +53,10 @@ function readGame(value: unknown): StashedGame | null {
   if (typeof current !== "number" || current < 0 || current >= entries.length) {
     return null;
   }
-  return { name: held.name, history: { entries, current } as StashedGame["history"] };
+  const line = { entries, current } as StashedGame["history"];
+  return typeof held.pgn === "string" && held.pgn.trim() !== ""
+    ? { name: held.name, history: line, pgn: held.pgn }
+    : { name: held.name, history: line };
 }
 
 /**

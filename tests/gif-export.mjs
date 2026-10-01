@@ -264,7 +264,7 @@ try {
     return "ok";`);
   const branched = await exportOnce();
   const branchedRests = branched.gif.frames.map((frame) => frame.delayMs).filter((delay) => delay !== STEP);
-  check("the panel counts the branches", /3 branches/.test(branched.size), branched.size);
+  check("the panel counts the lines", /3 lines/.test(branched.size), branched.size);
   /*
     Every line played to its end and held there, taken back to the fork at the
     back step period, and the next played on from it: the initial delay, then

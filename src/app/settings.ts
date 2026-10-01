@@ -173,6 +173,13 @@ export interface LabSettings {
    */
   playBackStepSec: number;
   /**
+   * How much faster a piece moves on those steps back than on a move played
+   * forward: the move time divided by it, and the move speed multiplied. The
+   * way back is not what is being shown, and at the pace of the moves it
+   * would take as long as the moves did.
+   */
+  playBackStepSpeedup: number;
+  /**
    * How long the last position of a line stands, in seconds: before the game
    * goes back for the next line, and — at the end of the last — before an
    * animated GIF starts again from the top. Longer than the period: the end of

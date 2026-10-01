@@ -10,6 +10,15 @@ import type { PositionHistory } from "./history";
 export interface StashedGame {
   name: string;
   history: PositionHistory;
+  /**
+   * The game as "Export game (PGN)" writes it at the moment it is stashed —
+   * with variations kept, every line held, and whatever a file read in said
+   * about it: its names, its tags, its comments. A stash is that export, kept
+   * in this browser; the history beside it is only where the board stood.
+   * Absent from what was stashed before it was kept, which comes back as the
+   * line it always was.
+   */
+  pgn?: string;
 }
 
 /** Everything put aside so far, in the order each name was first used. */
@@ -37,9 +46,10 @@ export function stashedGame(
 export function stashGame(
   stash: GameStash,
   name: string,
-  history: PositionHistory
+  history: PositionHistory,
+  pgn?: string
 ): GameStash {
-  const game: StashedGame = { name, history };
+  const game: StashedGame = pgn === undefined ? { name, history } : { name, history, pgn };
   const at = stash.findIndex((stashed) => stashed.name === name);
   return at < 0
     ? [...stash, game]

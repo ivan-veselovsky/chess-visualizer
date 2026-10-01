@@ -357,10 +357,10 @@ export default function GifExportPanel({
         colours and with the marks of the current settings, with pieces travelling and marks fading
         at the pace set on the Pieces tab. The first position stands for the Lab’s initial delay (
         {seconds(initialDelayMs)}), each one after its move for the period ({seconds(periodMs)}),
-        and the end of {branches > 1 ? "each branch" : "the game"} for the Lab’s hold at the end of a
-        branch ({seconds(lineEndHoldMs)}).
+        and the end of {branches > 1 ? "each line" : "the game"} for the Lab’s hold at the end of a
+        line ({seconds(lineEndHoldMs)}).
         {branches > 1 &&
-          ` All ${branches} branches are played, one after another, going back to where each one leaves the last at the back step period (${seconds(backStepMs)}).`}
+          ` All ${branches} lines are played, one after another, going back to where each one leaves the last at the back step period (${seconds(backStepMs)}).`}
         {video
           ? " A video can be paused, stepped and scrubbed in any player — which a GIF, playing round and round, cannot — and a long game comes out much smaller."
           : " A GIF goes straight into a page, a post or a message — anywhere a picture can — and plays there by itself."}
@@ -525,7 +525,7 @@ export default function GifExportPanel({
             ? ""
             : `${(video ? evenSize(size) : size).width} × ${(video ? evenSize(size) : size).height} px, ${
                 branches > 1
-                  ? `${branches} branches`
+                  ? `${branches} lines`
                   : moves === 0
                     ? "one position"
                     : `${moves} move${moves === 1 ? "" : "s"}`
@@ -566,7 +566,7 @@ export default function GifExportPanel({
           </div>
           <p className="invite-note">
             The board plays the game through while the frames are made
-            {branches > 1 ? ", every branch of it," : ""} and goes back to where it was when they are
+            {branches > 1 ? ", every line of it," : ""} and goes back to where it was when they are
             done.
           </p>
         </div>

@@ -1,19 +1,14 @@
-interface FenHelpProps {
-  /** Referenced by the field it describes, so the text reaches a reader too. */
-  id: string;
-}
-
 /**
  * What a FEN is, for the field that takes one.
  *
- * Written as markup rather than as a title attribute: a title is one plain
+ * Written as markup rather than as plain text: a title is one plain
  * string, which for six fields' worth of explanation arrives as a wall of text
  * with the field names and the notation itself indistinguishable from the
  * prose around them.
  */
-export default function FenHelp({ id }: FenHelpProps) {
+export default function FenHelp() {
   return (
-    <span id={id} role="tooltip" className="field-help">
+    <>
       A <strong>FEN (Forsyth–Edwards Notation)</strong> string describes a chess
       position using six space-separated fields: <strong>piece placement</strong>
       , listing ranks from 8 to 1 and files from a to h, where uppercase letters
@@ -30,6 +25,6 @@ export default function FenHelp({ id }: FenHelpProps) {
       rule; and the <strong>fullmove number</strong>, which starts at 1 and
       increases after every Black move—for example:{" "}
       <code>rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1</code>.
-    </span>
+    </>
   );
 }

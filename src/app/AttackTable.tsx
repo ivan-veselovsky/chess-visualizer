@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ColorDialog from "./ColorDialog";
+import InfoButton from "./InfoButton";
 import NumberInput from "./NumberInput";
 import {
   type AttackColors,
@@ -12,7 +13,7 @@ type Side = "me" | "opponent";
 
 const SIDES: Side[] = ["me", "opponent"];
 
-/* Shown on hover, so the table stays as short as its rows. */
+/* Behind an (i) beside each heading, so the table stays as short as its rows. */
 const GAP_HINT =
   "Width of the gap down the middle of the stripe, in square sides. Zero leaves it solid.";
 const STRIPE_HINT = "Full width of the stripe, in square sides.";
@@ -63,7 +64,7 @@ interface Row {
   spanning?: boolean;
   /** Set off from the row above by a gap: what follows is a different question. */
   apart?: boolean;
-  /** Shown on hover over the row's name. */
+  /** Behind an (i) beside the row's name. */
   hint?: string;
   /**
    * What this row's colour is called, after whose it is: "My **King attack**".
@@ -453,20 +454,32 @@ export default function AttackTable({ rays, onChange }: AttackTableProps) {
             <th scope="col" className="stripe-table-color">
               Color
             </th>
-            <th scope="col" title={GAP_HINT}>
-              Gap
+            <th scope="col">
+              <span className="field-label">
+                Gap
+                <InfoButton label="Gap">{GAP_HINT}</InfoButton>
+              </span>
             </th>
-            <th scope="col" title={STRIPE_HINT}>
-              Stripe
+            <th scope="col">
+              <span className="field-label">
+                Stripe
+                <InfoButton label="Stripe">{STRIPE_HINT}</InfoButton>
+              </span>
             </th>
             <th scope="col" className="stripe-table-color stripe-group-start">
               Color
             </th>
-            <th scope="col" title={GAP_HINT}>
-              Gap
+            <th scope="col">
+              <span className="field-label">
+                Gap
+                <InfoButton label="Gap">{GAP_HINT}</InfoButton>
+              </span>
             </th>
-            <th scope="col" title={STRIPE_HINT}>
-              Stripe
+            <th scope="col">
+              <span className="field-label">
+                Stripe
+                <InfoButton label="Stripe">{STRIPE_HINT}</InfoButton>
+              </span>
             </th>
           </tr>
         </thead>
@@ -480,8 +493,15 @@ export default function AttackTable({ rays, onChange }: AttackTableProps) {
                 that the line between the two sides falls where it does in
                 every other row.
               */}
-              <th scope="row" title={row.hint} colSpan={row.spanning ? 2 : 1}>
-                {row.piece}
+              <th scope="row" colSpan={row.spanning ? 2 : 1}>
+                {row.hint === undefined ? (
+                  row.piece
+                ) : (
+                  <span className="field-label">
+                    {row.piece}
+                    <InfoButton label={row.piece}>{row.hint}</InfoButton>
+                  </span>
+                )}
               </th>
               {row.spanning
                 ? [
