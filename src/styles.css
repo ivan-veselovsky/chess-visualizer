@@ -537,6 +537,12 @@ body {
   margin-right: 2rem;
 }
 
+/* The (i) after the last of them, beside it rather than a button's gap away. */
+.step-buttons > .info-button {
+  align-self: center;
+  margin-left: calc(0.4em - 2rem);
+}
+
 .board-controls .reset-button {
   white-space: nowrap;
 }
@@ -1056,6 +1062,24 @@ body {
    Play button, where a name that wrapped would stand two lines tall. */
 .play-row .field-label > label {
   white-space: nowrap;
+}
+
+/* Keys and what they do, as a list read down the left: the keys in a column
+   of their own, each against its line. */
+.info-keys {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 0.8rem;
+  margin: 0 0 0.6rem;
+}
+
+.info-keys dt {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.info-keys dd {
+  margin: 0;
 }
 
 .info-text code {

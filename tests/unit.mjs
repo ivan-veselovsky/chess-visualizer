@@ -7,7 +7,7 @@
  * step between what is written and what is checked.
  */
 import { parsePgn, toPgn } from "../src/chess/pgn.ts";
-import { lineIndex, linesOf, lineTree, pathSoFar, playInto, readTree, resultShown, soleLine, walk, writeMovetext } from "../src/chess/variations.ts";
+import { lineIndex, linesOf, lineTree, pathSoFar, playInto, readTree, resultShown, soleLine, tourIndex, tourPlaces, walk, writeMovetext } from "../src/chess/variations.ts";
 import { parseSettings, settingsToJson } from "../src/app/settingsFile.ts";
 import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
 import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
@@ -2069,6 +2069,20 @@ console.log("\nPromotion\n");
   const made = ["q", "r", "b", "n"].map((piece) => applyMove(board, "e7", "e8", piece)?.san);
   check("and becomes the piece asked for", JSON.stringify(made) === JSON.stringify(["e8=Q", "e8=R", "e8=B", "e8=N"]), made.join(" "));
   check("a queen when nothing is asked", applyMove(board, "e7", "e8")?.san === "e8=Q");
+}
+
+console.log("\nThe walk through every line, a position at a time\n");
+{
+  const lines = linesOf(readTree("1. e4 e5 (1... c5 2. Nf3) 2. Nf3 *"));
+  const places = tourPlaces(lines).map(({ line, depth }) => `${line}:${depth}`).join(" ");
+  check("every position Play passes, in order, the next line taken up at its fork",
+    places === "0:0 0:1 0:2 0:3 0:2 1:1 1:2 1:3", places);
+  const all = tourPlaces(lines);
+  check("a position is found where the board stands, on any line that passes it",
+    tourIndex(lines, all, 1, 1) === 1 && tourIndex(lines, all, 0, 3) === 3 && tourIndex(lines, all, 1, 3) === 7,
+    [tourIndex(lines, all, 1, 1), tourIndex(lines, all, 0, 3), tourIndex(lines, all, 1, 3)].join(" "));
+  check("and the place last stepped to is kept where it is that position",
+    tourIndex(lines, all, 1, 1, 5) === 5 && tourIndex(lines, all, 0, 1, 2) === 1, String(tourIndex(lines, all, 1, 1, 5)));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

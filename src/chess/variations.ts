@@ -515,3 +515,52 @@ export function writeMovetext(tree: MoveTree): string {
   };
   return line(tree, true).join(" ");
 }
+
+/** A position on the walk through every line: which line the board holds there, and how far into it. */
+export interface TourPlace {
+  line: number;
+  depth: number;
+}
+
+/**
+ * Every position the walk through every line passes, in the order it passes
+ * them, from the first position of the first line: what Play shows, one
+ * position at a time — on to the end of a line, back to where the next leaves
+ * it, and on along that one.
+ *
+ * At a fork the board is already on the next line: the walk takes it up there
+ * before it moves, so that is where its name is first seen. A position passed
+ * twice — on the way out along a line, and on the way back to a fork — is in
+ * the list twice.
+ */
+export function tourPlaces(lines: TreeLine[]): TourPlace[] {
+  const places: TourPlace[] = [{ line: 0, depth: 0 }];
+  let line = 0;
+  let depth = 0;
+  for (const step of walk(lines, 0, 0)) {
+    if (step.kind === "switch") {
+      line = step.line;
+      places[places.length - 1] = { line, depth };
+      continue;
+    }
+    depth += step.kind === "forward" ? 1 : -1;
+    places.push({ line, depth });
+  }
+  return places;
+}
+
+/**
+ * Where a board on `line`, `depth` moves in, stands in `places` — the place
+ * `remembered` if it is that position, the first that is otherwise. Any line
+ * that has the same moves up to there is the same position. -1 where it is
+ * none of them.
+ */
+export function tourIndex(lines: TreeLine[], places: TourPlace[], line: number, depth: number, remembered = -1): number {
+  const here = lines[line];
+  const same = (place: TourPlace | undefined) =>
+    place !== undefined && here !== undefined && place.depth === depth && sharedMoves(lines[place.line], here) >= depth;
+  if (same(places[remembered])) {
+    return remembered;
+  }
+  return places.findIndex(same);
+}

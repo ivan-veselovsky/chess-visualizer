@@ -529,6 +529,42 @@ try {
   await escapeKey();
   await promotionAt(false);
 
+  console.log("\nThe keyboard after a dialog\n");
+
+  /*
+    A dialog opened and closed from the keyboard leaves the arrows the game's:
+    the browser puts the focus back on the button that opened it, and a button
+    the keyboard is on would otherwise have them, so that the reader had to
+    click somewhere before → and ← stepped through the game again.
+  */
+  const press = async (key, code, keyCode) => {
+    /* Enter presses a button only with its character sent along. */
+    const text = key === "Enter" ? { text: "\r" } : {};
+    await page.send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: keyCode, ...text });
+    await page.send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: keyCode });
+    await pause(400);
+  };
+  await page.run(`${HELPERS}
+    window.__tab("Lab"); await sleep(300);
+    [...document.querySelectorAll("button")].find((b) => /import game/i.test(b.textContent)).click(); await sleep(400);
+    const box = document.querySelector("#pgn-text");
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, "1. e4 e5 2. Nf3 *");
+    box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+    return "ok";`);
+  /* Onto the import button by the keyboard, as a reader working by keys would be. */
+  await press("Tab", "Tab", 9);
+  await page.run(`[...document.querySelectorAll("button")].find((b) => /import game/i.test(b.textContent)).focus(); return "ok";`);
+  await press("Enter", "Enter", 13);
+  const opened = await page.run(`return String(document.querySelector("dialog[open]") !== null);`);
+  await press("Escape", "Escape", 27);
+  const listBefore = await page.run(`return String(document.querySelector(".moves-select").selectedIndex);`);
+  await press("ArrowLeft", "ArrowLeft", 37);
+  const listAfter = await page.run(`return String(document.querySelector(".moves-select").selectedIndex);`);
+  check("a dialog opened and closed by the keyboard leaves the arrows stepping through the game",
+    opened === "true" && Number(listAfter) === Number(listBefore) + 1,
+    `dialog opened: ${opened}; moves list at ${listBefore}, then ${listAfter}`);
+
   console.log("\nExplanations behind an (i)\n");
 
   /*

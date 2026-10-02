@@ -603,6 +603,32 @@ try {
   check("with its tags and its comments kept in what is exported",
     /\[White "Anna"\]/.test(extended.text) && extended.text.includes("{case A}") && extended.text.includes("(1... Kc8 2. Ra8#)"),
     extended.text.split("\n\n").pop());
+
+  console.log("\nWalking every line by hand, with Shift and the arrows\n");
+  /*
+    Shift and → takes the walk Play takes, a move at a time: to the end of a
+    line, back to the fork, and on along the next — whose name is up as the
+    board reaches the fork, as it is in Play before the next line moves. Shift
+    and ← takes the same walk back.
+  */
+  const shifted = (key, times) => page.run(`${HELPERS}${WHERE}
+    const seen = [where()];
+    for (let i = 0; i < ${times}; i += 1) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "${key}", shiftKey: true, bubbles: true }));
+      await sleep(700);
+      seen.push(where());
+    }
+    return JSON.stringify(seen);`);
+  await page.run(`${HELPERS}${WHERE} await load(${JSON.stringify(PGN)}); key("ArrowLeft", true); await sleep(900); return "ok";`);
+  const tour = expected.filter((step, i) => !(expected[i + 1] && expected[i + 1][0] === step[0] && expected[i + 1][1] !== step[1]));
+  const forward = JSON.parse(await shifted("ArrowRight", tour.length));
+  check("Shift and → walks every line as Play does, a move at a time, and stops at the end of the last",
+    JSON.stringify(forward) === JSON.stringify([...tour, tour[tour.length - 1]]),
+    forward.map((step) => step.join(" | ")).join(" ; "));
+  const backward = JSON.parse(await shifted("ArrowLeft", tour.length - 1));
+  check("and Shift and ← takes the same walk back to the start",
+    JSON.stringify(backward) === JSON.stringify([...tour].reverse()),
+    backward.map((step) => step.join(" | ")).join(" ; "));
 } catch (error) {
   check("the branch tests could not run", false, error.message);
 }

@@ -39,6 +39,8 @@ import {
   resultShown,
   sharedMoves,
   soleLine,
+  tourIndex,
+  tourPlaces,
   walk,
   writeMovetext,
   type MoveTree,
@@ -998,6 +1000,36 @@ export default function App() {
   function showHistory(moved: PositionHistory) {
     setHistory(moved);
     showPosition(currentPosition(moved));
+  }
+
+  /*
+    Where along the walk through every line the board last stood when it was
+    stepped there with Shift and an arrow: a position the walk passes twice —
+    going out along a line, and coming back to a fork — is told apart by it.
+  */
+  const touring = useRef(-1);
+
+  /**
+   * One position on or back along the walk through every line — the walk Play
+   * takes: Shift and → plays the next move of it, which at the end of a line
+   * is the first step back to where the next line leaves, and Shift and ←
+   * takes the one before. By hand, at the reader's pace, with nothing else of
+   * Play's: no rests, and a move at a time.
+   */
+  function stepTour(back: boolean) {
+    setPlaying(false);
+    const places = tourPlaces(walkLines);
+    const at = tourIndex(walkLines, places, walkLine, history.entries.length - 1 - history.current, touring.current);
+    const to = places[at + (back ? -1 : 1)];
+    if (at < 0 || to === undefined) {
+      return;
+    }
+    touring.current = at + (back ? -1 : 1);
+    if (to.line !== walkLine) {
+      switchLine(to.line, to.depth);
+      return;
+    }
+    showHistory({ ...history, current: history.entries.length - 1 - to.depth });
   }
 
   function stepHistory(direction: "first" | "previous" | "next" | "last") {
@@ -1996,9 +2028,42 @@ export default function App() {
     be on something — see `keyboardIsOn` — and then the key is that thing's; a
     control may have answered the key itself, as the tab strip does, and then
     it has had it; a dialog, while one is open, has the whole keyboard; and a
-    key pressed with Alt, Shift or the command key is somebody else's shortcut:
-    Alt+← is the browser's Back.
+    key pressed with Alt or the command key is somebody else's shortcut:
+    Alt+← is the browser's Back. Shift and an arrow is this page's own, and
+    walks every line of a game with variations, as Play does — see
+    `stepTour`; Shift with anything else is left alone.
   */
+  /*
+    A dialog closed hands the keyboard back to the page, not to the button that
+    opened it.
+
+    The browser puts the focus back on that button as a dialog closes, and a
+    dialog closed from the keyboard — Escape, or Enter on its last button —
+    leaves a button the keyboard is on, which the arrows and Space are then
+    that button's rather than the game's: the reader had to click somewhere
+    before the arrows stepped through the game again. Taken off it as soon as
+    the browser has put it there, the next key is the game's. A reader working
+    the page by Tab starts again from the top of it, which is the price.
+  */
+  useEffect(() => {
+    const handBack = (event: Event) => {
+      if (!(event.target instanceof HTMLDialogElement)) {
+        return;
+      }
+      /* After the browser has put the focus back, which it does as the dialog
+         closes. */
+      setTimeout(() => {
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused !== document.body && focused.closest("dialog[open]") === null) {
+          focused.blur();
+        }
+      }, 0);
+    };
+    /* `close` does not bubble, but it is seen on its way down. */
+    document.addEventListener("close", handBack, true);
+    return () => document.removeEventListener("close", handBack, true);
+  }, []);
+
   useEffect(() => {
     if (tab !== "game" || history.entries.length < 2) {
       return;
@@ -2011,7 +2076,12 @@ export default function App() {
       if (event.defaultPrevented || event.isComposing) {
         return;
       }
-      if (event.altKey || event.shiftKey || event.metaKey) {
+      if (event.altKey || event.metaKey) {
+        return;
+      }
+      /* Shift and an arrow walks every line, as Play does; Shift alone with
+         anything else is somebody else's. */
+      if (event.shiftKey && (key === " " || event.ctrlKey)) {
         return;
       }
       if (key === " " && event.ctrlKey) {
@@ -2033,6 +2103,10 @@ export default function App() {
         return;
       }
       const back = key === "ArrowLeft";
+      if (event.shiftKey) {
+        stepTour(back);
+        return;
+      }
       if (back ? !(event.ctrlKey ? canGoFirst : canGoPrevious(history)) : !canGoNext(history)) {
         return;
       }
@@ -2715,6 +2789,24 @@ export default function App() {
                 >
                   <StepIcon direction="last" />
                 </button>
+                {/* The keys the four buttons answer to, and the two that walk
+                    every line, which have no button of their own. */}
+                <InfoButton label="Keys for stepping through a game">
+                  <dl className="info-keys">
+                    <dt>← / →</dt>
+                    <dd>The previous or the next position, along the line on the board.</dd>
+                    <dt>Ctrl+← / Ctrl+→</dt>
+                    <dd>The first position — of the first line, in a game with variations — or the last of this line.</dd>
+                    <dt>Shift+← / Shift+→</dt>
+                    <dd>
+                      Every line of a game with variations, a move at a time, as Play walks them: on to the end of a
+                      line, back to where the next one leaves it, and on along that.
+                    </dd>
+                    <dt>Space</dt>
+                    <dd>Play, or stop.</dd>
+                  </dl>
+                  The keys work whenever the Lab tab is open and no field has the keyboard.
+                </InfoButton>
               </div>
               <div className="board-controls play-row">
                 <button
@@ -2855,7 +2947,7 @@ export default function App() {
                       value: String(index),
                       label: `${index + 1} of ${readGame.lines.length}: ${line.choices.join(" › ")}`,
                     }))}
-                    hint="Which line of the game's variations is on the board. The board stays where it is if the new line passes through it, and otherwise goes back to where the two lines part."
+                    hint="Which line of the game's variations is on the board. The board stays where it is if the new line passes through it, and otherwise goes back to where the two lines part. Shift+→ and Shift+← walk every line a move at a time, as Play does: on to the end of a line, back to where the next one leaves it, and on along that."
                     onChange={(value) => {
                       const target = Number(value);
                       const depth = Math.min(
