@@ -3192,13 +3192,15 @@ input[type="color"]::-moz-color-swatch {
   cursor: default;
 }
 
-/* How far ahead, against whoever is: at the group's inner end, by the queens. */
+/* How far ahead, against whoever is: at the group's inner end, by the queens.
+   In the page's own text colour, whole: a quieter grey left it hard to read
+   beside the men on the dark page. */
 .men-bar-lead {
   flex: 0 0 auto;
   margin: 0.15em 0;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
-  opacity: 0.75;
+  color: var(--app-fg);
 }
 
 /*
@@ -4402,6 +4404,11 @@ input[type="color"]::-moz-color-swatch {
   with variations, which line is up before it. Filling the middle of the row
   rather than sitting in it, so that a line's name too long for it is cut
   short at the edge of the middle, rather than running on under the ends.
+
+  Everything in this row is in the page's own text colour, as the reader set
+  it: a quieter grey for the result, the count of lines and the counter made
+  them a step darker than the names beside them, and on the dark page darker
+  than the text colour asked for.
 */
 .player-result {
   display: flex;
@@ -4412,7 +4419,7 @@ input[type="color"]::-moz-color-swatch {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  color: color-mix(in srgb, currentColor 75%, transparent);
+  color: var(--app-fg);
 }
 
 /*
@@ -4427,9 +4434,9 @@ input[type="color"]::-moz-color-swatch {
   color: var(--app-fg);
 }
 
-/* "Branch 2 of 3:" in the quieter colour the result has. */
+/* "Line 2 of 3:", in the same colour as the rest. */
 .branch-count {
-  color: color-mix(in srgb, currentColor 75%, transparent);
+  color: var(--app-fg);
 }
 
 .branch-sep,
@@ -4444,7 +4451,7 @@ input[type="color"]::-moz-color-swatch {
   gap: 0.45em;
   justify-self: end;
   white-space: nowrap;
-  color: color-mix(in srgb, currentColor 75%, transparent);
+  color: var(--app-fg);
 }
 
 .player-position .button-icon {
