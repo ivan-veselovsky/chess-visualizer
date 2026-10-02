@@ -826,16 +826,21 @@ body {
 }
 
 /*
-  The line of a game with variations and the move in it, side by side and
-  held on one row, with a good gap between them: the two are answers to
-  different questions, and at the controls' own spacing they read as one.
-  Where the row is short of room it is the line's name that gives way — it
-  can run long, and is cut short — rather than the moves being pushed onto a
-  row of their own.
+  The moves, the branches, and the button that clears all but one of them:
+  along one row where the panel has room, a good gap between them since they
+  answer different questions, and onto a second where it has not — the
+  branches' list cut short first, its names running long.
 */
 .lines-row {
-  flex-wrap: nowrap;
-  column-gap: 4em;
+  flex-wrap: wrap;
+  column-gap: 2em;
+  row-gap: 0.5rem;
+}
+
+/* As wide as what it holds, so the branches and the button follow it along
+   the row rather than being pushed to its far end. */
+.lines-row > .moves-field {
+  flex: 0 0 auto;
 }
 
 .lines-row > .number-field {
@@ -3216,6 +3221,13 @@ input[type="color"]::-moz-color-swatch {
   cursor: default;
 }
 
+/* The name of a list that is not answering, faded as the list itself is: the
+   list fades by its own `:disabled`, and fading the box they share would fade
+   it twice. */
+.label-off > label {
+  opacity: 0.45;
+}
+
 /* How far ahead, against whoever is: at the group's inner end, by the queens.
    In the page's own text colour, whole: a quieter grey left it hard to read
    beside the men on the dark page. */
@@ -3241,6 +3253,192 @@ input[type="color"]::-moz-color-swatch {
 :root[data-theme="dark"] .men-bar-ground {
   display: inline;
   fill: var(--app-fg);
+}
+
+/* --- Board editor ------------------------------------------------------- */
+
+/*
+  The palette, in the bars' place: a column the width of one bar, five men at
+  each end and the editor's three switches in the middle.
+*/
+.setup-column {
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.setup-men,
+.setup-middle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.setup-middle {
+  gap: 0.55rem;
+}
+
+/* A man or the eraser to choose: no box of its own, a ring round it once it
+   is chosen. */
+.setup-tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--men-bar-width);
+  height: var(--men-bar-width);
+  padding: 0.1rem;
+  color: var(--app-fg);
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.setup-tool svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.setup-tool:hover {
+  border-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.setup-tool-chosen,
+.setup-tool-chosen:hover {
+  border-color: var(--livery);
+}
+
+.setup-erase svg {
+  width: 70%;
+  height: 70%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+/* Clear: the eraser's cross, heavier, on a button pressed rather than chosen;
+   set a little further off the signal above it than the rest are apart. */
+.setup-clear {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--men-bar-width);
+  height: var(--men-bar-width);
+  padding: 0;
+  color: var(--app-fg);
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.setup-clear:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.setup-clear svg {
+  width: 72%;
+  height: 72%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.6;
+  stroke-linecap: round;
+}
+
+/* Whose move: the flower the names use, pressed to give the move to the other
+   side. */
+.setup-turn {
+  display: flex;
+  padding: 0.25rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.setup-turn .player-color {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0.4rem;
+}
+
+/* Whether a game could reach the position: green where it could, red where it
+   could not, with what is wrong in its tooltip. */
+.setup-signal {
+  /* As far under the flower as the eraser is over it, measured by what is
+     drawn: the eraser's cross is inside a ring, and the flower's petals
+     reach past its box, so the same gap between the boxes was not the same
+     gap to the eye. */
+  margin-top: 0.75rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  cursor: help;
+}
+
+.setup-signal-legal {
+  background: #2fb35a;
+}
+
+.setup-signal-illegal {
+  background: #d93a35;
+}
+
+/* The man being carried from the palette, under the pointer until let go. */
+.setup-carried {
+  position: fixed;
+  z-index: 30;
+  width: 3rem;
+  height: 3rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.setup-carried svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--app-fg);
+  stroke-width: 2;
+}
+
+.setup-carried text {
+  stroke: var(--piece-outline);
+  stroke-width: 1.2;
+}
+
+/* The editor's button, after the FEN field: an em and a half of room either
+   side of its word, and the same width whichever it says, "Board editor" or
+   "Done" — the longer held in the same place unseen — so the field beside it
+   keeps its width as the editor opens and closes. */
+.fen-row > .editor-button {
+  flex: 0 0 auto;
+  display: inline-grid;
+  padding-inline: 1.5em;
+}
+
+.editor-button > span {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+
+.editor-button-room {
+  visibility: hidden;
+}
+
+.editor-starts {
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.editor-starts-label {
+  font-size: 0.9rem;
 }
 
 /* --- Animated GIF export ------------------------------------------------ */

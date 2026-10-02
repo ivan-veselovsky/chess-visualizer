@@ -31,7 +31,7 @@ export default function StashedGames({
   const empty = stash.length === 0;
 
   return (
-    <div className="stashed-games">
+    <div className={`stashed-games${locked !== null ? " label-off" : ""}`}>
       <label htmlFor="stashed-game">Stashed games</label>
       <select
         id="stashed-game"

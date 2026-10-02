@@ -564,3 +564,22 @@ export function tourIndex(lines: TreeLine[], places: TourPlace[], line: number, 
   }
   return places.findIndex(same);
 }
+
+/**
+ * The tree without the lines that come before `line` in the order the lines
+ * are played: what is left is that line and every line after it, each with
+ * what the file said about its moves. Taken out of the order lines are walked
+ * in, the line kept first is first at every fork it comes to, and so is the
+ * main line of what is left. Changes the tree it is given.
+ */
+export function withoutLinesBefore(tree: MoveTree, lines: TreeLine[], line: number): MoveTree {
+  const kept = lines.slice(line).map((one) => one.moves);
+  const prune = (node: MoveTree, depth: number, passing: string[][]) => {
+    node.next = node.next.filter((child) => passing.some((moves) => moves[depth] === child.move));
+    for (const child of node.next) {
+      prune(child, depth + 1, passing.filter((moves) => moves[depth] === child.move));
+    }
+  };
+  prune(tree, 0, kept);
+  return tree;
+}

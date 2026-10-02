@@ -42,6 +42,7 @@ import {
   tourIndex,
   tourPlaces,
   walk,
+  withoutLinesBefore,
   writeMovetext,
   type MoveTree,
   type Step,
@@ -110,6 +111,9 @@ import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
 import PromotionChooser from "./PromotionChooser";
+import SetupPalette, { type SetupTool } from "./SetupPalette";
+import { asSetup, place, setupProblems, shift, TWO_KINGS, turnOf, withTurn } from "../chess/setup";
+import { pieceVars } from "../visualization/pieceVars";
 import StashDialog from "./StashDialog";
 import StashedGames from "./StashedGames";
 import ToggleField from "./ToggleField";
@@ -321,6 +325,14 @@ export default function App() {
      lost, which is what a reader working through a task wants more often than
      not; switching it off is the way back to one line. */
   const [treeMode, setTreeMode] = useState(true);
+  /*
+    Whether the board editor is open, and what is chosen in its palette; and
+    whether it is waiting on the reader to say whether the game on the board is
+    stashed first. See `openEditor`.
+  */
+  const [editor, setEditor] = useState(false);
+  const [tool, setTool] = useState<SetupTool | null>(null);
+  const [stashingForEditor, setStashingForEditor] = useState(false);
   /*
     A pawn's move to the last rank, waiting for the reader to say what it
     becomes; see `PromotionChooser`. Held with the position it was made in, so
@@ -693,6 +705,12 @@ export default function App() {
      * line at every move, since nothing else said them.
      */
     recorded?: boolean;
+    /**
+     * Changed here: a line played that the game did not have, with variations
+     * kept, or the lines before one cleared away. Something on the board that
+     * the file it came from does not hold.
+     */
+    changed?: boolean;
   } | null>(() =>
     opening?.game == null ? null : { ...opening.game, lines: gameLines(opening.game.pgn, history) }
   );
@@ -974,6 +992,103 @@ export default function App() {
   }
 
   /**
+   * Lets go of every line but the one on the board, and of the moves after
+   * where the board stands on it: what is left is the way from the first
+   * position to the one on the board, as a line of the reader's own — at the
+   * first position, nothing but the position. A game with a friend is not the
+   * reader's to cut, and keeps every move it has.
+   */
+  function clearOtherLines() {
+    if (friend.phase.kind === "playing") {
+      return;
+    }
+    setPlaying(false);
+    setRead(null);
+    setHistory({ entries: history.entries.slice(history.current), current: 0 });
+  }
+
+  /**
+   * Opens the board editor on the position on the board — its men and whose
+   * move it is, castling and en passant left to the FEN field. Every change
+   * from here on is a position set outright, as one typed in is, so the rays,
+   * the pins and a mate are drawn as it is built, and the FEN field follows
+   * it. The palette's Clear goes back to the two kings.
+   *
+   * A board holding more than the one position — a game, a line, a tree of
+   * them — has something to lose, and the reader is asked first whether to
+   * stash it; either answer opens the editor on the same position.
+   */
+  function openEditor() {
+    if (shown === null) {
+      return;
+    }
+    setPlaying(false);
+    if (boardIsDirty()) {
+      setStashingForEditor(true);
+      return;
+    }
+    startEditing();
+  }
+
+  /**
+   * Whether the board holds something that is nowhere else, and would be lost
+   * if it were put aside: moves the reader made, a tree of lines built here,
+   * or lines added to a game read in. Not a single position, and not a game as
+   * it came — from the library, a file, a link, or the stash — which can be
+   * had again from where it came from.
+   */
+  function boardIsDirty(): boolean {
+    if (history.entries.length === 1 && (read === null || read.lines.every((line) => line.moves.length === 0))) {
+      return false;
+    }
+    if (read !== null) {
+      return read.recorded === true || read.changed === true;
+    }
+    const here = lineOf(history);
+    return !(
+      handed.current !== null &&
+      handed.current.initialFEN === here.initialFEN &&
+      handed.current.moves.join(" ") === here.moves.join(" ")
+    );
+  }
+
+  function startEditing() {
+    if (shown === null) {
+      return;
+    }
+    setStashingForEditor(false);
+    setEditor(true);
+    setTool(null);
+    setPosition(asSetup(shown.fen()) ?? TWO_KINGS);
+  }
+
+  /**
+   * Closes it, on the position it has built — the start of a game of its own,
+   * to play or to record lines from — or, on one no game could reach, on the
+   * ordinary starting position, there being nothing that could be played from
+   * it.
+   */
+  function closeEditor() {
+    const built = shown?.fen() ?? TWO_KINGS;
+    setEditor(false);
+    setTool(null);
+    if (setupProblems(built).length > 0) {
+      setPosition(DEFAULT_POSITION);
+    }
+  }
+
+  /** A change made in the editor, where the editor allows it; `dragged` is a piece carried there by hand, which is not flown. */
+  function editTo(next: string | null, dragged: Square | null = null) {
+    if (next === null) {
+      return;
+    }
+    if (dragged !== null) {
+      draggedTo.current = dragged;
+    }
+    setPosition(next);
+  }
+
+  /**
    * What the FEN field reports, which is either of two things.
    *
    * A position already in the list is one of its own suggestions being picked,
@@ -1046,6 +1161,13 @@ export default function App() {
     */
     if (direction === "first" && readGame !== null && readGame.lines.length > 1) {
       switchLine(0, 0);
+      return;
+    }
+    /* And the last, the end of its last line: where Play would stop, having
+       walked them all. */
+    if (direction === "last" && readGame !== null && readGame.lines.length > 1) {
+      const last = readGame.lines.length - 1;
+      switchLine(last, readGame.lines[last].moves.length);
       return;
     }
     const walk = { first: goFirst, previous: goPrevious, next: goNext, last: goLast };
@@ -1592,6 +1714,9 @@ export default function App() {
      at the start of any line of a game with variations but the first — over
      to the first line. See `stepHistory`. */
   const canGoFirst = canGoPrevious(history) || (branch !== null && onLine !== 0);
+  /* And "Last position": on along the line, or — anywhere but the last line —
+     over to the end of the last. */
+  const canGoLast = canGoNext(history) || (readGame !== null && readGame.lines.length > 1 && onLine !== readGame.lines.length - 1);
 
   /*
     Standing somewhere earlier in a game that is still being played.
@@ -2107,7 +2232,7 @@ export default function App() {
         stepTour(back);
         return;
       }
-      if (back ? !(event.ctrlKey ? canGoFirst : canGoPrevious(history)) : !canGoNext(history)) {
+      if (back ? !(event.ctrlKey ? canGoFirst : canGoPrevious(history)) : !(event.ctrlKey ? canGoLast : canGoNext(history))) {
         return;
       }
       stepHistory(
@@ -2292,6 +2417,42 @@ export default function App() {
   const unnamedResult =
     readGame !== null ? readResult : shown === null ? null : resultOnBoard(shown);
 
+  /* Whether there are lines before the one on the board for "Clear lines
+     before current" to let go of. */
+  const canClearLines = !editor && friend.phase.kind !== "playing" && readGame !== null && onLine > 0;
+
+  /*
+    What the boards do while the editor is open: a piece dragged goes anywhere,
+    or off the board; a press on a square with something chosen in the palette
+    puts it there, or takes away what is there. The board editor's own rules —
+    a king is never taken off or covered, a pawn never stands on the first or
+    last rank — are `setup.ts`'s, and a change they forbid is not made.
+  */
+  const editedFen = shown?.fen() ?? TWO_KINGS;
+  const editing =
+    !editor
+      ? undefined
+      : {
+          onShift: (from: Square, to: Square | null) => editTo(shift(editedFen, from, to), to),
+          onPlace: (square: Square) => {
+            if (tool !== null) {
+              editTo(place(editedFen, square, tool === "erase" ? null : tool));
+            }
+          },
+          placing: tool !== null,
+          onLetGo: () => setTool(null),
+        };
+
+  /* The editor closes when a game arrives on the board — read in, taken from
+     the library or the stash, or begun with a friend: what is on the board is
+     no longer a position being set up. */
+  useEffect(() => {
+    if (editor && (history.entries.length > 1 || friend.phase.kind === "playing" || friend.phase.kind === "waiting")) {
+      setEditor(false);
+      setTool(null);
+    }
+  }, [editor, history, friend.phase.kind]);
+
   /* A question about a promotion goes with the position it was asked in: the
      board moving on — a step, a game arriving — takes it away for good. */
   useEffect(() => {
@@ -2375,11 +2536,57 @@ export default function App() {
    * False where the board is somewhere the tree does not go, which it should
    * never be, and the move is then played as it would be out of the mode.
    */
+  /**
+   * A tree of moves written out as a game: a game read in keeps the tags it
+   * came with, and its result; a tree begun here has its tags written from its
+   * main line, as a line of its own would be exported, and the result they say.
+   */
+  function gameOfTree(
+    tree: MoveTree,
+    lines: TreeLine[],
+    from: { pgn: string; result: string | null } | null
+  ): { pgn: string; result: string | null } {
+    const tags =
+      from === null
+        ? (toPgn({ entries: lines[0].entries, current: 0 }, stashName, null, null) ?? "")
+            .split("\n")
+            .filter((row) => row.startsWith("["))
+            .join("\n")
+        : (from.pgn.match(/\[\s*\w+\s+"(?:[^"\\]|\\.)*"\s*\]/g) ?? []).join("\n");
+    const said = /\[\s*Result\s+"([^"]*)"\s*\]/.exec(tags)?.[1] ?? "*";
+    return {
+      pgn: `${tags}\n\n${writeMovetext(tree)} ${said}\n`,
+      result: from === null ? (said === "*" ? null : said) : from.result,
+    };
+  }
+
+  /**
+   * Lets go of every line played before the one on the board — in the order
+   * the lines are played, the order Play walks them — and keeps that line and
+   * every line after it, each as the game had it. The line on the board is
+   * the game's main line after it, and the board stays where it stands.
+   */
+  function clearLinesBefore() {
+    if (readGame === null || onLine <= 0 || friend.phase.kind === "playing") {
+      return;
+    }
+    const tree = readTree(readGame.pgn);
+    if (tree === null) {
+      return;
+    }
+    withoutLinesBefore(tree, readGame.lines, onLine);
+    const lines = linesOf(tree);
+    const { pgn, result } = gameOfTree(tree, lines, readGame.recorded === true ? null : readGame);
+    setPlaying(false);
+    setRead({ ...readGame, lines, pgn, result, changed: true });
+  }
+
   function playInTree(fen: string, move: string): boolean {
     const depth = history.entries.length - 1 - history.current;
     const path = here.moves.slice(0, depth);
     const tree: MoveTree | null = readGame !== null ? readTree(readGame.pgn) : lineTree(history.entries);
-    if (tree === null || playInto(tree, path, move, fen) === null) {
+    const played = tree === null ? null : playInto(tree, path, move, fen);
+    if (tree === null || played === null) {
       return false;
     }
     const lines = linesOf(tree);
@@ -2391,24 +2598,15 @@ export default function App() {
     if (index < 0) {
       return false;
     }
-    const main = lines[0];
-    /* A game read in keeps the tags it came with; a tree begun here has them
-       written from its main line, as a line of its own would be exported. */
     const recorded = readGame === null || readGame.recorded === true;
-    const tags = recorded
-      ? (toPgn({ entries: main.entries, current: 0 }, stashName, null, null) ?? "")
-          .split("\n")
-          .filter((row) => row.startsWith("["))
-          .join("\n")
-      : (readGame.pgn.match(/\[\s*\w+\s+"(?:[^"\\]|\\.)*"\s*\]/g) ?? []).join("\n");
-    const said = /\[\s*Result\s+"([^"]*)"\s*\]/.exec(tags)?.[1] ?? "*";
-    const pgn = `${tags}\n\n${writeMovetext(tree)} ${said}\n`;
+    const { pgn, result } = gameOfTree(tree, lines, recorded ? null : readGame);
     setRead({
       players: readGame?.players ?? { white: UNNAMED.white, black: UNNAMED.black },
-      result: recorded ? (said === "*" ? null : said) : readGame.result,
+      result,
       lines,
       pgn,
       recorded,
+      changed: readGame?.changed === true || played.grown,
     });
     const line = lines[index];
     setHistory({ entries: line.entries, current: line.moves.length - wanted.length });
@@ -2492,10 +2690,15 @@ export default function App() {
           inert={exporting}
           style={
             {
+              /* The editor's palette stands in for the bars, one bar wide,
+                 whichever of them are up — and a bar a little wider than the
+                 men in it, these being taken hold of rather than counted. */
               "--men-bars": String(
-                (settings.pieces.showCaptured ? 1 : 0) +
-                  (settings.pieces.showAvailable ? 1 : 0)
+                editor
+                  ? 1
+                  : (settings.pieces.showCaptured ? 1 : 0) + (settings.pieces.showAvailable ? 1 : 0)
               ),
+              ...(editor ? { "--men-bar-width": "2.3rem" } : {}),
             } as CSSProperties
           }
         >
@@ -2601,6 +2804,7 @@ export default function App() {
                 frozen={frozen}
                 onPickUp={() => setInHand("left")}
                 pickedUpElsewhere={inHand === "right"}
+                editing={editing}
                 lastMove={lastMove}
                 lastMoveMark={settings.board.lastMove}
                 orientation={side}
@@ -2646,13 +2850,30 @@ export default function App() {
                     frozen={frozen}
                     onPickUp={() => setInHand("right")}
                     pickedUpElsewhere={inHand === "left"}
+                    editing={editing}
                     lastMove={lastMove}
                     lastMoveMark={rightSettings.board.lastMove}
                     orientation={side}
                   />
                 )}
                 </div>
-                {settings.pieces.showCaptured && (
+                {/* The editor's palette, in the bars' place while it is open. */}
+                {editor && (
+                  <SetupPalette
+                    orientation={side}
+                    turn={turnOf(editedFen)}
+                    problems={setupProblems(editedFen)}
+                    tool={tool}
+                    onTool={setTool}
+                    onDrop={(chosen, square) =>
+                      editTo(place(editedFen, square, chosen === "erase" ? null : chosen))
+                    }
+                    onTurn={() => editTo(withTurn(editedFen))}
+                    onClear={() => editTo(TWO_KINGS)}
+                    style={pieceVars(settings.pieces.tint, settings.attacks)}
+                  />
+                )}
+                {!editor && settings.pieces.showCaptured && (
                   <CapturedBar
                     captures={captures}
                     orientation={side}
@@ -2663,7 +2884,7 @@ export default function App() {
                 {/* And the men still standing, immediately outside the men who
                     are not — so the board, what it has lost, and what it has
                     left read outwards in that order. */}
-                {settings.pieces.showAvailable && (
+                {!editor && settings.pieces.showAvailable && (
                   <AvailableBar
                     position={shown}
                     orientation={side}
@@ -2724,12 +2945,13 @@ export default function App() {
                 id="flip-board"
                 label="Black at bottom"
                 checked={side === "black"}
+                disabled={editor}
                 onChange={(flipped) => turnBoard(flipped ? "black" : "white")}
               />
               <button
                 type="button"
                 className="reset-button controls-end"
-                disabled={inGame !== null}
+                disabled={inGame !== null || editor}
                 title={inGame ?? undefined}
                 onClick={() => setPosition(DEFAULT_POSITION)}
               >
@@ -2784,7 +3006,7 @@ export default function App() {
                   title="Last position (Ctrl+→)"
                   aria-label="Last position"
                   aria-keyshortcuts="Control+ArrowRight"
-                  disabled={!canGoNext(history)}
+                  disabled={!canGoLast}
                   onClick={() => stepHistory("last")}
                 >
                   <StepIcon direction="last" />
@@ -2796,7 +3018,7 @@ export default function App() {
                     <dt>← / →</dt>
                     <dd>The previous or the next position, along the line on the board.</dd>
                     <dt>Ctrl+← / Ctrl+→</dt>
-                    <dd>The first position — of the first line, in a game with variations — or the last of this line.</dd>
+                    <dd>The first position, or the last — of the first line and of the last, in a game with variations.</dd>
                     <dt>Shift+← / Shift+→</dt>
                     <dd>
                       Every line of a game with variations, a move at a time, as Play walks them: on to the end of a
@@ -2828,7 +3050,7 @@ export default function App() {
                      game through is the same walk taken at a pace, and while a
                      game with somebody else is on it is reading rather than
                      playing — which is exactly what stepping through it is. */
-                  disabled={!playing && still.length === 0}
+                  disabled={(!playing && still.length === 0) || editor}
                   onClick={playOrStop}
                 >
                   <PlayIcon playing={playing} />
@@ -2845,6 +3067,7 @@ export default function App() {
                 */}
                 <NumberField
                   id="play-initial-delay"
+                  disabled={editor}
                   inline
                   narrow
                   allowZero
@@ -2866,6 +3089,7 @@ export default function App() {
                 />
                 <NumberField
                   id="play-period"
+                  disabled={editor}
                   inline
                   narrow
                   label="Period per position"
@@ -2884,6 +3108,7 @@ export default function App() {
                 />
                 <NumberField
                   id="play-back-step"
+                  disabled={editor}
                   inline
                   narrow
                   allowZero
@@ -2901,6 +3126,7 @@ export default function App() {
                 />
                 <NumberField
                   id="play-back-speedup"
+                  disabled={editor}
                   inline
                   narrow
                   label="Back step speedup factor"
@@ -2917,6 +3143,7 @@ export default function App() {
                 />
                 <NumberField
                   id="play-line-end"
+                  disabled={editor}
                   inline
                   narrow
                   allowZero
@@ -2934,6 +3161,15 @@ export default function App() {
                 />
               </div>
               <div className="board-controls lines-row">
+                <MovesSelect
+                  entries={history.entries}
+                  current={history.current}
+                  disabled={editor}
+                  onSelect={(index) => {
+                    setPlaying(false);
+                    showHistory(goToPosition(history, index));
+                  }}
+                />
                 {/* Which line of a game with variations is on the board, to
                     choose one by hand: the walk plays them all, and this is how
                     to stop at one and study it. */}
@@ -2959,35 +3195,38 @@ export default function App() {
                     }}
                   />
                 )}
-                <MovesSelect
-                  entries={history.entries}
-                  current={history.current}
-                  onSelect={(index) => {
-                    setPlaying(false);
-                    showHistory(goToPosition(history, index));
-                  }}
-                />
+                {/* The lines played before the one on the board let go of;
+                    see `clearLinesBefore`. */}
+                <span className="field-label">
+                  <button
+                    type="button"
+                    className="reset-button"
+                    disabled={!canClearLines}
+                    onClick={clearLinesBefore}
+                  >
+                    Clear lines before current
+                  </button>
+                  <InfoButton label="Clear lines before current">
+                    Takes away every line that comes before the one on the board, in the order the lines are played
+                    — the order Play and Shift+→ walk them. The line on the board stays, with every line after it,
+                    and becomes the first line of the game.
+                  </InfoButton>
+                </span>
               </div>
               {/* Whether moves made on the board keep what they branch away
-                  from. Switched off, the tree goes, and all that is left of
-                  it is the way from the first position to the one on the
-                  board, as a line of the reader's own: nothing after where
-                  the board stands, in its line or any other — so switched
-                  off at the first position, nothing at all. A game with a
-                  friend is not the tree's, and keeps every move it has. */}
+                  from. Switched off, every line but the way from the first
+                  position to the board's goes; see `clearOtherLines`. */}
               <ToggleField
                 id="keep-variations"
                 label="Keep variations"
                 checked={treeMode}
+                disabled={editor}
                 hint="Keeps every line played here. A move made from an earlier position starts a variation rather than replacing the moves that followed it, and every line can be chosen, played and exported as one game with variations — for recording a task's answer to each defence, say. Switched off, only the moves from the start to the position on the board are kept."
                 onChange={(on) => {
                   setTreeMode(on);
-                  if (on || friend.phase.kind === "playing") {
-                    return;
+                  if (!on) {
+                    clearOtherLines();
                   }
-                  setPlaying(false);
-                  setRead(null);
-                  setHistory({ entries: history.entries.slice(history.current), current: 0 });
                 }}
               />
             </div>
@@ -3000,8 +3239,24 @@ export default function App() {
               error={error}
               readOnly={inGame}
               onChange={enterPosition}
+              after={
+                <button
+                  type="button"
+                  className="reset-button editor-button"
+                  disabled={inGame !== null}
+                  title={inGame ?? (!editor ? "Set up a position piece by piece" : "Finish setting up, and start from this position")}
+                  onClick={!editor ? openEditor : closeEditor}
+                >
+                  {/* Whichever it says, as wide as the longer of the two, held
+                      in the same place unseen: the field beside it keeps its
+                      width as the editor opens and closes. */}
+                  <span className="editor-button-label">{!editor ? "Board editor" : "Done"}</span>
+                  <span className="editor-button-room" aria-hidden="true">
+                    Board editor
+                  </span>
+                </button>
+              }
             />
-
             <SectionRule name="Import / export" />
 
             {/* The two that move a game in and out of PGN, and the link to it. */}
@@ -3010,7 +3265,7 @@ export default function App() {
                 <button
                   type="button"
                   className="reset-button"
-                  disabled={inGame !== null}
+                  disabled={inGame !== null || editor}
                   title={inGame ?? undefined}
                   onClick={() => setPgnOpen(true)}
                 >
@@ -3031,6 +3286,7 @@ export default function App() {
                 <ToggleField
                   id="share-autoplay"
                   label="With autoplay"
+                  disabled={editor}
                   hint="The link sets the game playing from its first position, at whatever pace the reader's own settings say."
                   checked={settings.lab.shareGameWithAutoplay}
                   onChange={(shareGameWithAutoplay) =>
@@ -3065,7 +3321,7 @@ export default function App() {
               <button
                 type="button"
                 className="reset-button"
-                disabled={stashName === null}
+                disabled={stashName === null || editor}
                 title={
                   stashName === null
                     ? "Stash game as \u2026 first, to give the game a name"
@@ -3083,6 +3339,7 @@ export default function App() {
                 type="button"
                 className="reset-button"
                 title="Put this game aside under a name"
+                disabled={editor}
                 onClick={() => setStashDialogOpen(true)}
               >
                 Stash game as {"\u2026"}
@@ -3090,7 +3347,7 @@ export default function App() {
               <StashedGames
                 stash={stash}
                 value={stashName}
-                locked={inGame}
+                locked={inGame ?? (editor ? "Not while the board is being set up" : null)}
                 /* Read afresh as the list is opened, so a game another tab put
                    aside a moment ago is in it. */
                 onOpen={freshStash}
@@ -3104,7 +3361,7 @@ export default function App() {
               <GameLibrary
                 value={libraryGame}
                 error={libraryGameError}
-                locked={inGame}
+                locked={inGame ?? (editor ? "Not while the board is being set up" : null)}
                 onSelect={loadLibraryGame}
               />
             </div>
@@ -3700,6 +3957,24 @@ export default function App() {
       {/* Asked before the board changes, not after: the game is waiting to go
           up, and what is on the board now is still there to be kept. Either
           answer starts the game. */}
+      {/* Asked before the board editor takes the place of a game on the board:
+          either answer opens it, on the position the board was on. */}
+      <StashDialog
+        open={stashingForEditor}
+        taken={stash.map((game) => game.name)}
+        initialName={nextStashName(stash.map((game) => game.name))}
+        prompt="Stash current game?"
+        submitLabel="Stash"
+        dismissLabel="Don't stash"
+        onSubmit={(name) => {
+          const refused = putAside(name);
+          if (refused !== undefined) {
+            return refused;
+          }
+          startEditing();
+        }}
+        onClose={startEditing}
+      />
       <StashDialog
         open={waitingToStart !== null}
         taken={stash.map((game) => game.name)}

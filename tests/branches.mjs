@@ -74,6 +74,12 @@ const WHERE = `
     document.querySelector(".branch-path")?.textContent ?? "",
   ];
   const key = (k, ctrl = false) => window.dispatchEvent(new KeyboardEvent("keydown", { key: k, ctrlKey: ctrl, bubbles: true }));
+  /* On to the end of the line the board is on, a step at a time: Ctrl+→ is the
+     end of the last line, not of this one. */
+  const toLineEnd = async () => {
+    for (let i = 0; i < 20; i += 1) { key("ArrowRight"); await sleep(120); }
+    await sleep(800);
+  };
   const load = async (pgn) => {
     window.__tab("Lab"); await sleep(300);
     [...document.querySelectorAll("button")].find((b) => /import game/i.test(b.textContent)).click(); await sleep(400);
@@ -243,7 +249,7 @@ try {
     Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(pick, "0");
     pick.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
     const atFork = where();
-    key("ArrowRight", true); await sleep(900);
+    await toLineEnd();
     const atEnd = where();
     return JSON.stringify({ atFork, atEnd });`));
   check("another line, chosen from the end of this one, is taken up at the fork they share",
@@ -304,7 +310,7 @@ try {
     const first = document.querySelector('[aria-label="First position"]');
     const at = () => [...where(), document.querySelector("#branch").value, first.disabled];
     await choose("2");
-    key("ArrowRight", true); await sleep(900);
+    await toLineEnd();
     const said = { end: at() };
     for (let i = 0; i < 4; i += 1) { key("ArrowLeft"); await sleep(800); }
     said.stepped = at();
@@ -340,7 +346,7 @@ try {
        to the first line as well. */
     key("ArrowLeft"); await sleep(900);
     said.start = [...where(), result()];
-    key("ArrowRight", true); await sleep(900);
+    await toLineEnd();
     said.end = [...where(), result()];
     return JSON.stringify(said);`));
   check("the main line comes out as the file says",
@@ -358,7 +364,7 @@ try {
     const pick = document.querySelector("#branch");
     Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(pick, "2");
     pick.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
-    key("ArrowRight", true); await sleep(900);
+    await toLineEnd();
     const path = document.querySelector(".branch-path");
     return JSON.stringify({
       board: box(".board-holder svg"),
@@ -580,6 +586,41 @@ try {
     emptied.on === true && emptied.branches.length === 0 && emptied.moves.join(" | ") === "start" &&
       !/\d\./.test(emptied.text.split("\n\n").pop()),
     `${emptied.moves.join(" | ")} / ${emptied.text.split("\n\n").pop()}`);
+  /*
+    "Clear lines before current" takes away the lines played before the one
+    on the board, and keeps it and every line after it, the board where it
+    stands and the game's comments as they were.
+  */
+  const cleared = JSON.parse(await page.run(`${HELPERS}${WHERE}${tree}
+    const mode = document.querySelector("#keep-variations"); if (!mode.checked) mode.click(); await sleep(300);
+    await load(${JSON.stringify(PGN)});
+    const pick = document.querySelector("#branch");
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(pick, "1");
+    pick.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
+    await toLineEnd();
+    const before = state();
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Clear lines before current").click(); await sleep(600);
+    const after = state();
+    const button = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Clear lines before current");
+    return JSON.stringify({ before, after, on: mode.checked, nothingBefore: button.disabled, text: await exported() });`));
+  check("Clear lines before current takes away the lines played before the one on the board, and keeps the rest",
+    JSON.stringify(cleared.after.branches) === JSON.stringify(["1 of 2: 1… Ne8 {case B}", "2 of 2: 1… Ke8 {case C}"]) &&
+      JSON.stringify(cleared.after.moves) === JSON.stringify(cleared.before.moves) && cleared.on === true && cleared.nothingBefore === true,
+    JSON.stringify(cleared));
+  check("with the line on the board first in what is exported, and the comments kept",
+    cleared.text.includes("1. Rhg7 Ne8 {case B} (1... Ke8 {case C} 2. Rg8#) 2. Ra8#"), cleared.text.split("\n\n").pop());
+
+  /* "Last position" goes to the end of the last line, as "First position"
+     goes to the start of the first. */
+  const lastOfAll = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    await load(${JSON.stringify(PGN)});
+    key("ArrowLeft", true); await sleep(900);
+    const first = where();
+    key("ArrowRight", true); await sleep(900);
+    return JSON.stringify({ first, last: where() });`));
+  check("Ctrl+→ goes to the last position of the last line",
+    JSON.stringify(lastOfAll.last) === JSON.stringify(["2. Rg8#", "Line 3 of 3: 1… Ke8 {case C}"]) && lastOfAll.first[0] === "start",
+    JSON.stringify(lastOfAll));
 
   /*
     A game read in, grown in the mode: its tags, its names and what it says

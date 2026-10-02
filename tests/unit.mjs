@@ -52,6 +52,7 @@ import { friendlyGameName } from "../src/app/friend/gameName.ts";
 import { describeEnding } from "../src/app/friend/ending.ts";
 import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { applyMove, isPromotion } from "../src/chess/moves.ts";
+import { asSetup, place, setupProblems, shift, TWO_KINGS, withTurn } from "../src/chess/setup.ts";
 import { Chess } from "chess.js";
 
 let passed = 0;
@@ -2083,6 +2084,36 @@ console.log("\nThe walk through every line, a position at a time\n");
     [tourIndex(lines, all, 1, 1), tourIndex(lines, all, 0, 3), tourIndex(lines, all, 1, 3)].join(" "));
   check("and the place last stepped to is kept where it is that position",
     tourIndex(lines, all, 1, 1, 5) === 5 && tourIndex(lines, all, 0, 1, 2) === 1, String(tourIndex(lines, all, 1, 1, 5)));
+}
+
+console.log("\nThe board editor\n");
+{
+  const knight = place(TWO_KINGS, "d4", { type: "n", color: "w" });
+  check("a man is put where he is put, the move White's and nothing else said",
+    knight === "4k3/8/8/8/3N4/8/8/4K3 w - - 0 1", String(knight));
+  check("but never over a king, nor a pawn on the first or last rank",
+    place(TWO_KINGS, "e1", { type: "q", color: "w" }) === null && place(TWO_KINGS, "a8", { type: "p", color: "w" }) === null &&
+      place(TWO_KINGS, "h1", { type: "p", color: "b" }) === null);
+  check("a king can be moved but not taken off, by the eraser or by being dragged off",
+    shift(TWO_KINGS, "e1", "c3") === "4k3/8/8/8/8/2K5/8/8 w - - 0 1" && place(TWO_KINGS, "e8", null) === null && shift(TWO_KINGS, "e1", null) === null);
+  check("any other man can be taken off either way",
+    place(knight, "d4", null) === TWO_KINGS && shift(knight, "d4", null) === TWO_KINGS);
+  check("the move given to the other side", withTurn(TWO_KINGS) === "4k3/8/8/8/8/8/8/4K3 b - - 0 1", withTurn(TWO_KINGS));
+  check("and a position from a game taken as it stands, castling and en passant left out",
+    asSetup("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1") === "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - - 0 1");
+  const checked = place(TWO_KINGS, "e2", { type: "r", color: "b" });
+  check("a king in check with his own side to move is a position a game reaches",
+    setupProblems(checked).length === 0, setupProblems(checked).join(" "));
+  check("with the other side to move it is not, and the editor says why",
+    setupProblems(withTurn(checked)).join(" ") === "White is in check, with Black to move.", setupProblems(withTurn(checked)).join(" "));
+  check("nor are kings side by side",
+    setupProblems(shift(TWO_KINGS, "e8", "e2")).join(" ") === "The two kings stand next to each other.");
+  let herd = TWO_KINGS;
+  for (const square of ["a1", "b1", "c1", "d1", "a2", "b2", "c2", "d2", "f2", "g2", "h2"]) {
+    herd = place(herd, square, { type: "n", color: "w" });
+  }
+  check("eleven knights can be put down, and are more than a side's pawns could have become",
+    setupProblems(herd).join(" ") === "White has more pieces than its pawns could have become.", setupProblems(herd).join(" "));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

@@ -6,6 +6,8 @@ interface MovesSelectProps {
   /** Which of them is on the board. */
   current: number;
   onSelect: (index: number) => void;
+  /** Not answering, while the board is being set up rather than played through. */
+  disabled?: boolean;
 }
 
 /**
@@ -22,16 +24,18 @@ interface MovesSelectProps {
 export default function MovesSelect({
   entries,
   current,
+  disabled = false,
   onSelect,
 }: MovesSelectProps) {
   return (
-    <div className="moves-field">
+    <div className={`moves-field${disabled ? " label-off" : ""}`}>
       <label htmlFor="moves">Moves</label>
       <select
         id="moves"
         className="moves-select"
         title="History of moves"
         value={current}
+        disabled={disabled}
         onChange={(event) => onSelect(Number(event.target.value))}
       >
         {entries.map((entry, index) => (

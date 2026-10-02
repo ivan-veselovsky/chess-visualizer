@@ -6,6 +6,8 @@ interface ToggleFieldProps {
   checked: boolean;
   /** Explanation behind an (i) after the label, rather than standing text. */
   hint?: string;
+  /** Present but not answering, greyed out as the other fields are. */
+  disabled?: boolean;
   onChange: (checked: boolean) => void;
 }
 
@@ -15,14 +17,16 @@ export default function ToggleField({
   label,
   checked,
   hint,
+  disabled = false,
   onChange,
 }: ToggleFieldProps) {
   return (
-    <div className="toggle-field">
+    <div className={`toggle-field${disabled ? " field-disabled" : ""}`}>
       <input
         id={id}
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
       <label htmlFor={id}>{label}</label>

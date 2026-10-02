@@ -108,6 +108,22 @@ interface BoardProps {
    * other board now, and one piece in hand is all there is.
    */
   pickedUpElsewhere?: boolean;
+  /**
+   * The board being set up in the board editor rather than played on. Any
+   * piece is dragged anywhere — no rules, no squares to aim for — and off the
+   * board to take it away; and with something chosen in the editor's palette,
+   * a press on a square puts it there. Given, it takes the place of `onMove`.
+   */
+  editing?: {
+    /** A piece dragged from `from` to `to`, or off the board, `to` null. */
+    onShift: (from: Square, to: Square | null) => void;
+    /** A press on `square` with something chosen in the palette. */
+    onPlace: (square: Square) => void;
+    /** Whether something is chosen in the palette, which is what a press on the board is then for. */
+    placing: boolean;
+    /** The palette's choice let go of: a king pressed on while something was chosen, to be moved instead. */
+    onLetGo: () => void;
+  };
   /** Thin lines on the square edges, and what they are drawn in. */
   grid: GridLines;
   /** The move that reached this position, to shade the squares it used. */
@@ -154,6 +170,7 @@ export default function Board({
   frozen = false,
   onPickUp,
   pickedUpElsewhere = false,
+  editing,
   lastMove = null,
   lastMoveMark = {
     color: "#000000",
@@ -290,6 +307,33 @@ export default function Board({
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
+    if (editing !== undefined) {
+      /* Setting up: the palette's choice put down, or a piece taken up to go
+         anywhere at all. */
+      const at = boardPoint(event);
+      const square = at === null ? null : squareAtPoint(at, orientation);
+      if (frozen || at === null || square === null) {
+        return;
+      }
+      /* A king cannot be put over or taken off, so a press on one is never
+         for the palette's choice: it lets go of it, and takes the king up. */
+      if (editing.placing && position.get(square)?.type !== "k") {
+        event.preventDefault();
+        editing.onPlace(square);
+        return;
+      }
+      if (editing.placing) {
+        editing.onLetGo();
+      }
+      if (position.get(square) === undefined) {
+        return;
+      }
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setDrag({ from: square, targets: [], at });
+      onPickUp?.();
+      return;
+    }
     if (onMove === undefined || frozen) {
       return;
     }
@@ -368,6 +412,14 @@ export default function Board({
     const at = boardPoint(event);
     const to = at === null ? null : squareAtPoint(at, orientation);
     setDrag(null);
+    /* Setting up: wherever it is let go — off the board too, which takes it
+       away — unless that is where it was. */
+    if (editing !== undefined) {
+      if (to !== drag.from) {
+        editing.onShift(drag.from, to);
+      }
+      return;
+    }
     if (to !== null && drag.targets.includes(to)) {
       onMove?.(drag.from, to, true);
       return;

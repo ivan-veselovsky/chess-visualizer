@@ -77,8 +77,11 @@ export function parsePgn(text: string): PgnImport {
   };
   const said = (game.getHeaders().Result ?? "").trim();
   const result = said === "" || said === "*" ? null : said;
+  /* A game of no moves is a position: the one its FEN tag sets up — or the
+     usual start, where it has none — which is how a task or a position set up
+     in the board editor is written down. */
   if (moves.length === 0) {
-    return { entries: null, players, result, error: "That PGN holds no moves." };
+    return { entries: [{ fen: game.fen(), move: null }], players, result, error: null };
   }
 
   // `before` on the first move is where the game started, headers included.

@@ -565,6 +565,162 @@ try {
     opened === "true" && Number(listAfter) === Number(listBefore) + 1,
     `dialog opened: ${opened}; moves list at ${listBefore}, then ${listAfter}`);
 
+  console.log("\nThe board editor\n");
+
+  /*
+    Opened beside the FEN, on the position on the board, and cleared to the
+    two kings by the palette's Clear: men from the palette put down by a
+    click and a click, or dragged on; a pawn refused on the last rank; the move
+    given to the other side by the flower, and the signal turning red with the
+    reason when that leaves a king in check; the eraser and a drag off the
+    board taking men away; and Done on a position no game reaches giving back
+    the ordinary start.
+  */
+  const fenNow = () => page.run(`return document.querySelector("#fen").value;`);
+  const paletteTool = (label) => page.run(`const b = document.querySelector('.setup-palette [aria-label="${label}"]').getBoundingClientRect();
+    return { cx: Math.round(b.x + b.width / 2), cy: Math.round(b.y + b.height / 2) };`);
+  const tap = async (point) => {
+    await page.click(point.cx, point.cy);
+    await pause(400);
+  };
+  const openEditorButton = `document.querySelector(".editor-button").click(); await sleep(700);`;
+  await page.run(`${HELPERS}
+    window.__tab("Lab"); await sleep(300); window.scrollTo(0, 0);
+    __set("#fen", "8/8/8/8/8/2k5/8/4K3 b - - 0 1"); await sleep(800);
+    ${openEditorButton}
+    return "ok";`);
+  const editorOpened = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, asked: document.querySelector("dialog[open]") !== null,
+    palette: document.querySelector(".setup-palette") !== null && document.querySelectorAll(".setup-palette .setup-man").length === 10 });`));
+  check("on a board with one position, the editor opens on it without asking, a palette of five men a side in the bars' place",
+    editorOpened.fen === "8/8/8/8/8/2k5/8/4K3 b - - 0 1" && !editorOpened.asked && editorOpened.palette, JSON.stringify(editorOpened));
+  await page.run(`document.querySelector(".setup-clear").click(); await sleep(500); return "ok";`);
+  check("and Clear takes it back to the two kings, White to move", (await fenNow()) === "4k3/8/8/8/8/8/8/4K3 w - - 0 1", await fenNow());
+  await tap(await paletteTool("White knight"));
+  await tap(await at(0, "d4"));
+  await tap(await at(0, "f5"));
+  check("a man chosen is put down with a click, as many times as clicked",
+    (await fenNow()) === "4k3/8/8/5N2/3N4/8/8/4K3 w - - 0 1", await fenNow());
+  await tap(await paletteTool("White knight"));
+  await drag(await paletteTool("Black queen"), await at(0, "e2"));
+  const queened = await fenNow();
+  check("or dragged from the palette onto a square", queened === "4k3/8/8/5N2/3N4/8/4q3/4K3 w - - 0 1", queened);
+  await tap(await paletteTool("White pawn"));
+  await tap(await at(0, "a8"));
+  check("a pawn is not put on the last rank", (await fenNow()) === queened, await fenNow());
+  await tap(await paletteTool("White pawn"));
+  const signalBefore = await page.run(`return document.querySelector(".setup-signal").className;`);
+  await page.run(`document.querySelector(".setup-turn").click(); await sleep(400); return "ok";`);
+  const turned = await fenNow();
+  const signal = JSON.parse(await page.run(`const s = document.querySelector(".setup-signal"); return JSON.stringify({ cls: s.className, why: s.title });`));
+  check("the flower gives the move to the other side",
+    turned === "4k3/8/8/5N2/3N4/8/4q3/4K3 b - - 0 1", turned);
+  check("and the signal goes red, saying why, when that leaves a king in check",
+    /legal/.test(signalBefore) && !/illegal/.test(signalBefore) && /illegal/.test(signal.cls) && signal.why === "White is in check, with Black to move.",
+    `${signalBefore} -> ${signal.cls}: ${signal.why}`);
+  await tap(await paletteTool("Take a piece off the board"));
+  await tap(await at(0, "e2"));
+  await tap(await at(0, "e1"));
+  check("the eraser takes a man off, and never a king",
+    (await fenNow()) === "4k3/8/8/5N2/3N4/8/8/4K3 b - - 0 1", await fenNow());
+  await tap(await paletteTool("Take a piece off the board"));
+  await drag(await at(0, "d4"), { cx: 700, cy: 20 });
+  check("a man dragged off the board is taken off too", (await fenNow()) === "4k3/8/8/5N2/8/8/8/4K3 b - - 0 1", await fenNow());
+  /* A king taken up with something chosen in the palette: the choice is let
+     go of, and the king moved. */
+  await tap(await paletteTool("White rook"));
+  await drag(await at(0, "e1"), await at(0, "e7"));
+  const kingMoved = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, chosen: document.querySelectorAll(".setup-tool-chosen").length });`));
+  check("a king pressed on with a man chosen lets the choice go, and is dragged",
+    kingMoved.fen === "4k3/4K3/8/5N2/8/8/8/8 b - - 0 1" && kingMoved.chosen === 0, JSON.stringify(kingMoved));
+  await page.run(`document.querySelector(".editor-button").click(); await sleep(700); return "ok";`);
+  const finished = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, palette: document.querySelector(".setup-palette") !== null });`));
+  check("Done on a position no game reaches gives back the ordinary start, and the bars",
+    finished.fen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" && finished.palette === false, JSON.stringify(finished));
+
+  /*
+    While it is open, only the position, Done, and the two ways of taking the
+    position away — exported, or shared — answer; the rest of the Lab is
+    greyed out. What is exported is the position alone: a game of no moves
+    from its FEN, which reads back in as that position.
+  */
+  const editingState = JSON.parse(await page.run(`${HELPERS}
+    ${openEditorButton}
+    const button = (pattern) => [...document.querySelectorAll("#panel-game button")].find((b) => pattern.test(b.textContent.trim()));
+    const disabled = {
+      flip: document.querySelector("#flip-board").disabled,
+      reset: button(/^Reset to initial position$/).disabled,
+      play: [...document.querySelectorAll("#panel-game button")].find((b) => b.textContent.includes("Play")).disabled,
+      period: document.querySelector("#play-period").disabled,
+      moves: document.querySelector(".moves-select").disabled,
+      keep: document.querySelector("#keep-variations").disabled,
+      importing: button(/^Import game/).disabled,
+      stashAs: button(/^Stash game as/).disabled,
+      stashed: document.querySelector("#stashed-game").disabled,
+    };
+    const open = {
+      fen: !document.querySelector("#fen").disabled && !document.querySelector("#fen").readOnly,
+      done: !document.querySelector(".editor-button").disabled,
+      exporting: !button(/^Export game/).disabled,
+      share: !button(/Share game/).disabled,
+    };
+    button(/^Export game/).click(); await sleep(500);
+    const text = document.querySelector("dialog[open] .pgn-text").value;
+    document.querySelector("dialog[open] .dialog-close").click(); await sleep(300);
+    document.querySelector(".editor-button").click(); await sleep(600);
+    return JSON.stringify({ disabled, open, text });`));
+  check("while the board is set up, the rest of the Lab is greyed out",
+    Object.values(editingState.disabled).every((value) => value === true), JSON.stringify(editingState.disabled));
+  check("but the position, Done, Export and Share still answer",
+    Object.values(editingState.open).every((value) => value === true), JSON.stringify(editingState.open));
+  check("and the position is exported as a game of no moves from its FEN",
+    /\[SetUp "1"\]/.test(editingState.text) && /\[FEN "rnbqkbnr\/pppppppp\/8\/8\/8\/8\/PPPPPPPP\/RNBQKBNR w KQkq - 0 1"\]/.test(editingState.text) === false &&
+      !/\d\./.test(editingState.text.split("\n\n").pop()),
+    editingState.text.replace(/\n/g, " | "));
+  const POSITION_PGN = '[SetUp "1"]\n[FEN "8/8/8/8/8/2k5/8/4K3 b - - 0 1"]\n\n*\n';
+  const importedBack = JSON.parse(await page.run(`${HELPERS}
+    [...document.querySelectorAll("button")].find((b) => /import game/i.test(b.textContent)).click(); await sleep(400);
+    const box = document.querySelector("#pgn-text");
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, ${JSON.stringify(POSITION_PGN)});
+    box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+    return JSON.stringify({ fen: document.querySelector("#fen").value, open: document.querySelector("dialog[open]") !== null });`));
+  check("which reads back in as that position",
+    importedBack.fen === "8/8/8/8/8/2k5/8/4K3 b - - 0 1" && !importedBack.open, JSON.stringify(importedBack));
+
+  /* A game on the board as it came: opened on its position without a word. */
+  const loadGame = `
+    [...document.querySelectorAll("button")].find((b) => /import game/i.test(b.textContent)).click(); await sleep(400);
+    const box = document.querySelector("#pgn-text");
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, "1. e4 e5 *");
+    box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);`;
+  const untouched = JSON.parse(await page.run(`${HELPERS}
+    ${loadGame}
+    ${openEditorButton}
+    const result = { asked: document.querySelector("dialog[open]") !== null, fen: document.querySelector("#fen").value, palette: document.querySelector(".setup-palette") !== null };
+    document.querySelector(".editor-button").click(); await sleep(600);
+    return JSON.stringify(result);`));
+  check("a game on the board as it came opens the editor on its position without asking",
+    !untouched.asked && untouched.palette && untouched.fen === "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w - - 0 1",
+    JSON.stringify(untouched));
+
+  /* One with a move of the reader's own in it: asked first, and opened either way. */
+  await page.run(`${HELPERS} ${loadGame} return "ok";`);
+  await tap(await at(0, "g1"));
+  await tap(await at(0, "f3"));
+  await pause(800);
+  const dirty = JSON.parse(await page.run(`${HELPERS}
+    ${openEditorButton}
+    const asked = document.querySelector("dialog[open] .stash-prompt")?.textContent ?? null;
+    [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(700);
+    const result = { asked, fen: document.querySelector("#fen").value, palette: document.querySelector(".setup-palette") !== null };
+    document.querySelector(".editor-button").click(); await sleep(600);
+    return JSON.stringify(result);`));
+  check("one with a move of the reader's own asks whether to stash it, and opens on its position",
+    dirty.asked === "Stash current game?" && dirty.palette &&
+      dirty.fen === "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b - - 0 1",
+    JSON.stringify(dirty));
+
   console.log("\nExplanations behind an (i)\n");
 
   /*

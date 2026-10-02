@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import FenHelp from "./FenHelp";
 import InfoButton from "./InfoButton";
 
@@ -8,6 +9,8 @@ interface FenFieldProps {
   /** Why the position cannot be changed here, when it cannot. */
   readOnly?: string | null;
   onChange: (fen: string) => void;
+  /** What stands after the field on its row: the board editor's button. */
+  after?: ReactNode;
 }
 
 /**
@@ -21,6 +24,7 @@ export default function FenField({
   error,
   readOnly = null,
   onChange,
+  after = null,
 }: FenFieldProps) {
   return (
     <div className="fen-field">
@@ -49,6 +53,7 @@ export default function FenField({
           aria-describedby={error === null ? undefined : "fen-error"}
           onChange={(event) => onChange(event.target.value)}
         />
+        {after}
       </div>
 
       {error !== null && (

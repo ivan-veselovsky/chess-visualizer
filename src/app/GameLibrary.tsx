@@ -24,7 +24,7 @@ export default function GameLibrary({
   onSelect,
 }: GameLibraryProps) {
   return (
-    <div className="game-library">
+    <div className={`game-library${locked !== null ? " label-off" : ""}`}>
       <label htmlFor="library-game">Game library</label>
       <select
         id="library-game"

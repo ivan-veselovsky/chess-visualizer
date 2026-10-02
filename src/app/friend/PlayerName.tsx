@@ -60,47 +60,7 @@ export default function PlayerName({
         name starts in the same place whether or not the flower is open, so a
         move played does not shift the board under the reader.
       */}
-      <svg
-        className={`player-color player-color-${color}${toMove ? " player-color-turn" : ""}`}
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-        focusable="false"
-      >
-        {/* Always here, opened and closed by the stylesheet: a petal that came
-            and went with the render would appear at its full size and vanish
-            the same way, and what is wanted is a flower growing out from behind
-            the disc as the move arrives. The angle travels as a variable
-            because the growing is a transform too, and the two have to be
-            written together. */}
-        {PETALS.map((turn) => (
-          <ellipse
-            key={turn}
-            className="player-petal"
-            cx="12"
-            cy="-5"
-            rx="3.8"
-            ry="6.6"
-            style={{ "--petal-turn": `${turn}deg` } as CSSProperties}
-          />
-        ))}
-        {/*
-          Last, and larger than the box it is drawn in: the core is opaque and
-          covers where the petals start, so they read as growing out from behind
-          it rather than as spokes meeting at the middle.
-
-          The white one is drawn a shade smaller than the black. Set in the
-          markup rather than the stylesheet because a radius is geometry: some
-          browsers take it from CSS and others only from the attribute, and a
-          disc that is one size in one browser and another size elsewhere is not
-          worth the tidiness.
-        */}
-        <circle
-          className="player-disc"
-          cx="12"
-          cy="12"
-          r={color === "w" ? 11.55 : 12.1}
-        />
-      </svg>
+      <Flower color={color} open={toMove} />
       {/* The name in a box of its own, so that a long one is cut short rather
           than wrapped: the row is one line high whatever it holds, and the
           board below it does not move because somebody is called something
@@ -113,5 +73,57 @@ export default function PlayerName({
       <span className="player-result">{result}</span>
       <span className="player-position">{position}</span>
     </p>
+  );
+}
+
+/**
+ * The flower that says a side's colour, open while it is that side's move:
+ * the disc in its colour, and petals round it. Its own, so that whatever else
+ * says whose move it is — the board editor's switch for it — says it with the
+ * same flower the names do.
+ */
+export function Flower({ color, open }: { color: Color; open: boolean }) {
+  return (
+    <svg
+      className={`player-color player-color-${color}${open ? " player-color-turn" : ""}`}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {/* Always here, opened and closed by the stylesheet: a petal that came
+          and went with the render would appear at its full size and vanish
+          the same way, and what is wanted is a flower growing out from behind
+          the disc as the move arrives. The angle travels as a variable
+          because the growing is a transform too, and the two have to be
+          written together. */}
+      {PETALS.map((turn) => (
+        <ellipse
+          key={turn}
+          className="player-petal"
+          cx="12"
+          cy="-5"
+          rx="3.8"
+          ry="6.6"
+          style={{ "--petal-turn": `${turn}deg` } as CSSProperties}
+        />
+      ))}
+      {/*
+        Last, and larger than the box it is drawn in: the core is opaque and
+        covers where the petals start, so they read as growing out from behind
+        it rather than as spokes meeting at the middle.
+
+        The white one is drawn a shade smaller than the black. Set in the
+        markup rather than the stylesheet because a radius is geometry: some
+        browsers take it from CSS and others only from the attribute, and a
+        disc that is one size in one browser and another size elsewhere is not
+        worth the tidiness.
+      */}
+      <circle
+        className="player-disc"
+        cx="12"
+        cy="12"
+        r={color === "w" ? 11.55 : 12.1}
+      />
+    </svg>
   );
 }
