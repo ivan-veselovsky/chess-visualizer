@@ -111,8 +111,8 @@ import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
 import PromotionChooser from "./PromotionChooser";
-import SetupPalette, { type SetupTool } from "./SetupPalette";
-import { asSetup, place, setupProblems, shift, TWO_KINGS, turnOf, withTurn } from "../chess/setup";
+import BoardEditorPalette, { type BoardEditorTool } from "./BoardEditorPalette";
+import { asBoardEditorPosition, place, boardEditorProblems, shift, TWO_KINGS, turnOf, withTurn } from "../chess/boardEditor";
 import { pieceVars } from "../visualization/pieceVars";
 import StashDialog from "./StashDialog";
 import StashedGames from "./StashedGames";
@@ -331,7 +331,7 @@ export default function App() {
     stashed first. See `openEditor`.
   */
   const [editor, setEditor] = useState(false);
-  const [tool, setTool] = useState<SetupTool | null>(null);
+  const [tool, setTool] = useState<BoardEditorTool | null>(null);
   const [stashingForEditor, setStashingForEditor] = useState(false);
   /*
     A pawn's move to the last rank, waiting for the reader to say what it
@@ -1059,7 +1059,7 @@ export default function App() {
     setStashingForEditor(false);
     setEditor(true);
     setTool(null);
-    setPosition(asSetup(shown.fen()) ?? TWO_KINGS);
+    setPosition(asBoardEditorPosition(shown.fen()) ?? TWO_KINGS);
   }
 
   /**
@@ -1072,7 +1072,7 @@ export default function App() {
     const built = shown?.fen() ?? TWO_KINGS;
     setEditor(false);
     setTool(null);
-    if (setupProblems(built).length > 0) {
+    if (boardEditorProblems(built).length > 0) {
       setPosition(DEFAULT_POSITION);
     }
   }
@@ -2426,7 +2426,7 @@ export default function App() {
     or off the board; a press on a square with something chosen in the palette
     puts it there, or takes away what is there. The board editor's own rules —
     a king is never taken off or covered, a pawn never stands on the first or
-    last rank — are `setup.ts`'s, and a change they forbid is not made.
+    last rank — are `boardEditor.ts`'s, and a change they forbid is not made.
   */
   const editedFen = shown?.fen() ?? TWO_KINGS;
   const editing =
@@ -2859,10 +2859,10 @@ export default function App() {
                 </div>
                 {/* The editor's palette, in the bars' place while it is open. */}
                 {editor && (
-                  <SetupPalette
+                  <BoardEditorPalette
                     orientation={side}
                     turn={turnOf(editedFen)}
-                    problems={setupProblems(editedFen)}
+                    problems={boardEditorProblems(editedFen)}
                     tool={tool}
                     onTool={setTool}
                     onDrop={(chosen, square) =>

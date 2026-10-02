@@ -12,7 +12,7 @@ import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
  * to is what a board must have to be shown at all — one king a side, which can
  * be moved but not taken off — and no pawn on the first or the last rank,
  * where there is no such thing as a pawn. Everything else a position could get
- * wrong it may get wrong, and `setupProblems` says what.
+ * wrong it may get wrong, and `boardEditorProblems` says what.
  *
  * Every position comes out with White or Black to move as the editor says, no
  * castling, no en passant square, and the move counts at their start: what the
@@ -24,7 +24,7 @@ import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 export const TWO_KINGS = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
 /** What may be put on the board from the palette — a king being there already, and the one of him there can be. */
-export type SetupPiece = { type: Exclude<PieceSymbol, "k">; color: Color };
+export type BoardEditorPiece = { type: Exclude<PieceSymbol, "k">; color: Color };
 
 /** A board read whatever it holds: the editor shows positions no game could reach. */
 function boardOf(fen: string): Chess | null {
@@ -54,7 +54,7 @@ export function withTurn(fen: string, turn: Color = turnOf(fen) === "w" ? "b" : 
 }
 
 /** Any position, as the editor holds one: its pieces and its side to move, and nothing else. */
-export function asSetup(fen: string): string | null {
+export function asBoardEditorPosition(fen: string): string | null {
   const board = boardOf(fen);
   return board === null ? null : written(board, turnOf(fen));
 }
@@ -66,7 +66,7 @@ const onEdge = (square: Square) => square[1] === "1" || square[1] === "8";
  * whatever stood there taken off. Null where it may not be: over a king, or a
  * pawn on the first or last rank.
  */
-export function place(fen: string, square: Square, piece: SetupPiece | null): string | null {
+export function place(fen: string, square: Square, piece: BoardEditorPiece | null): string | null {
   const board = boardOf(fen);
   if (board === null || board.get(square)?.type === "k") {
     return null;
@@ -117,7 +117,7 @@ const SIDES: Record<Color, string> = { w: "White", b: "Black" };
  * nothing, for one that could be played from. The editor lets every one of
  * these be set up, and shows them as the red of its signal.
  */
-export function setupProblems(fen: string): string[] {
+export function boardEditorProblems(fen: string): string[] {
   const board = boardOf(fen);
   if (board === null) {
     return ["The position cannot be read."];

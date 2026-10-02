@@ -52,7 +52,7 @@ import { friendlyGameName } from "../src/app/friend/gameName.ts";
 import { describeEnding } from "../src/app/friend/ending.ts";
 import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { applyMove, isPromotion } from "../src/chess/moves.ts";
-import { asSetup, place, setupProblems, shift, TWO_KINGS, withTurn } from "../src/chess/setup.ts";
+import { asBoardEditorPosition, place, boardEditorProblems, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
 import { Chess } from "chess.js";
 
 let passed = 0;
@@ -2100,20 +2100,20 @@ console.log("\nThe board editor\n");
     place(knight, "d4", null) === TWO_KINGS && shift(knight, "d4", null) === TWO_KINGS);
   check("the move given to the other side", withTurn(TWO_KINGS) === "4k3/8/8/8/8/8/8/4K3 b - - 0 1", withTurn(TWO_KINGS));
   check("and a position from a game taken as it stands, castling and en passant left out",
-    asSetup("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1") === "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - - 0 1");
+    asBoardEditorPosition("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1") === "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - - 0 1");
   const checked = place(TWO_KINGS, "e2", { type: "r", color: "b" });
   check("a king in check with his own side to move is a position a game reaches",
-    setupProblems(checked).length === 0, setupProblems(checked).join(" "));
+    boardEditorProblems(checked).length === 0, boardEditorProblems(checked).join(" "));
   check("with the other side to move it is not, and the editor says why",
-    setupProblems(withTurn(checked)).join(" ") === "White is in check, with Black to move.", setupProblems(withTurn(checked)).join(" "));
+    boardEditorProblems(withTurn(checked)).join(" ") === "White is in check, with Black to move.", boardEditorProblems(withTurn(checked)).join(" "));
   check("nor are kings side by side",
-    setupProblems(shift(TWO_KINGS, "e8", "e2")).join(" ") === "The two kings stand next to each other.");
+    boardEditorProblems(shift(TWO_KINGS, "e8", "e2")).join(" ") === "The two kings stand next to each other.");
   let herd = TWO_KINGS;
   for (const square of ["a1", "b1", "c1", "d1", "a2", "b2", "c2", "d2", "f2", "g2", "h2"]) {
     herd = place(herd, square, { type: "n", color: "w" });
   }
   check("eleven knights can be put down, and are more than a side's pawns could have become",
-    setupProblems(herd).join(" ") === "White has more pieces than its pawns could have become.", setupProblems(herd).join(" "));
+    boardEditorProblems(herd).join(" ") === "White has more pieces than its pawns could have become.", boardEditorProblems(herd).join(" "));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

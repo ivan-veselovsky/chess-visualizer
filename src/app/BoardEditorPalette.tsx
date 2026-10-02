@@ -1,29 +1,29 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Color, Square } from "chess.js";
 import { PIECE_GLYPHS } from "../chess/model";
-import type { SetupPiece } from "../chess/setup";
+import type { BoardEditorPiece } from "../chess/boardEditor";
 import { Flower } from "./friend/PlayerName";
 
 /** What is chosen in the palette: a piece to put down, or the eraser that takes one away. */
-export type SetupTool = SetupPiece | "erase";
+export type BoardEditorTool = BoardEditorPiece | "erase";
 
-const KINDS: SetupPiece["type"][] = ["q", "n", "b", "r", "p"];
-const NAMES: Record<SetupPiece["type"], string> = { q: "queen", n: "knight", b: "bishop", r: "rook", p: "pawn" };
+const KINDS: BoardEditorPiece["type"][] = ["q", "n", "b", "r", "p"];
+const NAMES: Record<BoardEditorPiece["type"], string> = { q: "queen", n: "knight", b: "bishop", r: "rook", p: "pawn" };
 
 /** How far a press may wander before it is a drag rather than a click. */
 const SLOP = 4;
 
-interface SetupPaletteProps {
+interface BoardEditorPaletteProps {
   /** Which way the board is turned: the side at the top has its men at the top. */
   orientation: "white" | "black";
   /** Whose move the position being set up is. */
   turn: Color;
   /** What the position has wrong with it as one a game could reach; nothing, for one it could. */
   problems: string[];
-  tool: SetupTool | null;
-  onTool: (tool: SetupTool | null) => void;
+  tool: BoardEditorTool | null;
+  onTool: (tool: BoardEditorTool | null) => void;
   /** The tool let go over a square of a board. */
-  onDrop: (tool: SetupTool, square: Square) => void;
+  onDrop: (tool: BoardEditorTool, square: Square) => void;
   onTurn: () => void;
   /** The board cleared to the two kings. */
   onClear: () => void;
@@ -58,13 +58,13 @@ function squareUnder(x: number, y: number): Square | null {
  * from here and let go over the square. The eraser is chosen and used the same
  * way, on the men already there.
  */
-export default function SetupPalette({ orientation, turn, problems, tool, onTool, onDrop, onTurn, onClear, style }: SetupPaletteProps) {
+export default function BoardEditorPalette({ orientation, turn, problems, tool, onTool, onDrop, onTurn, onClear, style }: BoardEditorPaletteProps) {
   const top: Color = orientation === "white" ? "b" : "w";
   const bottom: Color = top === "w" ? "b" : "w";
   /* The man being dragged from here, and where the pointer is: drawn under it
      until it is let go. */
-  const [carried, setCarried] = useState<{ tool: SetupTool; x: number; y: number } | null>(null);
-  const press = useRef<{ tool: SetupTool; x: number; y: number; moved: boolean } | null>(null);
+  const [carried, setCarried] = useState<{ tool: BoardEditorTool; x: number; y: number } | null>(null);
+  const press = useRef<{ tool: BoardEditorTool; x: number; y: number; moved: boolean } | null>(null);
 
   /* Escape lets go of what is chosen. */
   useEffect(() => {
@@ -80,10 +80,10 @@ export default function SetupPalette({ orientation, turn, problems, tool, onTool
     return () => window.removeEventListener("keydown", escape);
   }, [tool, onTool]);
 
-  const same = (one: SetupTool | null, other: SetupTool) =>
+  const same = (one: BoardEditorTool | null, other: BoardEditorTool) =>
     one === other || (one !== null && one !== "erase" && other !== "erase" && one.type === other.type && one.color === other.color);
 
-  function down(event: ReactPointerEvent<HTMLButtonElement>, chosen: SetupTool) {
+  function down(event: ReactPointerEvent<HTMLButtonElement>, chosen: BoardEditorTool) {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     press.current = { tool: chosen, x: event.clientX, y: event.clientY, moved: false };
@@ -123,15 +123,15 @@ export default function SetupPalette({ orientation, turn, problems, tool, onTool
   }
 
   const men = (color: Color) => (
-    <div className="setup-men">
+    <div className="board-editor-men">
       {KINDS.map((type) => {
-        const piece: SetupPiece = { type, color };
+        const piece: BoardEditorPiece = { type, color };
         const name = `${color === "w" ? "White" : "Black"} ${NAMES[type]}`;
         return (
           <button
             key={type}
             type="button"
-            className={`setup-tool setup-man${same(tool, piece) ? " setup-tool-chosen" : ""}`}
+            className={`board-editor-tool board-editor-man${same(tool, piece) ? " board-editor-tool-chosen" : ""}`}
             aria-label={name}
             aria-pressed={same(tool, piece)}
             title={name}
@@ -160,13 +160,13 @@ export default function SetupPalette({ orientation, turn, problems, tool, onTool
   );
 
   return (
-    <div className="men-bar setup-palette" aria-label="Pieces to put on the board" style={style}>
-      <div className="men-bar-column setup-column">
+    <div className="men-bar board-editor-palette" aria-label="Pieces to put on the board" style={style}>
+      <div className="men-bar-column board-editor-column">
         {men(top)}
-        <div className="setup-middle">
+        <div className="board-editor-middle">
           <button
             type="button"
-            className={`setup-tool setup-erase${tool === "erase" ? " setup-tool-chosen" : ""}`}
+            className={`board-editor-tool board-editor-erase${tool === "erase" ? " board-editor-tool-chosen" : ""}`}
             aria-label="Take a piece off the board"
             aria-pressed={tool === "erase"}
             title="Take a piece off the board: choose this, then press on the piece — or drag the piece off the board."
@@ -180,7 +180,7 @@ export default function SetupPalette({ orientation, turn, problems, tool, onTool
           </button>
           <button
             type="button"
-            className="setup-turn"
+            className="board-editor-turn"
             aria-label={`${turn === "w" ? "White" : "Black"} to move — press to give the move to the other side`}
             title={`${turn === "w" ? "White" : "Black"} to move. Press to give the move to ${turn === "w" ? "Black" : "White"}.`}
             onClick={onTurn}
@@ -188,7 +188,7 @@ export default function SetupPalette({ orientation, turn, problems, tool, onTool
             <Flower color={turn} open />
           </button>
           <span
-            className={`setup-signal ${problems.length === 0 ? "setup-signal-legal" : "setup-signal-illegal"}`}
+            className={`board-editor-signal ${problems.length === 0 ? "board-editor-signal-legal" : "board-editor-signal-illegal"}`}
             role="img"
             aria-label={problems.length === 0 ? "A legal position" : `Not a legal position: ${problems.join(" ")}`}
             title={problems.length === 0 ? "A position a game could reach." : problems.join("\n")}
@@ -198,7 +198,7 @@ export default function SetupPalette({ orientation, turn, problems, tool, onTool
               away from the eraser, so it is not pressed for it by mistake. */}
           <button
             type="button"
-            className="setup-clear"
+            className="board-editor-clear"
             aria-label="Clear the board"
             title="Clear the board: back to the two kings."
             onClick={onClear}
@@ -211,7 +211,7 @@ export default function SetupPalette({ orientation, turn, problems, tool, onTool
         {men(bottom)}
       </div>
       {carried !== null && (
-        <div className="setup-carried" style={{ left: carried.x, top: carried.y }} aria-hidden="true">
+        <div className="board-editor-carried" style={{ left: carried.x, top: carried.y }} aria-hidden="true">
           {carried.tool === "erase" ? (
             <svg viewBox="0 0 16 16">
               <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />

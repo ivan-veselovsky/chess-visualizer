@@ -577,7 +577,7 @@ try {
     the ordinary start.
   */
   const fenNow = () => page.run(`return document.querySelector("#fen").value;`);
-  const paletteTool = (label) => page.run(`const b = document.querySelector('.setup-palette [aria-label="${label}"]').getBoundingClientRect();
+  const paletteTool = (label) => page.run(`const b = document.querySelector('.board-editor-palette [aria-label="${label}"]').getBoundingClientRect();
     return { cx: Math.round(b.x + b.width / 2), cy: Math.round(b.y + b.height / 2) };`);
   const tap = async (point) => {
     await page.click(point.cx, point.cy);
@@ -590,10 +590,10 @@ try {
     ${openEditorButton}
     return "ok";`);
   const editorOpened = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, asked: document.querySelector("dialog[open]") !== null,
-    palette: document.querySelector(".setup-palette") !== null && document.querySelectorAll(".setup-palette .setup-man").length === 10 });`));
+    palette: document.querySelector(".board-editor-palette") !== null && document.querySelectorAll(".board-editor-palette .board-editor-man").length === 10 });`));
   check("on a board with one position, the editor opens on it without asking, a palette of five men a side in the bars' place",
     editorOpened.fen === "8/8/8/8/8/2k5/8/4K3 b - - 0 1" && !editorOpened.asked && editorOpened.palette, JSON.stringify(editorOpened));
-  await page.run(`document.querySelector(".setup-clear").click(); await sleep(500); return "ok";`);
+  await page.run(`document.querySelector(".board-editor-clear").click(); await sleep(500); return "ok";`);
   check("and Clear takes it back to the two kings, White to move", (await fenNow()) === "4k3/8/8/8/8/8/8/4K3 w - - 0 1", await fenNow());
   await tap(await paletteTool("White knight"));
   await tap(await at(0, "d4"));
@@ -608,10 +608,10 @@ try {
   await tap(await at(0, "a8"));
   check("a pawn is not put on the last rank", (await fenNow()) === queened, await fenNow());
   await tap(await paletteTool("White pawn"));
-  const signalBefore = await page.run(`return document.querySelector(".setup-signal").className;`);
-  await page.run(`document.querySelector(".setup-turn").click(); await sleep(400); return "ok";`);
+  const signalBefore = await page.run(`return document.querySelector(".board-editor-signal").className;`);
+  await page.run(`document.querySelector(".board-editor-turn").click(); await sleep(400); return "ok";`);
   const turned = await fenNow();
-  const signal = JSON.parse(await page.run(`const s = document.querySelector(".setup-signal"); return JSON.stringify({ cls: s.className, why: s.title });`));
+  const signal = JSON.parse(await page.run(`const s = document.querySelector(".board-editor-signal"); return JSON.stringify({ cls: s.className, why: s.title });`));
   check("the flower gives the move to the other side",
     turned === "4k3/8/8/5N2/3N4/8/4q3/4K3 b - - 0 1", turned);
   check("and the signal goes red, saying why, when that leaves a king in check",
@@ -629,11 +629,11 @@ try {
      go of, and the king moved. */
   await tap(await paletteTool("White rook"));
   await drag(await at(0, "e1"), await at(0, "e7"));
-  const kingMoved = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, chosen: document.querySelectorAll(".setup-tool-chosen").length });`));
+  const kingMoved = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, chosen: document.querySelectorAll(".board-editor-tool-chosen").length });`));
   check("a king pressed on with a man chosen lets the choice go, and is dragged",
     kingMoved.fen === "4k3/4K3/8/5N2/8/8/8/8 b - - 0 1" && kingMoved.chosen === 0, JSON.stringify(kingMoved));
   await page.run(`document.querySelector(".editor-button").click(); await sleep(700); return "ok";`);
-  const finished = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, palette: document.querySelector(".setup-palette") !== null });`));
+  const finished = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, palette: document.querySelector(".board-editor-palette") !== null });`));
   check("Done on a position no game reaches gives back the ordinary start, and the bars",
     finished.fen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" && finished.palette === false, JSON.stringify(finished));
 
@@ -697,7 +697,7 @@ try {
   const untouched = JSON.parse(await page.run(`${HELPERS}
     ${loadGame}
     ${openEditorButton}
-    const result = { asked: document.querySelector("dialog[open]") !== null, fen: document.querySelector("#fen").value, palette: document.querySelector(".setup-palette") !== null };
+    const result = { asked: document.querySelector("dialog[open]") !== null, fen: document.querySelector("#fen").value, palette: document.querySelector(".board-editor-palette") !== null };
     document.querySelector(".editor-button").click(); await sleep(600);
     return JSON.stringify(result);`));
   check("a game on the board as it came opens the editor on its position without asking",
@@ -713,7 +713,7 @@ try {
     ${openEditorButton}
     const asked = document.querySelector("dialog[open] .stash-prompt")?.textContent ?? null;
     [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(700);
-    const result = { asked, fen: document.querySelector("#fen").value, palette: document.querySelector(".setup-palette") !== null };
+    const result = { asked, fen: document.querySelector("#fen").value, palette: document.querySelector(".board-editor-palette") !== null };
     document.querySelector(".editor-button").click(); await sleep(600);
     return JSON.stringify(result);`));
   check("one with a move of the reader's own asks whether to stash it, and opens on its position",
