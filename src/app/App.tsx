@@ -747,6 +747,7 @@ export default function App() {
     if (entries === null) {
       return error;
     }
+    stepAwayForChange();
     const loaded = historyFromLine(entries);
     setHistory(loaded);
     showPosition(currentPosition(loaded));
@@ -946,6 +947,7 @@ export default function App() {
     if (game === undefined) {
       return;
     }
+    stepAwayForChange();
     setHistory(game.history);
     showPosition(currentPosition(game.history));
     handed.current = lineOf(game.history);
@@ -984,7 +986,24 @@ export default function App() {
    * That starts a fresh line rather than continuing one: there is no move
    * connecting it to what came before, so nothing to step back through.
    */
+  /**
+   * A game with a friend is left before the board is given another position:
+   * the "Step away" the games panel offers, done for the reader, since what is
+   * about to be on the board is no longer that game. A game still being played
+   * never gets here — the controls that set a position are closed while it is
+   * on — so this is a game that is over, or a challenge waiting for an answer:
+   * the one stays in the list, and the other stays offered.
+   *
+   * Not for stepping through the game's moves, which is reading it.
+   */
+  function stepAwayForChange() {
+    if (friend.phase.kind !== "idle") {
+      friend.putDown();
+    }
+  }
+
   function setPosition(next: string) {
+    stepAwayForChange();
     showPosition(next);
     setHistory(startHistory(next));
     /* Typed, pasted or reset: whatever follows from here is the board's own
