@@ -12,7 +12,7 @@
  * players' names are already in. And, with two boards, that the rows of names
  * run across both.
  */
-import { check, HELPERS, open, pause, summary } from "./browser.mjs";
+import { check, HELPERS, open, openAsBefore, pause, summary } from "./browser.mjs";
 import DEFAULTS from "../src/app/presets/default-settings.json" with { type: "json" };
 
 const PORT = Number(process.env.PORT ?? 4191);
@@ -101,6 +101,7 @@ try {
   await page.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 950, deviceScaleFactor: 1, mobile: false });
   await page.send("Page.navigate", { url: lab.app });
   await pause(2500);
+  await openAsBefore(page);
 
   console.log("\nThe line on the board, named over it\n");
   const named = JSON.parse(await page.run(`${HELPERS}${WHERE}
@@ -393,7 +394,12 @@ try {
     const toggle = document.querySelector("#two-board-mode"); if (!toggle.checked) toggle.click(); await sleep(700);
     window.scrollTo(0, 0); await sleep(200);
     return JSON.stringify({
-      left: box(".board-holder svg", 0), right: box(".board-holder svg", 1),
+      /* By where they stand rather than which comes first in the page: the
+         main board comes first, and stands on the right. */
+      ...(() => {
+        const [a, b] = [box(".board-holder svg", 0), box(".board-holder svg", 1)];
+        return a.left < b.left ? { left: a, right: b } : { left: b, right: a };
+      })(),
       who: box(".board-and-players > .player-name .player-who"),
       position: box(".board-and-players > .player-name .player-position"),
       branch: box(".branch-path"),

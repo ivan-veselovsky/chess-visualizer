@@ -14,6 +14,7 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
+import DEFAULTS from "../src/app/presets/default-settings.json" with { type: "json" };
 
 /*
   What every suite here says about what it found, said the same way.
@@ -428,6 +429,30 @@ export async function openFirefox({ port, debugPort, width = 1400, height = 900 
     },
   };
   return { page, app, stop };
+}
+
+/**
+ * A fresh browser put back the way the suites were written against: one board,
+ * in the blue and orange preset with the attacks — which is how the app opened
+ * until it opened on two boards in Classic green. What the suites assert of
+ * the picture, the timing and the layout was measured from that start, and
+ * the start a new browser gets is checked once, on its own, by the board
+ * suite. Written into the browser's own store, as the app would have left it,
+ * and the page loaded again to read it.
+ */
+export async function openAsBefore(page) {
+  const record = JSON.stringify({ target: "Blue - orange - with attacks", working: DEFAULTS, sets: {} });
+  /* Before the app is on the page to read it — the page that is there writes
+     its own settings back as it goes, over anything written beside it — and
+     for the one load only. */
+  const { identifier } = (
+    await page.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `localStorage.setItem("cv.two-board", "off"); localStorage.setItem("cv.settings", ${JSON.stringify(record)});`,
+    })
+  ).result;
+  await page.send("Page.reload");
+  await pause(2500);
+  await page.send("Page.removeScriptToEvaluateOnNewDocument", { identifier });
 }
 
 /**

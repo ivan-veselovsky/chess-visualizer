@@ -740,18 +740,18 @@ export default function SettingsPanel({
             <ToggleField
               id="two-board-mode"
               label="Two board mode"
-              hint="Draw a second board beside the first, from another preset, so two sets of settings can be read against each other on the same position. The second board is a view rather than a game: moves are played on the first."
+              hint="Draw a classic board beside the main one, from another preset, so two sets of settings can be read against each other on the same position. The classic board stands on the left and the main one on the right; moves can be played on either."
               checked={twoBoard}
               onChange={onTwoBoard}
             />
             <SelectField
               id="two-board-preset"
-              label="Settings for the right board"
+              label="Settings for the classic board"
               apart
               disabled={!twoBoard}
               hint={
                 twoBoard
-                  ? "Which preset the right board is drawn with. It shows the preset as it is saved, so the left board's unsaved edits are not in it — which is what makes the two comparable."
+                  ? "Which preset the classic board, on the left, is drawn with. It shows the preset as it is saved, so the main board's unsaved edits are not in it — which is what makes the two comparable. The settings in the other tabs are the main board's: the classic board changes only with the preset chosen here."
                   : "Turn on two board mode to choose one."
               }
               value={rightPreset}

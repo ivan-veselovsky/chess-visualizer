@@ -111,7 +111,7 @@ import PgnDialog from "./PgnDialog";
 import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
 import PromotionChooser from "./PromotionChooser";
-import BoardEditorPalette, { type BoardEditorTool } from "./BoardEditorPalette";
+import BoardEditorPalette, { EditorSignal, EditorTurn, type BoardEditorTool } from "./BoardEditorPalette";
 import { asBoardEditorPosition, place, boardEditorProblems, shift, TWO_KINGS, turnOf, withTurn } from "../chess/boardEditor";
 import { pieceVars } from "../visualization/pieceVars";
 import StashDialog from "./StashDialog";
@@ -133,7 +133,7 @@ import { useFriendGame } from "./friend/useFriendGame";
 import type { Heatmap, Settings } from "./settings";
 import { OPPONENT_CHOOSES } from "../../worker/protocol";
 import type { ColorChoice, Terms } from "../../worker/protocol";
-import { DEFAULT_SETTINGS, PRESETS } from "./presets";
+import { PRESETS, STARTING_PRESET } from "./presets";
 import { boardSide, setBoardSide } from "./boardSide";
 import LockIcon from "./LockIcon";
 import ExitIcon from "./ExitIcon";
@@ -293,8 +293,10 @@ export default function App() {
   }, []);
 
   const [opened] = useState(loadSettings);
+  /* The settings the board opens with: those last in use, or — in a browser
+     that has none yet — the preset it opens on. */
   const [settings, setSettings] = useState<Settings>(
-    () => opened.working ?? DEFAULT_SETTINGS
+    () => opened.working ?? STARTING_PRESET.settings
   );
 
   /*
@@ -333,6 +335,10 @@ export default function App() {
   const [editor, setEditor] = useState(false);
   const [tool, setTool] = useState<BoardEditorTool | null>(null);
   const [stashingForEditor, setStashingForEditor] = useState(false);
+  /* The positions the editor has been through, for Undo, and the ones undone,
+     for Redo: emptied as it opens and closes. */
+  const [editorPast, setEditorPast] = useState<string[]>([]);
+  const [editorFuture, setEditorFuture] = useState<string[]>([]);
   /*
     A pawn's move to the last rank, waiting for the reader to say what it
     becomes; see `PromotionChooser`. Held with the position it was made in, so
@@ -362,22 +368,22 @@ export default function App() {
   const exportingRef = useRef(false);
   const [rightPreset, setRightPreset] = useState(twoBoardPreset);
   /*
-    Every preset the right board could be drawn with, and the one it is.
+    Every preset the classic board could be drawn with, and the one it is.
 
     The ones this build cannot read are left off the list: a row that is there
     to say "these are from another version" is not something to draw a board
     from. What is left is the built-ins and the reader's own.
 
-    Until the reader chooses one, the right board is drawn in Classic green: a
+    Until the reader chooses one, the classic board is drawn in Classic green: a
     second board is there to be set against the first, and one that opened in
     the same colours as the first would have nothing to show until somebody
     went and found the switch. It used to take the first row of the list,
     which is the preset the app opens with — so for nearly everybody, the very
-    set the left board was already in.
+    set the main board was already in.
 
-    For the same reason, a left board already in Classic green gets the
+    For the same reason, a main board already in Classic green gets the
     default set on the right instead. And once a preset has been chosen,
-    neither applies: the choice stands, whatever the left board is doing.
+    neither applies: the choice stands, whatever the main board is doing.
 
     The two are looked up by the built-ins' ids rather than their names, which
     are what the list shows and can be reworded.
@@ -402,7 +408,7 @@ export default function App() {
     rightPreset !== null && rightChoices.includes(rightPreset)
       ? rightPreset
       : rightDefault;
-  /* And what it holds. Falling back to the left board's own settings leaves
+  /* And what it holds. Falling back to the main board's own settings leaves
      two boards drawn alike, which says plainly that the choice did not land —
      better than a blank half of the page. */
   const rightSettings = presets.settingsNamed(rightNamed) ?? settings;
@@ -1059,6 +1065,8 @@ export default function App() {
     setStashingForEditor(false);
     setEditor(true);
     setTool(null);
+    setEditorPast([]);
+    setEditorFuture([]);
     setPosition(asBoardEditorPosition(shown.fen()) ?? TWO_KINGS);
   }
 
@@ -1072,20 +1080,52 @@ export default function App() {
     const built = shown?.fen() ?? TWO_KINGS;
     setEditor(false);
     setTool(null);
+    setEditorPast([]);
+    setEditorFuture([]);
     if (boardEditorProblems(built).length > 0) {
       setPosition(DEFAULT_POSITION);
     }
   }
 
-  /** A change made in the editor, where the editor allows it; `dragged` is a piece carried there by hand, which is not flown. */
+  /**
+   * A change made in the editor, where the editor allows it, kept for Undo;
+   * `dragged` is a piece carried there by hand, which is not flown.
+   */
   function editTo(next: string | null, dragged: Square | null = null) {
-    if (next === null) {
+    const now = shown?.fen();
+    if (next === null || now === undefined || next === now) {
       return;
     }
     if (dragged !== null) {
       draggedTo.current = dragged;
     }
+    setEditorPast([...editorPast, now]);
+    setEditorFuture([]);
     setPosition(next);
+  }
+
+  /** The editor's last change taken back, and kept for Redo. */
+  function undoEdit() {
+    const now = shown?.fen();
+    const back = editorPast[editorPast.length - 1];
+    if (back === undefined || now === undefined) {
+      return;
+    }
+    setEditorPast(editorPast.slice(0, -1));
+    setEditorFuture([now, ...editorFuture]);
+    setPosition(back);
+  }
+
+  /** And made again. */
+  function redoEdit() {
+    const now = shown?.fen();
+    const on = editorFuture[0];
+    if (on === undefined || now === undefined) {
+      return;
+    }
+    setEditorFuture(editorFuture.slice(1));
+    setEditorPast([...editorPast, now]);
+    setPosition(on);
   }
 
   /**
@@ -2443,6 +2483,32 @@ export default function App() {
           onLetGo: () => setTool(null),
         };
 
+  /* Undo and Redo from the keyboard as well, by the keys every editor uses for
+     them — except where a field has the keyboard, which has its own. */
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    const keys = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) {
+        return;
+      }
+      if (keyboardIsOn(event.target) || document.querySelector("dialog[open]") !== null) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undoEdit();
+      } else if (key === "y" || (key === "z" && event.shiftKey)) {
+        event.preventDefault();
+        redoEdit();
+      }
+    };
+    window.addEventListener("keydown", keys);
+    return () => window.removeEventListener("keydown", keys);
+  });
+
   /* The editor closes when a game arrives on the board — read in, taken from
      the library or the stash, or begun with a friend: what is on the board is
      no longer a position being set up. */
@@ -2721,10 +2787,15 @@ export default function App() {
                   {/* Where a name would be, as there is none: which line of
                       the game is up, from where the first file begins. */}
                   <span className="player-who">{branchLabel}</span>
-                  <span className="player-result">
+                  <span className={`player-result${editor ? " board-editor-row" : ""}`}>
+                    {/* In the editor, whose move it is — pressed to give it to
+                        the other side — and whether a game could reach the
+                        position, either side of how it stands. */}
+                    {editor && <EditorTurn turn={turnOf(editedFen)} onTurn={() => editTo(withTurn(editedFen))} />}
                     {unnamedResult !== null && (
                       <span className="player-score">{scoreOf(unnamedResult)}</span>
                     )}
+                    {editor && <EditorSignal problems={boardEditorProblems(editedFen)} />}
                   </span>
                   <span className="player-position">{counted}</span>
                 </p>
@@ -2810,7 +2881,9 @@ export default function App() {
                 orientation={side}
               />
                 {/*
-                  And the same position again, drawn from another preset.
+                  And the same position again, drawn from another preset: the
+                  classic board, drawn on the left of the main one — see
+                  `.app-two-up .boards`.
 
                   Everything about the picture is the other preset's; everything
                   about the position is this one's, down to the move in the air,
@@ -2819,7 +2892,7 @@ export default function App() {
                   which way round the board is turned is where the reader is
                   sitting, and they are sitting in one place.
 
-                  Moves are played on it as on the left one, by the same rules —
+                  Moves are played on it as on the main one, by the same rules —
                   a piece is dragged or clicked on either board, since the
                   reader's eye may be on either. What a board holds while a
                   move is being made is its own: the piece picked up, and where
@@ -2830,7 +2903,7 @@ export default function App() {
                   pointer being that board's until it is let go. The move, once
                   made, is the game's, and both boards play it.
 
-                  No `onFlightLanded`: the left board reports the landing, and
+                  No `onFlightLanded`: the main board reports the landing, and
                   two boards reporting one landing would say it twice.
                 */}
                 {twoBoard && (
@@ -2861,15 +2934,14 @@ export default function App() {
                 {editor && (
                   <BoardEditorPalette
                     orientation={side}
-                    turn={turnOf(editedFen)}
-                    problems={boardEditorProblems(editedFen)}
                     tool={tool}
                     onTool={setTool}
                     onDrop={(chosen, square) =>
                       editTo(place(editedFen, square, chosen === "erase" ? null : chosen))
                     }
-                    onTurn={() => editTo(withTurn(editedFen))}
                     onClear={() => editTo(TWO_KINGS)}
+                    onUndo={editorPast.length > 0 ? undoEdit : null}
+                    onRedo={editorFuture.length > 0 ? redoEdit : null}
                     style={pieceVars(settings.pieces.tint, settings.attacks)}
                   />
                 )}
@@ -3247,12 +3319,15 @@ export default function App() {
                   title={inGame ?? (!editor ? "Set up a position piece by piece" : "Finish setting up, and start from this position")}
                   onClick={!editor ? openEditor : closeEditor}
                 >
-                  {/* Whichever it says, as wide as the longer of the two, held
-                      in the same place unseen: the field beside it keeps its
-                      width as the editor opens and closes. */}
-                  <span className="editor-button-label">{!editor ? "Board editor" : "Done"}</span>
+                  {/* Whichever it says, as wide as the longer of the two, both
+                      held in the same place unseen: the field beside it keeps
+                      its width as the editor opens and closes. */}
+                  <span className="editor-button-label">{!editor ? "Board editor" : "Done editing"}</span>
                   <span className="editor-button-room" aria-hidden="true">
                     Board editor
+                  </span>
+                  <span className="editor-button-room" aria-hidden="true">
+                    Done editing
                   </span>
                 </button>
               }

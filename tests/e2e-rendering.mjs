@@ -34,7 +34,7 @@
  * diff it makes is the review.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { check, HELPERS, open, pause, summary } from "./browser.mjs";
+import { check, HELPERS, open, openAsBefore, pause, summary } from "./browser.mjs";
 import { readPng } from "./png.mjs";
 
 const PORT = Number(process.env.PORT ?? 4179);
@@ -217,6 +217,7 @@ try {
   }
   await lab.page.send("Page.navigate", { url: lab.app });
   await pause(2500);
+  await openAsBefore(lab.page);
 
   await lab.page.run(`
     ${HELPERS}

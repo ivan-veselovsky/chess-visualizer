@@ -13,14 +13,11 @@ export const SETTINGS_FILE_NAME = "chess-visualizer-settings.json";
  * What to call the file, given the preset the settings are being used under.
  *
  * The preset's own name, because that is what the reader calls these settings
- * and what they will look for when they come to import them again. Two things
- * are taken off it: the "(default)" that says which built-in the app opens
- * with, which means nothing in somebody's downloads folder, and any character
- * a file system would rather not be given.
+ * and what they will look for when they come to import them again, less any
+ * character a file system would rather not be given.
  */
 export function settingsFileName(preset: string | null): string {
   const wanted = (preset ?? "")
-    .replace(/\s*\(default\)\s*/i, " ")
     .replace(/[\\/:*?"<>|]/g, "")
     .trim();
   return wanted === "" ? SETTINGS_FILE_NAME : `${wanted}.json`;

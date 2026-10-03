@@ -19,7 +19,7 @@
  * It drives the built app rather than the sources: this is about what is
  * shipped, and the dev server's own machinery has no business in it.
  */
-import { check, HELPERS, open, pause, summary } from "./browser.mjs";
+import { check, HELPERS, open, openAsBefore, pause, summary } from "./browser.mjs";
 
 /*
    One frame of slack, and no more. The two halves of a crossing are settled in
@@ -42,6 +42,32 @@ try {
   await page.send("Page.enable");
   await page.send("Page.navigate", { url: lab.app });
   await pause(2500);
+
+  console.log("\nHow a new browser opens\n");
+  /* Two boards: the main one on the right in the blue and orange preset, with
+     the attacks — which no longer calls itself the default — and the classic
+     board on the left in Classic green. */
+  const fresh = JSON.parse(await page.run(`${HELPERS}
+    document.querySelector("#tab-manage").click(); await sleep(500);
+    const classic = document.querySelector("#two-board-preset");
+    const [main, other] = [...document.querySelectorAll(".board-holder svg")];
+    return JSON.stringify({
+      current: document.querySelector('[aria-current="true"]')?.textContent ?? null,
+      two: document.querySelector("#two-board-mode").checked,
+      classic: classic?.value ?? null,
+      label: document.querySelector('label[for="two-board-preset"]')?.textContent ?? null,
+      names: [...(classic?.options ?? [])].map((o) => o.textContent),
+      mainOnTheRight: main !== undefined && other !== undefined && main.getBoundingClientRect().x > other.getBoundingClientRect().x,
+      marks: [main?.querySelectorAll(".attack-layer *").length ?? 0, other?.querySelectorAll(".attack-layer *").length ?? 0],
+    });`));
+  check("a new browser opens on two boards, the main one in the blue and orange preset, no longer called the default",
+    fresh.two === true && fresh.current === "Blue - orange - with attacks" && !fresh.names.some((name) => /default/i.test(name)),
+    JSON.stringify(fresh));
+  check("and the classic board, Classic green, on the left of it, with nothing drawn over its squares",
+    fresh.classic === "Classic green" && fresh.label === "Settings for the classic board" && fresh.mainOnTheRight &&
+      fresh.marks[0] > 0 && fresh.marks[1] === 0,
+    JSON.stringify(fresh));
+  await openAsBefore(page);
 
   /*
     A slow move and a long fade, so that everything below has room to be seen.
@@ -629,9 +655,31 @@ try {
      go of, and the king moved. */
   await tap(await paletteTool("White rook"));
   await drag(await at(0, "e1"), await at(0, "e7"));
-  const kingMoved = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, chosen: document.querySelectorAll(".board-editor-tool-chosen").length });`));
+  const kingMoved = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value,
+    chosen: [...document.querySelectorAll(".board-editor-tool-chosen")].map((b) => b.getAttribute("aria-label")).join(",") });`));
+  /* The pointer lets go of a choice; Undo and Redo take a change back and
+     make it again, from the palette or by the keys every editor uses. */
+  await tap(await paletteTool("White rook"));
+  await tap(await paletteTool("Move pieces"));
+  const chosenAfterArrow = await page.run(`return [...document.querySelectorAll(".board-editor-tool-chosen")].map((b) => b.getAttribute("aria-label")).join(",");`);
+  check("the pointer in the palette lets go of what was chosen", chosenAfterArrow === "Move pieces", chosenAfterArrow);
+  const beforeUndo = await fenNow();
+  await tap(await paletteTool("Undo"));
+  const undone = await fenNow();
+  await tap(await paletteTool("Redo"));
+  const redone = await fenNow();
+  await page.send("Input.dispatchKeyEvent", { type: "keyDown", key: "z", code: "KeyZ", windowsVirtualKeyCode: 90, modifiers: 2 });
+  await page.send("Input.dispatchKeyEvent", { type: "keyUp", key: "z", code: "KeyZ", windowsVirtualKeyCode: 90, modifiers: 2 });
+  await pause(400);
+  const undoneByKey = await fenNow();
+  await page.send("Input.dispatchKeyEvent", { type: "keyDown", key: "y", code: "KeyY", windowsVirtualKeyCode: 89, modifiers: 2 });
+  await page.send("Input.dispatchKeyEvent", { type: "keyUp", key: "y", code: "KeyY", windowsVirtualKeyCode: 89, modifiers: 2 });
+  await pause(400);
+  check("Undo takes the last change back, and Redo makes it again — by the palette, and by Ctrl+Z and Ctrl+Y",
+    undone !== beforeUndo && redone === beforeUndo && undoneByKey === undone && (await fenNow()) === beforeUndo,
+    `${beforeUndo} / ${undone} / ${redone} / ${undoneByKey}`);
   check("a king pressed on with a man chosen lets the choice go, and is dragged",
-    kingMoved.fen === "4k3/4K3/8/5N2/8/8/8/8 b - - 0 1" && kingMoved.chosen === 0, JSON.stringify(kingMoved));
+    kingMoved.fen === "4k3/4K3/8/5N2/8/8/8/8 b - - 0 1" && kingMoved.chosen === "Move pieces", JSON.stringify(kingMoved));
   await page.run(`document.querySelector(".editor-button").click(); await sleep(700); return "ok";`);
   const finished = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, palette: document.querySelector(".board-editor-palette") !== null });`));
   check("Done on a position no game reaches gives back the ordinary start, and the bars",

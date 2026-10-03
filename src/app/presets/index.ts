@@ -21,11 +21,31 @@ export interface Preset {
 export const PRESETS: Preset[] = [
   {
     id: "default",
-    name: "Blue - orange - with attacks (default)",
+    name: "Blue - orange - with attacks",
     settings: DEFAULT_SETTINGS,
   },
   { id: "classic-green", name: "Classic green", settings: CLASSIC_GREEN },
   { id: "classic-brown", name: "Classic brown", settings: CLASSIC_BROWN },
 ];
+
+/**
+ * The preset a browser opens with before anything has been chosen in it: the
+ * main board's, with the attacks drawn — the classic board beside it, on from
+ * the start, showing Classic green.
+ */
+export const STARTING_PRESET: Preset = PRESETS.find((preset) => preset.id === "default")!;
+
+/**
+ * Built-ins' names as an earlier build wrote them, to the names they go by now:
+ * a choice remembered under the old name is the same preset, and is found again.
+ */
+const FORMER_NAMES: Record<string, string> = {
+  "Blue - orange - with attacks (default)": "Blue - orange - with attacks",
+};
+
+/** A preset's name as this build calls it. */
+export function currentName(name: string): string {
+  return FORMER_NAMES[name] ?? name;
+}
 
 export { DEFAULT_SETTINGS };

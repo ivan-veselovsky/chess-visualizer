@@ -2,6 +2,7 @@
   Written with its extension, like the other modules `tests/unit.mjs` runs
   straight from the TypeScript.
 */
+import { currentName } from "./presets/index.ts";
 
 /**
  * Two boards side by side, and which preset the second one is drawn with.
@@ -22,11 +23,16 @@
 const ON_KEY = "cv.two-board";
 const PRESET_KEY = "cv.two-board-preset";
 
+/**
+ * Whether the page opens on two boards: on, unless it has been switched off in
+ * this browser — the second board, with the attacks drawn on it beside a
+ * plain one, being the app's way of showing a position.
+ */
 export function twoBoardMode(): boolean {
   try {
-    return window.localStorage.getItem(ON_KEY) === "on";
+    return window.localStorage.getItem(ON_KEY) !== "off";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -34,8 +40,8 @@ export function setTwoBoardMode(on: boolean): void {
   try {
     window.localStorage.setItem(ON_KEY, on ? "on" : "off");
   } catch {
-    /* A browser refusing storage still runs the app; it just opens on one
-       board next time, which is the way it opens for everybody else. */
+    /* A browser refusing storage still runs the app; it just opens as a new
+       browser does next time, on two boards. */
   }
 }
 
@@ -53,7 +59,8 @@ export function setTwoBoardMode(on: boolean): void {
  */
 export function twoBoardPreset(): string | null {
   try {
-    return window.localStorage.getItem(PRESET_KEY);
+    const name = window.localStorage.getItem(PRESET_KEY);
+    return name === null ? null : currentName(name);
   } catch {
     return null;
   }

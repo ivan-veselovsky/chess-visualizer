@@ -16,17 +16,15 @@ const SLOP = 4;
 interface BoardEditorPaletteProps {
   /** Which way the board is turned: the side at the top has its men at the top. */
   orientation: "white" | "black";
-  /** Whose move the position being set up is. */
-  turn: Color;
-  /** What the position has wrong with it as one a game could reach; nothing, for one it could. */
-  problems: string[];
   tool: BoardEditorTool | null;
   onTool: (tool: BoardEditorTool | null) => void;
   /** The tool let go over a square of a board. */
   onDrop: (tool: BoardEditorTool, square: Square) => void;
-  onTurn: () => void;
   /** The board cleared to the two kings. */
   onClear: () => void;
+  /** The last change taken back, and made again; null where there is none. */
+  onUndo: (() => void) | null;
+  onRedo: (() => void) | null;
   /** The tint the men are drawn in, as the bars it stands in for are given it. */
   style: CSSProperties;
 }
@@ -48,9 +46,10 @@ function squareUnder(x: number, y: number): Square | null {
 /**
  * The board editor's palette, standing where the bars of men stand: five men
  * of each side to put on the board, as many times as anybody likes, the side
- * at the top of the board at the top; and between them the eraser, the side to
- * move, whether the position could be reached in a game, and Clear, which
- * takes the board back to the two kings.
+ * at the top of the board at the top; and between them the pointer, the
+ * eraser, Undo and Redo, and Clear, which takes the board back to the two
+ * kings. Whose move it is, and whether a game could reach the position, are
+ * said over the board, with how it stands; see `EditorTurn` and `EditorSignal`.
  *
  * A man is put down either way a move is made: chosen with a click and put on
  * a square with another — and on another, and another, the choice held until
@@ -58,7 +57,7 @@ function squareUnder(x: number, y: number): Square | null {
  * from here and let go over the square. The eraser is chosen and used the same
  * way, on the men already there.
  */
-export default function BoardEditorPalette({ orientation, turn, problems, tool, onTool, onDrop, onTurn, onClear, style }: BoardEditorPaletteProps) {
+export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, onClear, onUndo, onRedo, style }: BoardEditorPaletteProps) {
   const top: Color = orientation === "white" ? "b" : "w";
   const bottom: Color = top === "w" ? "b" : "w";
   /* The man being dragged from here, and where the pointer is: drawn under it
@@ -164,6 +163,21 @@ export default function BoardEditorPalette({ orientation, turn, problems, tool, 
       <div className="men-bar-column board-editor-column">
         {men(top)}
         <div className="board-editor-middle">
+          {/* The pointer: nothing chosen, so a press on the board takes a man
+              up to move him — what it does with nothing chosen anyway, here
+              to be chosen as the way of letting go of a choice. */}
+          <button
+            type="button"
+            className={`board-editor-tool board-editor-arrow${tool === null ? " board-editor-tool-chosen" : ""}`}
+            aria-label="Move pieces"
+            aria-pressed={tool === null}
+            title="Move pieces: nothing chosen, so a piece on the board is dragged where it goes."
+            onClick={() => onTool(null)}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 2.5v10.2l2.7-2.6 1.9 4.2 1.8-.8-1.9-4.1h3.8z" />
+            </svg>
+          </button>
           <button
             type="button"
             className={`board-editor-tool board-editor-erase${tool === "erase" ? " board-editor-tool-chosen" : ""}`}
@@ -180,22 +194,31 @@ export default function BoardEditorPalette({ orientation, turn, problems, tool, 
           </button>
           <button
             type="button"
-            className="board-editor-turn"
-            aria-label={`${turn === "w" ? "White" : "Black"} to move — press to give the move to the other side`}
-            title={`${turn === "w" ? "White" : "Black"} to move. Press to give the move to ${turn === "w" ? "Black" : "White"}.`}
-            onClick={onTurn}
+            className="board-editor-step"
+            aria-label="Undo"
+            title="Undo (Ctrl+Z)"
+            disabled={onUndo === null}
+            onClick={() => onUndo?.()}
           >
-            <Flower color={turn} open />
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" />
+            </svg>
           </button>
-          <span
-            className={`board-editor-signal ${problems.length === 0 ? "board-editor-signal-legal" : "board-editor-signal-illegal"}`}
-            role="img"
-            aria-label={problems.length === 0 ? "A legal position" : `Not a legal position: ${problems.join(" ")}`}
-            title={problems.length === 0 ? "A position a game could reach." : problems.join("\n")}
-          />
+          <button
+            type="button"
+            className="board-editor-step"
+            aria-label="Redo"
+            title="Redo (Ctrl+Y)"
+            disabled={onRedo === null}
+            onClick={() => onRedo?.()}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" />
+            </svg>
+          </button>
           {/* A heavier cross than the eraser's, and pressed rather than chosen:
-              it does the one thing at once. Last, after the signal, and well
-              away from the eraser, so it is not pressed for it by mistake. */}
+              it does the one thing at once. Last, and set off from the rest,
+              so it is not pressed for one of them by mistake. */}
           <button
             type="button"
             className="board-editor-clear"
@@ -230,5 +253,45 @@ export default function BoardEditorPalette({ orientation, turn, problems, tool, 
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Whose move the position being set up is: the flower the names use, pressed
+ * to give the move to the other side.
+ */
+export function EditorTurn({ turn, onTurn }: { turn: Color; onTurn: () => void }) {
+  const side = turn === "w" ? "White" : "Black";
+  const other = turn === "w" ? "Black" : "White";
+  return (
+    <button
+      type="button"
+      className="board-editor-turn"
+      aria-label={`${side} to move — press to give the move to ${other}`}
+      title={`${side} to move. Press to give the move to ${other}.`}
+      onClick={onTurn}
+    >
+      <Flower color={turn} open />
+    </button>
+  );
+}
+
+/**
+ * Whether a game could reach the position being set up: a green tick where it
+ * could, a red cross where it could not, and what is wrong in its tooltip.
+ */
+export function EditorSignal({ problems }: { problems: string[] }) {
+  const legal = problems.length === 0;
+  return (
+    <span
+      className={`board-editor-signal ${legal ? "board-editor-signal-legal" : "board-editor-signal-illegal"}`}
+      role="img"
+      aria-label={legal ? "A legal position" : `Not a legal position: ${problems.join(" ")}`}
+      title={legal ? "A position a game could reach." : problems.join("\n")}
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d={legal ? "M3 8.5l3.3 3.3L13 4.8" : "M4 4l8 8M12 4l-8 8"} />
+      </svg>
+    </span>
   );
 }

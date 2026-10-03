@@ -20,7 +20,7 @@
  */
 import { readGif } from "./gif.mjs";
 import { readMp4 } from "./mp4.mjs";
-import { check, HELPERS, open, pause, summary } from "./browser.mjs";
+import { check, HELPERS, open, openAsBefore, pause, summary } from "./browser.mjs";
 import DEFAULTS from "../src/app/presets/default-settings.json" with { type: "json" };
 
 const PORT = Number(process.env.PORT ?? 4181);
@@ -159,6 +159,7 @@ try {
   await page.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 950, deviceScaleFactor: 1, mobile: false });
   await page.send("Page.navigate", { url: lab.app });
   await pause(2500);
+  await openAsBefore(page);
   await load(PGN);
 
   console.log("\nA GIF of a game with names\n");

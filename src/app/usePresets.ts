@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { asking } from "./asking";
-import { PRESETS } from "./presets";
+import { currentName, PRESETS, STARTING_PRESET } from "./presets";
 import type { Settings } from "./settings";
 import {
   LONGEST_NAME,
@@ -95,15 +95,15 @@ export function usePresets({ settings, apply, opened }: UsePresetsProps) {
     A name can stop answering: a preset deleted in another tab, or a built-in
     renamed between two builds. Either way the settings themselves are still
     here and still on the board — what is lost is only where they were being
-    saved — so the list opens on the first built-in and the panel says the
+    saved — so the list opens on the preset a new browser opens with, and the panel says the
     settings are unsaved, which is exactly what they are.
   */
   const [target, setTarget] = useState<string>(() => {
-    const wanted = opened.target;
+    const wanted = opened.target === null ? null : currentName(opened.target);
     if (wanted !== null && (builtIn(wanted) !== undefined || wanted in opened.sets)) {
       return wanted;
     }
-    return PRESETS[0]!.name;
+    return STARTING_PRESET.name;
   });
   const [sets, setSets] = useState<Record<string, Settings>>(opened.sets);
   const [unreadable, setUnreadable] = useState<Record<string, number | null>>(

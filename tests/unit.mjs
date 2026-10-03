@@ -307,10 +307,9 @@ console.log("\nWhat an exported file is called\n");
   check("a preset of one's own is what the file is called",
     settingsFileName("Evening board") === "Evening board.json",
     settingsFileName("Evening board"));
-  check("the note about which one the app opens with is not",
-    settingsFileName("Blue - orange - with attacks (default)") ===
-      "Blue - orange - with attacks.json",
-    settingsFileName("Blue - orange - with attacks (default)"));
+  check("and so is a built-in's",
+    settingsFileName("Blue - orange - with attacks") === "Blue - orange - with attacks.json",
+    settingsFileName("Blue - orange - with attacks"));
   check("nor is anything a file system would rather not be given",
     settingsFileName('a/b:c*d?e"f<g>h|i') === "abcdefghi.json",
     settingsFileName('a/b:c*d?e"f<g>h|i'));
