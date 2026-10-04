@@ -1435,13 +1435,21 @@ console.log("\nWhat a shared link asks for\n");
   check("a game arrives with its moves",
     played !== null && played.entries !== null && played.entries.length === 4,
     played === null ? "nothing" : String(played.entries?.length));
-  check("and the flag is read off the link", played?.autoplay === true);
+  check("and the flag is read off the link — as an older link wrote it", played?.autoplay === true);
+  check("and as a link is written now",
+    openingFromUrl(`?game=${pgn}&autoplay=true`)?.autoplay === true && openingFromUrl(`?game=${pgn}&autoplay=false`)?.autoplay === false);
   const quiet = openingFromUrl(`?game=${pgn}`);
   check("a link without it asks for nothing of the kind", quiet?.autoplay === false);
   const spot = openingFromUrl("?position=rnbqkbnr%2Fpppppppp%2F8%2F8%2F8%2F8%2FPPPPPPPP%2FRNBQKBNR+w+KQkq+-+0+1&autoplay=1");
   check("a position alone never plays, whatever the link says",
     spot !== null && spot.entries === null && spot.autoplay === false,
     JSON.stringify(spot));
+  check("a link asking for Black at the bottom says so, for a game and for a position",
+    openingFromUrl(`?game=${pgn}&blackAtBottom=true`)?.blackAtBottom === true &&
+      openingFromUrl("?position=4k3%2F8%2F8%2F8%2F8%2F8%2F8%2F4K3+w+-+-+0+1&blackAtBottom=true")?.blackAtBottom === true);
+  check("and one that does not, or says anything but true, leaves the board as the reader keeps it",
+    quiet?.blackAtBottom === false && openingFromUrl(`?game=${pgn}&blackAtBottom=false`)?.blackAtBottom === false &&
+      openingFromUrl(`?game=${pgn}&blackAtBottom=1`)?.blackAtBottom === false);
 
   /*
     What a link carries beyond the moves. Encoded the way a link is built —

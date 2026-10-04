@@ -287,7 +287,12 @@ export default function App() {
     here, in the initial state, so the first paint is already the right way
     round.
   */
-  const [side, setSide] = useState<Orientation>(boardSide);
+  /* A shared link may ask for Black at the bottom, for the game it opens: see
+     `Opening.blackAtBottom`. Taken here and not kept — the reader's own side
+     is what `boardSide` remembers, and turning the board is what changes it. */
+  const [side, setSide] = useState<Orientation>(() =>
+    openingFromLocation()?.blackAtBottom === true ? "black" : boardSide()
+  );
   const turnBoard = useCallback((wanted: Orientation) => {
     setSide(wanted);
     setBoardSide(wanted);
@@ -3422,15 +3427,16 @@ export default function App() {
                   label="Share game"
                   icon={<ShareIcon />}
                   title={
-                    settings.lab.shareGameWithAutoplay
+                    (settings.lab.shareGameWithAutoplay
                       ? "Copy a link that plays this game through from its first position"
-                      : "Copy a link that opens this game at its first position"
+                      : "Copy a link that opens this game at its first position") +
+                    (side === "black" ? ", Black at the bottom as here" : "")
                   }
                   text={() => {
                     const pgn = sharablePgn();
                     return pgn === null
                       ? null
-                      : gameLink(pgn, settings.lab.shareGameWithAutoplay);
+                      : gameLink(pgn, settings.lab.shareGameWithAutoplay, side === "black");
                   }}
                 />
               </div>
