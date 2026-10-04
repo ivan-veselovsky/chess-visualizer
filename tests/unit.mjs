@@ -52,7 +52,11 @@ import { friendlyGameName } from "../src/app/friend/gameName.ts";
 import { describeEnding } from "../src/app/friend/ending.ts";
 import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { applyMove, isPromotion } from "../src/chess/moves.ts";
-import { asBoardEditorPosition, place, boardEditorProblems, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
+import { asBoardEditorPosition, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
+import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
+import { readdirSync, readFileSync } from "node:fs";
+import CLASSIC_BROWN_JSON from "../src/app/presets/settings-classic-brown.json" with { type: "json" };
+import CLASSIC_GREEN_JSON from "../src/app/presets/settings-classic-green.json" with { type: "json" };
 import { Chess } from "chess.js";
 
 let passed = 0;
@@ -708,6 +712,8 @@ console.log("\nSettings written for version 46\n");
     delete older.playBackStepSec;
     delete older.playBackStepSpeedup;
     delete older.playLineEndHoldSec;
+    /* Nor a choice of piece set: the men were the font's glyphs. */
+    delete older.glyphSet;
     return older;
   };
 
@@ -2111,8 +2117,79 @@ console.log("\nThe board editor\n");
   for (const square of ["a1", "b1", "c1", "d1", "a2", "b2", "c2", "d2", "f2", "g2", "h2"]) {
     herd = place(herd, square, { type: "n", color: "w" });
   }
-  check("eleven knights can be put down, and are more than a side's pawns could have become",
-    boardEditorProblems(herd).join(" ") === "White has more pieces than its pawns could have become.", boardEditorProblems(herd).join(" "));
+  check("eleven knights can be put down, and are more than a side's pawns could have become — a warning, not a problem",
+    boardEditorProblems(herd).length === 0 &&
+      boardEditorWarnings(herd).join(" ") === "White has more pieces than its pawns could have become.",
+    `${boardEditorProblems(herd).join(" ")} / ${boardEditorWarnings(herd).join(" ")}`);
+  const crowd = "4k3/pppppppp/p7/8/8/QQQQQQQQ/QQQQQQQQ/4K3 w - - 0 1";
+  check("nine pawns and sixteen queens can be played from, and are each said as unusual",
+    boardEditorProblems(crowd).length === 0 &&
+      boardEditorWarnings(crowd).join(" ") ===
+        "White has more pieces than its pawns could have become. White has more than sixteen men. Black has more than eight pawns.",
+    `${boardEditorProblems(crowd).join(" ")} / ${boardEditorWarnings(crowd).join(" ")}`);
+  check("an ordinary position has nothing to warn of", boardEditorWarnings("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1").length === 0);
+  check("and a warning does not hide a problem: nine pawns with the kings side by side is still red",
+    boardEditorProblems("8/pppppppp/p7/8/8/8/3k4/4K3 w - - 0 1").join(" ") === "The two kings stand next to each other.");
+}
+
+console.log("\nPiece sets\n");
+{
+  /* The files under src/pieces, keyed as the build's glob keys them. */
+  const root = new URL("../src/pieces/", import.meta.url);
+  const files = {};
+  for (const folder of readdirSync(root, { withFileTypes: true })) {
+    if (!folder.isDirectory()) continue;
+    for (const name of readdirSync(new URL(`${folder.name}/`, root))) {
+      files[`../pieces/${folder.name}/${name}`] = readFileSync(new URL(`${folder.name}/${name}`, root), "utf8");
+    }
+  }
+  const sets = glyphSetsFrom(files);
+  check("every folder under src/pieces is a whole set, the default among them",
+    sets.length === readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).length &&
+      sets.some((set) => set.name === DEFAULT_GLYPH_SET),
+    sets.map((set) => set.name).join(", "));
+  check("each of their pictures is a square with something drawn in it",
+    sets.every((set) => Object.values(set.pieces).every((glyph) =>
+      glyph.viewBox[2] === glyph.viewBox[3] && glyph.viewBox[2] > 0 && /<(path|g|circle|rect|polygon|ellipse)\b/.test(glyph.body))));
+
+  const square = (inside) => `<?xml version="1.0"?>\n<!-- made by hand -->\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">${inside}</svg>\n`;
+  const whole = (folder) => Object.fromEntries(["k", "q", "r", "b", "n", "p"].map((kind) => [`../pieces/${folder}/${kind}.svg`, square(`<path d="M0 0h${kind === "k" ? 2 : 1}"/>`)]));
+  const made = glyphSetsFrom({
+    ...whole("Hand made"),
+    ...Object.fromEntries(Object.entries(whole("Five only")).filter(([path]) => !path.endsWith("/p.svg"))),
+    "../pieces/Hand made/LICENSE.txt": "free",
+    "../pieces/Hand made/x.svg": square("<path/>"),
+  });
+  check("a folder of six makes a set called after it, and one short of a man makes none",
+    made.length === 1 && made[0].name === "Hand made", made.map((set) => set.name).join(", "));
+  check("a picture is read past its prolog and comments, in the units it was drawn in",
+    JSON.stringify(made[0]?.pieces.k) === JSON.stringify({ viewBox: [0, 0, 45, 45], body: '<path d="M0 0h2"/>' }),
+    JSON.stringify(made[0]?.pieces.k));
+  check("one with a width and height and no viewBox is a square of that size",
+    JSON.stringify(readGlyph('<svg width="40" height="40"><circle r="3"/></svg>')?.viewBox) === "[0,0,40,40]");
+  check("and a file that is not a picture is not read as one",
+    readGlyph("<html></html>") === null && readGlyph('<svg viewBox="0 0 0 0"></svg>') === null);
+  check("a set's meta-info.json moves its men, and a set without one stays where it is drawn",
+    JSON.stringify(sets.find((set) => set.name === "Noto Sans Symbols2")?.shift) === '{"x":0,"y":0.1}' &&
+      JSON.stringify(sets.find((set) => set.name === DEFAULT_GLYPH_SET)?.shift) === '{"x":0,"y":0}',
+    JSON.stringify(sets.map((set) => [set.name, set.shift])));
+  const moved = glyphSetsFrom({ ...whole("Moved"), "../pieces/Moved/meta-info.json": '{ "correction": { "delta_x": -0.05, "delta_y": 0.1 }, "author": "anyone" }' });
+  check("read from beside the pictures, whatever else the file holds",
+    JSON.stringify(moved[0]?.shift) === '{"x":-0.05,"y":0.1}', JSON.stringify(moved[0]?.shift));
+  check("and a file that is not JSON, or a correction that is not a number, is no correction",
+    JSON.stringify([readShift("{ correction: oops"), readShift('{"correction":{"delta_y":"0.1"}}'), readShift('{"correction":{"delta_x":0.2}}'), readShift(undefined)]) ===
+      '[{"x":0,"y":0},{"x":0,"y":0},{"x":0.2,"y":0},{"x":0,"y":0}]');
+  check("a set asked for by name is that set, and one no set answers to is the default",
+    glyphSetNamed(sets, sets.at(-1).name) === sets.at(-1) && glyphSetNamed(sets, "Gone since").name === DEFAULT_GLYPH_SET);
+
+  for (const [name, preset] of [["default", DEFAULT_SETTINGS], ["classic brown", CLASSIC_BROWN_JSON], ["classic green", CLASSIC_GREEN_JSON]]) {
+    check(`the ${name} preset names a set this build has`, sets.some((set) => set.name === preset.pieces.glyphSet), preset.pieces.glyphSet);
+  }
+  const older = structuredClone(DEFAULT_SETTINGS);
+  delete older.pieces.glyphSet;
+  const read = parseSettings(JSON.stringify(older)).settings;
+  check("settings written before there were sets are read with the default set, first in their group",
+    read?.pieces.glyphSet === DEFAULT_GLYPH_SET && Object.keys(read.pieces)[0] === "glyphSet", JSON.stringify(read?.pieces));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

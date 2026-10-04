@@ -7,7 +7,9 @@ import {
   type PointerEvent,
 } from "react";
 import type { Chess, Color, Square } from "chess.js";
-import { PIECE_GLYPHS, readPieces } from "../chess/model";
+import { readPieces } from "../chess/model";
+import type { GlyphSet } from "./glyphs";
+import PieceGlyph from "./PieceGlyph";
 import { legalTargets } from "../chess/moves";
 import {
   BOARD_ORIGIN,
@@ -69,6 +71,8 @@ interface BoardProps {
   position: Chess;
   colors: BoardColors;
   pieceTint: PieceTint;
+  /** The pictures the men are drawn with. */
+  glyphs: GlyphSet;
   attacks: AttackSettings;
   /**
    * How long a change to the board's colouring takes to cross, in
@@ -162,6 +166,7 @@ export default function Board({
   position,
   colors,
   pieceTint,
+  glyphs,
   attacks,
   fadeTimeMs = 0,
   onMove,
@@ -587,6 +592,7 @@ export default function Board({
           lifted={drag?.from ?? null}
           flying={flying}
           orientation={orientation}
+          glyphs={glyphs}
         />
 
         {inHand !== null && (
@@ -604,18 +610,13 @@ export default function Board({
               );
             })}
             {drag !== null && dragged !== undefined && (
-              <text
-                x={drag.at.x}
-                y={drag.at.y}
-                className={[
-                  "piece",
-                  `piece-${dragged.type}`,
-                  dragged.color === "w" ? "piece-white" : "piece-black",
-                  `piece-${settingsSide(dragged.color, orientation)}`,
-                ].join(" ")}
-              >
-                {PIECE_GLYPHS[dragged.type]}
-              </text>
+              <PieceGlyph
+                set={glyphs}
+                type={dragged.type}
+                color={dragged.color}
+                side={settingsSide(dragged.color, orientation)}
+                at={drag.at}
+              />
             )}
           </g>
         )}
@@ -625,6 +626,7 @@ export default function Board({
       <FlightLayer
         flight={flight}
         orientation={orientation}
+        glyphs={glyphs}
         onLanded={onFlightLanded}
         vars={themeVars}
       />

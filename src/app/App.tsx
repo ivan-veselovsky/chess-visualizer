@@ -10,7 +10,8 @@ import {
 import type { CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { Chess, DEFAULT_POSITION, type Color, type Square } from "chess.js";
-import { PIECE_GLYPHS } from "../chess/model";
+import { glyphSet } from "../visualization/glyphSets";
+import PieceGlyph from "../visualization/PieceGlyph";
 import {
   canGoNext,
   canGoPrevious,
@@ -112,7 +113,7 @@ import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
 import PromotionChooser from "./PromotionChooser";
 import BoardEditorPalette, { EditorSignal, EditorTurn, type BoardEditorTool } from "./BoardEditorPalette";
-import { asBoardEditorPosition, place, boardEditorProblems, shift, TWO_KINGS, turnOf, withTurn } from "../chess/boardEditor";
+import { asBoardEditorPosition, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, turnOf, withTurn } from "../chess/boardEditor";
 import { pieceVars } from "../visualization/pieceVars";
 import StashDialog from "./StashDialog";
 import StashedGames from "./StashedGames";
@@ -412,6 +413,10 @@ export default function App() {
      two boards drawn alike, which says plainly that the choice did not land —
      better than a blank half of the page. */
   const rightSettings = presets.settingsNamed(rightNamed) ?? settings;
+  /* The pictures each board draws its men with; the main board's are also the
+     bars', the palette's and the title's. */
+  const glyphs = glyphSet(settings.pieces.glyphSet);
+  const rightGlyphs = glyphSet(rightSettings.pieces.glyphSet);
   /*
     How the GIF would look, for the export tab to tell when an estimate of its
     size has gone stale: both boards' settings, the second only while it is up.
@@ -551,9 +556,8 @@ export default function App() {
 
     The board's own tab, unless the address names a game still being played —
     a reload of a tab that was in one, or a link followed back into one. Then it
-    opens on the game: that is what the reader came back for, the panel saying
-    whose move it is and who is still connected is there, and half of the
-    board's tab is disabled while a game with a friend is on anyway.
+    opens on the game: that is what the reader came back for, and the panel
+    saying whose move it is and who is still connected is there.
 
     A game that is over is the other way round. There is nothing left to do to
     it, and somebody who left a tab sitting at a finished game was reading it —
@@ -1091,9 +1095,12 @@ export default function App() {
 
   /**
    * Closes it, on the position it has built — the start of a game of its own,
-   * to play or to record lines from — or, on one no game could reach, on the
-   * ordinary starting position, there being nothing that could be played from
-   * it.
+   * to play or to record lines from.
+   *
+   * Both of its Done buttons are closed to a position no game could reach, so
+   * that is all it is asked to close on. Should anything else ever close it on
+   * one, it closes on the ordinary starting position instead, there being
+   * nothing that could be played from the other.
    */
   function closeEditor() {
     const built = shown?.fen() ?? TWO_KINGS;
@@ -2044,15 +2051,6 @@ export default function App() {
     live, and someone who turns the board round to look from the other side
     should find it stays turned round.
   */
-  /*
-    While a game with somebody else is on, the ways of putting a different game
-    on the board are closed. Disabled rather than hidden: the controls are
-    still there to be seen, and hovering one says why it will not answer.
-  */
-  const inGame =
-    friend.phase.kind === "playing" && friend.phase.over === null
-      ? "Playing a game with a friend — finish it first"
-      : null;
 
   /*
     One position at a time, each left standing for its period.
@@ -2189,7 +2187,7 @@ export default function App() {
     // and `switchLine` only set state; taking them as dependencies would book a
     // fresh timer on every render and the game would never reach the end of a
     // period.
-  }, [playing, history, period, initialDelay, backStep, lineEndHold, inGame, flight]);
+  }, [playing, history, period, initialDelay, backStep, lineEndHold, flight]);
 
   /*
     The Lab's keys: Space plays and holds, the arrows step, and with Ctrl they
@@ -2736,9 +2734,7 @@ export default function App() {
               screen reader: it is livery rather than a word, and read out it
               would make the page announce itself as "black chess queen Chess
               Visualizer". */}
-          <span className="title-piece" aria-hidden="true">
-            {PIECE_GLYPHS.q}
-          </span>
+          <PieceGlyph set={glyphs} type="q" color="b" side="me" className="title-piece" />
           Chess Visualizer
         </h1>
         {/* New tabs throughout: the stash and the game on the board are held
@@ -2808,13 +2804,34 @@ export default function App() {
                   <span className="player-who">{branchLabel}</span>
                   <span className={`player-result${editor ? " board-editor-row" : ""}`}>
                     {/* In the editor, whose move it is — pressed to give it to
-                        the other side — and whether a game could reach the
-                        position, either side of how it stands. */}
-                    {editor && <EditorTurn turn={turnOf(editedFen)} onTurn={() => editTo(withTurn(editedFen))} />}
-                    {unnamedResult !== null && (
-                      <span className="player-score">{scoreOf(unnamedResult)}</span>
+                        the other side — whether a game could reach the
+                        position, in the middle, and the way out of the editor
+                        on the far side, as the button after the FEN field is:
+                        here only for a position a game could reach, since
+                        leaving on any other puts the starting position back
+                        and throws the work away. The position being built has
+                        no result to show. */}
+                    {editor ? (
+                      <>
+                        <EditorTurn turn={turnOf(editedFen)} onTurn={() => editTo(withTurn(editedFen))} />
+                        <EditorSignal problems={boardEditorProblems(editedFen)} warnings={boardEditorWarnings(editedFen)} />
+                        <button
+                          type="button"
+                          className="reset-button board-editor-done"
+                          disabled={boardEditorProblems(editedFen).length > 0}
+                          title={
+                            boardEditorProblems(editedFen).length > 0
+                              ? "No game could reach this position yet: see the red cross."
+                              : "Finish setting up, and start from this position"
+                          }
+                          onClick={closeEditor}
+                        >
+                          Done editing
+                        </button>
+                      </>
+                    ) : (
+                      unnamedResult !== null && <span className="player-score">{scoreOf(unnamedResult)}</span>
                     )}
-                    {editor && <EditorSignal problems={boardEditorProblems(editedFen)} />}
                   </span>
                   <span className="player-position">{counted}</span>
                 </p>
@@ -2882,6 +2899,7 @@ export default function App() {
                 colors={settings.board.squares}
               hedge={settings.board.hedging}
                 pieceTint={settings.pieces.tint}
+                glyphs={glyphs}
                 attacks={settings.attacks}
                 fadeTimeMs={fitted(settings.pieces.fadeTimeMs)}
                 onMove={handleMove}
@@ -2931,6 +2949,7 @@ export default function App() {
                     colors={rightSettings.board.squares}
                     hedge={rightSettings.board.hedging}
                     pieceTint={rightSettings.pieces.tint}
+                    glyphs={rightGlyphs}
                     attacks={rightSettings.attacks}
                     fadeTimeMs={fitted(rightSettings.pieces.fadeTimeMs)}
                     flight={flight}
@@ -2962,6 +2981,7 @@ export default function App() {
                     onUndo={editorPast.length > 0 ? undoEdit : null}
                     onRedo={editorFuture.length > 0 ? redoEdit : null}
                     style={pieceVars(settings.pieces.tint, settings.attacks)}
+                    glyphs={glyphs}
                   />
                 )}
                 {!editor && settings.pieces.showCaptured && (
@@ -2969,6 +2989,7 @@ export default function App() {
                     captures={captures}
                     orientation={side}
                     pieceTint={settings.pieces.tint}
+                    glyphs={glyphs}
                     attacks={settings.attacks}
                   />
                 )}
@@ -2980,6 +3001,7 @@ export default function App() {
                     position={shown}
                     orientation={side}
                     pieceTint={settings.pieces.tint}
+                    glyphs={glyphs}
                     attacks={settings.attacks}
                   />
                 )}
@@ -3036,14 +3058,12 @@ export default function App() {
                 id="flip-board"
                 label="Black at bottom"
                 checked={side === "black"}
-                disabled={editor}
                 onChange={(flipped) => turnBoard(flipped ? "black" : "white")}
               />
               <button
                 type="button"
                 className="reset-button controls-end"
-                disabled={inGame !== null || editor}
-                title={inGame ?? undefined}
+                disabled={editor}
                 onClick={() => setPosition(DEFAULT_POSITION)}
               >
                 Reset to initial position
@@ -3126,10 +3146,9 @@ export default function App() {
                   type="button"
                   className="reset-button play-button"
                   title={
-                    inGame ??
-                    (playing
+                    playing
                       ? "Hold the game where it stands (Space)"
-                      : "Play the game through, a position at a time — from wherever it stands (Space)")
+                      : "Play the game through, a position at a time — from wherever it stands (Space)"
                   }
                   aria-pressed={playing}
                   aria-keyshortcuts="Space"
@@ -3323,19 +3342,29 @@ export default function App() {
             </div>
 
             {/* Second row: what a whole game can be done with. */}
-            {/* Still readable while a game is on — it is worth copying — but
-                not a way to put another position on the board. */}
+            {/* Open while a game with somebody else is on, as everything on
+                this tab is: a position put on the board steps away from the
+                game, which stays in the list to be gone back to — as one that
+                is over does. */}
             <FenField
               value={fen}
               error={error}
-              readOnly={inGame}
               onChange={enterPosition}
               after={
                 <button
                   type="button"
                   className="reset-button editor-button"
-                  disabled={inGame !== null}
-                  title={inGame ?? (!editor ? "Set up a position piece by piece" : "Finish setting up, and start from this position")}
+                  /* Done, like the one over the board, only on a position a
+                     game could reach: leaving on any other would throw the
+                     work away for the starting position. */
+                  disabled={editor && boardEditorProblems(editedFen).length > 0}
+                  title={
+                    !editor
+                      ? "Set up a position piece by piece"
+                      : boardEditorProblems(editedFen).length > 0
+                        ? "No game could reach this position yet: see the red cross."
+                        : "Finish setting up, and start from this position"
+                  }
                   onClick={!editor ? openEditor : closeEditor}
                 >
                   {/* Whichever it says, as wide as the longer of the two, both
@@ -3359,8 +3388,7 @@ export default function App() {
                 <button
                   type="button"
                   className="reset-button"
-                  disabled={inGame !== null || editor}
-                  title={inGame ?? undefined}
+                  disabled={editor}
                   onClick={() => setPgnOpen(true)}
                 >
                   Import game (PGN)
@@ -3441,7 +3469,7 @@ export default function App() {
               <StashedGames
                 stash={stash}
                 value={stashName}
-                locked={inGame ?? (editor ? "Not while the board is being set up" : null)}
+                locked={editor ? "Not while the board is being set up" : null}
                 /* Read afresh as the list is opened, so a game another tab put
                    aside a moment ago is in it. */
                 onOpen={freshStash}
@@ -3455,7 +3483,7 @@ export default function App() {
               <GameLibrary
                 value={libraryGame}
                 error={libraryGameError}
-                locked={inGame ?? (editor ? "Not while the board is being set up" : null)}
+                locked={editor ? "Not while the board is being set up" : null}
                 onSelect={loadLibraryGame}
               />
             </div>
@@ -4135,7 +4163,7 @@ export default function App() {
           color={promoting.color}
           square={() =>
             document
-              .querySelectorAll(".board-holder svg")
+              .querySelectorAll(".board-holder > svg")
               [promoting.board]?.querySelector(`.square-layer [data-square="${promoting.to}"]`)
               ?.getBoundingClientRect() ?? null
           }
@@ -4148,6 +4176,7 @@ export default function App() {
             handleMove(asked.from, asked.to, false, piece);
           }}
           onCancel={() => setPromoting(null)}
+          glyphs={promoting.board === 1 ? rightGlyphs : glyphs}
         />
       )}
     </main>

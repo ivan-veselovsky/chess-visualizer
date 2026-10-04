@@ -113,9 +113,14 @@ export function shift(fen: string, from: Square, to: Square | null): string | nu
 const SIDES: Record<Color, string> = { w: "White", b: "Black" };
 
 /**
- * What is wrong with a position as a position a game could reach, in words —
- * nothing, for one that could be played from. The editor lets every one of
- * these be set up, and shows them as the red of its signal.
+ * What makes a position one that cannot be played from, in words — nothing,
+ * for one that can. The editor lets every one of these be set up, shows them
+ * as the red of its signal, and will not close on them: a side without its
+ * one king, or a pawn on a rank it can never stand on, is a position the
+ * rules have no moves for, and a king that can be taken is one they have the
+ * wrong moves for.
+ *
+ * How many men a side has is not among them: see `boardEditorWarnings`.
  */
 export function boardEditorProblems(fen: string): string[] {
   const board = boardOf(fen);
@@ -135,19 +140,6 @@ export function boardEditorProblems(fen: string): string[] {
     if (own.some((cell) => cell.type === "p" && onEdge(cell.square))) {
       problems.push(`${SIDES[color]} has a pawn on the first or last rank.`);
     }
-    if (count("p") > 8) {
-      problems.push(`${SIDES[color]} has more than eight pawns.`);
-    }
-    /* A piece beyond the ones a side starts with can only have come from a
-       pawn, and every pawn can make one at most. */
-    const promoted =
-      Math.max(0, count("q") - 1) + Math.max(0, count("r") - 2) + Math.max(0, count("b") - 2) + Math.max(0, count("n") - 2);
-    if (count("p") <= 8 && count("p") + promoted > 8) {
-      problems.push(`${SIDES[color]} has more pieces than its pawns could have become.`);
-    }
-    if (own.length > 16) {
-      problems.push(`${SIDES[color]} has more than sixteen men.`);
-    }
   }
   /* The side that has just moved cannot be left in check: its king would be
      taken. Kings side by side are the same thing, said the way it is seen. */
@@ -166,4 +158,38 @@ export function boardEditorProblems(fen: string): string[] {
     }
   }
   return problems;
+}
+
+/**
+ * What a game could not have come to, though the position can be played from
+ * all the same: more men of a side than a game gives it. A composed problem
+ * may well want nine queens, and the rules have moves for every one of them,
+ * so these are the amber of the editor's signal rather than the red — said,
+ * and not standing in the way.
+ */
+export function boardEditorWarnings(fen: string): string[] {
+  const board = boardOf(fen);
+  if (board === null) {
+    return [];
+  }
+  const warnings: string[] = [];
+  const squares = board.board().flat().filter((cell) => cell !== null);
+  for (const color of ["w", "b"] as Color[]) {
+    const own = squares.filter((cell) => cell.color === color);
+    const count = (type: PieceSymbol) => own.filter((cell) => cell.type === type).length;
+    if (count("p") > 8) {
+      warnings.push(`${SIDES[color]} has more than eight pawns.`);
+    }
+    /* A piece beyond the ones a side starts with can only have come from a
+       pawn, and every pawn can make one at most. */
+    const promoted =
+      Math.max(0, count("q") - 1) + Math.max(0, count("r") - 2) + Math.max(0, count("b") - 2) + Math.max(0, count("n") - 2);
+    if (count("p") <= 8 && count("p") + promoted > 8) {
+      warnings.push(`${SIDES[color]} has more pieces than its pawns could have become.`);
+    }
+    if (own.length > 16) {
+      warnings.push(`${SIDES[color]} has more than sixteen men.`);
+    }
+  }
+  return warnings;
 }

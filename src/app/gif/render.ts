@@ -21,8 +21,6 @@
  * at that moment, drawn exactly as the board draws its men.
  */
 
-const SVG_NS = "http://www.w3.org/2000/svg";
-
 /** The page's parts that make up a frame. */
 export interface StageRoots {
   app: Element;
@@ -76,7 +74,7 @@ export interface Stage {
  * off what the bar holds by the end.
  */
 export function measureStage(roots: StageRoots, boardPx: number): Stage | null {
-  const board = roots.column.querySelector(".board-holder svg");
+  const board = roots.column.querySelector(".board-holder > svg");
   if (board === null) {
     return null;
   }
@@ -667,8 +665,19 @@ function planSvg(painter: Painter, svg: SVGSVGElement, at: Corner, opacity: numb
  *
  * It travels on a layer over the board, as an ordinary element, so that the
  * browser can move it without redrawing the board; in the GIF it goes back in
- * as the board draws its men — a glyph with the same classes, and so the same
- * fill and outline — at the middle of where the layer has it at this moment.
+ * as the board draws its men — the same picture, with the fill and outline it
+ * has on the layer written in — a square of the board across, where the layer
+ * has it at this moment.
+ *
+ * Where that is, is worked out from the layer's own numbers — the square it
+ * set off from, and how far the journey has carried it — rather than from
+ * where the browser says the piece is on the screen. That answer counts in
+ * how far the page is scrolled, and a box moved by a transform sits at no
+ * whole number of anything: taking one scrolled position from another left a
+ * few millionths of a unit behind, a different few with the page scrolled
+ * than without. A font's glyph is snapped to the pixel and never showed it; a
+ * picture's edge is drawn where it falls, and did, so a GIF made while the
+ * reader scrolled came out a few pixels different from one made without.
  */
 function flyersInto(
   svg: SVGSVGElement,
@@ -681,22 +690,28 @@ function flyersInto(
     return;
   }
   const area = svg.getBoundingClientRect();
-  for (const flying of holder.querySelectorAll(".flying-piece")) {
-    const where = flying.getBoundingClientRect();
-    const glyph = document.createElementNS(SVG_NS, "text");
-    glyph.setAttribute(
-      "class",
-      ["piece", ...[...flying.classList].filter((name) => name !== "flying-piece" && name !== "piece-moving")].join(" ")
-    );
-    glyph.setAttribute("x", String(box.x + (where.left + where.width / 2 - area.left) / perUnit));
-    glyph.setAttribute("y", String(box.y + (where.top + where.height / 2 - area.top) / perUnit));
-    glyph.textContent = flying.textContent;
-    /* Put into the page's own board for as long as it takes to be styled —
-       the styles are the stylesheet's — and taken straight out again. */
-    svg.append(glyph);
-    const style = styleFor(glyph);
-    glyph.remove();
-    glyph.setAttribute("style", style);
+  for (const flying of holder.querySelectorAll<SVGSVGElement>(".flying-piece > svg")) {
+    const carrier = flying.parentElement;
+    const layer = carrier?.parentElement;
+    if (carrier == null || layer == null) {
+      continue;
+    }
+    /* Both laid out rather than moved, so on the same grid of units, and the
+       one taken from the other exactly. */
+    const sheet = layer.getBoundingClientRect();
+    const seen = getComputedStyle(carrier);
+    const journey = seen.transform === "none" ? null : new DOMMatrixReadOnly(seen.transform);
+    const left = sheet.left - area.left + parseFloat(seen.left) + (journey?.m41 ?? 0);
+    const top = sheet.top - area.top + parseFloat(seen.top) + (journey?.m42 ?? 0);
+    const glyph = flying.cloneNode(true) as SVGSVGElement;
+    const from = [flying, ...flying.querySelectorAll("*")];
+    const to = [glyph, ...glyph.querySelectorAll("*")];
+    from.forEach((element, index) => to[index].setAttribute("style", styleFor(element)));
+    glyph.setAttribute("x", String(box.x + left / perUnit));
+    glyph.setAttribute("y", String(box.y + top / perUnit));
+    glyph.setAttribute("width", String(parseFloat(seen.width) / perUnit));
+    glyph.setAttribute("height", String(parseFloat(seen.height) / perUnit));
+    glyph.removeAttribute("class");
     copy.append(glyph);
   }
 }

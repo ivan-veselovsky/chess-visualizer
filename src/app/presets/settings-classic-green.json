@@ -26,6 +26,7 @@
     }
   },
   "pieces": {
+    "glyphSet": "DejaVu Sans",
     "tint": {
       "lightenWhite": 1,
       "darkenBlack": 1

@@ -92,6 +92,14 @@ export interface BoardSettings {
  * beside how fast the move itself goes.
  */
 export interface PieceSettings {
+  /**
+   * Which set of pictures the men are drawn with: the name of a folder under
+   * `src/pieces/`. A name no set in this build answers to — a set since taken
+   * out, or a file from a build that had one more — draws with the default,
+   * and is kept as it is, so the file says the same thing when it is saved
+   * again. See `visualization/glyphs.ts`.
+   */
+  glyphSet: string;
   tint: PieceTint;
   /** The bar of captured men beside the board. */
   showCaptured: boolean;

@@ -7,6 +7,7 @@ import {
 } from "../chess/captures";
 import type { Orientation } from "../visualization/geometry";
 import type { AttackSettings, PieceTint } from "../visualization/settings";
+import type { GlyphSet } from "../visualization/glyphs";
 import MenBar, { type ManCount } from "./MenBar";
 
 interface CapturedBarProps {
@@ -14,6 +15,8 @@ interface CapturedBarProps {
   /** Which army is at the bottom of the board, and so whose end is whose. */
   orientation: Orientation;
   pieceTint: PieceTint;
+  /** The pictures the men are drawn with. */
+  glyphs: GlyphSet;
   attacks: AttackSettings;
 }
 
@@ -49,6 +52,7 @@ export default function CapturedBar({
   captures,
   orientation,
   pieceTint,
+  glyphs,
   attacks,
 }: CapturedBarProps) {
   const mine: Color = orientation === "white" ? "w" : "b";
@@ -84,6 +88,7 @@ export default function CapturedBar({
         intro: "You have taken",
       }}
       pieceTint={pieceTint}
+      glyphs={glyphs}
       attacks={attacks}
     />
   );

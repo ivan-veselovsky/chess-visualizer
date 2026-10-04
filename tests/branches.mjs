@@ -106,16 +106,16 @@ try {
   console.log("\nThe line on the board, named over it\n");
   const named = JSON.parse(await page.run(`${HELPERS}${WHERE}
     await load(${JSON.stringify(PLAIN)});
-    const boardPlain = box(".board-holder svg");
+    const boardPlain = box(".board-holder > svg");
     await load(${JSON.stringify(PGN)});
     const loaded = where();
     const choices = [...document.querySelector("#branch").options].map((o) => o.textContent);
     key("ArrowLeft", true); await sleep(700);
     const start = where();
-    const boardAtStart = box(".board-holder svg");
+    const boardAtStart = box(".board-holder > svg");
     key("ArrowRight"); await sleep(900);
     const fork = where();
-    const boardAtFork = box(".board-holder svg");
+    const boardAtFork = box(".board-holder > svg");
     const row = box(".board-and-players > .player-name");
     const middle = box(".board-and-players > .player-name .player-result");
     return JSON.stringify({ loaded, choices, start, fork, boardPlain, boardAtStart, boardAtFork, row, middle });`));
@@ -157,7 +157,7 @@ try {
       const up = document.querySelector(".flight-layer") !== null;
       if (up !== flying) flights.push([up ? "off" : "down", performance.now()]);
       /* How long the board's fades take, as each move sets off. */
-      const fadeTime = document.querySelector(".board-holder svg").style.getPropertyValue("--fade-time");
+      const fadeTime = document.querySelector(".board-holder > svg").style.getPropertyValue("--fade-time");
       if (up && !flying) {
         /* Taken off: the fade, against how long the flight is. */
         const flight = document.getAnimations().find((a) => a.effect?.target?.classList?.contains("flying-piece"));
@@ -173,7 +173,7 @@ try {
     for (let i = 0; i < 300 && !(/Play \\/ Resume/.test(play.textContent) && !flying); i += 1) await sleep(100);
     clearInterval(watching);
     look();
-    return JSON.stringify({ seen, flights, lifts, lands, started, closed: play.disabled, after: document.querySelector(".board-holder svg").style.getPropertyValue("--fade-time") });`));
+    return JSON.stringify({ seen, flights, lifts, lands, started, closed: play.disabled, after: document.querySelector(".board-holder > svg").style.getPropertyValue("--fade-time") });`));
   const expected = [
     ["start", ""],
     ["1. Rhg7", "Line 1 of 3: 1… Nf7 {case A}"],
@@ -368,7 +368,7 @@ try {
     await toLineEnd();
     const path = document.querySelector(".branch-path");
     return JSON.stringify({
-      board: box(".board-holder svg"),
+      board: box(".board-holder > svg"),
       who: box(".board-and-players > .player-name .player-who"),
       middle: box(".board-and-players > .player-name .player-result"),
       position: box(".board-and-players > .player-name .player-position"),
@@ -397,7 +397,7 @@ try {
       /* By where they stand rather than which comes first in the page: the
          main board comes first, and stands on the right. */
       ...(() => {
-        const [a, b] = [box(".board-holder svg", 0), box(".board-holder svg", 1)];
+        const [a, b] = [box(".board-holder > svg", 0), box(".board-holder > svg", 1)];
         return a.left < b.left ? { left: a, right: b } : { left: b, right: a };
       })(),
       who: box(".board-and-players > .player-name .player-who"),
@@ -427,7 +427,7 @@ try {
     named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
     row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent),
     branch: box(".board-counter .branch-path"),
-    board: box(".board-holder svg"),
+    board: box(".board-holder > svg"),
   })`;
   const at = (square) => page.run(`${HELPERS} return window.__sq("${square}");`);
   const handMove = async (from, to) => {

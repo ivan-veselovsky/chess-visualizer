@@ -7,6 +7,7 @@ import NumberField from "./NumberField";
 import NumberInput from "./NumberInput";
 import SectionRule from "./SectionRule";
 import SelectField from "./SelectField";
+import { GLYPH_SETS, glyphSet } from "../visualization/glyphSets";
 import SliderField from "./SliderField";
 import ToggleField from "./ToggleField";
 import type {
@@ -363,6 +364,17 @@ export default function SettingsPanel({
 
       {group === "pieces" && (
         <section className="settings-group">
+          {/* What the board draws, which is not always what was asked for: a
+              set this build does not have is drawn, and so shown, as the
+              default. */}
+          <SelectField
+            id="glyph-set"
+            label="Piece set"
+            hint="The pictures the men are drawn with. Whichever set, each man is tinted from his attack colour as below, with the outline round him."
+            value={glyphSet(settings.pieces.glyphSet).name}
+            choices={GLYPH_SETS.map((set) => ({ value: set.name, label: set.name }))}
+            onChange={(glyphSet) => updatePieces({ glyphSet })}
+          />
           <div className="field-row">
             <NumberField
               id="piece-lighten"

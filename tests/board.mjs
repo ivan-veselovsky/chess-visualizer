@@ -50,7 +50,7 @@ try {
   const fresh = JSON.parse(await page.run(`${HELPERS}
     document.querySelector("#tab-manage").click(); await sleep(500);
     const classic = document.querySelector("#two-board-preset");
-    const [main, other] = [...document.querySelectorAll(".board-holder svg")];
+    const [main, other] = [...document.querySelectorAll(".board-holder > svg")];
     return JSON.stringify({
       current: document.querySelector('[aria-current="true"]')?.textContent ?? null,
       two: document.querySelector("#two-board-mode").checked,
@@ -224,7 +224,7 @@ try {
     return { going: document.querySelectorAll(".mark-going").length,
              running: document.getAnimations().length,
              marks: document.querySelectorAll("[class*=attack-side]").length,
-             men: document.querySelectorAll(".piece-layer text").length };`);
+             men: document.querySelectorAll(".piece-layer .piece").length };`);
   check(
     "nothing is left fading when the move is over",
     after.going === 0 && after.running === 0,
@@ -377,7 +377,7 @@ try {
     moves.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
     /* Where a square is on one board or the other: 0 the left, 1 the right. */
     window.__on = (board, name) => {
-      const rects = [...document.querySelectorAll(".board-holder svg")[board].querySelectorAll(".square-layer rect")];
+      const rects = [...document.querySelectorAll(".board-holder > svg")[board].querySelectorAll(".square-layer rect")];
       const xs = rects.map((r) => +r.getAttribute("x"));
       const x0 = Math.min(...xs), step = (Math.max(...xs) - x0) / 7;
       const y0 = Math.min(...rects.map((r) => +r.getAttribute("y")));
@@ -388,7 +388,7 @@ try {
       return { cx: Math.round(b.x + b.width / 2), cy: Math.round(b.y + b.height / 2) };
     };
     window.__played = () => document.querySelector(".moves-select").options.length - 1;
-    window.__marked = () => [...document.querySelectorAll(".board-holder svg")].map((svg) => svg.querySelectorAll(".drag-target").length);
+    window.__marked = () => [...document.querySelectorAll(".board-holder > svg")].map((svg) => svg.querySelectorAll(".drag-target").length);
     return "ok";`);
   const at = (board, square) => page.run(`return window.__on(${board}, "${square}");`);
   const played = async () => Number(await page.run(`return String(window.__played());`));
@@ -481,7 +481,7 @@ try {
     more; Escape takes it back too; and a knight chosen is a knight played.
   */
   const promotionState = (board = 0, square = "e8") => page.run(`const box = document.querySelector(".promotion-chooser:popover-open");
-    const s = document.querySelectorAll(".board-holder svg")[${board}].querySelector('.square-layer [data-square="${square}"]').getBoundingClientRect();
+    const s = document.querySelectorAll(".board-holder > svg")[${board}].querySelector('.square-layer [data-square="${square}"]').getBoundingClientRect();
     const r = box?.getBoundingClientRect();
     return JSON.stringify({
       open: box !== null,
@@ -599,8 +599,8 @@ try {
     click and a click, or dragged on; a pawn refused on the last rank; the move
     given to the other side by the flower, and the signal turning red with the
     reason when that leaves a king in check; the eraser and a drag off the
-    board taking men away; and Done on a position no game reaches giving back
-    the ordinary start.
+    board taking men away; and Done refused on a position no game reaches,
+    and closing the editor on one that a game does.
   */
   const fenNow = () => page.run(`return document.querySelector("#fen").value;`);
   const paletteTool = (label) => page.run(`const b = document.querySelector('.board-editor-palette [aria-label="${label}"]').getBoundingClientRect();
@@ -680,10 +680,39 @@ try {
     `${beforeUndo} / ${undone} / ${redone} / ${undoneByKey}`);
   check("a king pressed on with a man chosen lets the choice go, and is dragged",
     kingMoved.fen === "4k3/4K3/8/5N2/8/8/8/8 b - - 0 1" && kingMoved.chosen === "Move pieces", JSON.stringify(kingMoved));
-  await page.run(`document.querySelector(".editor-button").click(); await sleep(700); return "ok";`);
+  /*
+    Over the board, the flower, the signal and Done again: the signal in the
+    middle of the board, and Done there only for a position a game could reach
+    — this one, with the kings side by side, is not. And the board can be
+    turned round while it is set up, which changes nothing in the position.
+  */
+  const topRow = JSON.parse(await page.run(`const r = (s) => document.querySelector(s).getBoundingClientRect();
+    const board = r(".board-holder > svg"), signal = r(".board-editor-signal"), turn = r(".board-editor-turn"), done = r(".board-editor-done");
+    const fen = document.querySelector("#fen").value;
+    document.querySelector("#flip-board").click(); await sleep(600);
+    const flipped = { fen: document.querySelector("#fen").value, checked: document.querySelector("#flip-board").checked, palette: document.querySelector(".board-editor-palette") !== null };
+    document.querySelector("#flip-board").click(); await sleep(600);
+    return JSON.stringify({ fen, flipped, disabled: document.querySelector(".board-editor-done").disabled,
+      /* The board's squares are 512 of its 536 units, after the 24 the rank labels take. */
+      off: Math.abs((signal.left + signal.right) / 2 - (board.left + board.width * (24 + 256) / 536)),
+      order: turn.right < signal.left && signal.right < done.left,
+      gaps: [signal.left - turn.right, done.left - signal.right].map((gap) => gap / parseFloat(getComputedStyle(document.querySelector(".board-editor-row")).fontSize)) });`));
+  check("over the board in the editor: the flower, the signal in the middle of the board, and Done, three ems apart",
+    topRow.order && topRow.off < 1 && topRow.gaps.every((gap) => Math.abs(gap - 3) < 0.1), JSON.stringify(topRow));
+  check("Done over the board is closed while no game could reach the position", topRow.disabled === true, JSON.stringify(topRow));
+  check("and Black at bottom turns the board round in the editor, the position as it was",
+    topRow.flipped.checked && topRow.flipped.palette && topRow.flipped.fen === topRow.fen, JSON.stringify(topRow));
+  const refused = JSON.parse(await page.run(`const button = document.querySelector(".editor-button");
+    const disabled = button.disabled;
+    button.click(); await sleep(700);
+    return JSON.stringify({ disabled, fen: document.querySelector("#fen").value, palette: document.querySelector(".board-editor-palette") !== null });`));
+  check("Done by the FEN is closed too while no game could reach the position, and the editor stays open",
+    refused.disabled === true && refused.palette === true && refused.fen === kingMoved.fen, JSON.stringify(refused));
+  await page.run(`document.querySelector(".board-editor-clear").click(); await sleep(500);
+    document.querySelector(".editor-button").click(); await sleep(700); return "ok";`);
   const finished = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, palette: document.querySelector(".board-editor-palette") !== null });`));
-  check("Done on a position no game reaches gives back the ordinary start, and the bars",
-    finished.fen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" && finished.palette === false, JSON.stringify(finished));
+  check("and on one a game could reach, it closes the editor on that position, and the bars come back",
+    finished.fen === "4k3/8/8/8/8/8/8/4K3 w - - 0 1" && finished.palette === false, JSON.stringify(finished));
 
   /*
     While it is open, only the position, Done, and the two ways of taking the
@@ -695,7 +724,6 @@ try {
     ${openEditorButton}
     const button = (pattern) => [...document.querySelectorAll("#panel-game button")].find((b) => pattern.test(b.textContent.trim()));
     const disabled = {
-      flip: document.querySelector("#flip-board").disabled,
       reset: button(/^Reset to initial position$/).disabled,
       play: [...document.querySelectorAll("#panel-game button")].find((b) => b.textContent.includes("Play")).disabled,
       period: document.querySelector("#play-period").disabled,
@@ -710,16 +738,37 @@ try {
       done: !document.querySelector(".editor-button").disabled,
       exporting: !button(/^Export game/).disabled,
       share: !button(/Share game/).disabled,
+      flip: !document.querySelector("#flip-board").disabled,
+      doneOverBoard: !document.querySelector(".board-editor-done").disabled,
     };
     button(/^Export game/).click(); await sleep(500);
     const text = document.querySelector("dialog[open] .pgn-text").value;
     document.querySelector("dialog[open] .dialog-close").click(); await sleep(300);
-    document.querySelector(".editor-button").click(); await sleep(600);
-    return JSON.stringify({ disabled, open, text });`));
+    const built = document.querySelector("#fen").value;
+    document.querySelector(".board-editor-done").click(); await sleep(600);
+    const closedOverBoard = document.querySelector(".board-editor-palette") === null && document.querySelector("#fen").value === built;
+    return JSON.stringify({ disabled, open, text, closedOverBoard });`));
   check("while the board is set up, the rest of the Lab is greyed out",
     Object.values(editingState.disabled).every((value) => value === true), JSON.stringify(editingState.disabled));
-  check("but the position, Done, Export and Share still answer",
+  check("but the position, Done — both of them — Export, Share and Black at bottom still answer",
     Object.values(editingState.open).every((value) => value === true), JSON.stringify(editingState.open));
+  check("and Done over the board closes the editor on the position, as the one by the FEN does", editingState.closedOverBoard === true);
+
+  /* More men than a game gives a side: an amber warning, saying what is
+     unusual, and nothing standing in the way of Done. */
+  const crowded = JSON.parse(await page.run(`${HELPERS}
+    __set("#fen", "4k3/8/8/8/8/PPPPPPPP/P7/4K3 w - - 0 1"); await sleep(700);
+    ${openEditorButton}
+    const signal = document.querySelector(".board-editor-signal");
+    const result = { cls: signal.className, why: signal.title, top: document.querySelector(".board-editor-done").disabled, side: document.querySelector(".editor-button").disabled };
+    document.querySelector(".board-editor-done").click(); await sleep(600);
+    result.fen = document.querySelector("#fen").value;
+    result.palette = document.querySelector(".board-editor-palette") !== null;
+    return JSON.stringify(result);`));
+  check("nine pawns are an amber warning, saying so, and either Done closes on them",
+    /board-editor-signal-warning/.test(crowded.cls) && /more than eight pawns/.test(crowded.why) && !crowded.top && !crowded.side &&
+      !crowded.palette && crowded.fen === "4k3/8/8/8/8/PPPPPPPP/P7/4K3 w - - 0 1",
+    JSON.stringify(crowded));
   check("and the position is exported as a game of no moves from its FEN",
     /\[SetUp "1"\]/.test(editingState.text) && /\[FEN "rnbqkbnr\/pppppppp\/8\/8\/8\/8\/PPPPPPPP\/RNBQKBNR w KQkq - 0 1"\]/.test(editingState.text) === false &&
       !/\d\./.test(editingState.text.split("\n\n").pop()),
@@ -768,6 +817,36 @@ try {
     dirty.asked === "Stash current game?" && dirty.palette &&
       dirty.fen === "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b - - 0 1",
     JSON.stringify(dirty));
+
+  console.log("\nPiece sets\n");
+  /*
+    The men are pictures from a set, chosen on the Pieces tab: choosing another
+    redraws the board, the bars and the title's queen from it, and goes back.
+  */
+  const pieceSets = JSON.parse(await page.run(`${HELPERS}
+    window.__tab("Pieces"); await sleep(400);
+    /* The bar of men still standing, so there are men on a bar to look at. */
+    const bar = document.querySelector("#show-available-pieces");
+    const barWas = bar.checked;
+    if (!barWas) { bar.click(); await sleep(400); }
+    const field = document.querySelector("#glyph-set");
+    const drawn = () => [".piece-layer .piece-q path", ".men-bar-piece .piece path", ".title-piece path"]
+      .map((selector) => document.querySelector(selector)?.getAttribute("d") ?? null);
+    const choose = async (name) => { field.value = name; field.dispatchEvent(new Event("change", { bubbles: true })); await sleep(500); };
+    const sets = [...field.options].map((option) => option.value);
+    const first = { name: field.value, drawn: drawn() };
+    await choose(sets.find((name) => name !== first.name));
+    const other = { name: field.value, drawn: drawn(), men: document.querySelectorAll(".piece-layer .piece").length };
+    await choose(first.name);
+    const back = drawn();
+    if (!barWas) { bar.click(); await sleep(400); }
+    return JSON.stringify({ sets, first, other, back });`));
+  check("the Pieces tab offers every set, the DejaVu set first chosen",
+    pieceSets.sets.length >= 2 && pieceSets.first.name === "DejaVu Sans", JSON.stringify(pieceSets.sets));
+  check("another set redraws the men on the board, on the bars and in the title",
+    pieceSets.first.drawn.every((d, index) => d !== null && d !== pieceSets.other.drawn[index]) && pieceSets.other.men > 0,
+    JSON.stringify({ first: pieceSets.first.drawn.map((d) => d?.slice(0, 16)), other: pieceSets.other.drawn.map((d) => d?.slice(0, 16)) }));
+  check("and the first set back draws them as before", JSON.stringify(pieceSets.back) === JSON.stringify(pieceSets.first.drawn));
 
   console.log("\nExplanations behind an (i)\n");
 

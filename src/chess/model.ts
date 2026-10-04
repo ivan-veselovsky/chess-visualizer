@@ -37,16 +37,3 @@ export function squareAt(file: number, rank: number): Square | null {
   return `${FILES[file]}${RANKS[rank]}` as Square;
 }
 
-/**
- * Solid (filled) Unicode glyphs for every piece kind. The same glyph is used for
- * both colours; white pieces are drawn with a white fill and a dark outline so
- * the two sides stay visually consistent across fonts.
- */
-export const PIECE_GLYPHS: Record<PieceSymbol, string> = {
-  k: "♚",
-  q: "♛",
-  r: "♜",
-  b: "♝",
-  n: "♞",
-  p: "♟",
-};

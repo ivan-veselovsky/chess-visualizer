@@ -206,33 +206,36 @@ body {
 }
 
 /*
-  The queen that stands before the title, drawn from the same glyph the board
-  draws its pieces with and in the title's own colour, which it inherits.
+  The queen that stands before the title, drawn from the set the board draws its
+  men with and in the title's own colour, whole, with no outline.
 
-  The symbol fonts are named because the system's own font may have no chess
-  pieces in it at all, and the board says the same list for the same reason.
-  A shade smaller than the words and lifted a hair off the baseline: at the
-  title's own size the glyph sits heavy beside them.
+  Placed as the font's glyph was when the queen was one, in the numbers of the
+  DejaVu set, which is that glyph:
+
+    - a tenth over the words' own size. At the same size the two would stand
+      exactly level — the queen's ink and a capital's height are both 0.734 of
+      the em, measured — so this stands the crown a little above them. The
+      glyph was 48 units of the 64-unit square its picture is drawn in, so the
+      square is 1.1 × 64/48 of the words' em;
+    - on their baseline, which is 48.6 units down that square, so its foot
+      hangs 15.4 units — 0.353em — below it. An inline picture stands on the
+      foot of its margin, so that is said as the margin it stands on;
+    - starting where the words would have started. The glyph's own box began
+      10.5 units into the square, 0.24em, and the queen was inked some way
+      inside that — by 0.109 of her own em, a capital C by 0.047 of the
+      title's — so the square is drawn that much further left, less the
+      difference the box used to stand out by;
+    - and holding no more of the line than the glyph did: the square reaches
+      well above and below the words, and the negative margins give that back,
+      so the header is no taller for it.
 */
-.title-piece {
-  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
-  /*
-    A tenth over the words' own size. At the same size the two would stand
-    exactly level — the queen's ink and a capital's height are both 0.734 of the
-    em in these two fonts, measured — so this stands the crown a little above
-    them. It sits on the baseline as they do, having no ink below it, so no
-    `vertical-align` either.
-  */
-  font-size: 1.1em;
-  line-height: 1;
-  /*
-    And starting where the words would have started. A glyph is inked some way
-    inside its own box — the queen by 0.109 of its own em, a capital C by 0.047
-    of the title's — so left alone the crown would stand the difference to the
-    right of where the title began before it was there.
-  */
-  margin-left: -0.067em;
-  margin-right: 0.35rem;
+.app-header .title-piece {
+  display: inline-block;
+  width: calc(1.1em * 64 / 48);
+  height: calc(1.1em * 64 / 48);
+  margin: -0.4em calc(0.35rem - 0.24em) -0.353em calc(-0.067em - 0.24em);
+  fill: currentColor;
+  stroke: none;
 }
 
 .app-header h1 {
@@ -1007,9 +1010,6 @@ body {
   width: var(--choice);
   height: var(--choice);
   padding: 0;
-  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
-  font-size: calc(var(--choice) * 0.72);
-  line-height: 1;
   background: #dcdcdc;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -1023,14 +1023,23 @@ body {
   outline-offset: 1px;
 }
 
-.promotion-white {
-  color: #ffffff;
-  -webkit-text-stroke: 1.2px #222222;
-  paint-order: stroke fill;
+/* The man a square across: his square is 64 units to the glyph's 48, and the
+   glyph was 0.72 of the button. */
+.promotion-choice .piece {
+  width: calc(var(--choice) * 0.72 * 64 / 48);
+  height: calc(var(--choice) * 0.72 * 64 / 48);
+  flex: 0 0 auto;
 }
 
-.promotion-black {
-  color: #111111;
+/* Over the tint the board's men take from the classes the picture carries. */
+.promotion-white .piece {
+  fill: #ffffff;
+  stroke: #222222;
+}
+
+.promotion-black .piece {
+  fill: #111111;
+  stroke: none;
 }
 
 /*
@@ -1374,12 +1383,8 @@ body {
 }
 
 .piece {
-  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
-  font-size: 48px;
-  text-anchor: middle;
-  dominant-baseline: central;
   /*
-    Selecting and dragging are separate permissions in Chrome, and a glyph left
+    Selecting and dragging are separate permissions in Chrome, and a man left
     draggable is picked up as an image the moment a press turns into a drag.
     `pointer-events: none` does not cover it: that hides the glyph from our own
     hit-testing, not from the browser's choice of what to drag.
@@ -2159,16 +2164,6 @@ body {
      and still land centred. */
   width: calc(100cqw * 64 / 536);
   height: calc(100cqw * 64 / 536);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", serif;
-  font-size: calc(100cqw * 48 / 536);
-  /* The outline the board's own glyphs carry as an SVG stroke; text-stroke is
-     what an ordinary element has instead, at the same width. */
-  -webkit-text-stroke: calc(100cqw * 1.2 / 536) var(--piece-outline);
-  paint-order: stroke fill;
   user-select: none;
   -webkit-user-drag: none;
   pointer-events: none;
@@ -2177,17 +2172,11 @@ body {
   will-change: transform;
 }
 
-/*
-  Tinted as the board's glyphs are, but in `color`: those are painted with SVG's
-  `fill`, which means nothing here. The custom properties behind them are the
-  same ones, set by the classes the glyph carries.
-*/
-.flying-piece.piece-white {
-  color: color-mix(in srgb, var(--piece-color), white var(--piece-lighten));
-}
-
-.flying-piece.piece-black {
-  color: color-mix(in srgb, var(--piece-color), black var(--piece-darken));
+/* The man himself, the same picture the board draws, filling the square. */
+.flying-piece > .piece {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .piece-moving {
@@ -3180,9 +3169,9 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
-  Square, since the glyph turns inside it. The box is a shade larger than the
-  glyph it holds: `.piece` sets 48px inside a 64 viewBox, so the man himself
-  comes out at three quarters of this — smaller than one on the board, these
+  Square, since the man turns inside it. The box is a shade larger than the
+  man it holds: he is drawn 48 units high in a 64-unit square, so he comes
+  out at three quarters of this — smaller than one on the board, these
   being a tally rather than a position.
 */
 .men-bar-piece {
@@ -3305,7 +3294,7 @@ input[type="color"]::-moz-color-swatch {
   touch-action: none;
 }
 
-.board-editor-tool svg {
+.board-editor-tool > svg {
   width: 100%;
   height: 100%;
   overflow: visible;
@@ -3396,8 +3385,34 @@ input[type="color"]::-moz-color-swatch {
 */
 /* No line's name to cut short in the editor, and the flower's petals reach past
    the row's height: the middle lets them. */
+/*
+  Laid out as three columns of a grid rather than along the row: the outer two
+  are as wide as each other, whichever is wider, so the signal between them
+  stands in the middle of the board whatever the flower and the button
+  measure, with three ems either side of it.
+*/
 .player-result.board-editor-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  column-gap: 3em;
   overflow: visible;
+}
+
+.board-editor-row > .board-editor-turn {
+  justify-self: end;
+}
+
+.board-editor-row > .board-editor-done {
+  justify-self: start;
+}
+
+/* The button after the FEN field, again, made to fit the row's one line: it
+   reaches a little above and below it, which the row lets it. */
+.board-editor-done {
+  padding: 0.1em 0.8em;
+  font-size: 0.9em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .board-editor-turn {
@@ -3438,6 +3453,25 @@ input[type="color"]::-moz-color-swatch {
   stroke: #e0443e;
 }
 
+/* Unusual but playable: an amber triangle with a dark mark in it, as a warning
+   sign is drawn — the same on either theme, the amber being light enough for
+   a dark mark on both. */
+.board-editor-signal-warning .board-editor-signal-triangle {
+  fill: #f2b01e;
+  stroke: #f2b01e;
+  stroke-width: 1.2;
+}
+
+.board-editor-signal-warning .board-editor-signal-mark {
+  stroke: #1d1d1f;
+  stroke-width: 1.9;
+}
+
+.board-editor-signal-warning .board-editor-signal-dot {
+  fill: #1d1d1f;
+  stroke: none;
+}
+
 /* The man being carried from the palette, under the pointer until let go. */
 .board-editor-carried {
   position: fixed;
@@ -3448,18 +3482,13 @@ input[type="color"]::-moz-color-swatch {
   pointer-events: none;
 }
 
-.board-editor-carried svg {
+.board-editor-carried > svg {
   width: 100%;
   height: 100%;
   overflow: visible;
   fill: none;
   stroke: var(--app-fg);
   stroke-width: 2;
-}
-
-.board-editor-carried text {
-  stroke: var(--piece-outline);
-  stroke-width: 1.2;
 }
 
 /* The editor's button, after the FEN field: an em and a half of room either
@@ -4822,8 +4851,10 @@ input[type="color"]::-moz-color-swatch {
   opacity: 1;
 }
 
+/* "(me)" after the reader's own name: in the name's own colour, as the rest of
+   the row is — a faded one read as a darker grey than the text colour set. */
 .player-mine {
-  color: color-mix(in srgb, currentColor 60%, transparent);
+  color: inherit;
 }
 
 /* What can still be done about the game, before what the game is. */

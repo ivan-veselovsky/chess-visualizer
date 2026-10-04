@@ -50,3 +50,28 @@ Once lines are flowing, type ♟ into the console's filter box to see only these
 
 
 
+
+### Piece sets
+
+The men are drawn from a set of six SVG pictures, chosen on the Pieces tab
+("Piece set"). A set is a folder under `src/pieces/`, named as the setting
+shows it, holding `k.svg`, `q.svg`, `r.svg`, `b.svg`, `n.svg` and `p.svg`;
+adding a folder adds a set, with nothing else to change (a folder missing any
+of the six is skipped). Each picture is one silhouette in a square viewBox, the
+man standing in it as he should on a square: the app tints whatever has no fill
+of its own and draws the outline round it. A set made from a font's chess
+glyphs:
+
+    python3 scripts/font-glyphs-to-svg.py FONT.ttf "src/pieces/Set name"
+
+Keep the font's licence beside the pictures, as `LICENSE.txt`.
+
+A set whose men stand too high or too low on their squares (as a font's glyphs
+can, placed by the font's own metrics) is moved as a whole by a
+`meta-info.json` in its folder:
+
+    { "correction": { "delta_x": 0, "delta_y": 0.1 } }
+
+In sides of a square, x to the right and y down, as SVG counts: `0.1` moves
+every man a tenth of a square lower. Without the file, or for a value that is
+not a number, nothing is moved.

@@ -1,5 +1,4 @@
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
-import { PIECE_GLYPHS } from "../chess/model";
 import {
   BOARD_ORIGIN,
   CANVAS_SIZE,
@@ -9,10 +8,14 @@ import {
   type Orientation,
 } from "./geometry";
 import { STEPS, travelled, type Flight } from "./flightPath";
+import type { GlyphSet } from "./glyphs";
+import PieceGlyph from "./PieceGlyph";
 
 interface FlightLayerProps {
   flight: Flight;
   orientation?: Orientation;
+  /** The pictures the men are drawn with, as the board draws them. */
+  glyphs: GlyphSet;
   /**
    * Said when every travelling piece has arrived.
    *
@@ -33,9 +36,9 @@ interface FlightLayerProps {
 }
 
 /**
- * The travelling glyphs, drawn over the board while a move plays out.
+ * The travelling men, drawn over the board while a move plays out.
  *
- * Ordinary elements over the board rather than glyphs inside it, and that is
+ * Ordinary elements over the board rather than drawn inside it, and that is
  * the whole point of them. A transform animation runs on the compositor —
  * rasterised once, then moved by the GPU each frame — but only for an element
  * the browser can give a layer of its own, and it never gives one to anything
@@ -61,11 +64,12 @@ interface FlightLayerProps {
 export default function FlightLayer({
   flight,
   orientation = "white",
+  glyphs,
   onLanded,
   vars,
 }: FlightLayerProps) {
   const layer = useRef<HTMLDivElement>(null);
-  const glyphs = useRef<(HTMLSpanElement | null)[]>([]);
+  const carried = useRef<(HTMLSpanElement | null)[]>([]);
   /* Held in a box rather than taken as a dependency: it is a fresh function on
      every render of the board, and the journey must not start again for that. */
   const land = useRef(onLanded);
@@ -87,7 +91,7 @@ export default function FlightLayer({
       return;
     }
     const scale = box.width / CANVAS_SIZE;
-    const running = glyphs.current.map((glyph, index) => {
+    const running = carried.current.map((glyph, index) => {
       const piece = flight.travellers[index];
       if (glyph === null || piece === undefined) {
         return null;
@@ -134,24 +138,20 @@ export default function FlightLayer({
           <span
             key={`${piece.from}-${piece.to}`}
             ref={(glyph) => {
-              glyphs.current[index] = glyph;
+              carried.current[index] = glyph;
             }}
-            className={[
-              "flying-piece",
-              // Kept from the days when this was drawn inside the board: the
-              // stylesheet tints a piece from these two, and both work on an
-              // ordinary element as well as on a glyph in the board.
-              "piece-moving",
-              `piece-${piece.type}`,
-              piece.color === "w" ? "piece-white" : "piece-black",
-              `piece-${settingsSide(piece.color, orientation)}`,
-            ].join(" ")}
+            className="flying-piece piece-moving"
             style={{
               left: place(start.x, BOARD_ORIGIN.x),
               top: place(start.y, BOARD_ORIGIN.y),
             }}
           >
-            {PIECE_GLYPHS[piece.type]}
+            <PieceGlyph
+              set={glyphs}
+              type={piece.type}
+              color={piece.color}
+              side={settingsSide(piece.color, orientation)}
+            />
           </span>
         );
       })}

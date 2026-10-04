@@ -1,6 +1,8 @@
 import type { Square } from "chess.js";
-import { PIECE_GLYPHS, type PlacedPiece } from "../../chess/model";
+import type { PlacedPiece } from "../../chess/model";
 import { settingsSide, squareCenter, type Orientation } from "../geometry";
+import type { GlyphSet } from "../glyphs";
+import PieceGlyph from "../PieceGlyph";
 
 interface PieceLayerProps {
   pieces: PlacedPiece[];
@@ -10,12 +12,14 @@ interface PieceLayerProps {
       of here — it is still on the board, being still in everything's way. */
   flying?: Square[];
   orientation?: Orientation;
+  /** The pictures the men are drawn with. */
+  glyphs: GlyphSet;
 }
 
 /**
- * Draws every piece as a Unicode glyph centred on its square.
+ * Draws every piece on its square, as the chosen set pictures his kind.
  *
- * The glyph carries a class per piece kind as well as per side, so the
+ * The picture carries a class per piece kind as well as per side, so the
  * stylesheet can tint each piece with the colour its attacks are drawn in.
  */
 export default function PieceLayer({
@@ -23,6 +27,7 @@ export default function PieceLayer({
   lifted = null,
   flying = [],
   orientation = "white",
+  glyphs,
 }: PieceLayerProps) {
   return (
     <g className="piece-layer">
@@ -30,24 +35,18 @@ export default function PieceLayer({
         if (piece.square === lifted || flying.includes(piece.square)) {
           return null;
         }
-        const { x, y } = squareCenter(piece.square, orientation);
         return (
-          <text
+          <PieceGlyph
             key={piece.square}
-            x={x}
-            y={y}
-            className={[
-              "piece",
-              `piece-${piece.type}`,
-              // Two independent things: the army decides how the glyph is
-              // tinted, the end of the board decides whose palette it draws
-              // from.
-              piece.color === "w" ? "piece-white" : "piece-black",
-              `piece-${settingsSide(piece.color, orientation)}`,
-            ].join(" ")}
-          >
-            {PIECE_GLYPHS[piece.type]}
-          </text>
+            set={glyphs}
+            type={piece.type}
+            // Two independent things: the army decides how the man is
+            // tinted, the end of the board decides whose palette it draws
+            // from.
+            color={piece.color}
+            side={settingsSide(piece.color, orientation)}
+            at={squareCenter(piece.square, orientation)}
+          />
         );
       })}
     </g>

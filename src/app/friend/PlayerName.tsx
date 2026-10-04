@@ -112,6 +112,10 @@ export function Flower({ color, open }: { color: Color; open: boolean }) {
         covers where the petals start, so they read as growing out from behind
         it rather than as spokes meeting at the middle.
 
+        A fifth larger than it once was, the petals staying as they were: more
+        of each is behind it, so the flower is no wider and its middle reads
+        more as the side's colour.
+
         The white one is drawn a shade smaller than the black. Set in the
         markup rather than the stylesheet because a radius is geometry: some
         browsers take it from CSS and others only from the attribute, and a
@@ -122,7 +126,7 @@ export function Flower({ color, open }: { color: Color; open: boolean }) {
         className="player-disc"
         cx="12"
         cy="12"
-        r={color === "w" ? 11.55 : 12.1}
+        r={color === "w" ? 13.86 : 14.52}
       />
     </svg>
   );

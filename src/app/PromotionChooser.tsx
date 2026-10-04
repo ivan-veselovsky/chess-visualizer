@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { Color } from "chess.js";
-import { PIECE_GLYPHS } from "../chess/model";
 import type { PromotionPiece } from "../chess/moves";
+import type { GlyphSet } from "../visualization/glyphs";
+import PieceGlyph from "../visualization/PieceGlyph";
 
 /** How close it is let come to the square's edge, and to the window's. */
 const GAP = 4;
@@ -25,6 +26,8 @@ interface PromotionChooserProps {
   at: "top" | "bottom";
   onChoose: (piece: PromotionPiece) => void;
   onCancel: () => void;
+  /** The pictures the pieces are drawn with, as the board draws them. */
+  glyphs: GlyphSet;
 }
 
 /**
@@ -48,7 +51,7 @@ interface PromotionChooserProps {
  * takes it back too, for the keyboard. In the page's top layer, so no panel
  * clips it, and placed again as the page scrolls.
  */
-export default function PromotionChooser({ color, square, at: end, onChoose, onCancel }: PromotionChooserProps) {
+export default function PromotionChooser({ color, square, at: end, onChoose, onCancel, glyphs }: PromotionChooserProps) {
   const box = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLButtonElement>(null);
 
@@ -166,7 +169,10 @@ export default function PromotionChooser({ color, square, at: end, onChoose, onC
           title={name}
           onClick={() => onChoose(piece)}
         >
-          {PIECE_GLYPHS[piece]}
+          {/* Not tinted as the board's men are, but plain white or black —
+              see `.promotion-choice`; which end's palette is then nothing to
+              it. */}
+          <PieceGlyph set={glyphs} type={piece} color={color} side="me" />
         </button>
       ))}
     </div>

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Color, Square } from "chess.js";
-import { PIECE_GLYPHS } from "../chess/model";
 import type { BoardEditorPiece } from "../chess/boardEditor";
 import { Flower } from "./friend/PlayerName";
+import type { GlyphSet } from "../visualization/glyphs";
+import PieceGlyph from "../visualization/PieceGlyph";
 
 /** What is chosen in the palette: a piece to put down, or the eraser that takes one away. */
 export type BoardEditorTool = BoardEditorPiece | "erase";
@@ -27,6 +28,8 @@ interface BoardEditorPaletteProps {
   onRedo: (() => void) | null;
   /** The tint the men are drawn in, as the bars it stands in for are given it. */
   style: CSSProperties;
+  /** And the pictures they are drawn with. */
+  glyphs: GlyphSet;
 }
 
 /**
@@ -34,7 +37,7 @@ interface BoardEditorPaletteProps {
  * where each board's squares are on the screen, whatever is drawn over them.
  */
 function squareUnder(x: number, y: number): Square | null {
-  for (const square of document.querySelectorAll(".board-holder svg .square-layer [data-square]")) {
+  for (const square of document.querySelectorAll(".board-holder > svg .square-layer [data-square]")) {
     const box = square.getBoundingClientRect();
     if (x >= box.left && x < box.right && y >= box.top && y < box.bottom) {
       return square.getAttribute("data-square") as Square;
@@ -57,7 +60,7 @@ function squareUnder(x: number, y: number): Square | null {
  * from here and let go over the square. The eraser is chosen and used the same
  * way, on the men already there.
  */
-export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, onClear, onUndo, onRedo, style }: BoardEditorPaletteProps) {
+export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, onClear, onUndo, onRedo, style, glyphs }: BoardEditorPaletteProps) {
   const top: Color = orientation === "white" ? "b" : "w";
   const bottom: Color = top === "w" ? "b" : "w";
   /* The man being dragged from here, and where the pointer is: drawn under it
@@ -144,13 +147,13 @@ export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, 
           >
             <svg viewBox="0 0 64 64" aria-hidden="true">
               {color === "b" && <circle cx={32} cy={32} r={29} className="men-bar-ground" />}
-              <text
-                x={32}
-                y={32}
-                className={`piece piece-${type} ${color === "w" ? "piece-white" : "piece-black"} piece-${color === top ? "opponent" : "me"}`}
-              >
-                {PIECE_GLYPHS[type]}
-              </text>
+              <PieceGlyph
+                set={glyphs}
+                type={type}
+                color={color}
+                side={color === top ? "opponent" : "me"}
+                at={{ x: 32, y: 32 }}
+              />
             </svg>
           </button>
         );
@@ -241,13 +244,13 @@ export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, 
             </svg>
           ) : (
             <svg viewBox="0 0 64 64">
-              <text
-                x={32}
-                y={32}
-                className={`piece piece-${carried.tool.type} ${carried.tool.color === "w" ? "piece-white" : "piece-black"} piece-${carried.tool.color === top ? "opponent" : "me"}`}
-              >
-                {PIECE_GLYPHS[carried.tool.type]}
-              </text>
+              <PieceGlyph
+                set={glyphs}
+                type={carried.tool.type}
+                color={carried.tool.color}
+                side={carried.tool.color === top ? "opponent" : "me"}
+                at={{ x: 32, y: 32 }}
+              />
             </svg>
           )}
         </div>
@@ -277,20 +280,43 @@ export function EditorTurn({ turn, onTurn }: { turn: Color; onTurn: () => void }
 }
 
 /**
- * Whether a game could reach the position being set up: a green tick where it
- * could, a red cross where it could not, and what is wrong in its tooltip.
+ * Whether the position being set up can be played from: a green tick where a
+ * game could reach it, a red cross where it cannot be played from at all, and
+ * between the two an amber warning triangle, for one a game could not have
+ * come to — more men than a side has — that can be played from all the same.
+ * What is wrong, or only unusual, is in its tooltip.
  */
-export function EditorSignal({ problems }: { problems: string[] }) {
-  const legal = problems.length === 0;
+export function EditorSignal({ problems, warnings }: { problems: string[]; warnings: string[] }) {
+  const state = problems.length > 0 ? "illegal" : warnings.length > 0 ? "warning" : "legal";
   return (
     <span
-      className={`board-editor-signal ${legal ? "board-editor-signal-legal" : "board-editor-signal-illegal"}`}
+      className={`board-editor-signal board-editor-signal-${state}`}
       role="img"
-      aria-label={legal ? "A legal position" : `Not a legal position: ${problems.join(" ")}`}
-      title={legal ? "A position a game could reach." : problems.join("\n")}
+      aria-label={
+        state === "illegal"
+          ? `Not a legal position: ${problems.join(" ")}`
+          : state === "warning"
+            ? `Unusual, but playable: ${warnings.join(" ")}`
+            : "A legal position"
+      }
+      title={
+        state === "illegal"
+          ? problems.join("\n")
+          : state === "warning"
+            ? `Unusual, but it can be played from:\n${warnings.join("\n")}`
+            : "A position a game could reach."
+      }
     >
       <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path d={legal ? "M3 8.5l3.3 3.3L13 4.8" : "M4 4l8 8M12 4l-8 8"} />
+        {state === "warning" ? (
+          <>
+            <path className="board-editor-signal-triangle" d="M8 1.8L14.8 13.6H1.2Z" />
+            <path className="board-editor-signal-mark" d="M8 6v3.6" />
+            <circle className="board-editor-signal-dot" cx="8" cy="11.6" r="0.95" />
+          </>
+        ) : (
+          <path d={state === "legal" ? "M3 8.5l3.3 3.3L13 4.8" : "M4 4l8 8M12 4l-8 8"} />
+        )}
       </svg>
     </span>
   );

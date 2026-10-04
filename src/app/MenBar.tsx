@@ -1,9 +1,10 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Color, PieceSymbol } from "chess.js";
-import { PIECE_GLYPHS } from "../chess/model";
 import type { AttackSettings, PieceTint } from "../visualization/settings";
 import { pieceVars } from "../visualization/pieceVars";
+import type { GlyphSet } from "../visualization/glyphs";
+import PieceGlyph from "../visualization/PieceGlyph";
 
 /**
  * How much of each man the one before it may cover, at the least and at the
@@ -85,6 +86,8 @@ interface MenBarProps {
   top: MenGroup;
   bottom: MenGroup;
   pieceTint: PieceTint;
+  /** The pictures the men are drawn with, as the board draws them. */
+  glyphs: GlyphSet;
   attacks: AttackSettings;
 }
 
@@ -99,9 +102,11 @@ function MenGroupColumn({
   group,
   struck,
   leadFirst,
+  glyphs,
 }: {
   group: MenGroup;
   struck: boolean;
+  glyphs: GlyphSet;
   /** Whether the count goes above the men or below, to keep it in the middle. */
   leadFirst: boolean;
 }) {
@@ -142,19 +147,9 @@ function MenGroupColumn({
               */}
               {army === "b" && <circle cx={32} cy={32} r={29} className="men-bar-ground" />}
               {/* Turned a quarter clockwise, so the men lie down. */}
-              <text
-                x={32}
-                y={32}
-                transform="rotate(90 32 32)"
-                className={[
-                  "piece",
-                  `piece-${type}`,
-                  army === "w" ? "piece-white" : "piece-black",
-                  `piece-${side}`,
-                ].join(" ")}
-              >
-                {PIECE_GLYPHS[type]}
-              </text>
+              <g transform="rotate(90 32 32)">
+                <PieceGlyph set={glyphs} type={type} color={army} side={side} at={{ x: 32, y: 32 }} />
+              </g>
               {/*
                 And scored through, on the bar that holds men who are gone.
 
@@ -171,11 +166,12 @@ function MenGroupColumn({
                 stated once, here and on the glyph, and neither has to know
                 which way round the other ended up.
 
-                It crosses at `y=32` because that is where the glyph itself is
-                anchored, and it is where the ink is: measured in this font, a
-                man's ink runs from 13 to 49.5 of the 64, whose middle is
-                31.25 — three quarters of a unit out, which is less than a
-                pixel at any size the bar is drawn at.
+                It crosses at `y=32` because that is the middle of the square
+                the man is drawn in, and a set draws him standing in the middle
+                of his square: measured in the DejaVu set, a man's ink runs
+                from 13 to 49.5 of the 64, whose middle is 31.25 — three
+                quarters of a unit out, which is less than a pixel at any size
+                the bar is drawn at.
               */}
               {struck && (
                 <line
@@ -218,6 +214,7 @@ export default function MenBar({
   top,
   bottom,
   pieceTint,
+  glyphs,
   attacks,
 }: MenBarProps) {
   const column = useRef<HTMLDivElement>(null);
@@ -325,8 +322,8 @@ export default function MenBar({
       {/* The board's own height, less the strip of coordinates along its foot,
           so the two groups sit against the board's own top and bottom edges. */}
       <div className="men-bar-column" ref={column}>
-        <MenGroupColumn group={top} struck={struck} leadFirst={false} />
-        <MenGroupColumn group={bottom} struck={struck} leadFirst />
+        <MenGroupColumn group={top} struck={struck} leadFirst={false} glyphs={glyphs} />
+        <MenGroupColumn group={bottom} struck={struck} leadFirst glyphs={glyphs} />
       </div>
     </aside>
   );

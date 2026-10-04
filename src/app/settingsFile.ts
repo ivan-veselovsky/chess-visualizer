@@ -6,6 +6,7 @@
   `allowImportingTsExtensions` is on for exactly this.
 */
 import { SETTINGS_SCHEMA_VERSION, type Settings } from "./settings.ts";
+import { DEFAULT_GLYPH_SET } from "../visualization/glyphs.ts";
 
 export const SETTINGS_FILE_NAME = "chess-visualizer-settings.json";
 
@@ -118,6 +119,25 @@ function barsShown(candidate: Record<string, unknown>): void {
   /* Beside the switch it belongs with, rather than on the end, so a file this
      build exports reads in the order the interface declares. */
   inOrder(node, ["tint", "showCaptured", "showAvailable"]);
+}
+
+/**
+ * The set of pictures the men are drawn with, filled in where a record does
+ * not name one: one written before there was more than one set, when the men
+ * were the font's glyphs. The set made from that font is what they looked like
+ * then, so it is the set they get.
+ */
+function glyphSetGiven(candidate: Record<string, unknown>): void {
+  const pieces = candidate.pieces;
+  if (pieces === null || typeof pieces !== "object") {
+    return;
+  }
+  const node = pieces as Record<string, unknown>;
+  if (typeof node.glyphSet !== "string") {
+    node.glyphSet = DEFAULT_GLYPH_SET;
+  }
+  /* First, as the interface declares it. */
+  inOrder(node, ["glyphSet", "tint"]);
 }
 
 /**
@@ -450,6 +470,7 @@ export function parseSettings(text: string): ImportResult {
   /* Whichever way it arrived, the `pieces` and `lab` nodes are where they
      belong by now. */
   barsShown(candidate);
+  glyphSetGiven(candidate);
   initialDelayGiven(candidate);
 
   // The version says the shape should be right, but a truncated file would
