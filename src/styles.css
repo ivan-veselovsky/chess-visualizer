@@ -3387,13 +3387,21 @@ input[type="color"]::-moz-color-swatch {
    the row's height: the middle lets them. */
 /*
   Laid out as three columns of a grid rather than along the row: the outer two
-  are as wide as each other, whichever is wider, so the signal between them
-  stands in the middle of the board whatever the flower and the button
-  measure, with three ems either side of it.
+  are as wide as each other, so the signal between them stands in the middle
+  of the board whatever the flower and the button measure, with three ems
+  either side of it.
+
+  As wide as each other even when the row is short of room — `minmax(0, 1fr)`
+  rather than `1fr`, whose floor is what its content needs. With that floor,
+  a row narrower than the three needed (a wider font, a smaller board) shrank
+  each column to its own content, and the button being far wider than the
+  flower, the signal was pushed a button's width off the middle. Now the
+  button reaches past its column instead, into the end of the row, which in
+  the editor holds nothing.
 */
 .player-result.board-editor-row {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   column-gap: 3em;
   overflow: visible;
 }
