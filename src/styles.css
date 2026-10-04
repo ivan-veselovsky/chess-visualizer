@@ -1080,6 +1080,15 @@ body {
 
 /* Keys and what they do, as a list read down the left: the keys in a column
    of their own, each against its line. */
+/* An explanation in more than one paragraph: a line's gap between them. */
+.info-para {
+  margin: 0 0 0.6rem;
+}
+
+.info-para:last-child {
+  margin-bottom: 0;
+}
+
 .info-keys {
   display: grid;
   grid-template-columns: max-content 1fr;

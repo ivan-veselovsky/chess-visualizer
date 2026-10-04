@@ -163,6 +163,40 @@ export function openingFromLocation(): Opening | null {
 }
 
 /**
+ * The address the page was opened at, less what a shared link put there: the
+ * game or position, and the flags that go with them — and the `fbclid` a
+ * Facebook link carries along with them.
+ *
+ * Done once the page has read them, without reloading: the address bar keeps
+ * whatever else it had, and pressing F5 then reloads the page rather than the
+ * link. Left there, it reloaded the link — the game put back as it was shared
+ * and set playing again, over whatever the reader had done with it since.
+ * Nothing at all is touched in an address that carried none of them.
+ */
+export function addressWithoutOpening(href: string): string | null {
+  const url = new URL(href);
+  const shared = [GAME_BASE64_PARAM, GAME_PARAM, POSITION_PARAM, AUTOPLAY_PARAM, BLACK_AT_BOTTOM_PARAM];
+  if (!shared.some((parameter) => url.searchParams.has(parameter))) {
+    return null;
+  }
+  for (const parameter of [...shared, "fbclid"]) {
+    url.searchParams.delete(parameter);
+  }
+  return url.pathname + url.search + url.hash;
+}
+
+/** Puts `addressWithoutOpening` in the address bar, where there is one and it changes anything. */
+export function forgetOpeningInAddress(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const address = addressWithoutOpening(window.location.href);
+  if (address !== null) {
+    window.history.replaceState(window.history.state, "", address);
+  }
+}
+
+/**
  * This page's address carrying one parameter and nothing else — an old one
  * would otherwise ride along and, being read first, override what was shared.
  */

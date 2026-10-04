@@ -83,7 +83,7 @@ import {
   type Flight,
 } from "../visualization/flightPath";
 import CopyButton from "./CopyButton";
-import { gameLink, openingFromLocation } from "./sharing";
+import { forgetOpeningInAddress, gameLink, openingFromLocation } from "./sharing";
 import Board from "../visualization/Board";
 import type { LastMove } from "../visualization/layers/HighlightLayer";
 import GameLibrary from "./GameLibrary";
@@ -587,6 +587,13 @@ export default function App() {
     render reading the address bar again.
   */
   const [opening] = useState(openingFromLocation);
+  /* And, read, taken out of the address bar, so that F5 reloads the page and
+     not the link: see `forgetOpeningInAddress`. After the first render, which
+     is when everything that reads it — this, and which way round the board is
+     — has read it. */
+  useEffect(() => {
+    forgetOpeningInAddress();
+  }, []);
   const [fen, setFen] = useState(opening?.fen ?? DEFAULT_POSITION);
   const [history, setHistory] = useState<PositionHistory>(() =>
     opening?.entries == null
@@ -3445,6 +3452,24 @@ export default function App() {
                       : gameLink(pgn, settings.lab.shareGameWithAutoplay, side === "black");
                   }}
                 />
+                <InfoButton label="Share game">
+                  <p className="info-para">
+                    Copies a link that opens this game, with every line it holds: with{" "}
+                    <strong>Keep variations</strong> on, all of its lines; with it off, the one line there
+                    is. It opens at the first position and plays itself through if{" "}
+                    <strong>With autoplay</strong> is ticked, with Black at the bottom if the board is
+                    turned that way here.
+                  </p>
+                  <p className="info-para">
+                    The game travels in the link as its PGN, in base64: the <code>gameBase64</code>{" "}
+                    parameter. It is the URL-safe variant, <em>base64url</em> (RFC 4648 §5), without
+                    padding: <code>-</code> and <code>_</code> stand for <code>+</code> and{" "}
+                    <code>/</code>, and the closing <code>=</code> or <code>==</code> is left off. So{" "}
+                    <code>base64 -d</code> will not take it as it is;{" "}
+                    <code>scripts/link-to-pgn.py</code>, in the project's source on GitHub, reads the
+                    PGN out of a whole link.
+                  </p>
+                </InfoButton>
               </div>
             </div>
 

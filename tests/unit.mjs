@@ -13,7 +13,7 @@ import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
 import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
 const DEFAULT_SETTINGS = DEFAULT_SETTINGS_JSON;
 import { lineOf as lineFromHistory } from "../src/chess/history.ts";
-import { fromBase64Url, openingFromUrl, toBase64Url } from "../src/app/sharing.ts";
+import { addressWithoutOpening, fromBase64Url, openingFromUrl, toBase64Url } from "../src/app/sharing.ts";
 import { reachSignature } from "../src/chess/attacks.ts";
 import { halfMoves } from "../src/app/friend/counting.ts";
 import { nextStashName } from "../src/chess/stash.ts";
@@ -1489,6 +1489,11 @@ console.log("\nWhat a shared link asks for\n");
     fromBase64Url(btoa("1. e4 e5 *")) === "1. e4 e5 *" && fromBase64Url("MS4gZTQgZTUgKg==") === "1. e4 e5 *");
   check("and what is not base64 of text is no game, rather than a garbled one",
     fromBase64Url("not base64!") === null && fromBase64Url("_w") === null && openingFromUrl("?gameBase64=%25%25") === null);
+  check("once read, a shared link is taken out of the address, Facebook's tag with it, to the bare page",
+    addressWithoutOpening("https://chess.example/?gameBase64=MS4gZTQ&autoplay=true&blackAtBottom=true&fbclid=IwY2x") === "/" &&
+      addressWithoutOpening("https://chess.example/app/?position=8%2F8+w&x=1#here") === "/app/?x=1#here");
+  check("and an address that carried nothing of the kind is left alone, play link and all",
+    addressWithoutOpening("https://chess.example/?play=123456789") === null && addressWithoutOpening("https://chess.example/?fbclid=Iw") === null);
   check("a link shared before, with the PGN as text, still opens its game",
     openingFromUrl("?" + new URLSearchParams({ game: MATE_IN_A_LINE }))?.entries?.length === 4);
   const named = [
