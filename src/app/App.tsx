@@ -2202,9 +2202,11 @@ export default function App() {
     The Lab's keys: Space plays and holds, the arrows step, and with Ctrl they
     run to either end.
 
-    Live only while the Lab tab is the one open and there is a line on the
-    board to walk. A board with no moves behind it has nothing for them to do,
-    and leaves the keys to the page. While they are live they are the Lab's
+    Live whichever tab is open, as long as there is a line on the board to
+    walk: in two board mode the panel is under the boards and out of sight, and
+    keys that worked on one tab and not the others had the reader remembering
+    which one was up. A board with no moves behind it has nothing for them to
+    do, and leaves the keys to the page. While they are live they are the Lab's
     even where the step they ask for is not there to take: Space at the end of
     a game plays nothing, rather than scrolling a page somebody is filming —
     which in two board mode, with the boards filling the window and the panel
@@ -2256,7 +2258,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (tab !== "game" || history.entries.length < 2) {
+    if (history.entries.length < 2) {
       return;
     }
     const listen = (event: KeyboardEvent) => {
@@ -2313,7 +2315,7 @@ export default function App() {
     // and `playOrStop` are made afresh every render from exactly these four —
     // the game read in says where "first" is; listening again whenever one of
     // those changes is listening to them.
-  }, [tab, history, playing, read]);
+  }, [history, playing, read]);
 
   /*
     Whether a takeback can be asked for, and when it cannot, why not.
@@ -3147,7 +3149,7 @@ export default function App() {
                     <dt>Space</dt>
                     <dd>Play, or stop.</dd>
                   </dl>
-                  The keys work whenever the Lab tab is open and no field has the keyboard.
+                  The keys work whichever tab is open, as long as no field has the keyboard.
                 </InfoButton>
               </div>
               <div className="board-controls play-row">

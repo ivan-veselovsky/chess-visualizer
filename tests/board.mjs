@@ -591,6 +591,23 @@ try {
     opened === "true" && Number(listAfter) === Number(listBefore) + 1,
     `dialog opened: ${opened}; moves list at ${listBefore}, then ${listAfter}`);
 
+  /*
+    And on any tab, not only the Lab: in two board mode the panel is out of
+    sight under the boards, and which tab is up is not something to have to
+    remember. A field that takes the arrows keeps them, on whichever tab.
+  */
+  await page.run(`${HELPERS} window.__tab("Pieces"); await sleep(300); document.activeElement?.blur(); return "ok";`);
+  const onPiecesBefore = await page.run(`return String(document.querySelector(".moves-select").selectedIndex);`);
+  await press("ArrowLeft", "ArrowLeft", 37);
+  const onPiecesAfter = await page.run(`return String(document.querySelector(".moves-select").selectedIndex);`);
+  await page.run(`document.querySelector("#piece-lighten").focus(); return "ok";`);
+  await press("ArrowRight", "ArrowRight", 39);
+  const inField = await page.run(`return String(document.querySelector(".moves-select").selectedIndex);`);
+  await page.run(`${HELPERS} document.activeElement?.blur(); await sleep(100); window.__tab("Lab"); await sleep(300); return "ok";`);
+  check("the arrows step through the game from another tab too, and a field there keeps its own",
+    Number(onPiecesAfter) === Number(onPiecesBefore) + 1 && inField === onPiecesAfter,
+    `moves list at ${onPiecesBefore}, then ${onPiecesAfter}; with a field focused, ${inField}`);
+
   console.log("\nThe board editor\n");
 
   /*

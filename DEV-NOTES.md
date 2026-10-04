@@ -75,3 +75,12 @@ can, placed by the font's own metrics) is moved as a whole by a
 In sides of a square, x to the right and y down, as SVG counts: `0.1` moves
 every man a tenth of a square lower. Without the file, or for a value that is
 not a number, nothing is moved.
+
+### Shared game links
+
+"Share game" puts the PGN in the link as `gameBase64=…`: UTF-8, URL-safe base64
+(`-` and `_` for `+` and `/`), without `=` padding, so `base64 -d` rejects it.
+Older links say `game=…` with the PGN as text; both are read. To see what a
+link carries:
+
+    python3 scripts/link-to-pgn.py < link.txt
