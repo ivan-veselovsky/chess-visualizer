@@ -10,7 +10,21 @@ import { parseFen } from "../chess/position.ts";
 
 /** The query parameters a link can carry. */
 export const POSITION_PARAM = "position";
+/** A game as its PGN, written out as it is: what links said before `gameBase64`. */
 export const GAME_PARAM = "game";
+/**
+ * A game as its PGN, in URL-safe base64 — what a link says now.
+ *
+ * A PGN written into an address as text is mostly characters that mean
+ * something to whatever reads the address: spaces, `#` for a mate, brackets,
+ * quotes. Encoded they are safe in principle, but not everything that passes
+ * a link on leaves them encoded; a link pasted into Facebook came back cut
+ * off at a variation's closing bracket. In base64 the game is letters,
+ * digits, `-` and `_`, which nothing reads as anything — and shorter, too,
+ * since a bracket or a quote costs three characters encoded and base64 costs
+ * four for every three.
+ */
+export const GAME_BASE64_PARAM = "gameBase64";
 /** Whether the game a link carries should play itself once it is open. */
 export const AUTOPLAY_PARAM = "autoplay";
 /** Whether the board a link opens is turned round, Black at the bottom. */
@@ -63,11 +77,38 @@ export interface SharedGame {
   pgn: string;
 }
 
+/** Text as URL-safe base64 — UTF-8 first, so names in any script survive — without padding. */
+export function toBase64Url(text: string): string {
+  let binary = "";
+  for (const byte of new TextEncoder().encode(text)) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * And back; null for anything that is not base64 of UTF-8 text. Plain base64
+ * and padding are taken too, for a link somebody put together by hand.
+ */
+export function fromBase64Url(encoded: string): string | null {
+  const plain = encoded.trim().replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, "");
+  if (!/^[A-Za-z0-9+/]*$/.test(plain) || plain.length % 4 === 1) {
+    return null;
+  }
+  try {
+    const binary = atob(plain + "=".repeat((4 - (plain.length % 4)) % 4));
+    return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * What a link asks for, or null when it asks for nothing this page understands.
  *
  * A game wins over a position: it says more, and a link carrying both was
- * built by something other than this page.
+ * built by something other than this page. A game is read from
+ * `gameBase64`, or — for a link shared before there was that — from `game`.
  *
  * Anything unreadable is treated as absent rather than loaded and complained
  * about. The board would have nothing to show while the field sat there being
@@ -77,7 +118,8 @@ export function openingFromUrl(search: string): Opening | null {
   const asked = new URLSearchParams(search);
   const blackAtBottom = asked.get(BLACK_AT_BOTTOM_PARAM) === "true";
 
-  const pgn = asked.get(GAME_PARAM);
+  const encoded = asked.get(GAME_BASE64_PARAM);
+  const pgn = encoded !== null ? fromBase64Url(encoded) : asked.get(GAME_PARAM);
   if (pgn !== null) {
     const { entries, players, result } = parsePgn(pgn);
     if (entries !== null && entries.length > 0) {
@@ -132,15 +174,16 @@ function link(parameter: string, value: string): string {
 }
 
 /**
- * A link that opens this game, and — where asked — sets it playing, and turns
- * the board round with Black at the bottom.
+ * A link that opens this game — its PGN in base64, see `GAME_BASE64_PARAM` —
+ * and, where asked, sets it playing, and turns the board round with Black at
+ * the bottom.
  *
  * The flags are written only when they are on: a link is read by people as
  * well as by browsers, and one that says nothing is one thing less to wonder
  * about.
  */
 export function gameLink(pgn: string, autoplay = false, blackAtBottom = false): string {
-  const url = new URL(link(GAME_PARAM, pgn));
+  const url = new URL(link(GAME_BASE64_PARAM, toBase64Url(pgn)));
   if (autoplay) {
     url.searchParams.set(AUTOPLAY_PARAM, "true");
   }

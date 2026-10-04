@@ -6,14 +6,14 @@
  * Run straight from the TypeScript: node strips the types, so there is no build
  * step between what is written and what is checked.
  */
-import { parsePgn, toPgn } from "../src/chess/pgn.ts";
+import { parsePgn, toPgn, withoutUnknownTags } from "../src/chess/pgn.ts";
 import { lineIndex, linesOf, lineTree, pathSoFar, playInto, readTree, resultShown, soleLine, tourIndex, tourPlaces, walk, writeMovetext } from "../src/chess/variations.ts";
 import { parseSettings, settingsToJson } from "../src/app/settingsFile.ts";
 import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
 import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
 const DEFAULT_SETTINGS = DEFAULT_SETTINGS_JSON;
 import { lineOf as lineFromHistory } from "../src/chess/history.ts";
-import { openingFromUrl } from "../src/app/sharing.ts";
+import { fromBase64Url, openingFromUrl, toBase64Url } from "../src/app/sharing.ts";
 import { reachSignature } from "../src/chess/attacks.ts";
 import { halfMoves } from "../src/app/friend/counting.ts";
 import { nextStashName } from "../src/chess/stash.ts";
@@ -80,6 +80,24 @@ function lineOf(sans) {
 
 console.log("\nPGN headers\n");
 {
+  /* A task: where it starts, how it came out, and nothing that says nothing —
+     as tasks/task-NN.pgn reads. */
+  const start = "7k/1QBb3P/8/8/8/2K5/8/6R1 w - - 0 1";
+  const task = new Chess(start);
+  const taskLine = [{ fen: start, move: null }];
+  for (const san of ["Bf4", "Be8", "Be5#"]) {
+    task.move(san);
+    taskLine.unshift({ fen: task.fen(), move: san });
+  }
+  const written = toPgn({ entries: taskLine, current: 0 });
+  check("a task with nobody's names is written with its position and its result, and no unknowns",
+    written === '[Result "1-0"]\n[SetUp "1"]\n[FEN "7k/1QBb3P/8/8/8/2K5/8/6R1 w - - 0 1"]\n\n1. Bf4 Be8 2. Be5# 1-0', JSON.stringify(written));
+  check("and reads back as a game between nobody, at the same position",
+    parsePgn(written).players.white === "White" && parsePgn(written).entries?.at(-1)?.fen === start);
+  const read = '[Event "?"]\n[Site "?"]\n[Date "2024.??.??"]\n[Round "?"]\n[White "Anna"]\n[Black "?"]\n[Result "*"]\n\n1. e4 {what now?} e5 *\n';
+  check("a game read in loses only its unknowns: a partly known date, a name and a question in a comment all stay",
+    withoutUnknownTags(read) === '[Date "2024.??.??"]\n[White "Anna"]\n[Result "*"]\n\n1. e4 {what now?} e5 *\n', JSON.stringify(withoutUnknownTags(read)));
+  check("and a PGN with no tags at all is left as it is", withoutUnknownTags("1. e4 e5 *") === "1. e4 e5 *");
   const history = lineOf(["e4", "e5", "Nf3"]);
   const pgn = toPgn(history, null, {
     white: "Bob",
@@ -90,7 +108,8 @@ console.log("\nPGN headers\n");
   check("White and Black carry the players' names",
     tag("White") === "Bob" && tag("Black") === "Alice", pgn?.slice(0, 200));
   check("Site is where the game was played", tag("Site") === "chess.example.org", tag("Site"));
-  check("Round is the question mark PGN uses when there is none", tag("Round") === "?", tag("Round"));
+  check("Round, which nobody knows, is not written at all", tag("Round") === undefined && !/\?"\]/.test(pgn), pgn);
+  check("Event, likewise", tag("Event") === undefined, tag("Event"));
   const today = new Date();
   const expected = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
   check("Date is today, written the way PGN writes dates", tag("Date") === expected, tag("Date"));
@@ -1453,10 +1472,25 @@ console.log("\nWhat a shared link asks for\n");
 
   /*
     What a link carries beyond the moves. Encoded the way a link is built —
-    `URLSearchParams` is what `gameLink` writes with — so the round trip here
-    is the one a real link makes.
+    base64 into `URLSearchParams`, which is what `gameLink` writes with — so
+    the round trip here is the one a real link makes.
   */
-  const linked = (text) => openingFromUrl("?" + new URLSearchParams({ game: text }));
+  const linked = (text) => openingFromUrl("?" + new URLSearchParams({ gameBase64: toBase64Url(text) }));
+  const MATE_IN_A_LINE = '[Result "1-0"]\n[SetUp "1"]\n[FEN "7k/1QBb3P/8/8/8/2K5/8/6R1 w - - 0 1"]\n\n1. Bf4 Be8 (1... Bg4 2. Be5#) 2. Be5# 1-0\n';
+  const encoded = toBase64Url(MATE_IN_A_LINE);
+  check("a game is written into a link as letters, digits, - and _, and nothing else",
+    /^[A-Za-z0-9_-]+$/.test(encoded), encoded);
+  check("and read back as the very text it was",
+    fromBase64Url(encoded) === MATE_IN_A_LINE && openingFromUrl(`?gameBase64=${encoded}&fbclid=IwY2x`)?.entries?.length === 4,
+    String(fromBase64Url(encoded)));
+  check("names in any script survive the trip",
+    fromBase64Url(toBase64Url('[White "Иван Веселовский"]\n[Black "李"]')) === '[White "Иван Веселовский"]\n[Black "李"]');
+  check("plain base64 with its padding is read as well, for a link put together by hand",
+    fromBase64Url(btoa("1. e4 e5 *")) === "1. e4 e5 *" && fromBase64Url("MS4gZTQgZTUgKg==") === "1. e4 e5 *");
+  check("and what is not base64 of text is no game, rather than a garbled one",
+    fromBase64Url("not base64!") === null && fromBase64Url("_w") === null && openingFromUrl("?gameBase64=%25%25") === null);
+  check("a link shared before, with the PGN as text, still opens its game",
+    openingFromUrl("?" + new URLSearchParams({ game: MATE_IN_A_LINE }))?.entries?.length === 4);
   const named = [
     '[Event "Club championship"]',
     '[White "Anna"]',

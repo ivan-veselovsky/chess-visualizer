@@ -56,6 +56,7 @@ import {
   resultOnBoard,
   toPgn,
   UNNAMED,
+  withoutUnknownTags,
   type PgnEnding,
   type PgnPlayers,
 } from "../chess/pgn";
@@ -852,7 +853,10 @@ export default function App() {
             how: describeEnding(friend.phase.over.reason),
           }
         : (remembered?.ending ?? null);
-    return originalPgn() ?? toPgn(history, stashName, players, ending);
+    /* A game read in goes out as it came, less the tags that say nothing —
+       see `withoutUnknownTags`, which `toPgn` writes through as well. */
+    const original = originalPgn();
+    return original !== null ? withoutUnknownTags(original) : toPgn(history, stashName, players, ending);
   }
 
   /**

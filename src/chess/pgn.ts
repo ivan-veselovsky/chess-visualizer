@@ -167,6 +167,31 @@ export function resultOnBoard(game: Chess): PgnEnding["result"] | null {
   return endingOnBoard(game)?.result ?? null;
 }
 
+/**
+ * A PGN without the tags that say nothing: the "?" chess.js fills the Seven
+ * Tag Roster with — the event, the site, the round, the players — and the
+ * date that is all question marks. What is known stays, in the order it was:
+ * a task comes out as its tasks/*.pgn file reads, the position it starts
+ * from and its result.
+ *
+ * The standard's export format asks for the whole roster, unknowns and all;
+ * its import format, which is what every reader takes — this one, chess.js,
+ * the sites a game is pasted into — asks for none of it, and a tag with
+ * nothing in it is only length, in a file and more so in a link.
+ *
+ * Only the tag section is touched: a "?" in a comment is somebody's words.
+ */
+export function withoutUnknownTags(pgn: string): string {
+  const rows = pgn.split("\n");
+  let at = 0;
+  while (at < rows.length && rows[at].trimStart().startsWith("[")) {
+    at += 1;
+  }
+  const unknown = /^\s*\[\s*\w+\s+"(?:\?|\?{4}\.\?{2}\.\?{2})"\s*\]\s*$/;
+  const tags = rows.slice(0, at).filter((row) => !unknown.test(row));
+  return [...tags, ...rows.slice(at)].join("\n");
+}
+
 export function toPgn(
   history: PositionHistory,
   event: string | null = null,
@@ -205,7 +230,6 @@ export function toPgn(
       "Date",
       `${today.getFullYear()}.${pad(today.getMonth() + 1)}.${pad(today.getDate())}`,
     );
-    game.setHeader("Round", "?");
     game.setHeader("White", players.white);
     game.setHeader("Black", players.black);
   }
@@ -236,5 +260,5 @@ export function toPgn(
     }
   }
 
-  return game.pgn({ maxWidth: 72, newline: "\n" });
+  return withoutUnknownTags(game.pgn({ maxWidth: 72, newline: "\n" }));
 }
