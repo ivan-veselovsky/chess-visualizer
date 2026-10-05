@@ -71,7 +71,7 @@ const WHERE = `
   const where = () => [
     /* The list sets its numbers off with no-break spaces, to keep them in a column. */
     document.querySelector(".moves-select").selectedOptions[0].textContent.replace(/\\s+/g, " ").trim(),
-    document.querySelector(".branch-path")?.textContent ?? "",
+    document.querySelector(".branch-path")?.title ?? "",
   ];
   const key = (k, ctrl = false) => window.dispatchEvent(new KeyboardEvent("keydown", { key: k, ctrlKey: ctrl, bubbles: true }));
   /* On to the end of the line the board is on, a step at a time: Ctrl+→ is the
@@ -109,7 +109,7 @@ try {
     const boardPlain = box(".board-holder > svg");
     await load(${JSON.stringify(PGN)});
     const loaded = where();
-    const choices = [...document.querySelector("#branch").options].map((o) => o.textContent);
+    const choices = [...document.querySelector("#branch").options].map((o) => o.title);
     key("ArrowLeft", true); await sleep(700);
     const start = where();
     const boardAtStart = box(".board-holder > svg");
@@ -120,14 +120,14 @@ try {
     const middle = box(".board-and-players > .player-name .player-result");
     return JSON.stringify({ loaded, choices, start, fork, boardPlain, boardAtStart, boardAtFork, row, middle });`));
   check("a game read in with variations offers each of its lines",
-    JSON.stringify(named.choices) === JSON.stringify(["1 of 3: 1… Nf7 {case A}", "2 of 3: 1… Ne8 {case B}", "3 of 3: 1… Ke8 {case C}"]),
+    JSON.stringify(named.choices) === JSON.stringify(["1: 1. Rhg7 Nf7 {case A} 2. Rg8#", "2: 1. Rhg7 Ne8 {case B} 2. Ra8#", "3: 1. Rhg7 Ke8 {case C} 2. Rg8#"]),
     JSON.stringify(named.choices));
   check("and arrives at the end of its main line, named as the first of them",
-    JSON.stringify(named.loaded) === JSON.stringify(["2. Rg8#", "Line 1 of 3: 1… Nf7 {case A}"]), JSON.stringify(named.loaded));
-  check("before the fork no line is named — every line is still the same one",
-    JSON.stringify(named.start) === JSON.stringify(["start", ""]), JSON.stringify(named.start));
-  check("at the fork the line is named by the move it goes on with",
-    JSON.stringify(named.fork) === JSON.stringify(["1. Rhg7", "Line 1 of 3: 1… Nf7 {case A}"]), JSON.stringify(named.fork));
+    JSON.stringify(named.loaded) === JSON.stringify(["2. Rg8#", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"]), JSON.stringify(named.loaded));
+  check("before the fork the line is named as well, the whole way it goes",
+    JSON.stringify(named.start) === JSON.stringify(["start", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"]), JSON.stringify(named.start));
+  check("and at the fork, the same",
+    JSON.stringify(named.fork) === JSON.stringify(["1. Rhg7", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"]), JSON.stringify(named.fork));
   check("and the board is the same size with the name up as without it",
     JSON.stringify(named.boardAtStart) === JSON.stringify(named.boardAtFork),
     `${JSON.stringify(named.boardAtStart)} vs ${JSON.stringify(named.boardAtFork)}`);
@@ -175,20 +175,20 @@ try {
     look();
     return JSON.stringify({ seen, flights, lifts, lands, started, closed: play.disabled, after: document.querySelector(".board-holder > svg").style.getPropertyValue("--fade-time") });`));
   const expected = [
-    ["start", ""],
-    ["1. Rhg7", "Line 1 of 3: 1… Nf7 {case A}"],
-    ["Nf7", "Line 1 of 3: 1… Nf7 {case A}"],
-    ["2. Rg8#", "Line 1 of 3: 1… Nf7 {case A}"],
-    ["Nf7", "Line 1 of 3: 1… Nf7 {case A}"],
-    ["1. Rhg7", "Line 1 of 3: 1… Nf7 {case A}"],
-    ["1. Rhg7", "Line 2 of 3: 1… Ne8 {case B}"],
-    ["Ne8", "Line 2 of 3: 1… Ne8 {case B}"],
-    ["2. Ra8#", "Line 2 of 3: 1… Ne8 {case B}"],
-    ["Ne8", "Line 2 of 3: 1… Ne8 {case B}"],
-    ["1. Rhg7", "Line 2 of 3: 1… Ne8 {case B}"],
-    ["1. Rhg7", "Line 3 of 3: 1… Ke8 {case C}"],
-    ["Ke8", "Line 3 of 3: 1… Ke8 {case C}"],
-    ["2. Rg8#", "Line 3 of 3: 1… Ke8 {case C}"],
+    ["start", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"],
+    ["1. Rhg7", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"],
+    ["Nf7", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"],
+    ["2. Rg8#", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"],
+    ["Nf7", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"],
+    ["1. Rhg7", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"],
+    ["1. Rhg7", "Line 2 of 3: 1. Rhg7 Ne8 {case B} 2. Ra8#"],
+    ["Ne8", "Line 2 of 3: 1. Rhg7 Ne8 {case B} 2. Ra8#"],
+    ["2. Ra8#", "Line 2 of 3: 1. Rhg7 Ne8 {case B} 2. Ra8#"],
+    ["Ne8", "Line 2 of 3: 1. Rhg7 Ne8 {case B} 2. Ra8#"],
+    ["1. Rhg7", "Line 2 of 3: 1. Rhg7 Ne8 {case B} 2. Ra8#"],
+    ["1. Rhg7", "Line 3 of 3: 1. Rhg7 Ke8 {case C} 2. Rg8#"],
+    ["Ke8", "Line 3 of 3: 1. Rhg7 Ke8 {case C} 2. Rg8#"],
+    ["2. Rg8#", "Line 3 of 3: 1. Rhg7 Ke8 {case C} 2. Rg8#"],
   ];
   check("each line to its end, back to the fork, and the next line named there before it moves",
     JSON.stringify(played.seen) === JSON.stringify(expected),
@@ -254,9 +254,9 @@ try {
     const atEnd = where();
     return JSON.stringify({ atFork, atEnd });`));
   check("another line, chosen from the end of this one, is taken up at the fork they share",
-    JSON.stringify(chosen.atFork) === JSON.stringify(["1. Rhg7", "Line 1 of 3: 1… Nf7 {case A}"]), JSON.stringify(chosen.atFork));
+    JSON.stringify(chosen.atFork) === JSON.stringify(["1. Rhg7", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"]), JSON.stringify(chosen.atFork));
   check("and runs on to its own end",
-    JSON.stringify(chosen.atEnd) === JSON.stringify(["2. Rg8#", "Line 1 of 3: 1… Nf7 {case A}"]), JSON.stringify(chosen.atEnd));
+    JSON.stringify(chosen.atEnd) === JSON.stringify(["2. Rg8#", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"]), JSON.stringify(chosen.atEnd));
 
   console.log("\nStopped on the way back, and started again\n");
   /* From the end of the line just chosen, with the way back slowed right down
@@ -285,14 +285,14 @@ try {
     return JSON.stringify({ seen, stoppedAt });`));
   check("stopped one step back from the end",
     JSON.stringify(resumed.seen.slice(0, resumed.stoppedAt)) ===
-      JSON.stringify([["2. Rg8#", "Line 1 of 3: 1… Nf7 {case A}"], ["Nf7", "Line 1 of 3: 1… Nf7 {case A}"]]),
+      JSON.stringify([["2. Rg8#", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"], ["Nf7", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"]]),
     resumed.seen.map((step) => step.join(" | ")).join(" ; "));
   check("and started again, it carries on back to the fork and over, rather than going to the end again",
     JSON.stringify(resumed.seen.slice(resumed.stoppedAt, resumed.stoppedAt + 3)) ===
       JSON.stringify([
-        ["1. Rhg7", "Line 1 of 3: 1… Nf7 {case A}"],
-        ["1. Rhg7", "Line 2 of 3: 1… Ne8 {case B}"],
-        ["Ne8", "Line 2 of 3: 1… Ne8 {case B}"],
+        ["1. Rhg7", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#"],
+        ["1. Rhg7", "Line 2 of 3: 1. Rhg7 Ne8 {case B} 2. Ra8#"],
+        ["Ne8", "Line 2 of 3: 1. Rhg7 Ne8 {case B} 2. Ra8#"],
       ]),
     resumed.seen.map((step) => step.join(" | ")).join(" ; "));
 
@@ -324,14 +324,14 @@ try {
     said.ctrl = at();
     return JSON.stringify(said);`));
   check("stepping back stays on the line, and stops at its first position",
-    JSON.stringify(back.end) === JSON.stringify(["2. Rg8#", "Line 3 of 3: 1… Ke8 {case C}", "2", false]) &&
-      JSON.stringify(back.stepped) === JSON.stringify(["start", "", "2", false]),
+    JSON.stringify(back.end) === JSON.stringify(["2. Rg8#", "Line 3 of 3: 1. Rhg7 Ke8 {case C} 2. Rg8#", "2", false]) &&
+      JSON.stringify(back.stepped) === JSON.stringify(["start", "Line 3 of 3: 1. Rhg7 Ke8 {case C} 2. Rg8#", "2", false]),
     `${JSON.stringify(back.end)} -> ${JSON.stringify(back.stepped)}`);
   check("where \"First position\" still has the first line to go to",
-    JSON.stringify(back.first) === JSON.stringify(["start", "", "0", true]), JSON.stringify(back.first));
+    JSON.stringify(back.first) === JSON.stringify(["start", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#", "0", true]), JSON.stringify(back.first));
   check("and from inside another line its key goes there too",
-    JSON.stringify(back.inside) === JSON.stringify(["Ne8", "Line 2 of 3: 1… Ne8 {case B}", "1", false]) &&
-      JSON.stringify(back.ctrl) === JSON.stringify(["start", "", "0", true]),
+    JSON.stringify(back.inside) === JSON.stringify(["Ne8", "Line 2 of 3: 1. Rhg7 Ne8 {case B} 2. Ra8#", "1", false]) &&
+      JSON.stringify(back.ctrl) === JSON.stringify(["start", "Line 1 of 3: 1. Rhg7 Nf7 {case A} 2. Rg8#", "0", true]),
     `${JSON.stringify(back.inside)} -> ${JSON.stringify(back.ctrl)}`);
 
   console.log("\nEach line with its own result\n");
@@ -351,13 +351,13 @@ try {
     said.end = [...where(), result()];
     return JSON.stringify(said);`));
   check("the main line comes out as the file says",
-    JSON.stringify(results.main) === JSON.stringify(["2. e4", "Line 1 of 2: 1… e5", "1 : 0"]), JSON.stringify(results.main));
+    JSON.stringify(results.main) === JSON.stringify(["2. e4", "Line 1 of 2: 1. f3 e5 2. e4", "1 : 0"]), JSON.stringify(results.main));
   check("a line where Black mates says so, from the fork where it is named",
-    JSON.stringify(results.fork) === JSON.stringify(["1. f3", "Line 2 of 2: 1… e6", "0 : 1"]) &&
-      JSON.stringify(results.end) === JSON.stringify(["Qh4#", "Line 2 of 2: 1… e6", "0 : 1"]),
+    JSON.stringify(results.fork) === JSON.stringify(["1. f3", "Line 2 of 2: 1. f3 e6 2. g4 Qh4#", "0 : 1"]) &&
+      JSON.stringify(results.end) === JSON.stringify(["Qh4#", "Line 2 of 2: 1. f3 e6 2. g4 Qh4#", "0 : 1"]),
     `${JSON.stringify(results.fork)} ${JSON.stringify(results.end)}`);
-  check("and before the fork, with no line named, the result is the file's",
-    JSON.stringify(results.start) === JSON.stringify(["start", "", "1 : 0"]), JSON.stringify(results.start));
+  check("and before the fork, the line named in full, the result is the line's own",
+    JSON.stringify(results.start) === JSON.stringify(["start", "Line 2 of 2: 1. f3 e6 2. g4 Qh4#", "0 : 1"]), JSON.stringify(results.start));
 
   console.log("\nA line's name longer than the row\n");
   const crowded = JSON.parse(await page.run(`${HELPERS}${WHERE}
@@ -372,11 +372,15 @@ try {
       who: box(".board-and-players > .player-name .player-who"),
       middle: box(".board-and-players > .player-name .player-result"),
       position: box(".board-and-players > .player-name .player-position"),
-      cut: path.scrollWidth > path.clientWidth,
+      /* Fitted by leaving moves off its front, not cut off by the row. */
+      shown: path.textContent,
+      whole: path.title,
+      cut: path.textContent !== path.title && /^Line 3 of 3: … /.test(path.textContent) && path.title.endsWith(path.textContent.replace(/^Line 3 of 3: … /, "")),
+      fits: path.scrollWidth <= path.clientWidth + 1,
       counter: document.querySelector(".board-and-players > .player-name .player-position").textContent,
     });`));
-  check("it is cut short in the middle",
-    crowded.cut === true, JSON.stringify(crowded.middle));
+  check("it is cut short at its front, keeping its end, and fits the middle",
+    crowded.cut === true && crowded.fits === true, `${crowded.shown} — of ${crowded.whole}`);
   check("without running into the name or the counter",
     crowded.who.right < crowded.middle.left && crowded.middle.right < crowded.position.left,
     `${crowded.who.right} < ${crowded.middle.left}, ${crowded.middle.right} < ${crowded.position.left}`);
@@ -455,7 +459,7 @@ try {
   check("a file that names nobody puts no names over the board",
     withNames.named === 2 && nameless.named === 0, `${withNames.named} rows with names, ${nameless.named} without`);
   check("but one row: the line, its result, and where the board stands in it",
-    nameless.row.length === 3 && /^Line 1 of 3:/.test(nameless.row[0]) && nameless.row[1] === "1 : 0" &&
+    nameless.row.length === 3 && /^Line 1 of 3: /.test(nameless.row[0]) && nameless.row[1] === "1 : 0" &&
       nameless.row[2] === "half-move 3 of 3",
     JSON.stringify(nameless.row));
   check("the line's name beginning where the first file does",
@@ -463,13 +467,17 @@ try {
     `${nameless.branch?.left} vs ${noNamesFirstFile}`);
   check("and the board a row's height bigger than a game with names has",
     nameless.board.height > withNames.board.height + 5, `${nameless.board.height} vs ${withNames.board.height}`);
-  /* A move of one's own on it, from the position before the mate. */
-  await page.run(`${WHERE} key("ArrowLeft"); await sleep(900); return "ok";`);
+  /* A move of one's own on it, from the position before the mate — with
+     variations not kept, switched off after the game is read in: a game with
+     variations arriving turns the switch on. */
+  await page.run(`${WHERE}
+    const keep = document.querySelector("#keep-variations"); if (keep.checked) keep.click(); await sleep(400);
+    key("ArrowLeft"); await sleep(900); return "ok";`);
   await handMove("a7", "b7");
   const ownOnNameless = JSON.parse(await page.run(`${HELPERS}${WHERE} return JSON.stringify(${rows});`));
-  check("a move of one's own leaves the board the size it was, with the line's name gone",
+  check("a move of one's own leaves the board the size it was, the line over it now the one played",
     Math.abs(ownOnNameless.board.height - nameless.board.height) < 1 && ownOnNameless.named === 0 &&
-      ownOnNameless.row[0] === "" && ownOnNameless.row[2] === "half-move 3 of 3",
+      ownOnNameless.row[0] === "Line 1 of 1: 1. Rhg7 Nf7 2. Rb7" && ownOnNameless.row[2] === "half-move 3 of 3",
     `${ownOnNameless.board.height} vs ${nameless.board.height}; ${JSON.stringify(ownOnNameless.row)}`);
 
   /*
@@ -478,14 +486,16 @@ try {
     that ends the first line is the reader's line, not the game's, and the
     names do not come back with it.
   */
-  await page.run(`${HELPERS}${WHERE} await load(${JSON.stringify(PGN)}); key("ArrowLeft"); await sleep(900); return "ok";`);
+  await page.run(`${HELPERS}${WHERE} await load(${JSON.stringify(PGN)});
+    const keep = document.querySelector("#keep-variations"); if (keep.checked) keep.click(); await sleep(400);
+    key("ArrowLeft"); await sleep(900); return "ok";`);
   const before = JSON.parse(await page.run(`${HELPERS}${WHERE} return JSON.stringify(${rows});`));
   await handMove("g7", "g8");
   const own = JSON.parse(await page.run(`${HELPERS}${WHERE} return JSON.stringify(${rows});`));
   check("a game with names keeps them while it is walked",
     before.named === 2, `${before.named} rows with names`);
   check("and loses them at a move of one's own, even the file's own mate",
-    own.named === 0 && own.row[0] === "" && own.row[1] === "1 : 0" && own.row[2] === "half-move 3 of 3",
+    own.named === 0 && own.row[0] === "Line 1 of 1: 1. Rhg7 Nf7 2. Rg8#" && own.row[1] === "1 : 0" && own.row[2] === "half-move 3 of 3",
     `${own.named} rows with names; ${JSON.stringify(own.row)}`);
   /* As it does at a position typed in, which starts a board of one's own. */
   const typed = JSON.parse(await page.run(`${HELPERS}${WHERE}
@@ -507,7 +517,7 @@ try {
   const tree = `
     const state = () => ({
       row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent),
-      branches: [...(document.querySelector("#branch")?.options ?? [])].map((o) => o.textContent),
+      branches: [...(document.querySelector("#branch")?.options ?? [])].map((o) => o.title),
       moves: [...document.querySelector(".moves-select").options].map((o) => o.textContent.replace(/\\s+/g, " ").trim()),
       named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
     });
@@ -534,15 +544,15 @@ try {
   await handMove("g7", "g8");
   const recorded = JSON.parse(await page.run(`${HELPERS}${WHERE}${tree} return JSON.stringify(state());`));
   check("each answer played from the defence it meets is a branch of its own",
-    JSON.stringify(recorded.branches) === JSON.stringify(["1 of 3: 1… Nf7", "2 of 3: 1… Ne8", "3 of 3: 1… Ke8"]),
+    JSON.stringify(recorded.branches) === JSON.stringify(["1: 1. Rhg7 Nf7 2. Rg8#", "2: 1. Rhg7 Ne8 2. Ra8#", "3: 1. Rhg7 Ke8 2. Rg8#"]),
     JSON.stringify(recorded.branches));
   check("with the board on the last one played, named over it",
-    recorded.row[0] === "Line 3 of 3: 1… Ke8" && recorded.row[1] === "1 : 0", JSON.stringify(recorded.row));
+    recorded.row[0] === "Line 3 of 3: 1. Rhg7 Ke8 2. Rg8#" && recorded.row[1] === "1 : 0", JSON.stringify(recorded.row));
   await twoBack();
   await handMove("d6", "f7");
   const followed = JSON.parse(await page.run(`${HELPERS}${WHERE}${tree} return JSON.stringify(state());`));
   check("a move the tree already has is followed rather than made a branch again",
-    followed.branches.length === 3 && followed.row[0] === "Line 1 of 3: 1… Nf7" && followed.row[2] === "half-move 2 of 3",
+    followed.branches.length === 3 && followed.row[0] === "Line 1 of 3: 1. Rhg7 Nf7 2. Rg8#" && followed.row[2] === "half-move 2 of 3",
     JSON.stringify(followed));
   const written = await page.run(`${HELPERS}${WHERE}${tree} return await exported();`);
   check("and the game is exported with every branch in it",
@@ -567,7 +577,7 @@ try {
     pick.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
     return JSON.stringify({ away, back: state(), text: await exported() });`));
   check("stashed, the tree comes back whole, the board on the line it was on",
-    restored.away.branches.length === 0 && JSON.stringify(restored.back.branches) === JSON.stringify(followed.branches) &&
+    JSON.stringify(restored.away.branches) === JSON.stringify(["1: no moves"]) && JSON.stringify(restored.back.branches) === JSON.stringify(followed.branches) &&
       JSON.stringify(restored.back.row) === JSON.stringify(followed.row),
     `${JSON.stringify(restored.back.branches)} ${JSON.stringify(restored.back.row)}`);
   check("and exports exactly as it did before it was stashed", restored.text === written,
@@ -575,25 +585,39 @@ try {
   const off = JSON.parse(await page.run(`${HELPERS}${WHERE}${tree}
     document.querySelector("#keep-variations").click(); await sleep(600);
     const after = state(); const text = await exported();
-    return JSON.stringify({ ...after, text });`));
-  check("switched off, only the way from the start to the board's position is left",
-    off.branches.length === 0 && off.row[0] === "" && off.moves.join(" | ") === "Nf7 | 1. Rhg7 | start" &&
-      !off.text.includes("(") && !off.text.includes("Rg8"),
-    `${JSON.stringify(off.branches)} ${off.moves.join(" | ")} / ${off.text.split("\n\n").pop()}`);
-  /* And at the first position, nothing: switched off and on again, there is no
-     tree and no line, only the position. */
+    return JSON.stringify({ ...after, text, at: where()[0], lineListDisabled: document.querySelector("#branch")?.disabled ?? null });`));
+  check("switched off, only the line on the board is left — all of it, the moves after the board's position too",
+    JSON.stringify(off.branches) === JSON.stringify(["1: 1. Rhg7 Nf7 2. Rg8#"]) && off.row[0] === "Line 1 of 1: 1. Rhg7 Nf7 2. Rg8#" &&
+      off.moves.join(" | ") === "2. Rg8# | Nf7 | 1. Rhg7 | start" && off.at === "Nf7" &&
+      !off.text.includes("(") && off.text.includes("2. Rg8#"),
+    `${JSON.stringify(off.branches)} ${off.moves.join(" | ")} at ${off.at} / ${off.text.split("\n\n").pop()}`);
+  check("and the list of lines stays, with nothing to choose", off.lineListDisabled === true, String(off.lineListDisabled));
+  /* And at the first position, the same: the line the board is on, whole, the
+     board still at its start. Then, with the switch off, a game with
+     variations read in turns it back on: its lines are kept, and the switch
+     says so. */
   const emptied = JSON.parse(await page.run(`${HELPERS}${WHERE}${tree}
     const mode = document.querySelector("#keep-variations"); if (!mode.checked) mode.click(); await sleep(300);
     await load(${JSON.stringify(PGN)});
     key("ArrowLeft", true); await sleep(900);
     mode.click(); await sleep(400); mode.click(); await sleep(400);
-    return JSON.stringify({ ...state(), text: await exported(), on: mode.checked });`));
-  check("switched off and on at the first position, the game is empty",
-    emptied.on === true && emptied.branches.length === 0 && emptied.moves.join(" | ") === "start" &&
-      !/\d\./.test(emptied.text.split("\n\n").pop()),
-    `${emptied.moves.join(" | ")} / ${emptied.text.split("\n\n").pop()}`);
+    const result = { ...state(), text: await exported(), on: mode.checked, at: where()[0] };
+    mode.click(); await sleep(400);
+    result.offBeforeLoad = !mode.checked;
+    await load(${JSON.stringify(PGN)});
+    result.onAfterLoad = mode.checked;
+    result.linesAfterLoad = document.querySelector("#branch").options.length;
+    return JSON.stringify(result);`));
+  check("switched off and on at the first position, the line on the board is left whole, the board at its start",
+    emptied.on === true && JSON.stringify(emptied.branches) === JSON.stringify(["1: 1. Rhg7 Nf7 2. Rg8#"]) &&
+      emptied.moves.join(" | ") === "2. Rg8# | Nf7 | 1. Rhg7 | start" && emptied.at === "start" &&
+      emptied.text.includes("1. Rhg7 Nf7 {case A} 2. Rg8#") && !emptied.text.includes("("),
+    `${emptied.moves.join(" | ")} at ${emptied.at} / ${emptied.text.split("\n\n").pop()}`);
+  check("and a game with variations read in with the switch off turns it on, every line kept",
+    emptied.offBeforeLoad === true && emptied.onAfterLoad === true && emptied.linesAfterLoad === 3,
+    JSON.stringify({ off: emptied.offBeforeLoad, on: emptied.onAfterLoad, lines: emptied.linesAfterLoad }));
   /*
-    "Clear lines before current" takes away the lines played before the one
+    "Remove lines before current" takes away the lines played before the one
     on the board, and keeps it and every line after it, the board where it
     stands and the game's comments as they were.
   */
@@ -605,16 +629,37 @@ try {
     pick.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
     await toLineEnd();
     const before = state();
-    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Clear lines before current").click(); await sleep(600);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Remove lines before current").click(); await sleep(600);
     const after = state();
-    const button = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Clear lines before current");
+    const button = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Remove lines before current");
     return JSON.stringify({ before, after, on: mode.checked, nothingBefore: button.disabled, text: await exported() });`));
-  check("Clear lines before current takes away the lines played before the one on the board, and keeps the rest",
-    JSON.stringify(cleared.after.branches) === JSON.stringify(["1 of 2: 1… Ne8 {case B}", "2 of 2: 1… Ke8 {case C}"]) &&
+  check("Remove lines before current takes away the lines played before the one on the board, and keeps the rest",
+    JSON.stringify(cleared.after.branches) === JSON.stringify(["1: 1. Rhg7 Ne8 {case B} 2. Ra8#", "2: 1. Rhg7 Ke8 {case C} 2. Rg8#"]) &&
       JSON.stringify(cleared.after.moves) === JSON.stringify(cleared.before.moves) && cleared.on === true && cleared.nothingBefore === true,
     JSON.stringify(cleared));
   check("with the line on the board first in what is exported, and the comments kept",
     cleared.text.includes("1. Rhg7 Ne8 {case B} (1... Ke8 {case C} 2. Rg8#) 2. Ra8#"), cleared.text.split("\n\n").pop());
+  /*
+    And "Remove lines after current", the other way: the line on the board
+    kept with every line before it, and the board where it stands.
+  */
+  const trimmed = JSON.parse(await page.run(`${HELPERS}${WHERE}${tree}
+    await load(${JSON.stringify(PGN)});
+    const pick = document.querySelector("#branch");
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(pick, "1");
+    pick.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
+    await toLineEnd();
+    const before = state();
+    const button = () => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Remove lines after current");
+    button().click(); await sleep(600);
+    return JSON.stringify({ before, after: state(), nothingAfter: button().disabled, text: await exported() });`));
+  check("Remove lines after current takes away the lines played after the one on the board, and keeps the rest",
+    JSON.stringify(trimmed.after.branches) === JSON.stringify(["1: 1. Rhg7 Nf7 {case A} 2. Rg8#", "2: 1. Rhg7 Ne8 {case B} 2. Ra8#"]) &&
+      JSON.stringify(trimmed.after.moves) === JSON.stringify(trimmed.before.moves) && trimmed.nothingAfter === true,
+    JSON.stringify(trimmed));
+  check("and what is exported keeps the main line and the line on the board, comments and all",
+    trimmed.text.includes("1. Rhg7 Nf7 {case A} (1... Ne8 {case B} 2. Ra8#) 2. Rg8#") && !trimmed.text.includes("Ke8"),
+    trimmed.text.split("\n\n").pop());
 
   /* "Last position" goes to the end of the last line, as "First position"
      goes to the start of the first. */
@@ -625,7 +670,7 @@ try {
     key("ArrowRight", true); await sleep(900);
     return JSON.stringify({ first, last: where() });`));
   check("Ctrl+→ goes to the last position of the last line",
-    JSON.stringify(lastOfAll.last) === JSON.stringify(["2. Rg8#", "Line 3 of 3: 1… Ke8 {case C}"]) && lastOfAll.first[0] === "start",
+    JSON.stringify(lastOfAll.last) === JSON.stringify(["2. Rg8#", "Line 3 of 3: 1. Rhg7 Ke8 {case C} 2. Rg8#"]) && lastOfAll.first[0] === "start",
     JSON.stringify(lastOfAll));
 
   /*
@@ -646,7 +691,7 @@ try {
   check("a game read in keeps its names as it is grown",
     grownGame.named === 2 && extended.named === 2, `${grownGame.named} and ${extended.named} rows with names`);
   check("and gains the branch played, after its own",
-    extended.branches.length === 4 && /4 of 4: 1… Kc8/.test(extended.branches[3]), JSON.stringify(extended.branches));
+    extended.branches.length === 4 && /4: 1\. Rhg7 Kc8 2\. Ra8#/.test(extended.branches[3]), JSON.stringify(extended.branches));
   check("with its tags and its comments kept in what is exported",
     /\[White "Anna"\]/.test(extended.text) && extended.text.includes("{case A}") && extended.text.includes("(1... Kc8 2. Ra8#)"),
     extended.text.split("\n\n").pop());

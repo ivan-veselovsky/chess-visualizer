@@ -34,7 +34,6 @@ import {
   lineIndex,
   linesOf,
   lineTree,
-  pathSoFar,
   playInto,
   readTree,
   resultShown,
@@ -43,6 +42,8 @@ import {
   tourIndex,
   tourPlaces,
   walk,
+  withOnlyLine,
+  withoutLinesAfter,
   withoutLinesBefore,
   writeMovetext,
   type MoveTree,
@@ -102,7 +103,9 @@ import SponsorIcon from "./SponsorIcon";
 import PlayIcon from "./PlayIcon";
 import SectionRule from "./SectionRule";
 import StepIcon from "./StepIcon";
-import SelectField from "./SelectField";
+import LineSelect from "./LineSelect";
+import LinePath from "./LinePath";
+import { moveTint } from "../visualization/oklch";
 import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
 import AvailableBar from "./AvailableBar";
@@ -139,7 +142,7 @@ import { PRESETS, STARTING_PRESET } from "./presets";
 import { boardSide, setBoardSide } from "./boardSide";
 import LockIcon from "./LockIcon";
 import ExitIcon from "./ExitIcon";
-import type { Orientation } from "../visualization/geometry";
+import { settingsSide, type Orientation } from "../visualization/geometry";
 import { loadSettings } from "./settingsStore";
 import { usePresets, nameTrouble } from "./usePresets";
 import { asking, setAsking } from "./asking";
@@ -737,6 +740,17 @@ export default function App() {
   } | null>(() =>
     opening?.game == null ? null : { ...opening.game, lines: gameLines(opening.game.pgn, history) }
   );
+  /*
+    A game with variations arriving — read in, taken from the stash or the
+    library, or from a link — turns Keep variations on: it is a game of more
+    than one line, and the switch would otherwise say they were not kept while
+    the list of lines offered every one of them.
+  */
+  useEffect(() => {
+    if (read !== null && read.lines.length > 1) {
+      setTreeMode(true);
+    }
+  }, [read]);
   const [libraryGame, setLibraryGame] = useState<string | null>(null);
   const [libraryGameError, setLibraryGameError] = useState<string | null>(null);
   const [pgnExportOpen, setPgnExportOpen] = useState(false);
@@ -1037,19 +1051,18 @@ export default function App() {
   }
 
   /**
-   * Lets go of every line but the one on the board, and of the moves after
-   * where the board stands on it: what is left is the way from the first
-   * position to the one on the board, as a line of the reader's own — at the
-   * first position, nothing but the position. A game with a friend is not the
-   * reader's to cut, and keeps every move it has.
+   * Lets go of every line but the one on the board — all of that one kept, the
+   * moves after where the board stands as well as those before, and the game
+   * it is in kept as the game it was: its names, its result, what the file
+   * said about its moves. The board stays where it stands. A game with a
+   * friend is not the reader's to cut, and keeps every move it has; a game of
+   * one line has nothing to let go of.
    */
   function clearOtherLines() {
-    if (friend.phase.kind === "playing") {
+    if (friend.phase.kind === "playing" || readGame === null || readGame.lines.length < 2 || onLine < 0) {
       return;
     }
-    setPlaying(false);
-    setRead(null);
-    setHistory({ entries: history.entries.slice(history.current), current: 0 });
+    removeLines((tree) => withOnlyLine(tree, readGame.lines, onLine));
   }
 
   /**
@@ -1771,31 +1784,53 @@ export default function App() {
   const walkLine = readGame !== null ? onLine : 0;
   const still = walk(walkLines, walkLine, history.entries.length - 1 - history.current);
   /*
-    Which way a game with variations has gone, to be said over the board: the
-    line it is on, counted among the rest, and its choice at each fork the
-    board has come to. Nothing before the first fork, where it is every line at
-    once — and nothing at all for a game that only goes one way.
+    The lines the board holds, for the list of them and the row over the board:
+    a game's, where one is read in, and otherwise the board's own moves as the
+    one line there is — with variations kept or not, a line is a line, and a
+    move made from the middle of it with them not kept simply gives it a new
+    end. And which of them the board is on.
+  */
+  const fromGame = readGame !== null && readGame.lines.length > 0;
+  const boardLines: TreeLine[] = fromGame
+    ? readGame.lines
+    : [
+        soleLine(
+          history.entries,
+          history.entries
+            .map((entry) => entry.move)
+            .filter((move): move is string => move !== null)
+            .reverse()
+        ),
+      ];
+  const boardLine = fromGame ? Math.max(onLine, 0) : 0;
+  /*
+    The line the board is on, to be said over it: counted among the rest, and
+    the whole way it goes. Nothing on a board with no moves on it, where there
+    is no line to say.
   */
   const branch =
-    readGame !== null && readGame.lines.length > 1
+    boardLines[boardLine] !== undefined && boardLines[boardLine].moves.length > 0
       ? {
-          number: onLine + 1,
-          of: readGame.lines.length,
-          path: pathSoFar(readGame.lines[onLine], history.entries.length - 1 - history.current),
+          number: boardLine + 1,
+          of: boardLines.length,
+          line: boardLines[boardLine],
         }
       : null;
   /*
     And how it came out, which a game with variations says line by line: each
     line's own ending goes up with its name, and changes when the name does.
+    Asked as at the line's end, wherever the board is on it: the line is named
+    over the board in full from its first position (see `LinePath`), so the
+    result beside it is that line's, before its fork as after it.
   */
   const readResult =
     readGame === null
       ? null
-      : resultShown(readGame.lines, onLine, history.entries.length - 1 - history.current, readGame.result);
+      : resultShown(readGame.lines, onLine, readGame.lines[onLine]?.moves.length ?? 0, readGame.result);
   /* Whether "First position" has anywhere to go: back along the line, or —
      at the start of any line of a game with variations but the first — over
      to the first line. See `stepHistory`. */
-  const canGoFirst = canGoPrevious(history) || (branch !== null && onLine !== 0);
+  const canGoFirst = canGoPrevious(history) || (readGame !== null && readGame.lines.length > 1 && onLine !== 0);
   /* And "Last position": on along the line, or — anywhere but the last line —
      over to the end of the last. */
   const canGoLast = canGoNext(history) || (readGame !== null && readGame.lines.length > 1 && onLine !== readGame.lines.length - 1);
@@ -2471,18 +2506,27 @@ export default function App() {
   }
   const shown = position ?? lastValid.current;
   /*
-    Which of a game's lines is on the board, said the same way over a board
-    with names and over one without — in the middle of the names' row, and at
-    the start of the row that stands in for it.
+    Which of a game's lines is on the board, and the whole way it goes, said
+    the same way over a board with names and over one without — in the middle
+    of the names' row, and filling the row that stands in for it, up to how the
+    line comes out. See `LinePath`.
   */
-  const branchLabel =
-    branch !== null && branch.path.length > 0 ? (
-      <span className="branch-path">
-        <span className="branch-count">
-          Line {branch.number} of {branch.of}:
-        </span>{" "}
-        {branch.path.join(" › ")}
-      </span>
+  /* Each side's moves in it tinted as its men are drawn: White's from the
+     palette of whichever end White sits at, Black's from the other's. */
+  const moveTints = {
+    w: moveTint(settings.attacks.rays.colors[settingsSide("w", side)].king),
+    b: moveTint(settings.attacks.rays.colors[settingsSide("b", side)].king),
+  };
+  const branchLabel = (between: boolean) =>
+    branch !== null ? (
+      <LinePath
+        line={branch.line}
+        number={branch.number}
+        of={branch.of}
+        between={between}
+        tints={moveTints}
+        at={history.entries.length - 1 - history.current}
+      />
     ) : null;
   /*
     And how the line on a board without names comes out: the file's word for
@@ -2492,9 +2536,11 @@ export default function App() {
   const unnamedResult =
     readGame !== null ? readResult : shown === null ? null : resultOnBoard(shown);
 
-  /* Whether there are lines before the one on the board for "Clear lines
-     before current" to let go of. */
-  const canClearLines = !editor && friend.phase.kind !== "playing" && readGame !== null && onLine > 0;
+  /* Whether there are lines before the one on the board for "Remove lines
+     before current" to let go of, and after it for "Remove lines after". */
+  const canRemoveLines = !editor && friend.phase.kind !== "playing" && readGame !== null && onLine >= 0;
+  const canRemoveBefore = canRemoveLines && onLine > 0;
+  const canRemoveAfter = canRemoveLines && readGame !== null && onLine < readGame.lines.length - 1;
 
   /*
     What the boards do while the editor is open: a piece dragged goes anywhere,
@@ -2667,15 +2713,35 @@ export default function App() {
    * every line after it, each as the game had it. The line on the board is
    * the game's main line after it, and the board stays where it stands.
    */
-  function clearLinesBefore() {
+  function removeLinesBefore() {
     if (readGame === null || onLine <= 0 || friend.phase.kind === "playing") {
+      return;
+    }
+    removeLines((tree) => withoutLinesBefore(tree, readGame.lines, onLine));
+  }
+
+  /**
+   * And the other way: lets go of every line played after the one on the
+   * board, and keeps that line and every line before it. The line on the
+   * board is the game's last after it, and the board stays where it stands.
+   */
+  function removeLinesAfter() {
+    if (readGame === null || onLine < 0 || onLine >= readGame.lines.length - 1 || friend.phase.kind === "playing") {
+      return;
+    }
+    removeLines((tree) => withoutLinesAfter(tree, readGame.lines, onLine));
+  }
+
+  /** The game read in, cut by `cut`, put back on the board as a game changed here. */
+  function removeLines(cut: (tree: MoveTree) => void) {
+    if (readGame === null) {
       return;
     }
     const tree = readTree(readGame.pgn);
     if (tree === null) {
       return;
     }
-    withoutLinesBefore(tree, readGame.lines, onLine);
+    cut(tree);
     const lines = linesOf(tree);
     const { pgn, result } = gameOfTree(tree, lines, readGame.recorded === true ? null : readGame);
     setPlaying(false);
@@ -2816,10 +2882,11 @@ export default function App() {
                 `.board-counter`.
               */}
               {!atAGame && (
-                <p className="player-name board-counter">
+                <p className={`player-name board-counter${branch !== null && !editor ? " board-counter-line" : ""}`}>
                   {/* Where a name would be, as there is none: which line of
-                      the game is up, from where the first file begins. */}
-                  <span className="player-who">{branchLabel}</span>
+                      the game is up, from where the first file begins, and as
+                      far along the row as how it comes out. */}
+                  <span className="player-who">{branchLabel(false)}</span>
                   <span className={`player-result${editor ? " board-editor-row" : ""}`}>
                     {/* In the editor, whose move it is — pressed to give it to
                         the other side — whether a game could reach the
@@ -2879,8 +2946,8 @@ export default function App() {
                         was taken from the height of the board.
                       */
                       <>
-                        {branchLabel}
-                        {branchLabel !== null && readResult !== null && (
+                        {branchLabel(true)}
+                        {branch !== null && readResult !== null && (
                           <span className="branch-sep" aria-hidden="true">
                             ·
                           </span>
@@ -3300,50 +3367,37 @@ export default function App() {
                 />
                 {/* Which line of a game with variations is on the board, to
                     choose one by hand: the walk plays them all, and this is how
-                    to stop at one and study it. */}
-                {readGame !== null && readGame.lines.length > 1 && (
-                  <SelectField
-                    id="branch"
-                    label="Line"
-                    capped
-                    value={String(onLine)}
-                    choices={readGame.lines.map((line, index) => ({
-                      value: String(index),
-                      label: `${index + 1} of ${readGame.lines.length}: ${line.choices.join(" › ")}`,
-                    }))}
-                    hint="Which line of the game's variations is on the board. The board stays where it is if the new line passes through it, and otherwise goes back to where the two lines part. Shift+→ and Shift+← walk every line a move at a time, as Play does: on to the end of a line, back to where the next one leaves it, and on along that."
-                    onChange={(value) => {
-                      const target = Number(value);
-                      const depth = Math.min(
-                        history.entries.length - 1 - history.current,
-                        sharedMoves(readGame.lines[onLine], readGame.lines[target])
-                      );
-                      setPlaying(false);
-                      switchLine(target, depth);
-                    }}
-                  />
-                )}
-                {/* The lines played before the one on the board let go of;
-                    see `clearLinesBefore`. */}
-                <span className="field-label">
-                  <button
-                    type="button"
-                    className="reset-button"
-                    disabled={!canClearLines}
-                    onClick={clearLinesBefore}
-                  >
-                    Clear lines before current
-                  </button>
-                  <InfoButton label="Clear lines before current">
-                    Takes away every line that comes before the one on the board, in the order the lines are played
-                    — the order Play and Shift+→ walk them. The line on the board stays, with every line after it,
-                    and becomes the first line of the game.
-                  </InfoButton>
-                </span>
+                    to stop at one and study it. There whatever is on the board,
+                    so the row does not change shape as games come and go: with
+                    one line — no variations, or Keep variations off — that line
+                    is its one choice, and it has nothing to choose between. */}
+                <LineSelect
+                  lines={boardLines}
+                  value={boardLine}
+                  disabled={editor || readGame === null || readGame.lines.length < 2}
+                  hint="Which line of the game's variations is on the board, each written out in full from the first position. The board stays where it is if the new line passes through it, and otherwise goes back to where the two lines part. Shift+→ and Shift+← walk every line a move at a time, as Play does: on to the end of a line, back to where the next one leaves it, and on along that. With one line — a game without variations, or Keep variations off — it is the only choice."
+                  onChange={(target) => {
+                    if (readGame === null || readGame.lines[target] === undefined || target === onLine) {
+                      return;
+                    }
+                    const depth = Math.min(
+                      history.entries.length - 1 - history.current,
+                      sharedMoves(readGame.lines[onLine], readGame.lines[target])
+                    );
+                    setPlaying(false);
+                    switchLine(target, depth);
+                  }}
+                />
               </div>
-              {/* Whether moves made on the board keep what they branch away
-                  from. Switched off, every line but the way from the first
-                  position to the board's goes; see `clearOtherLines`. */}
+              {/*
+                Second, what is kept: whether moves made on the board keep what
+                they branch away from — switched off, every line but the way
+                from the first position to the board's goes; see
+                `clearOtherLines` — and, at the far end, the lines either side
+                of the one on the board let go of; see `removeLinesBefore` and
+                `removeLinesAfter`.
+              */}
+              <div className="board-controls lines-keep-row">
               <ToggleField
                 id="keep-variations"
                 label="Keep variations"
@@ -3357,6 +3411,26 @@ export default function App() {
                   }
                 }}
               />
+                <span className="field-label lines-remove">
+                  <button type="button" className="reset-button" disabled={!canRemoveBefore} onClick={removeLinesBefore}>
+                    Remove lines before current
+                  </button>
+                  <button type="button" className="reset-button" disabled={!canRemoveAfter} onClick={removeLinesAfter}>
+                    Remove lines after current
+                  </button>
+                  <InfoButton label="Remove lines">
+                    <p className="info-para">
+                      <strong>Remove lines before current</strong> takes away every line that comes before the one
+                      on the board, in the order the lines are played — the order Play and Shift+→ walk them. The
+                      line on the board stays, with every line after it, and becomes the first line of the game.
+                    </p>
+                    <p className="info-para">
+                      <strong>Remove lines after current</strong> takes away every line that comes after it, and
+                      keeps it with every line before it: it becomes the last line of the game.
+                    </p>
+                  </InfoButton>
+                </span>
+              </div>
             </div>
 
             {/* Second row: what a whole game can be done with. */}

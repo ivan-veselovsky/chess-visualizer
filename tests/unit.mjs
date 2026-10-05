@@ -7,7 +7,7 @@
  * step between what is written and what is checked.
  */
 import { parsePgn, toPgn, withoutUnknownTags } from "../src/chess/pgn.ts";
-import { lineIndex, linesOf, lineTree, pathSoFar, playInto, readTree, resultShown, soleLine, tourIndex, tourPlaces, walk, writeMovetext } from "../src/chess/variations.ts";
+import { lineIndex, linesOf, withOnlyLine, withoutLinesAfter, withoutLinesBefore, lineTree, pathSoFar, playInto, readTree, resultShown, soleLine, tourIndex, tourPlaces, walk, writeMovetext } from "../src/chess/variations.ts";
 import { parseSettings, settingsToJson } from "../src/app/settingsFile.ts";
 import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
 import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
@@ -53,6 +53,7 @@ import { describeEnding } from "../src/app/friend/ending.ts";
 import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { applyMove, isPromotion } from "../src/chess/moves.ts";
 import { asBoardEditorPosition, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
+import { fitLine, lineLabel } from "../src/chess/linePath.ts";
 import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
 import { readdirSync, readFileSync } from "node:fs";
 import CLASSIC_BROWN_JSON from "../src/app/presets/settings-classic-brown.json" with { type: "json" };
@@ -2237,6 +2238,54 @@ console.log("\nPiece sets\n");
   const read = parseSettings(JSON.stringify(older)).settings;
   check("settings written before there were sets are read with the default set, first in their group",
     read?.pieces.glyphSet === DEFAULT_GLYPH_SET && Object.keys(read.pieces)[0] === "glyphSet", JSON.stringify(read?.pieces));
+}
+
+console.log("\nLines removed either side of the one on the board\n");
+{
+  const PGN = "1. e4 e5 (1... c5 2. Nf3) (1... e6 2. d4) 2. Nf3 *";
+  const lines = linesOf(readTree(PGN));
+  const before = readTree(PGN);
+  withoutLinesBefore(before, lines, 1);
+  const after = readTree(PGN);
+  withoutLinesAfter(after, lines, 1);
+  check("before the second of three: the second, first now, and the third",
+    writeMovetext(before) === "1. e4 c5 (1... e6 2. d4) 2. Nf3", writeMovetext(before));
+  check("after it: the first, and the second",
+    writeMovetext(after) === "1. e4 e5 (1... c5 2. Nf3) 2. Nf3", writeMovetext(after));
+  const last = readTree(PGN);
+  withoutLinesAfter(last, lines, 2);
+  check("and after the last there is nothing to take", writeMovetext(last) === writeMovetext(readTree(PGN)), writeMovetext(last));
+  const only = readTree(PGN);
+  withOnlyLine(only, lines, 2);
+  check("and with only the line on the board kept, all of it is kept, to its end",
+    writeMovetext(only) === "1. e4 e6 2. d4", writeMovetext(only));
+}
+
+console.log("\nA line written out for the list of lines\n");
+{
+  const task = linesOf(readTree('[SetUp "1"]\n[FEN "3k4/R6R/3n4/8/8/8/8/K7 w - - 0 1"]\n\n1. Rhg7 Nf7 {case A} (1... Ne8 {case B} 2. Ra8#) 2. Rg8# 1-0\n'));
+  const everything = () => true;
+  check("a line is its number and every move from the first position, the file's name for it where it parts",
+    lineLabel(task[0], "1", everything) === "1: 1. Rhg7 Nf7 {case A} 2. Rg8#" &&
+      lineLabel(task[1], "Line 2", everything) === "Line 2: 1. Rhg7 Ne8 {case B} 2. Ra8#",
+    `${lineLabel(task[0], "1", everything)} / ${lineLabel(task[1], "Line 2", everything)}`);
+  const opening = linesOf(readTree("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 (3... Nf6 4. O-O) 4. Ba4 *"))[0];
+  const upTo = (n) => (label) => label.length <= n;
+  check("too long, it keeps its end and says its front with an ellipsis, numbering Black's move where it starts",
+    lineLabel(opening, "1", upTo(30)) === "1: … 2... Nc6 3. Bb5 a6 4. Ba4", lineLabel(opening, "1", upTo(30)));
+  check("the move the board has just played is never left off: from it, the label says what follows, and where it stops",
+    lineLabel(opening, "1", upTo(30), 1) === "1: … 1... e5 2. Nf3 Nc6 …" &&
+      fitLine(opening, "1", upTo(30), 1).first === 1,
+    lineLabel(opening, "1", upTo(30), 1));
+  check("at the first move, nothing before it to leave off",
+    lineLabel(opening, "1", upTo(24), 0) === "1: 1. e4 e5 2. Nf3 Nc6 …", lineLabel(opening, "1", upTo(24), 0));
+  check("and a kept move the end already shows changes nothing",
+    lineLabel(opening, "1", upTo(30), 6) === "1: … 2... Nc6 3. Bb5 a6 4. Ba4", lineLabel(opening, "1", upTo(30), 6));
+  check("and keeps its last move however little room there is",
+    lineLabel(opening, "1", () => false) === "1: … 4. Ba4", lineLabel(opening, "1", () => false));
+  const fromBlack = linesOf(readTree('[SetUp "1"]\n[FEN "4k3/8/8/8/8/8/4P3/4K3 b - - 0 7"]\n\n7... Kd7 8. e4 (8. e3 Kc6) Ke6 *'))[0];
+  check("a line from a position with Black to move starts at Black's move, by the position's own number",
+    lineLabel(fromBlack, "1", everything) === "1: 7... Kd7 8. e4 Ke6", lineLabel(fromBlack, "1", everything));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

@@ -858,6 +858,43 @@ body {
   min-width: 6em;
 }
 
+/*
+  The line on the board, after the moves and a good gap, taking the rest of
+  the row: its labels are fitted to its width (see `LineSelect`), so the more
+  room it has, the more of each line it shows.
+*/
+.lines-row > .line-field {
+  flex: 1 1 8rem;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+/*
+  Under them, what is kept: the switch at the start of the row, and the two
+  ways of letting lines go at its far end, a gap between them — or on a row of
+  their own, still at the far end, where the panel has no room for all three.
+*/
+.lines-keep-row {
+  flex-wrap: wrap;
+  column-gap: 1em;
+  row-gap: 0.5rem;
+}
+
+.lines-keep-row > .toggle-field {
+  margin-bottom: 0;
+}
+
+.lines-keep-row > .lines-remove {
+  margin-left: auto;
+  gap: 1em;
+}
+
+.line-field > .line-select {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 8em;
+}
+
 .moves-field > label {
   flex: 0 0 auto;
   font-size: 0.9rem;
@@ -4621,10 +4658,73 @@ input[type="color"]::-moz-color-swatch {
   margin-top: calc(0.25rem - 0.7em);
 }
 
-/* Which line of a game is up, where a name would stand: on one line, and cut
-   short before it runs into the result in the middle. */
+/* Which line of a game is up, where a name would stand: on one line, fitted
+   to its room by `LinePath` rather than cut off by the row. */
 .board-counter .branch-path {
   white-space: nowrap;
+}
+
+/*
+  While a game with variations is up, the line it is on has the row: the
+  first column takes everything the result and the counter leave it, and the
+  result goes over to the counter, two ems short of it, rather than standing
+  in the middle of the board.
+*/
+.player-name.board-counter-line {
+  display: flex;
+  column-gap: 2em;
+}
+
+.board-counter-line > .player-who {
+  flex: 1 1 0;
+}
+
+.board-counter-line > .player-result {
+  flex: 0 0 auto;
+}
+
+/* No result yet: nothing, and no gap for it either. */
+.board-counter-line > .player-result:empty {
+  display: none;
+}
+
+.board-counter-line > .player-position {
+  flex: 0 0 auto;
+}
+
+/* A move's number in the line over the board, in the page's livery: the moves
+   read as a game's moves, and a line is found by where it goes. */
+.branch-path .move-number {
+  color: var(--livery);
+}
+
+/*
+  And each side's moves in the text's colour, tinted towards the colour its
+  men are drawn in: the text's own lightness, with the hue of the men and a
+  little of their chroma (see `moveTint`) — so in the presets White's moves
+  read a little blue and Black's a little orange, and Black's are no darker
+  for its men being dark. A browser that cannot work the colour out leaves
+  the text as it is.
+*/
+.branch-path .move-white {
+  color: oklch(from var(--app-fg) l var(--move-white-c) var(--move-white-h));
+}
+
+.branch-path .move-black {
+  color: oklch(from var(--app-fg) l var(--move-black-c) var(--move-black-h));
+}
+
+/* The move the board has just played, as it is stepped through or plays
+   itself: underlined, in the move's own colour. */
+.branch-path .move-current {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* As wide as its column, which is what `LinePath` measures. */
+.board-counter-line .branch-path {
+  flex: 1 1 0;
 }
 
 /*

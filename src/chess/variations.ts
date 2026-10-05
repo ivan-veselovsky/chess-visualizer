@@ -573,13 +573,34 @@ export function tourIndex(lines: TreeLine[], places: TourPlace[], line: number, 
  * main line of what is left. Changes the tree it is given.
  */
 export function withoutLinesBefore(tree: MoveTree, lines: TreeLine[], line: number): MoveTree {
-  const kept = lines.slice(line).map((one) => one.moves);
+  return keepingOnly(tree, lines.slice(line));
+}
+
+/**
+ * The tree without the lines that come after `line` in the order the lines
+ * are played: what is left is that line and every line before it, as they
+ * were, in the order they were. Changes the tree it is given.
+ */
+export function withoutLinesAfter(tree: MoveTree, lines: TreeLine[], line: number): MoveTree {
+  return keepingOnly(tree, lines.slice(0, line + 1));
+}
+
+/**
+ * The tree with only `line` left in it — every move of it, to its end — and
+ * what the file said about those moves. Changes the tree it is given.
+ */
+export function withOnlyLine(tree: MoveTree, lines: TreeLine[], line: number): MoveTree {
+  return keepingOnly(tree, lines.slice(line, line + 1));
+}
+
+/** The tree with nothing in it that none of `kept` passes through, each fork's choices in the order they were. */
+function keepingOnly(tree: MoveTree, kept: TreeLine[]): MoveTree {
   const prune = (node: MoveTree, depth: number, passing: string[][]) => {
     node.next = node.next.filter((child) => passing.some((moves) => moves[depth] === child.move));
     for (const child of node.next) {
       prune(child, depth + 1, passing.filter((moves) => moves[depth] === child.move));
     }
   };
-  prune(tree, 0, kept);
+  prune(tree, 0, kept.map((one) => one.moves));
   return tree;
 }

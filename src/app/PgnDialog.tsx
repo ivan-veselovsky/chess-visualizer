@@ -62,12 +62,16 @@ export default function PgnDialog({ open, onSubmit, onClose }: PgnDialogProps) {
         </p>
       )}
       <div className="pgn-dialog-actions">
-        <button type="button" className="reset-button" onClick={onClose}>
-          Cancel
-        </button>
-        <button type="button" className="reset-button" onClick={load}>
-          Load
-        </button>
+        {/* The two ways out, at one width and held apart, as every dialog's
+            are: see `.button-pair`. */}
+        <div className="button-pair">
+          <button type="button" className="reset-button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="reset-button" onClick={load}>
+            Load
+          </button>
+        </div>
       </div>
     </dialog>
   );

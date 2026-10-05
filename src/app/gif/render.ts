@@ -408,7 +408,17 @@ type Stroke =
       colour: string;
       opacity: number;
     }
-  | { kind: "text"; text: string; font: string; colour: string; x: number; y: number; opacity: number }
+  | {
+      kind: "text";
+      text: string;
+      font: string;
+      colour: string;
+      x: number;
+      y: number;
+      opacity: number;
+      /** Where the page underlines it — the move the board is on, over the board. */
+      underline: { y: number; width: number; thickness: number; colour: string } | null;
+    }
   | { kind: "svg"; markup: string; left: number; top: number; width: number; height: number; opacity: number };
 
 type Corner = { x: number; y: number };
@@ -469,6 +479,10 @@ function draw(context: CanvasRenderingContext2D, stroke: Stroke, image: HTMLImag
     context.textAlign = "left";
     context.textBaseline = "alphabetic";
     context.fillText(stroke.text, stroke.x, stroke.y);
+    if (stroke.underline !== null) {
+      context.fillStyle = stroke.underline.colour;
+      context.fillRect(stroke.x, stroke.underline.y, stroke.underline.width, stroke.underline.thickness);
+    }
   } else if (image !== null) {
     context.drawImage(image, stroke.left, stroke.top, stroke.width, stroke.height);
   }
@@ -597,14 +611,33 @@ function planText(painter: Painter, node: Text, at: Corner, opacity: number): St
     }
   }
   const ascent = context.measureText(text).fontBoundingBoxAscent;
+  const baseline = (rect.top - at.y) * stage.scale + ascent;
+  /*
+    And its underline, where the page draws one: a bar under the run, as thick
+    as the stylesheet says, its top the stated offset below the baseline —
+    which is where the browser puts it once an offset is given. Left out, the
+    font's own sizes stand in: a fourteenth of the type, a tenth below.
+  */
+  const fontSize = parseFloat(seen.fontSize);
+  const thickness = parseFloat(seen.textDecorationThickness);
+  const offset = parseFloat(seen.textUnderlineOffset);
+  const underline = seen.textDecorationLine.includes("underline")
+    ? {
+        y: baseline + (Number.isFinite(offset) ? offset : fontSize / 10) * stage.scale,
+        width: rect.width * stage.scale,
+        thickness: Math.max(1, (Number.isFinite(thickness) ? thickness : fontSize / 14) * stage.scale),
+        colour: seen.textDecorationColor,
+      }
+    : null;
   return {
     kind: "text",
     text,
     font,
     colour: seen.color,
     x: (rect.left - at.x) * stage.scale,
-    y: (rect.top - at.y) * stage.scale + ascent,
+    y: baseline,
     opacity,
+    underline,
   };
 }
 
