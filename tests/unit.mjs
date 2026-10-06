@@ -53,7 +53,7 @@ import { describeEnding } from "../src/app/friend/ending.ts";
 import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { applyMove, isPromotion } from "../src/chess/moves.ts";
 import { asBoardEditorPosition, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
-import { fitLine, lineLabel } from "../src/chess/linePath.ts";
+import { lineLabel, pageLine } from "../src/chess/linePath.ts";
 import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
 import { readdirSync, readFileSync } from "node:fs";
 import CLASSIC_BROWN_JSON from "../src/app/presets/settings-classic-brown.json" with { type: "json" };
@@ -2269,23 +2269,89 @@ console.log("\nA line written out for the list of lines\n");
     lineLabel(task[0], "1", everything) === "1: 1. Rhg7 Nf7 {case A} 2. Rg8#" &&
       lineLabel(task[1], "Line 2", everything) === "Line 2: 1. Rhg7 Ne8 {case B} 2. Ra8#",
     `${lineLabel(task[0], "1", everything)} / ${lineLabel(task[1], "Line 2", everything)}`);
+  check("a line with no name to give it is the way it goes, and nothing before it",
+    lineLabel(task[0], "", everything) === "1. Rhg7 Nf7 {case A} 2. Rg8#", lineLabel(task[0], "", everything));
   const opening = linesOf(readTree("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 (3... Nf6 4. O-O) 4. Ba4 *"))[0];
   const upTo = (n) => (label) => label.length <= n;
-  check("too long, it keeps its end and says its front with an ellipsis, numbering Black's move where it starts",
-    lineLabel(opening, "1", upTo(30)) === "1: … 2... Nc6 3. Bb5 a6 4. Ba4", lineLabel(opening, "1", upTo(30)));
-  check("the move the board has just played is never left off: from it, the label says what follows, and where it stops",
-    lineLabel(opening, "1", upTo(30), 1) === "1: … 1... e5 2. Nf3 Nc6 …" &&
-      fitLine(opening, "1", upTo(30), 1).first === 1,
-    lineLabel(opening, "1", upTo(30), 1));
-  check("at the first move, nothing before it to leave off",
-    lineLabel(opening, "1", upTo(24), 0) === "1: 1. e4 e5 2. Nf3 Nc6 …", lineLabel(opening, "1", upTo(24), 0));
-  check("and a kept move the end already shows changes nothing",
-    lineLabel(opening, "1", upTo(30), 6) === "1: … 2... Nc6 3. Bb5 a6 4. Ba4", lineLabel(opening, "1", upTo(30), 6));
-  check("and keeps its last move however little room there is",
+  check("too long, it keeps its end, its front said with an ellipsis — starting at a White move, never a Black one",
+    lineLabel(opening, "1", upTo(30)) === "1: … 3. Bb5 a6 4. Ba4", lineLabel(opening, "1", upTo(30)));
+  check("and keeps its last pair however little room there is",
     lineLabel(opening, "1", () => false) === "1: … 4. Ba4", lineLabel(opening, "1", () => false));
   const fromBlack = linesOf(readTree('[SetUp "1"]\n[FEN "4k3/8/8/8/8/8/4P3/4K3 b - - 0 7"]\n\n7... Kd7 8. e4 (8. e3 Kc6) Ke6 *'))[0];
   check("a line from a position with Black to move starts at Black's move, by the position's own number",
     lineLabel(fromBlack, "1", everything) === "1: 7... Kd7 8. e4 Ke6", lineLabel(fromBlack, "1", everything));
+  check("and cut short, starts at White's move after it",
+    lineLabel(fromBlack, "1", upTo(14)) === "1: … 8. e4 Ke6", lineLabel(fromBlack, "1", upTo(14)));
+
+  /* Paged over the board: forty characters of room, so the middle half is from the 10th to the 30th. */
+  const long = linesOf(readTree("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 *"))[0];
+  const chars = (text) => text.length;
+  const walk = (from, to, step, start = null) => {
+    const pages = [];
+    let previous = start;
+    for (let move = from; move !== to + step; move += step) {
+      const page = pageLine(long, "", chars, 40, move, previous);
+      pages.push({ move, ...page });
+      previous = page.first;
+    }
+    return pages;
+  };
+  const forward = walk(-1, long.moves.length - 1, 1);
+  const shownMoves = (page) => page.label.slice(page.head.length).replace(/ …$/, "");
+  /* Where on a page's label a move of the line stands, by characters: null where it is not on the page. */
+  const spanOf = (page, move) => {
+    let at = page.head.length;
+    let index = page.first;
+    for (const token of page.label.slice(page.head.length).replace(/\u00a0/g, " ").split(" ")) {
+      if (token !== "" && token !== "…" && !/^\d+\.(\.\.)?$/.test(token)) {
+        if (index === move) return [at, at + token.length];
+        index += 1;
+      }
+      at += token.length + 1;
+    }
+    return null;
+  };
+  const toTheEnd = (page) => !page.label.endsWith("…");
+  check("a line that fits is all there, at every move",
+    [-1, 0, 1, 2].every((move) => pageLine(task[0], "", chars, 40, move, null).label.replace(/\s+/g, " ") === "1. Rhg7 Nf7 {case A} 2. Rg8#"));
+  check("too long, the move it is at is always in the middle half — or before it, where the page starts the line, or after it, where it ends it",
+    forward.slice(1).every((page) => {
+      const span = spanOf(page, page.move);
+      return span !== null && (page.first === 0 || span[0] >= 10) && (span[1] <= 30 || toTheEnd(page));
+    }),
+    forward.slice(1).map((page) => `${page.move}:${JSON.stringify(spanOf(page, page.move))}`).join(" "));
+  check("and the page stands still until the move would run past it",
+    forward.slice(2).every((page, index) => {
+      const was = forward[index + 1];
+      if (page.first === was.first) return true;
+      const there = spanOf(was, page.move);
+      return !toTheEnd(was) && (there === null || there[1] > 30);
+    }),
+    forward.map((page) => page.first).join(","));
+  check("turning, to put the move at the start of the middle half",
+    forward.slice(2).every((page, index) => page.first === forward[index + 1].first || toTheEnd(page) || spanOf(page, page.move)[0] >= 10));
+  check("every page starting at a White move, its number first",
+    forward.every((page) => /^\d+\. /.test(shownMoves(page))), forward.map((page) => shownMoves(page).slice(0, 8)).join(" | "));
+  check("pairs of moves set a space further apart than the moves of a pair",
+    /a6\u00a0 4\. Ba4/.test(forward.find((page) => page.label.includes("Ba4")).label));
+  const end = forward.filter(toTheEnd);
+  check("the page that shows the line to its end stays, the move running on into its last quarter",
+    end.length >= 3 && end.every((page) => page.first === end[0].first) && end[end.length - 1].move === long.moves.length - 1 &&
+      spanOf(end[end.length - 1], long.moves.length - 1)[1] > 30,
+    end.map((page) => `${page.move}:${page.first}`).join(" "));
+  check("and is the page a board opened at the end of the line is on",
+    pageLine(long, "", chars, 40, long.moves.length - 1, null).first === end[0].first);
+  const back = walk(long.moves.length - 1, -1, -1, end[0].first);
+  check("stepping back, it turns a page back once the move is in the first quarter, the move then at the end of the middle half",
+    back.slice(1).every((page, index) => {
+      const was = back[index];
+      if (page.first === was.first) return page.first === 0 || spanOf(page, page.move) === null || spanOf(page, page.move)[0] >= 10 || page.move < 0;
+      const there = spanOf(was, page.move);
+      return (there === null || there[0] < 10) && (page.move < 0 || spanOf(page, page.move)[1] <= 30);
+    }),
+    back.map((page) => `${page.move}:${page.first}`).join(" "));
+  check("and at the first position, the line from its start",
+    back[back.length - 1].first === 0, back[back.length - 1].label);
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

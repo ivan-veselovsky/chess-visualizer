@@ -373,14 +373,14 @@ try {
       middle: box(".board-and-players > .player-name .player-result"),
       position: box(".board-and-players > .player-name .player-position"),
       /* Fitted by leaving moves off its front, not cut off by the row. */
-      shown: path.textContent,
+      shown: path.textContent.replace(/\\s+/g, " "),
       whole: path.title,
-      cut: path.textContent !== path.title && /^Line 3 of 3: … /.test(path.textContent) && path.title.endsWith(path.textContent.replace(/^Line 3 of 3: … /, "")),
+      cut: (() => { const shown = path.textContent.replace(/\\s+/g, " "); return shown !== path.title && /^Line 3 of 3: … /.test(shown) && path.title.endsWith(shown.replace(/^Line 3 of 3: … /, "")); })(),
       fits: path.scrollWidth <= path.clientWidth + 1,
       counter: document.querySelector(".board-and-players > .player-name .player-position").textContent,
     });`));
   check("it is cut short at its front, keeping its end, and fits the middle",
-    crowded.cut === true && crowded.fits === true, `${crowded.shown} — of ${crowded.whole}`);
+    crowded.cut === true && crowded.fits === true, `cut ${crowded.cut} fits ${crowded.fits}: ${crowded.shown} — of ${crowded.whole}`);
   check("without running into the name or the counter",
     crowded.who.right < crowded.middle.left && crowded.middle.right < crowded.position.left,
     `${crowded.who.right} < ${crowded.middle.left}, ${crowded.middle.right} < ${crowded.position.left}`);
@@ -429,7 +429,7 @@ try {
   const NAMELESS = PGN.replace(/\[(White|Black) "[^"]*"\]\n/g, "");
   const rows = `({
     named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
-    row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent),
+    row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent.replace(/\\s+/g, " ")),
     branch: box(".board-counter .branch-path"),
     board: box(".board-holder > svg"),
   })`;
@@ -477,7 +477,7 @@ try {
   const ownOnNameless = JSON.parse(await page.run(`${HELPERS}${WHERE} return JSON.stringify(${rows});`));
   check("a move of one's own leaves the board the size it was, the line over it now the one played",
     Math.abs(ownOnNameless.board.height - nameless.board.height) < 1 && ownOnNameless.named === 0 &&
-      ownOnNameless.row[0] === "Line 1 of 1: 1. Rhg7 Nf7 2. Rb7" && ownOnNameless.row[2] === "half-move 3 of 3",
+      ownOnNameless.row[0] === "1. Rhg7 Nf7 2. Rb7" && ownOnNameless.row[2] === "half-move 3 of 3",
     `${ownOnNameless.board.height} vs ${nameless.board.height}; ${JSON.stringify(ownOnNameless.row)}`);
 
   /*
@@ -495,7 +495,7 @@ try {
   check("a game with names keeps them while it is walked",
     before.named === 2, `${before.named} rows with names`);
   check("and loses them at a move of one's own, even the file's own mate",
-    own.named === 0 && own.row[0] === "Line 1 of 1: 1. Rhg7 Nf7 2. Rg8#" && own.row[1] === "1 : 0" && own.row[2] === "half-move 3 of 3",
+    own.named === 0 && own.row[0] === "1. Rhg7 Nf7 2. Rg8#" && own.row[1] === "1 : 0" && own.row[2] === "half-move 3 of 3",
     `${own.named} rows with names; ${JSON.stringify(own.row)}`);
   /* As it does at a position typed in, which starts a board of one's own. */
   const typed = JSON.parse(await page.run(`${HELPERS}${WHERE}
@@ -516,7 +516,7 @@ try {
   */
   const tree = `
     const state = () => ({
-      row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent),
+      row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent.replace(/\\s+/g, " ")),
       branches: [...(document.querySelector("#branch")?.options ?? [])].map((o) => o.title),
       moves: [...document.querySelector(".moves-select").options].map((o) => o.textContent.replace(/\\s+/g, " ").trim()),
       named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
@@ -587,7 +587,7 @@ try {
     const after = state(); const text = await exported();
     return JSON.stringify({ ...after, text, at: where()[0], lineListDisabled: document.querySelector("#branch")?.disabled ?? null });`));
   check("switched off, only the line on the board is left — all of it, the moves after the board's position too",
-    JSON.stringify(off.branches) === JSON.stringify(["1: 1. Rhg7 Nf7 2. Rg8#"]) && off.row[0] === "Line 1 of 1: 1. Rhg7 Nf7 2. Rg8#" &&
+    JSON.stringify(off.branches) === JSON.stringify(["1: 1. Rhg7 Nf7 2. Rg8#"]) && off.row[0] === "1. Rhg7 Nf7 2. Rg8#" &&
       off.moves.join(" | ") === "2. Rg8# | Nf7 | 1. Rhg7 | start" && off.at === "Nf7" &&
       !off.text.includes("(") && off.text.includes("2. Rg8#"),
     `${JSON.stringify(off.branches)} ${off.moves.join(" | ")} at ${off.at} / ${off.text.split("\n\n").pop()}`);

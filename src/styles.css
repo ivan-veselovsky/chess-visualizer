@@ -21,9 +21,10 @@
   --piece-dark-mix: 45%;
   /* The page's one piece of livery, worn by the title over the board. */
   --livery: #49d0fd;
-  /* And what the flower is, which is a colour of its own: the one thing on the
-     page that opens and closes by itself should not be mistaken for a control. */
-  --petal: #ccdccc;
+  /* And what the flower's petals are: the livery the title wears, and the move
+     numbers in the line over the board — the flower says whose move it is, and
+     shares a colour with what counts the moves. */
+  --petal: var(--livery);
   --panel-border: color-mix(in srgb, currentColor 25%, transparent);
   --panel-bg: color-mix(in srgb, currentColor 5%, transparent);
   /*
@@ -4712,6 +4713,20 @@ input[type="color"]::-moz-color-swatch {
 
 .branch-path .move-black {
   color: oklch(from var(--app-fg) l var(--move-black-c) var(--move-black-h));
+}
+
+/* In a move, the signs: a capture's "x" in the livery the numbers are in, and
+   a check's "+" and a mate's "#" in the colours the board marks them in. */
+.branch-path .move-capture {
+  color: var(--livery);
+}
+
+.branch-path .move-check {
+  color: var(--line-check);
+}
+
+.branch-path .move-mate {
+  color: var(--line-mate);
 }
 
 /* The move the board has just played, as it is stepped through or plays

@@ -2526,6 +2526,10 @@ export default function App() {
         between={between}
         tints={moveTints}
         at={history.entries.length - 1 - history.current}
+        marks={{
+          check: settings.attacks.checkAndCheckmate.checkColor,
+          mate: settings.attacks.checkAndCheckmate.checkmateColor,
+        }}
       />
     ) : null;
   /*

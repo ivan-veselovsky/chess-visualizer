@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { TreeLine } from "../chess/variations";
-import { fitLine, lineLabel } from "../chess/linePath";
+import { lineLabel, pageLine } from "../chess/linePath";
 
 interface LinePathProps {
   line: TreeLine;
@@ -21,6 +21,8 @@ interface LinePathProps {
   tints: { w: { c: number; h: number } | null; b: { c: number; h: number } | null };
   /** How many of the line's moves the board has played: the last of them is underlined. */
   at: number;
+  /** The colours the board marks a check and a mate in: a move's "+" and "#" are written in them. */
+  marks: { check: string; mate: string };
 }
 
 /**
@@ -39,7 +41,7 @@ interface LinePathProps {
  * whenever the row is resized; a measure that has not changed changes
  * nothing.
  */
-export default function LinePath({ line, number, of, between, tints, at }: LinePathProps) {
+export default function LinePath({ line, number, of, between, tints, at, marks }: LinePathProps) {
   const span = useRef<HTMLSpanElement>(null);
   const [room, setRoom] = useState<{ width: number; font: string } | null>(null);
 
@@ -84,24 +86,37 @@ export default function LinePath({ line, number, of, between, tints, at }: LineP
     // the element afresh each time; what is watched only changes with `between`.
   }, [between]);
 
-  const name = `Line ${number} of ${of}`;
+  /* Named among the others where there are others; the one line a game has
+     is simply the way it goes. */
+  const name = of > 1 ? `Line ${number} of ${of}` : "";
   const whole = lineLabel(line, name, () => true);
   const context = room === null ? null : document.createElement("canvas").getContext("2d");
-  /* Fitted round the move the board has just played, which stays in it. */
-  let shown = { label: whole, first: 0 };
+  /* Paged round the move the board has just played: see `pageLine`. Where the
+     page started last time is what keeps it still while that move is in the
+     middle of the room; a different line starts afresh. */
+  const page = useRef<{ line: string; first: number } | null>(null);
+  const which = `${line.entries[line.entries.length - 1]?.fen ?? ""} ${line.moves.join(" ")}`;
+  let shown = { label: whole, first: 0, head: name === "" ? "" : `${name}: ` };
   if (room !== null && context !== null) {
     context.font = room.font;
-    shown = fitLine(line, name, (label) => context.measureText(label).width <= room.width, at - 1);
+    const previous = page.current !== null && page.current.line === which ? page.current.first : null;
+    shown = pageLine(line, name, (text) => context.measureText(text).width, room.width, at - 1, previous);
   }
+  const first = shown.first;
+  useLayoutEffect(() => {
+    page.current = { line: which, first };
+  });
 
   const style = {
+    "--line-check": marks.check,
+    "--line-mate": marks.mate,
     ...(tints.w === null ? {} : { "--move-white-c": tints.w.c, "--move-white-h": tints.w.h }),
     ...(tints.b === null ? {} : { "--move-black-c": tints.b.c, "--move-black-h": tints.b.h }),
   } as CSSProperties;
 
   return (
     <span ref={span} className="branch-path" title={whole} style={style}>
-      {coloured(shown.label, tints, at - 1 - shown.first)}
+      {coloured(shown.label, shown.head, tints, at - 1 - shown.first)}
     </span>
   );
 }
@@ -112,17 +127,17 @@ export default function LinePath({ line, number, of, between, tints, at }: LineP
  * than a run of words; and each side's moves tinted with the colour its men
  * are drawn in, so whose move is whose is seen without counting.
  *
- * Read off the label as `lineLabel` writes it: after the line's name, and the
- * ellipsis where its front is left off, a number says whose move follows — "5."
- * White's, "5..." Black's — and the moves after it take turns. What the file
- * calls a line, in braces, is neither, and keeps the text's colour.
+ * Read off the label as `pageLine` writes it: after its `head` — the line's
+ * name, and the ellipsis where its front is left off — a number says whose
+ * move follows — "5." White's, "5..." Black's — and the moves after it take
+ * turns. What the file calls a line, in braces, is neither, and keeps the
+ * text's colour; nor is the ellipsis at the end where its end is left off.
  *
  * And the move the board has just played underlined: `current` is where it
- * stands among the moves the label shows, from 0, which `fitLine` keeps in it.
- * At the line's first position no move has been played, and it is below 0.
+ * stands among the moves the label shows, from 0, which `pageLine` keeps in
+ * it. At the line's first position no move has been played, and it is below 0.
  */
-function coloured(label: string, tints: LinePathProps["tints"], current: number): ReactNode[] {
-  const head = /^[^:]*:\s(?:…\s)?/.exec(label)?.[0] ?? "";
+function coloured(label: string, head: string, tints: LinePathProps["tints"], current: number): ReactNode[] {
   const parts: ReactNode[] = [head];
   let side: "w" | "b" = "w";
   const body = label.slice(head.length);
@@ -146,7 +161,7 @@ function coloured(label: string, tints: LinePathProps["tints"], current: number)
       ].filter((name) => name !== null);
       parts.push(
         <span key={index} className={classes.length > 0 ? classes.join(" ") : undefined}>
-          {piece}
+          {marked(piece)}
         </span>
       );
       side = side === "w" ? "b" : "w";
@@ -154,4 +169,23 @@ function coloured(label: string, tints: LinePathProps["tints"], current: number)
     }
   }
   return parts;
+}
+
+/**
+ * A move with the signs in it set apart: the "x" of a capture in the page's
+ * livery, as the move numbers are, and a "+" or a "#" at its end in the colour
+ * the board marks a check or a mate in — so a capture, a check and a mate are
+ * seen in the line without reading it.
+ */
+function marked(move: string): ReactNode[] {
+  return (move.match(/x|[+#]$|[^x+#]+|[+#]/g) ?? [move]).map((part, index) => {
+    const kind = part === "x" ? "move-capture" : part === "+" ? "move-check" : part === "#" ? "move-mate" : null;
+    return kind === null ? (
+      part
+    ) : (
+      <span key={index} className={kind}>
+        {part}
+      </span>
+    );
+  });
 }
