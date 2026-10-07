@@ -100,7 +100,10 @@ export default function LinePath({ line, number, of, between, tints, at, marks }
   if (room !== null && context !== null) {
     context.font = room.font;
     const previous = page.current !== null && page.current.line === which ? page.current.first : null;
-    shown = pageLine(line, name, (text) => context.measureText(text).width, room.width, at - 1, previous);
+    /* Less what the frame round the move the board is on adds to it: see
+       `.branch-path .move-current`. */
+    const frame = 0.2 * parseFloat(room.font.match(/([\d.]+)px/)?.[1] ?? "16");
+    shown = pageLine(line, name, (text) => context.measureText(text).width, room.width - frame, at - 1, previous);
   }
   const first = shown.first;
   useLayoutEffect(() => {

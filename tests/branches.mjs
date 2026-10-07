@@ -412,9 +412,10 @@ try {
   const firstFile = two.left.left + (two.left.width * 24) / 536;
   check("the row over the boards ends where the right-hand board does",
     Math.abs(two.position.right - two.right.right) < 3, `${two.position.right} vs ${two.right.right}`);
-  check("the line's name and its result are in the middle of the pair",
-    Math.abs((two.branch.left + two.score.right) / 2 - (firstFile + two.right.right) / 2) < 3,
-    `${(two.branch.left + two.score.right) / 2} vs ${(firstFile + two.right.right) / 2}`);
+  check("the line follows the name across the pair, and its result stands by the counter",
+    two.branch.left > two.who.right && two.score.left > two.branch.left &&
+      two.position.left - two.score.right > 0 && two.position.left - two.score.right < 40,
+    `line from ${two.branch.left} after the name ending ${two.who.right}; result ${two.score.left}–${two.score.right}, counter from ${two.position.left}`);
   check("and the name begins over the first file",
     Math.abs(two.who.left - firstFile) < 2, `${two.who.left} vs ${firstFile}`);
 

@@ -20,6 +20,12 @@ interface PlayerNameProps {
    */
   result?: ReactNode;
   position?: ReactNode;
+  /**
+   * Whether the middle of the row is a game's line: then the line has the row
+   * from the name on, and how it came out goes over to the counter at the end
+   * — see `.player-name-line`.
+   */
+  lined?: boolean;
 }
 
 /**
@@ -42,9 +48,10 @@ export default function PlayerName({
   toMove = false,
   result = null,
   position = null,
+  lined = false,
 }: PlayerNameProps) {
   return (
-    <p className="player-name">
+    <p className={lined ? "player-name player-name-line" : "player-name"}>
       <span className="player-who">
       {/*
         Which side this is, and whether the game is waiting on it.

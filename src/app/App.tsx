@@ -2932,6 +2932,7 @@ export default function App() {
                   color={farSide}
                   mine={named?.mine === farSide}
                   toMove={atAGame && shown?.turn() === farSide}
+                  lined={named !== null && friend.phase.kind !== "playing" && branch !== null}
                   result={
                     named === null ? null : friend.phase.kind === "playing" &&
                       friend.phase.over !== null ? (
@@ -2943,14 +2944,13 @@ export default function App() {
                       </>
                     ) : (
                       /*
-                        A game read in: which of its lines is on the board, once
-                        it has come to a fork and there is more than one, and
-                        how that line comes out. In the middle of the row,
-                        rather than on a row of its own: a line over the names
-                        was taken from the height of the board.
+                        A game read in: the line on the board, from the name
+                        on, and how it comes out, by the counter. In the row of
+                        names rather than on a row of its own: a line over the
+                        names was taken from the height of the board.
                       */
                       <>
-                        {branchLabel(true)}
+                        {branchLabel(false)}
                         {branch !== null && readResult !== null && (
                           <span className="branch-sep" aria-hidden="true">
                             ·

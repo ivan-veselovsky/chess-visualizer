@@ -407,6 +407,8 @@ type Stroke =
       radius: number;
       colour: string;
       opacity: number;
+      /** A ring drawn inside its edge — a box-shadow set inset, spread and unblurred — or none. */
+      ring: { width: number; colour: string } | null;
     }
   | {
       kind: "text";
@@ -469,10 +471,26 @@ export async function drawFrame(painter: Painter): Promise<void> {
 function draw(context: CanvasRenderingContext2D, stroke: Stroke, image: HTMLImageElement | null): void {
   context.globalAlpha = stroke.opacity;
   if (stroke.kind === "box") {
-    context.fillStyle = stroke.colour;
-    context.beginPath();
-    context.roundRect(stroke.x, stroke.y, stroke.width, stroke.height, stroke.radius);
-    context.fill();
+    if (hasColour(stroke.colour)) {
+      context.fillStyle = stroke.colour;
+      context.beginPath();
+      context.roundRect(stroke.x, stroke.y, stroke.width, stroke.height, stroke.radius);
+      context.fill();
+    }
+    if (stroke.ring !== null) {
+      const half = stroke.ring.width / 2;
+      context.strokeStyle = stroke.ring.colour;
+      context.lineWidth = stroke.ring.width;
+      context.beginPath();
+      context.roundRect(
+        stroke.x + half,
+        stroke.y + half,
+        stroke.width - stroke.ring.width,
+        stroke.height - stroke.ring.width,
+        Math.max(0, stroke.radius - half)
+      );
+      context.stroke();
+    }
   } else if (stroke.kind === "text") {
     context.fillStyle = stroke.colour;
     context.font = stroke.font;
@@ -529,7 +547,11 @@ function planBox(
   opacity: number
 ): Stroke | null {
   const colour = seen.backgroundColor;
-  if (!hasColour(colour)) {
+  /* A ring inside the box, as the move the board is on is framed over it: a
+     box-shadow set inset, with a spread and no offset or blur. */
+  const shadow = /^(.+?)\s+0px\s+0px\s+0px\s+([\d.]+)px\s+inset$/.exec(seen.boxShadow.trim());
+  const ring = shadow !== null && hasColour(shadow[1]) ? { width: parseFloat(shadow[2]), colour: shadow[1] } : null;
+  if (!hasColour(colour) && ring === null) {
     return null;
   }
   const rect = element.getBoundingClientRect();
@@ -549,6 +571,7 @@ function planBox(
     radius: radius * scale,
     colour,
     opacity,
+    ring: ring === null ? null : { width: Math.max(1, ring.width * scale), colour: ring.colour },
   };
 }
 

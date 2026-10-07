@@ -4729,12 +4729,23 @@ input[type="color"]::-moz-color-swatch {
   color: var(--line-mate);
 }
 
-/* The move the board has just played, as it is stepped through or plays
-   itself: underlined, in the move's own colour. */
+/*
+  The move the board has just played, as it is stepped through or plays
+  itself: framed, in the move's own colour.
+
+  A ring drawn inside the move's own box rather than a line under it or a
+  border round it: either of those reaches past the line the text stands in,
+  and the row clips what does — an underline under a Mac's system font did not
+  show at all. Given a little room inside the ring, and most of it taken back
+  outside, so the move hardly shifts its neighbours and the ring still stands
+  clear of them; `LinePath` keeps the little that is left out of the room it
+  fits the line to.
+*/
 .branch-path .move-current {
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  padding: 0 0.14em;
+  margin: 0 -0.04em;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
 /* As wide as its column, which is what `LinePath` measures. */
@@ -4860,11 +4871,48 @@ input[type="color"]::-moz-color-swatch {
   it has come to: the moves in the text's own colour, since they are what is
   being read, and cut short rather than pushing the result out.
 */
+/* Fitted to its room by `LinePath`, which leaves moves off its front or its
+   end with an ellipsis of its own — never one of the browser's over a move. */
 .branch-path {
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--app-fg);
+}
+
+/*
+  A row of names with a game's line in it: the name as wide as it is, to a
+  third of the row; the line taking the rest, a gap after the name, which is
+  the room `LinePath` measures and fits it to; and then, by the counter at the
+  end, how the line comes out — "· 1 : 0 · half-move 44 of 87".
+*/
+.player-name.player-name-line {
+  display: flex;
+  column-gap: 2em;
+}
+
+.player-name-line > .player-who {
+  flex: 0 1 auto;
+  max-width: 35%;
+}
+
+.player-name-line > .player-result {
+  flex: 1 1 0;
+  justify-content: flex-start;
+}
+
+.player-name-line .branch-path {
+  flex: 1 1 0;
+}
+
+.player-name-line > .player-position {
+  flex: 0 0 auto;
+  margin-left: -1.55em;
+}
+
+.player-name-line > .player-position::before {
+  content: "·";
+  margin-right: 0.45em;
 }
 
 /* "Line 2 of 3:", in the same colour as the rest. */
