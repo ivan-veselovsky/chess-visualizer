@@ -140,6 +140,7 @@ import { OPPONENT_CHOOSES } from "../../worker/protocol";
 import type { ColorChoice, Terms } from "../../worker/protocol";
 import { PRESETS, STARTING_PRESET } from "./presets";
 import { boardSide, setBoardSide } from "./boardSide";
+import { actionFor, ariaCombo, describeCombo, loadBindings, saveBindings, type KeyBindings } from "./keyBindings";
 import LockIcon from "./LockIcon";
 import ExitIcon from "./ExitIcon";
 import { settingsSide, type Orientation } from "../visualization/geometry";
@@ -216,8 +217,12 @@ const TABS: readonly Tab<PanelTab>[] = [
   { id: "pieces", label: "Pieces" },
   { id: "rays", label: "Rays", name: "Attack rays" },
   { id: "heatmap", label: "Heatmap", name: "Attack heatmap" },
-  { id: "check", label: "Check", name: "Check and checkmate" },
-  { id: "pins", label: "Pin", name: "Pins" },
+  // Pins with check, which they are about: a pinned piece is one that moving
+  // would leave its king in check.
+  { id: "check", label: "Check", name: "Check, checkmate and pins" },
+  // The keys that walk a game, which are this browser's rather than any
+  // preset's: see `keyBindings.ts`.
+  { id: "keys", label: "Keys", name: "Keys for stepping through a game" },
   // What the board is made into rather than how it is drawn, so it stands
   // apart from the settings, beside the gear; marked, like the gear, since the
   // strip has no room left for a word.
@@ -297,6 +302,15 @@ export default function App() {
   const [side, setSide] = useState<Orientation>(() =>
     openingFromLocation()?.blackAtBottom === true ? "black" : boardSide()
   );
+  /*
+    The keys that walk a game, as this reader has them — kept in this browser
+    with the board's orientation, not in the settings: see `keyBindings.ts`.
+  */
+  const [keys, setKeys] = useState<KeyBindings>(loadBindings);
+  const changeKeys = useCallback((next: KeyBindings) => {
+    setKeys(next);
+    saveBindings(next);
+  }, []);
   const turnBoard = useCallback((wanted: Orientation) => {
     setSide(wanted);
     setBoardSide(wanted);
@@ -2304,22 +2318,14 @@ export default function App() {
       return;
     }
     const listen = (event: KeyboardEvent) => {
-      const { key } = event;
-      if (key !== " " && key !== "ArrowLeft" && key !== "ArrowRight") {
-        return;
-      }
       if (event.defaultPrevented || event.isComposing) {
         return;
       }
-      if (event.altKey || event.metaKey) {
-        return;
-      }
-      /* Shift and an arrow walks every line, as Play does; Shift alone with
-         anything else is somebody else's. */
-      if (event.shiftKey && (key === " " || event.ctrlKey)) {
-        return;
-      }
-      if (key === " " && event.ctrlKey) {
+      /* Which action the key is, as the reader has the keys set: see
+         `keyBindings.ts`. A combination none of them has is somebody else's —
+         Alt+← is the browser's Back — and is left alone. */
+      const action = actionFor(keys, event);
+      if (action === null) {
         return;
       }
       if (document.querySelector("dialog[open]") !== null) {
@@ -2329,27 +2335,28 @@ export default function App() {
         return;
       }
       event.preventDefault();
-      if (key === " ") {
-        /* Held down, Space would repeat, and a game that starts and stops
+      if (action === "play") {
+        /* Held down, a key would repeat, and a game that starts and stops
            thirty times a second is not what anybody holding it meant. */
         if (!event.repeat && (playing || still.length > 0)) {
           playOrStop();
         }
         return;
       }
-      const back = key === "ArrowLeft";
-      if (event.shiftKey) {
-        stepTour(back);
+      if (action === "tourBack" || action === "tourForward") {
+        stepTour(action === "tourBack");
         return;
       }
-      if (back ? !(event.ctrlKey ? canGoFirst : canGoPrevious(history)) : !(event.ctrlKey ? canGoLast : canGoNext(history))) {
+      const can = {
+        previous: canGoPrevious(history),
+        next: canGoNext(history),
+        first: canGoFirst,
+        last: canGoLast,
+      }[action];
+      if (!can) {
         return;
       }
-      stepHistory(
-        event.ctrlKey
-          ? back ? "first" : "last"
-          : back ? "previous" : "next"
-      );
+      stepHistory(action);
     };
     window.addEventListener("keydown", listen);
     return () => window.removeEventListener("keydown", listen);
@@ -2357,7 +2364,7 @@ export default function App() {
     // and `playOrStop` are made afresh every render from exactly these four —
     // the game read in says where "first" is; listening again whenever one of
     // those changes is listening to them.
-  }, [history, playing, read]);
+  }, [history, playing, read, keys]);
 
   /*
     Whether a takeback can be asked for, and when it cannot, why not.
@@ -3170,9 +3177,9 @@ export default function App() {
                 <button
                   type="button"
                   className="reset-button step-button step-button-end"
-                  title="First position (Ctrl+←)"
+                  title={`First position (${describeCombo(keys.first)})`}
                   aria-label="First position"
-                  aria-keyshortcuts="Control+ArrowLeft"
+                  aria-keyshortcuts={ariaCombo(keys.first)}
                   disabled={!canGoFirst}
                   onClick={() => stepHistory("first")}
                 >
@@ -3182,9 +3189,9 @@ export default function App() {
                   type="button"
                   className="reset-button step-button"
                   aria-label="Previous position"
-                  aria-keyshortcuts="ArrowLeft"
+                  aria-keyshortcuts={ariaCombo(keys.previous)}
                   disabled={!canGoPrevious(history)}
-                  title="Previous position (←)"
+                  title={`Previous position (${describeCombo(keys.previous)})`}
                   onClick={() => stepHistory("previous")}
                 >
                   <StepIcon direction="previous" />
@@ -3192,9 +3199,9 @@ export default function App() {
                 <button
                   type="button"
                   className="reset-button step-button"
-                  title="Next position (→)"
+                  title={`Next position (${describeCombo(keys.next)})`}
                   aria-label="Next position"
-                  aria-keyshortcuts="ArrowRight"
+                  aria-keyshortcuts={ariaCombo(keys.next)}
                   disabled={!canGoNext(history)}
                   onClick={() => stepHistory("next")}
                 >
@@ -3203,9 +3210,9 @@ export default function App() {
                 <button
                   type="button"
                   className="reset-button step-button step-button-end"
-                  title="Last position (Ctrl+→)"
+                  title={`Last position (${describeCombo(keys.last)})`}
                   aria-label="Last position"
-                  aria-keyshortcuts="Control+ArrowRight"
+                  aria-keyshortcuts={ariaCombo(keys.last)}
                   disabled={!canGoLast}
                   onClick={() => stepHistory("last")}
                 >
@@ -3215,19 +3222,26 @@ export default function App() {
                     every line, which have no button of their own. */}
                 <InfoButton label="Keys for stepping through a game">
                   <dl className="info-keys">
-                    <dt>← / →</dt>
+                    <dt>
+                      {describeCombo(keys.previous)} / {describeCombo(keys.next)}
+                    </dt>
                     <dd>The previous or the next position, along the line on the board.</dd>
-                    <dt>Ctrl+← / Ctrl+→</dt>
+                    <dt>
+                      {describeCombo(keys.first)} / {describeCombo(keys.last)}
+                    </dt>
                     <dd>The first position, or the last — of the first line and of the last, in a game with variations.</dd>
-                    <dt>Shift+← / Shift+→</dt>
+                    <dt>
+                      {describeCombo(keys.tourBack)} / {describeCombo(keys.tourForward)}
+                    </dt>
                     <dd>
                       Every line of a game with variations, a move at a time, as Play walks them: on to the end of a
                       line, back to where the next one leaves it, and on along that.
                     </dd>
-                    <dt>Space</dt>
+                    <dt>{describeCombo(keys.play)}</dt>
                     <dd>Play, or stop.</dd>
                   </dl>
-                  The keys work whichever tab is open, as long as no field has the keyboard.
+                  The keys work whichever tab is open, as long as no field has the keyboard. Any of them can be
+                  changed on the Keys tab.
                 </InfoButton>
               </div>
               <div className="board-controls play-row">
@@ -3236,11 +3250,11 @@ export default function App() {
                   className="reset-button play-button"
                   title={
                     playing
-                      ? "Hold the game where it stands (Space)"
-                      : "Play the game through, a position at a time — from wherever it stands (Space)"
+                      ? `Hold the game where it stands (${describeCombo(keys.play)})`
+                      : `Play the game through, a position at a time — from wherever it stands (${describeCombo(keys.play)})`
                   }
                   aria-pressed={playing}
-                  aria-keyshortcuts="Space"
+                  aria-keyshortcuts={ariaCombo(keys.play)}
                   /* Nothing ahead of it is nothing to play: at the last
                      position the button has no work to do, and saying so is
                      better than starting the game again from the top under a
@@ -3991,6 +4005,8 @@ export default function App() {
                 }}
                 rightPreset={rightNamed}
                 rightPresetChoices={rightChoices}
+                keyBindings={keys}
+                onKeyBindings={changeKeys}
                 onRightPreset={(name) => {
                   setRightPreset(name);
                   setTwoBoardPreset(name);

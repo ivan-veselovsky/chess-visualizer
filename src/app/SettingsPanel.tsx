@@ -7,6 +7,8 @@ import NumberField from "./NumberField";
 import NumberInput from "./NumberInput";
 import SectionRule from "./SectionRule";
 import SelectField from "./SelectField";
+import KeyBindingsField from "./KeyBindingsField";
+import type { KeyBindings } from "./keyBindings";
 import { GLYPH_SETS, glyphSet } from "../visualization/glyphSets";
 import SliderField from "./SliderField";
 import ToggleField from "./ToggleField";
@@ -41,7 +43,7 @@ export type SettingsGroup =
   | "board"
   | "pieces"
   | "rays"
-  | "pins"
+  | "keys"
   | "heatmap"
   | "check"
   | "manage";
@@ -76,6 +78,9 @@ interface SettingsPanelProps {
   rightPreset: string;
   rightPresetChoices: readonly string[];
   onRightPreset: (name: string) => void;
+  /** The keys that walk a game, kept in this browser: see `keyBindings.ts`. */
+  keyBindings: KeyBindings;
+  onKeyBindings: (bindings: KeyBindings) => void;
 }
 
 export default function SettingsPanel({
@@ -94,6 +99,8 @@ export default function SettingsPanel({
   rightPreset,
   rightPresetChoices,
   onRightPreset,
+  keyBindings,
+  onKeyBindings,
 }: SettingsPanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   /*
@@ -558,35 +565,6 @@ export default function SettingsPanel({
         </>
       )}
 
-      {group === "pins" && (
-        <section className="settings-group">
-          <div className="field-row field-row-halves">
-            <ToggleField
-              id="show-pins"
-              hint="Ring any piece that cannot leave the line it stands on without exposing its own king."
-              label="Show pins"
-              checked={settings.attacks.pins.show}
-              onChange={(show) => updatePins({ show })}
-            />
-            <ColorField
-              id="pin-ring-color"
-              label="Pin ring color"
-              value={settings.attacks.pins.ringColor}
-              onChange={(ringColor) => updatePins({ ringColor })}
-            />
-          </div>
-          <NumberField
-            id="pin-ring-diameter"
-            inline
-            label="Pin ring diameter"
-            suffix="squares"
-            value={settings.attacks.pins.ringDiameter}
-            allowZero
-            onChange={(ringDiameter) => updatePins({ ringDiameter })}
-          />
-        </section>
-      )}
-
       {group === "heatmap" && (
         <section className="settings-group">
           {/* The heatmap's own pair sits on the balance tab, where it is read
@@ -721,6 +699,43 @@ export default function SettingsPanel({
               }
             />
           </div>
+          {/* Pins, which are about the king as check is: a piece held in
+              place because moving would leave its king in check. Here rather
+              than on a tab of their own, which the strip had no room for. */}
+          <SectionRule name="Pins" />
+          <div className="field-row field-row-halves">
+            <ToggleField
+              id="show-pins"
+              hint="Ring any piece that cannot leave the line it stands on without exposing its own king."
+              label="Show pins"
+              checked={settings.attacks.pins.show}
+              onChange={(show) => updatePins({ show })}
+            />
+            <ColorField
+              id="pin-ring-color"
+              label="Pin ring color"
+              value={settings.attacks.pins.ringColor}
+              onChange={(ringColor) => updatePins({ ringColor })}
+            />
+          </div>
+          <NumberField
+            id="pin-ring-diameter"
+            inline
+            label="Pin ring diameter"
+            suffix="squares"
+            value={settings.attacks.pins.ringDiameter}
+            allowZero
+            onChange={(ringDiameter) => updatePins({ ringDiameter })}
+          />
+        </section>
+      )}
+
+      {group === "keys" && (
+        <section className="settings-group">
+          {/* The keys that walk a game: about this browser's keyboard rather
+              than how anything is drawn, and kept in this browser, in no
+              preset. */}
+          <KeyBindingsField bindings={keyBindings} onChange={onKeyBindings} />
         </section>
       )}
 

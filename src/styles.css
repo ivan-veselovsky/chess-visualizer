@@ -1118,6 +1118,48 @@ body {
 
 /* Keys and what they do, as a list read down the left: the keys in a column
    of their own, each against its line. */
+/*
+  The keys that walk a game, on the gear tab: each action's name and the
+  button that shows its key and, pressed, listens for a new one — in two
+  columns, the buttons one width so the column reads as one.
+*/
+.key-bindings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.85rem;
+}
+
+.key-bindings-title {
+  font-size: 0.9rem;
+}
+
+.key-bindings-grid {
+  display: grid;
+  grid-template-columns: max-content 9em;
+  column-gap: 1em;
+  row-gap: 0.35rem;
+  align-items: center;
+}
+
+.key-binding {
+  display: contents;
+}
+
+.key-binding-name {
+  font-size: 0.9rem;
+}
+
+.key-capture {
+  font-variant-numeric: tabular-nums;
+}
+
+.key-capture-listening {
+  outline: 2px solid var(--livery);
+  outline-offset: 1px;
+}
+
 /* An explanation in more than one paragraph: a line's gap between them. */
 .info-para {
   margin: 0 0 0.6rem;
@@ -2302,6 +2344,24 @@ body {
   opacity: 1;
 }
 
+/*
+  A tab's word with room kept for it in bold: an unseen bold copy under it, no
+  taller than nothing, sets its width. Chosen, a tab is set in bold, and
+  without the room it grew by a letter's width — enough, with the strip as full
+  as it is, to send the last tab round onto a second line.
+*/
+.tab-label {
+  display: inline-grid;
+}
+
+.tab-label::after {
+  content: attr(data-label);
+  font-weight: 600;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
 .tab-active,
 .tab-active:hover {
   border-color: var(--panel-border);
@@ -2404,8 +2464,15 @@ body {
 @container (max-width: 39rem) {
   .tab {
     font-size: 0.8em;
-    padding-left: 0.4em;
-    padding-right: 0.4em;
+    /* Narrower than the 0.4em they had: each tab now keeps the room its word
+       takes in bold (see `.tab-label`), and those few pixels a tab, eleven
+       times over, are what the strip did not have. */
+    padding-left: 0.3em;
+    padding-right: 0.3em;
+  }
+
+  .tab-bar {
+    column-gap: 0;
   }
 }
 
@@ -4314,6 +4381,7 @@ input[type="color"]::-moz-color-swatch {
   flex: 1 1 auto;
   min-height: 0;
 }
+
 
 .settings-tail {
   margin-top: auto;

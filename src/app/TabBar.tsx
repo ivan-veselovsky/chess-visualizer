@@ -85,7 +85,14 @@ export default function TabBar<Id extends string>({
             }
           }}
         >
-          {text}
+          {/* A word's tab as wide chosen as not: see `.tab-label`. */}
+          {typeof text === "string" ? (
+            <span className="tab-label" data-label={text}>
+              {text}
+            </span>
+          ) : (
+            text
+          )}
         </button>
       ))}
     </div>

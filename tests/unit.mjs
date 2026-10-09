@@ -54,6 +54,7 @@ import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/colo
 import { applyMove, isPromotion } from "../src/chess/moves.ts";
 import { asBoardEditorPosition, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
 import { lineLabel, pageLine } from "../src/chess/linePath.ts";
+import { actionFor, bind, comboOf, defaultBindings, describeCombo, readBindings } from "../src/app/keyBindings.ts";
 import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
 import { readdirSync, readFileSync } from "node:fs";
 import CLASSIC_BROWN_JSON from "../src/app/presets/settings-classic-brown.json" with { type: "json" };
@@ -2352,6 +2353,38 @@ console.log("\nA line written out for the list of lines\n");
     back.map((page) => `${page.move}:${page.first}`).join(" "));
   check("and at the first position, the line from its start",
     back[back.length - 1].first === 0, back[back.length - 1].label);
+}
+
+console.log("\nThe keys that walk a game\n");
+{
+  const press = (key, held = {}) => ({ key, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...held });
+  const linux = defaultBindings(false);
+  const mac = defaultBindings(true);
+  check("the arrows step, with Ctrl to the ends, with Shift every line, and Space plays",
+    actionFor(linux, press("ArrowLeft")) === "previous" && actionFor(linux, press("ArrowRight", { ctrlKey: true })) === "last" &&
+      actionFor(linux, press("ArrowLeft", { shiftKey: true })) === "tourBack" && actionFor(linux, press(" ")) === "play");
+  check("on a Mac, which keeps Ctrl and an arrow for itself, the ends are Home and End",
+    actionFor(mac, press("Home")) === "first" && actionFor(mac, press("End")) === "last" && actionFor(mac, press("ArrowLeft", { ctrlKey: true })) === null);
+  check("a key held with something no action has is nobody's here — Alt and ← is the browser's Back",
+    actionFor(linux, press("ArrowLeft", { altKey: true })) === null && actionFor(linux, press("x")) === null);
+  check("a modifier alone, Tab or Escape is never a key to bind",
+    comboOf(press("Shift", { shiftKey: true })) === null && comboOf(press("Tab")) === null && comboOf(press("Escape")) === null);
+  check("a letter is the same letter with Shift held",
+    JSON.stringify(comboOf(press("N", { shiftKey: true }))) === JSON.stringify({ key: "n", ctrl: false, alt: false, shift: true, meta: false }));
+  const homeFirst = bind(linux, "first", comboOf(press("Home")));
+  check("a key given to an action is that action's", actionFor(homeFirst, press("Home")) === "first" && actionFor(homeFirst, press("ArrowLeft", { ctrlKey: true })) === null);
+  const swapped = bind(linux, "first", comboOf(press("ArrowLeft")));
+  check("and one another action had changes places with it, so none shares a key and none is left without",
+    actionFor(swapped, press("ArrowLeft")) === "first" && actionFor(swapped, press("ArrowLeft", { ctrlKey: true })) === "previous");
+  check("written as a reader reads them, and on a Mac in its own signs",
+    describeCombo(linux.first, false) === "Ctrl+←" && describeCombo(linux.play, false) === "Space" &&
+      describeCombo(comboOf(press("ArrowLeft", { altKey: true, metaKey: true })), true) === "⌥⌘←");
+  check("read back as written, an action missing or unreadable at its default",
+    JSON.stringify(readBindings(JSON.stringify(homeFirst), linux)) === JSON.stringify(homeFirst) &&
+      JSON.stringify(readBindings(JSON.stringify({ first: { key: 7 } }), linux)) === JSON.stringify(linux) &&
+      JSON.stringify(readBindings("not json", linux)) === JSON.stringify(linux));
+  check("and all of them at their defaults if two came back sharing a key",
+    JSON.stringify(readBindings(JSON.stringify({ ...linux, next: linux.previous }), linux)) === JSON.stringify(linux));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);
