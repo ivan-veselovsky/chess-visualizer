@@ -575,30 +575,53 @@ body {
   through is a different act from stepping along it by hand, and at the
   panel's own spacing the rows read as one block of controls.
 
-  The four paces the button plays at, each flush right, so that their boxes
-  and their units stand in columns however long the labels in front of them
-  are. Where the panel has room for two to a row — see below — they go two to
-  a row under the button. Where it has not, one to a row: the first beside the
-  button, which leaves room for one field and no more, and the rest under it
-  across the whole width, where the longer labels have the room they need.
+  The paces it plays at are at the foot of the tab: see `.play-timing`.
 */
 .play-row {
-  display: grid;
-  /* The field beside the button as wide as it needs, and the button in what is
-     left: where the two only just fit — a panel with a scrollbar down it — the
-     button gives up the room rather than the field running over it. */
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 0.75em;
-  row-gap: 0.5rem;
-  margin-top: 1em;
+  display: flex;
+  /* With the column's own gap over it, 1.05em from the steps: seven tenths of
+     what it was, the tab being short of room beside one board. */
+  margin-top: 0.55em;
   /* Less under it than over it: what follows — the line and the moves — is
      the same game, where what comes before is the steps. */
   margin-bottom: 0.4em;
 }
 
-.play-row > .number-field {
-  grid-column: 2;
+.play-row > .play-button {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/*
+  The paces the button plays at, at the foot of the tab: set once and seldom
+  touched again, they took a block of the panel's best room from what is
+  worked with every move.
+
+  Each flush right, so their boxes and their units stand in columns however
+  long the labels in front of them are. One to a row, or two where the panel
+  is wide enough for both columns side by side — Initial delay beside Period
+  per position, Back step period beside its speedup, the hold under the first:
+
+    Initial delay      Period per position
+    Back step period   Back step speedup factor
+    Hold at the end of a line
+
+  A name too long for its column goes onto a second line, against its box,
+  rather than the column growing past the edge of the panel.
+*/
+.play-timing {
+  container: play-timing / inline-size;
+}
+
+.play-timing-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 0.5rem;
+}
+
+.play-timing-grid > .number-field {
   justify-self: end;
   margin-bottom: 0;
 }
@@ -606,69 +629,29 @@ body {
 /* The units after the boxes the width of the longest, "seconds", so a box
    followed by a shorter one — the speedup's "×" — stands in the same column as
    the rest. */
-.play-row .field-suffix {
+.play-timing-grid .field-suffix {
   min-width: 4.3em;
 }
 
-.play-row > .play-button {
-  justify-self: start;
-  max-width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.play-row > .number-field ~ .number-field {
-  grid-column: 1 / -1;
-}
-
-/*
-  Two to a row, when the controls are wide enough for both columns side by
-  side — Initial delay beside Period per position, Back step period beside its
-  speedup, and the hold under the first:
-
-    Initial delay      Period per position
-    Back step period   Back step speedup factor
-    Hold at the end of a line
-
-  The button has the first row to itself, at the left. A name too long for its
-  column goes onto a second line, against its box, rather than the column
-  growing past the edge of the panel: with an (i) to each name and the steps
-  back's speedup beside them, the two columns no longer fit on one line each
-  at any width a panel beside the board has.
-*/
-@container lab-controls (min-width: 36rem) {
-  .play-row {
+@container play-timing (min-width: 36rem) {
+  .play-timing-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     column-gap: 1.5rem;
   }
 
-  .play-row > .play-button {
-    grid-column: 1 / -1;
-    justify-self: start;
-  }
-
-  .play-row > .number-field:nth-of-type(odd) {
-    grid-column: 1;
-  }
-
-  .play-row > .number-field:nth-of-type(even) {
-    grid-column: 2;
-  }
-
-  .play-row > .number-field {
+  .play-timing-grid > .number-field {
     min-width: 0;
   }
 
-  /* Said on the field as well as the row, to outweigh the rules further down
+  /* Said on the field as well as the grid, to outweigh the rules further down
      that keep a name on one line where the paces stand one to a row. */
-  .play-row > .number-field > .field-label {
+  .play-timing-grid > .number-field > .field-label {
     flex: 1 1 auto;
     min-width: 0;
     justify-content: flex-end;
   }
 
-  .play-row > .number-field > .field-label > label {
+  .play-timing-grid > .number-field > .field-label > label {
     white-space: normal;
     text-align: right;
   }

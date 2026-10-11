@@ -3269,109 +3269,6 @@ export default function App() {
                   <PlayIcon playing={playing} />
                   {playing ? "Pause / Stop" : "Play / Resume"}
                 </button>
-                {/*
-                  The paces it plays at, each flush right, so their boxes and
-                  their units stand in columns: the wait before the first move
-                  and the one between moves, then the two a game with
-                  variations adds — the way back to a fork, and the hold at the
-                  end of each line. Two to a row where the panel is wide enough
-                  for that, under the button; one to a row otherwise, the first
-                  beside it. See `.play-row`.
-                */}
-                <NumberField
-                  id="play-initial-delay"
-                  disabled={editor}
-                  inline
-                  narrow
-                  allowZero
-                  label="Initial delay"
-                  suffix="seconds"
-                  step={0.1}
-                  value={initialDelay}
-                  hint={
-                    "How long the game waits after Play before its first move, wherever in the game it starts. " +
-                    "Time to get the board into view — when recording in two board mode, this button is below the boards. " +
-                    "Nought starts at once."
-                  }
-                  onChange={(playInitialDelaySec) =>
-                    setSettings({
-                      ...settings,
-                      lab: { ...settings.lab, playInitialDelaySec },
-                    })
-                  }
-                />
-                <NumberField
-                  id="play-period"
-                  disabled={editor}
-                  inline
-                  narrow
-                  label="Period per position"
-                  suffix="seconds"
-                  step={0.5}
-                  value={period}
-                  hint={
-                    "How long each position is left on the board while the game plays."
-                  }
-                  onChange={(playPeriodPerPositionSec) =>
-                    setSettings({
-                      ...settings,
-                      lab: { ...settings.lab, playPeriodPerPositionSec },
-                    })
-                  }
-                />
-                <NumberField
-                  id="play-back-step"
-                  disabled={editor}
-                  inline
-                  narrow
-                  allowZero
-                  label="Back step period"
-                  suffix="seconds"
-                  step={0.05}
-                  value={backStep}
-                  hint="In a game with variations, how long each position stands on the way back to the fork the next line leaves from. Nobody is reading them, so it can be short."
-                  onChange={(playBackStepSec) =>
-                    setSettings({
-                      ...settings,
-                      lab: { ...settings.lab, playBackStepSec },
-                    })
-                  }
-                />
-                <NumberField
-                  id="play-back-speedup"
-                  disabled={editor}
-                  inline
-                  narrow
-                  label="Back step speedup factor"
-                  suffix="×"
-                  step={0.05}
-                  value={settings.lab.playBackStepSpeedup}
-                  hint="How much faster a piece goes back on those steps than it moves forward: the move time is divided by this, and the move speed multiplied by it. 1 plays them at the pace of the moves. Stepping back by hand is not affected."
-                  onChange={(playBackStepSpeedup) =>
-                    setSettings({
-                      ...settings,
-                      lab: { ...settings.lab, playBackStepSpeedup },
-                    })
-                  }
-                />
-                <NumberField
-                  id="play-line-end"
-                  disabled={editor}
-                  inline
-                  narrow
-                  allowZero
-                  label="Hold at the end of a line"
-                  suffix="seconds"
-                  step={0.5}
-                  value={lineEndHold}
-                  hint="How long the last position of each line of a game with variations stands before the game goes back for the next — the mate the line was played to show. An animated GIF holds its very last position this long before it starts again, whatever the game."
-                  onChange={(playLineEndHoldSec) =>
-                    setSettings({
-                      ...settings,
-                      lab: { ...settings.lab, playLineEndHoldSec },
-                    })
-                  }
-                />
               </div>
               <div className="board-controls lines-row">
                 <MovesSelect
@@ -3615,6 +3512,114 @@ export default function App() {
                 locked={editor ? "Not while the board is being set up" : null}
                 onSelect={loadLibraryGame}
               />
+            </div>
+
+            {/*
+              The paces Play plays at: the wait before the first move and the
+              one between moves, then the two a game with variations adds — the
+              way back to a fork, and the hold at the end of each line. At the
+              foot of the tab rather than beside the button: set once and
+              seldom touched again, they took the panel's best room from what
+              is worked with every move. See `.play-timing`.
+            */}
+            <SectionRule name="Playback timing" />
+            <div className="play-timing">
+              <div className="play-timing-grid">
+                <NumberField
+                  id="play-initial-delay"
+                  disabled={editor}
+                  inline
+                  narrow
+                  allowZero
+                  label="Initial delay"
+                  suffix="seconds"
+                  step={0.1}
+                  value={initialDelay}
+                  hint={
+                    "How long the game waits after Play before its first move, wherever in the game it starts. " +
+                    "Time to get the board into view — when recording in two board mode, this button is below the boards. " +
+                    "Nought starts at once."
+                  }
+                  onChange={(playInitialDelaySec) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playInitialDelaySec },
+                    })
+                  }
+                />
+                <NumberField
+                  id="play-period"
+                  disabled={editor}
+                  inline
+                  narrow
+                  label="Period per position"
+                  suffix="seconds"
+                  step={0.5}
+                  value={period}
+                  hint={
+                    "How long each position is left on the board while the game plays."
+                  }
+                  onChange={(playPeriodPerPositionSec) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playPeriodPerPositionSec },
+                    })
+                  }
+                />
+                <NumberField
+                  id="play-back-step"
+                  disabled={editor}
+                  inline
+                  narrow
+                  allowZero
+                  label="Back step period"
+                  suffix="seconds"
+                  step={0.05}
+                  value={backStep}
+                  hint="In a game with variations, how long each position stands on the way back to the fork the next line leaves from. Nobody is reading them, so it can be short."
+                  onChange={(playBackStepSec) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playBackStepSec },
+                    })
+                  }
+                />
+                <NumberField
+                  id="play-back-speedup"
+                  disabled={editor}
+                  inline
+                  narrow
+                  label="Back step speedup factor"
+                  suffix="×"
+                  step={0.05}
+                  value={settings.lab.playBackStepSpeedup}
+                  hint="How much faster a piece goes back on those steps than it moves forward: the move time is divided by this, and the move speed multiplied by it. 1 plays them at the pace of the moves. Stepping back by hand is not affected."
+                  onChange={(playBackStepSpeedup) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playBackStepSpeedup },
+                    })
+                  }
+                />
+                <NumberField
+                  id="play-line-end"
+                  disabled={editor}
+                  inline
+                  narrow
+                  allowZero
+                  label="Hold at the end of a line"
+                  suffix="seconds"
+                  step={0.5}
+                  value={lineEndHold}
+                  hint="How long the last position of each line of a game with variations stands before the game goes back for the next — the mate the line was played to show. An animated GIF holds its very last position this long before it starts again, whatever the game."
+                  onChange={(playLineEndHoldSec) =>
+                    setSettings({
+                      ...settings,
+                      lab: { ...settings.lab, playLineEndHoldSec },
+                    })
+                  }
+                />
+              </div>
             </div>
 
           </div>
