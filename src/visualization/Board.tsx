@@ -283,6 +283,8 @@ export default function Board({
     "--grid-line": grid.color,
     "--pin-ring": attacks.pins.ringColor,
     "--check-color": attacks.checkAndCheckmate.checkColor,
+    /* In board units, from square sides: see `.check-disc-check`. */
+    "--check-ring-width": attacks.checkAndCheckmate.checkRingWidth * SQUARE_SIZE,
     "--checkmate-color": attacks.checkAndCheckmate.checkmateColor,
     "--attack-outline-me": attacks.rays.outlineColors.me,
     "--attack-outline-opponent": attacks.rays.outlineColors.opponent,

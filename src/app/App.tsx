@@ -105,6 +105,7 @@ import SectionRule from "./SectionRule";
 import StepIcon from "./StepIcon";
 import LineSelect from "./LineSelect";
 import LinePath from "./LinePath";
+import ErrorBoundary from "./ErrorBoundary";
 import { moveTint } from "../visualization/oklch";
 import SettingsPanel, { type SettingsGroup } from "./SettingsPanel";
 import TabBar, { type Tab } from "./TabBar";
@@ -193,11 +194,26 @@ function gameLines(pgn: string, given: PositionHistory): TreeLine[] {
 }
 
 /*
-  Fetched the first time its tab is opened rather than with the page: making a
-  GIF is something a reader does now and then, and the encoder and the rest of
-  it are no reason for everybody else's page to be bigger.
+  Fetched apart from the page rather than with it: making a GIF is something a
+  reader does now and then, and the encoder and the rest of it are no reason
+  for everybody's first paint to wait.
+
+  But fetched soon after the page is up, while the browser is idle, rather
+  than when its tab is first opened — and the video encoder the panel loads
+  for an MP4 with it. Left until then, a page open across a deploy asked for
+  files the deploy had replaced; the server answered with the page itself, the
+  import failed, and the whole app went blank. Fetched early, a page holds the
+  code it will need from the start, whatever is deployed after it. See
+  `prefetchLazyParts`, and `ErrorBoundary` for when even that fails.
 */
-const GifExportPanel = lazy(() => import("./GifExportPanel"));
+const loadGifPanel = () => import("./GifExportPanel");
+const GifExportPanel = lazy(loadGifPanel);
+
+/** The parts fetched apart from the page, fetched now — quietly: a failure is met where the part is used. */
+function prefetchLazyParts(): void {
+  void loadGifPanel().catch(() => undefined);
+  void import("./gif/video").catch(() => undefined);
+}
 
 
 const TABS: readonly Tab<PanelTab>[] = [
@@ -432,10 +448,13 @@ export default function App() {
     rightPreset !== null && rightChoices.includes(rightPreset)
       ? rightPreset
       : rightDefault;
-  /* And what it holds. Falling back to the main board's own settings leaves
-     two boards drawn alike, which says plainly that the choice did not land —
-     better than a blank half of the page. */
-  const rightSettings = presets.settingsNamed(rightNamed) ?? settings;
+  /* And what it holds: the preset as it is saved — unless it is the preset in
+     hand on the main board, when it is the settings as they stand, edits and
+     all, so that a change made to that preset shows on both boards rather than
+     on one. Falling back to the main board's own settings leaves two boards
+     drawn alike, which says plainly that the choice did not land — better than
+     a blank half of the page. */
+  const rightSettings = rightNamed === presets.target ? settings : (presets.settingsNamed(rightNamed) ?? settings);
   /* The pictures each board draws its men with; the main board's are also the
      bars', the palette's and the title's. */
   const glyphs = glyphSet(settings.pieces.glyphSet);
@@ -610,6 +629,12 @@ export default function App() {
      — has read it. */
   useEffect(() => {
     forgetOpeningInAddress();
+  }, []);
+  /* The parts of the app fetched apart from the page, fetched once it is up:
+     see `loadGifPanel`. When the browser is idle, so the board comes first. */
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 1500));
+    idle(prefetchLazyParts);
   }, []);
   const [fen, setFen] = useState(opening?.fen ?? DEFAULT_POSITION);
   const [history, setHistory] = useState<PositionHistory>(() =>
@@ -3954,6 +3979,7 @@ export default function App() {
               id="panel-gif"
               aria-labelledby="tab-gif"
             >
+              <ErrorBoundary what="this tab">
               <Suspense fallback={<p className="invite-note">Loading…</p>}>
               <GifExportPanel
                 driver={gifDriver}
@@ -3974,6 +4000,7 @@ export default function App() {
                 }}
               />
               </Suspense>
+              </ErrorBoundary>
             </div>
           )}
 

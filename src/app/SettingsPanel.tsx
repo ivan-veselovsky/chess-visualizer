@@ -667,25 +667,16 @@ export default function SettingsPanel({
 
       {group === "check" && (
         <section className="settings-group">
-          <div className="field-row field-row-halves">
-            <ToggleField
-              id="show-check"
-              hint="Tint the king's own glyph when it stands in check."
-              label="Show check"
-              checked={settings.attacks.checkAndCheckmate.showCheck}
-              onChange={(showCheck) => updateCheckMarks({ showCheck })}
-            />
-            <ColorField
-              id="check-color"
-              label="Check color"
-              value={settings.attacks.checkAndCheckmate.checkColor}
-              onChange={(checkColor) => updateCheckMarks({ checkColor })}
-            />
-          </div>
+          {/*
+            Mate first, then check, then pins: from the end of a game back to
+            what leads to it. Check and pins are both rings round a piece, one
+            size for both — a king in check and a piece pinned are the same
+            thought, a line to the king — so one diameter serves the two.
+          */}
           <div className="field-row field-row-halves">
             <ToggleField
               id="show-checkmate"
-              hint="Tint the king's own glyph when it is mated. Takes precedence over check, mate being one as well."
+              hint="Mark a mated king with a disc on its square, in the checkmate colour. Takes precedence over check, mate being one as well."
               label="Show checkmate"
               checked={settings.attacks.checkAndCheckmate.showCheckmate}
               onChange={(showCheckmate) => updateCheckMarks({ showCheckmate })}
@@ -699,10 +690,21 @@ export default function SettingsPanel({
               }
             />
           </div>
-          {/* Pins, which are about the king as check is: a piece held in
-              place because moving would leave its king in check. Here rather
-              than on a tab of their own, which the strip had no room for. */}
-          <SectionRule name="Pins" />
+          <div className="field-row field-row-halves">
+            <ToggleField
+              id="show-check"
+              hint="Ring a king that stands in check, in the check ring colour — the size of a pin ring, and as heavy as Check ring width says."
+              label="Show check"
+              checked={settings.attacks.checkAndCheckmate.showCheck}
+              onChange={(showCheck) => updateCheckMarks({ showCheck })}
+            />
+            <ColorField
+              id="check-color"
+              label="Check ring color"
+              value={settings.attacks.checkAndCheckmate.checkColor}
+              onChange={(checkColor) => updateCheckMarks({ checkColor })}
+            />
+          </div>
           <div className="field-row field-row-halves">
             <ToggleField
               id="show-pins"
@@ -721,11 +723,22 @@ export default function SettingsPanel({
           <NumberField
             id="pin-ring-diameter"
             inline
-            label="Pin ring diameter"
+            label="Check / pin ring diameter"
+            hint="How wide the rings round a king in check and round a pinned piece are, in square sides; a mate's disc is the same size."
             suffix="squares"
             value={settings.attacks.pins.ringDiameter}
             allowZero
             onChange={(ringDiameter) => updatePins({ ringDiameter })}
+          />
+          <NumberField
+            id="check-ring-width"
+            inline
+            label="Check ring width"
+            hint="How heavy the ring round a king in check is drawn, in square sides: 0.04 to start with. A pin ring's line is 0.02."
+            suffix="squares"
+            step={0.005}
+            value={settings.attacks.checkAndCheckmate.checkRingWidth}
+            onChange={(checkRingWidth) => updateCheckMarks({ checkRingWidth })}
           />
         </section>
       )}
@@ -778,7 +791,7 @@ export default function SettingsPanel({
               disabled={!twoBoard}
               hint={
                 twoBoard
-                  ? "Which preset the classic board, on the left, is drawn with. It shows the preset as it is saved, so the main board's unsaved edits are not in it — which is what makes the two comparable. The settings in the other tabs are the main board's: the classic board changes only with the preset chosen here."
+                  ? "Which preset the classic board, on the left, is drawn with. It shows the preset as it is saved, so the main board's unsaved edits are not in it — which is what makes the two comparable — unless it is the preset the main board is using, when the two boards show the same settings, edits included. The settings in the other tabs are the main board's."
                   : "Turn on two board mode to choose one."
               }
               value={rightPreset}

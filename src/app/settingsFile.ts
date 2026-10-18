@@ -122,6 +122,26 @@ function barsShown(candidate: Record<string, unknown>): void {
 }
 
 /**
+ * How heavy the ring round a king in check is, filled in where a record does
+ * not say: one written when check was a disc under the king, or a ring of the
+ * one weight. The weight the presets start at.
+ */
+function checkRingWidthGiven(candidate: Record<string, unknown>): void {
+  const attacks = candidate.attacks;
+  const marks =
+    attacks !== null && typeof attacks === "object" ? (attacks as Record<string, unknown>).checkAndCheckmate : null;
+  if (marks === null || typeof marks !== "object") {
+    return;
+  }
+  const node = marks as Record<string, unknown>;
+  if (typeof node.checkRingWidth !== "number") {
+    node.checkRingWidth = 0.04;
+  }
+  /* Beside the colour it is drawn in, as the interface declares it. */
+  inOrder(node, ["showCheck", "checkColor", "checkRingWidth"]);
+}
+
+/**
  * The set of pictures the men are drawn with, filled in where a record does
  * not name one: one written before there was more than one set, when the men
  * were the font's glyphs. The set made from that font is what they looked like
@@ -471,6 +491,7 @@ export function parseSettings(text: string): ImportResult {
      belong by now. */
   barsShown(candidate);
   glyphSetGiven(candidate);
+  checkRingWidthGiven(candidate);
   initialDelayGiven(candidate);
 
   // The version says the shape should be right, but a truncated file would

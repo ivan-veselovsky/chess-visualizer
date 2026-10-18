@@ -2237,6 +2237,12 @@ console.log("\nPiece sets\n");
   const older = structuredClone(DEFAULT_SETTINGS);
   delete older.pieces.glyphSet;
   const read = parseSettings(JSON.stringify(older)).settings;
+  const noRing = structuredClone(DEFAULT_SETTINGS);
+  delete noRing.attacks.checkAndCheckmate.checkRingWidth;
+  const ringRead = parseSettings(JSON.stringify(noRing)).settings?.attacks.checkAndCheckmate;
+  check("settings written before the check ring had a width of its own get the presets', beside the check colour",
+    ringRead?.checkRingWidth === 0.04 && Object.keys(ringRead).join(",") === "showCheck,checkColor,checkRingWidth,showCheckmate,checkmateColor",
+    JSON.stringify(ringRead));
   check("settings written before there were sets are read with the default set, first in their group",
     read?.pieces.glyphSet === DEFAULT_GLYPH_SET && Object.keys(read.pieces)[0] === "glyphSet", JSON.stringify(read?.pieces));
 }

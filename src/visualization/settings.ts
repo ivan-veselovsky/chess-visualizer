@@ -433,6 +433,12 @@ export interface PinMarks {
 export interface CheckMarks {
   showCheck: boolean;
   checkColor: string;
+  /**
+   * How heavy the ring round a king in check is drawn, in square sides, as
+   * every other length here is. The presets draw it at 0.04 of a square,
+   * twice a pin ring's line, so a king in check is seen first.
+   */
+  checkRingWidth: number;
   showCheckmate: boolean;
   checkmateColor: string;
 }

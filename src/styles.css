@@ -1143,6 +1143,42 @@ body {
   outline-offset: 1px;
 }
 
+/*
+  What stands in for a part that failed — see `ErrorBoundary`: a note in the
+  page's own colours, and the way back, which is a reload.
+*/
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  max-width: 40rem;
+  margin: 1rem;
+  padding: 1rem 1.2rem;
+  color: var(--app-fg);
+  background: var(--app-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+
+.error-boundary-heading {
+  margin: 0;
+  font-weight: 600;
+}
+
+.error-boundary-note {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.error-boundary-detail {
+  margin: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
 /* An explanation in more than one paragraph: a line's gap between them. */
 .info-para {
   margin: 0 0 0.6rem;
@@ -1538,22 +1574,28 @@ body {
 }
 
 /*
-  The ground under a king in check, or mated. Part transparent, so it reads as
-  the square tinted rather than as a counter laid on it, and mate the heavier
-  of the two. The glyph is drawn over the top and keeps its own colour whole.
+  A king in check, or mated. Check is a ring round the king, the pin ring's
+  size — a king in check and a piece pinned are the same thought, a line to the
+  king — as heavy as the settings say, and told from a pin by its colour.
+  Mate is the ground under the king, part transparent, so it reads as the
+  square tinted rather than as a counter laid on it. The glyph is drawn over
+  either and keeps its own colour whole.
 */
 .check-disc-check,
 .check-disc-checkmate {
-  stroke: none;
   pointer-events: none;
 }
 
 .check-disc-check {
-  fill: var(--check-color);
-  fill-opacity: 0.55;
+  fill: none;
+  stroke: var(--check-color);
+  /* In board units, as the pin ring's is: the setting's square sides, from
+     the board. */
+  stroke-width: var(--check-ring-width, 2.56);
 }
 
 .check-disc-checkmate {
+  stroke: none;
   fill: var(--checkmate-color);
   fill-opacity: 0.75;
 }

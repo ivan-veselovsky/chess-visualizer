@@ -182,9 +182,10 @@
     },
     "checkAndCheckmate": {
       "showCheck": true,
-      "checkColor": "#ff4929",
+      "checkColor": "#c01c28",
+      "checkRingWidth": 0.04,
       "showCheckmate": true,
-      "checkmateColor": "#a30000"
+      "checkmateColor": "#c01c28"
     }
   }
 }
