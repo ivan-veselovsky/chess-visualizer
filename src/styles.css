@@ -160,7 +160,23 @@ body {
   --panel-cap: calc((100vh - var(--page-reserve)) * var(--board-zoom));
   --panel-cap: calc((100dvh - var(--page-reserve)) * var(--board-zoom));
   --board-max: min(100%, var(--board-cap));
-  max-width: 1500px;
+  /*
+    How wide the page is let be: as wide as what it holds can use, and no
+    wider, centred in what is left — so on a wide screen the header stays over
+    the board rather than running off to the screen's edges.
+
+    Never a number of pixels: worked out from the board, which is as big as
+    the window's height allows, and from the type. One board: the board, its
+    bars, the gap, and the panel beside it, which is held to the board's own
+    size or a hundred ems, whichever is less — no wider than the board, and
+    not so wide that a row of controls stands apart across the screen; never
+    less than the 27rem it needs. Two boards: the pair, side by side at their
+    own ceiling, and the bars beside them; the panel under them takes that.
+    Plus the page's own padding either side.
+  */
+  --page-bars: calc(var(--men-bars, 0) * (var(--men-bar-width) + var(--men-bar-gap)));
+  --panel-room: max(27rem, min(var(--board-cap), 100em));
+  max-width: calc(var(--board-cap) + var(--page-bars) + 1rem + var(--panel-room) + 1.5rem);
   margin: 0 auto;
   /* Less under the board than above the header: the board is the page, and a
      wide margin below it is a wide margin below nothing. */
@@ -313,6 +329,8 @@ body {
 .side-column {
   flex: 1 1 27rem;
   min-width: 27rem;
+  /* No wider than the board beside it, nor than a hundred ems: see `.app`. */
+  max-width: var(--panel-room);
   /* So the tabs can size themselves to this column rather than to the window:
      between about 1400 and 1440 pixels the board squeezes it to its minimum,
      which is narrower than it is at either side of that band. */
@@ -3798,6 +3816,17 @@ input[type="color"]::-moz-color-swatch {
 .app-two-up .board-pane,
 .app-two-up .side-column {
   flex: 0 0 auto;
+}
+
+/* The panel under the boards as wide as they are, not held to one board's
+   width as the panel beside a single board is. */
+.app-two-up .side-column {
+  max-width: none;
+}
+
+/* As wide as the pair of boards and their bars, centred: see `.app`. */
+.app.app-two-up {
+  max-width: calc(var(--board-cap) * 2 + var(--two-up-gap) + var(--page-bars) + 1.5rem);
 }
 
 /*

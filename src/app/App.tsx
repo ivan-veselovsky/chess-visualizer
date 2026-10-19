@@ -2847,6 +2847,23 @@ export default function App() {
       ]
         .filter((name) => name !== "")
         .join(" ")}
+      style={
+        {
+          /* How many bars of men stand beside the board. Published here, at
+             the top, because two things need it: the board pane and the
+             names inside it, for the width the bars take, and the page
+             itself, for how wide it can usefully be — see `.app`. The
+             editor's palette stands in for the bars, one bar wide, whichever
+             of them are up — and a bar a little wider than the men in it,
+             these being taken hold of rather than counted. */
+          "--men-bars": String(
+            editor
+              ? 1
+              : (settings.pieces.showCaptured ? 1 : 0) + (settings.pieces.showAvailable ? 1 : 0)
+          ),
+          ...(editor ? { "--men-bar-width": "2.3rem" } : {}),
+        } as CSSProperties
+      }
     >
       <header className="app-header">
         <h1>
@@ -2881,28 +2898,9 @@ export default function App() {
 
       <div className="app-body">
         {/* Left: the board and the bars of men beside it, as tall as the
-            window allows. How many bars are up is published here rather than
-            read off the two switches in the stylesheet: the width they take is
-            wanted by this pane — which is their parent, and so cannot see a
-            property set further down — and by the player names inside it. One
-            number, set where both can reach it. */}
-        <section
-          className="board-pane"
-          inert={exporting}
-          style={
-            {
-              /* The editor's palette stands in for the bars, one bar wide,
-                 whichever of them are up — and a bar a little wider than the
-                 men in it, these being taken hold of rather than counted. */
-              "--men-bars": String(
-                editor
-                  ? 1
-                  : (settings.pieces.showCaptured ? 1 : 0) + (settings.pieces.showAvailable ? 1 : 0)
-              ),
-              ...(editor ? { "--men-bar-width": "2.3rem" } : {}),
-            } as CSSProperties
-          }
-        >
+            window allows. How many bars are up is published on the page
+            itself, above: see `--men-bars`. */}
+        <section className="board-pane" inert={exporting}>
           {shown !== null && (
             <div className="board-and-players">
               {/*
