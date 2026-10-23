@@ -66,10 +66,80 @@ async function started(takebacks = 0) {
   guest.say({ type: "move", token: guestToken, ply: 1, san: "d5" });
   await until(guest, "moved");
   await until(host, "moved");
-  host.say({ type: "takeBack", token: hostToken });
+  host.say({ type: "takeBack", token: hostToken, ply: 2 });
+  await until(host, "tookBack");
+  await until(guest, "tookBack");
+  const pair = host.heard.at(-1);
+  check("my own move once it has been answered comes back too, with the answer to it",
+    pair?.type === "tookBack" && pair.ply === 0 && JSON.stringify(pair.undone) === JSON.stringify(["d4", "d5"]) && pair.by === "w",
+    JSON.stringify(pair));
+  check("for one takeback, not two",
+    JSON.stringify(pair?.takebacksLeft) === JSON.stringify({ w: 0, b: 2 }), JSON.stringify(pair?.takebacksLeft));
+  check("and every line taken back is kept, whole, oldest first",
+    JSON.stringify(pair?.abandoned) === JSON.stringify([["e4"], ["d4", "d5"]]) &&
+      JSON.stringify(guest.heard.at(-1)?.abandoned) === JSON.stringify(pair?.abandoned),
+    JSON.stringify(pair?.abandoned));
+  host.close(); guest.close();
+}
+
+{
+  /* A takeback is of the game as it was seen: a second press, or one sent
+     before a reply arrived, is refused rather than unmaking more. */
+  const { game, host, guest, hostToken, guestToken } = await started(3);
+  host.say({ type: "move", token: hostToken, ply: 0, san: "e4" });
+  await until(guest, "moved");
+  guest.say({ type: "move", token: guestToken, ply: 1, san: "e5" });
+  await until(host, (m) => m.type === "moved" && m.ply === 1);
+  host.heard.length = 0;
+  host.say({ type: "takeBack", token: hostToken, ply: 1 });
   await until(host, (m) => m.code === "nothingToTakeBack");
-  check("nor my own once it has been answered",
-    host.heard.at(-1)?.code === "nothingToTakeBack", JSON.stringify(host.heard.at(-1)));
+  check("a takeback of a game that has moved on since is refused",
+    host.heard.at(-1)?.code === "nothingToTakeBack" && /moved on/.test(host.heard.at(-1).reason),
+    JSON.stringify(host.heard.at(-1)));
+
+  /* Several in a row, as far as the allowance goes. */
+  host.say({ type: "move", token: hostToken, ply: 2, san: "Nf3" });
+  await until(guest, (m) => m.type === "moved" && m.ply === 2);
+  guest.say({ type: "move", token: guestToken, ply: 3, san: "Nc6" });
+  await until(host, (m) => m.type === "moved" && m.ply === 3);
+  host.heard.length = 0;
+  host.say({ type: "takeBack", token: hostToken, ply: 4 });
+  await until(host, "tookBack");
+  host.heard.length = 0;
+  host.say({ type: "takeBack", token: hostToken, ply: 2 });
+  await until(host, "tookBack");
+  check("takebacks follow one another, a pair at a time, back to the start",
+    host.heard.at(-1)?.ply === 0 && JSON.stringify(host.heard.at(-1).undone) === JSON.stringify(["e4", "e5"]) &&
+      JSON.stringify(host.heard.at(-1).abandoned) === JSON.stringify([["e4", "e5", "Nf3", "Nc6"], ["e4", "e5"]]),
+    JSON.stringify(host.heard.at(-1)));
+
+  /* And a player coming back is given them with the game. */
+  const again = await connect(game, "host again");
+  again.say({ type: "resume", token: hostToken });
+  await until(again, "state");
+  const state = again.heard.find((m) => m.type === "state");
+  check("and a player coming back is handed them with the game",
+    JSON.stringify(state?.abandoned) === JSON.stringify([["e4", "e5", "Nf3", "Nc6"], ["e4", "e5"]]) && state?.moves.length === 0,
+    JSON.stringify(state?.abandoned));
+  again.close(); host.close(); guest.close();
+}
+
+{
+  /* The move that finishes a game is not taken back: the game is over. */
+  const { host, guest, hostToken, guestToken } = await started(2);
+  const play = async (who, token, ply, san) => {
+    who.say({ type: "move", token, ply, san });
+    await until(host, (m) => m.type === "moved" && m.ply === ply);
+  };
+  await play(host, hostToken, 0, "f3");
+  await play(guest, guestToken, 1, "e5");
+  await play(host, hostToken, 2, "g4");
+  await play(guest, guestToken, 3, "Qh4#");
+  host.heard.length = 0;
+  host.say({ type: "takeBack", token: hostToken, ply: 4 });
+  await until(host, (m) => m.code === "notPlaying");
+  check("the mate that ends a game is not taken back, nor the move it answered",
+    host.heard.at(-1)?.code === "notPlaying", JSON.stringify(host.heard.at(-1)));
   host.close(); guest.close();
 }
 

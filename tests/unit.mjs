@@ -7,7 +7,7 @@
  * step between what is written and what is checked.
  */
 import { parsePgn, toPgn, withoutUnknownTags } from "../src/chess/pgn.ts";
-import { lineIndex, linesOf, withOnlyLine, withoutLinesAfter, withoutLinesBefore, lineTree, pathSoFar, playInto, readTree, resultShown, soleLine, tourIndex, tourPlaces, walk, writeMovetext } from "../src/chess/variations.ts";
+import { gameTree, lineIndex, linesOf, withOnlyLine, withoutLinesAfter, withoutLinesBefore, lineTree, pathSoFar, playInto, readTree, resultShown, soleLine, tourIndex, tourPlaces, walk, writeMovetext } from "../src/chess/variations.ts";
 import { parseSettings, settingsToJson } from "../src/app/settingsFile.ts";
 import { SETTINGS_SCHEMA_VERSION } from "../src/app/settings.ts";
 import DEFAULT_SETTINGS_JSON from "../src/app/presets/default-settings.json" with { type: "json" };
@@ -2266,6 +2266,24 @@ console.log("\nLines removed either side of the one on the board\n");
   withOnlyLine(only, lines, 2);
   check("and with only the line on the board kept, all of it is kept, to its end",
     writeMovetext(only) === "1. e4 e6 2. d4", writeMovetext(only));
+}
+
+console.log("\nA game with a friend, its takebacks kept\n");
+{
+  const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  check("each line taken back is a variation where it left the line played",
+    writeMovetext(gameTree(START, ["e4", "c5"], [["e4", "e5", "Nf3"]])) === "1. e4 c5 (1... e5 2. Nf3)",
+    writeMovetext(gameTree(START, ["e4", "c5"], [["e4", "e5", "Nf3"]])));
+  const chain = gameTree(START, ["d4"], [["e4", "e5", "Nf3", "Nc6"], ["e4", "e5"]]);
+  check("takebacks one after another: a line that left from moves taken back later still finds its place",
+    writeMovetext(chain) === "1. d4 (1. e4 e5 2. Nf3 Nc6)" && linesOf(chain).length === 2, writeMovetext(chain));
+  const running = gameTree(START, ["e4", "e5", "Nf3"], [["e4", "e5", "Nf3", "Nc6", "Bb5"]]);
+  check("one running on past the last move played, which no move there yet is an alternative to, is said in a comment on it",
+    writeMovetext(running) === "1. e4 e5 2. Nf3 {taken back: 2... Nc6 3. Bb5}" && linesOf(running).length === 1, writeMovetext(running));
+  check("and the same move played again is the same line, not a variation of itself",
+    writeMovetext(gameTree(START, ["e4", "e5", "Nf3"], [["e4", "e5"]])) === "1. e4 e5 2. Nf3");
+  check("a move that will not play ends its line rather than the game",
+    writeMovetext(gameTree(START, ["e4"], [["d4", "Ke7"]])) === "1. e4 (1. d4)", writeMovetext(gameTree(START, ["e4"], [["d4", "Ke7"]])));
 }
 
 console.log("\nA line written out for the list of lines\n");

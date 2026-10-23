@@ -235,6 +235,12 @@ export type Phase =
       terms: Terms;
       /** Takebacks each side has left. */
       takebacksLeft: Tally;
+      /**
+       * Every line taken back so far, whole and oldest first, as the object
+       * keeps them: what the game is written out and replayed with, as
+       * variations where each left the line that was played.
+       */
+      abandoned: string[][];
       /** Who has a draw on offer, when one is standing. */
       drawOffered: Color | null;
       /** How it ended, once it has; the game stays on screen either way. */
@@ -576,15 +582,27 @@ export function useFriendGame(listeners: FriendListeners) {
         case "tookBack":
           setNotice(null);
           told.current.onTookBack(message);
-          setPhase((current) =>
-            current.kind === "playing"
-              ? {
-                  ...current,
-                  takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
-                  drawOffered: null,
-                }
-              : current
-          );
+          setPhase((current) => {
+            if (current.kind !== "playing") {
+              return current;
+            }
+            /* Said to the player whose moves went, since nothing else tells
+               them why their board stepped back. */
+            if (message.by !== undefined && message.by !== current.you && (message.undone?.length ?? 0) > 0) {
+              const undone = message.undone ?? [];
+              setNotice(
+                undone.length === 2
+                  ? `${current.opponent} took back their move ${undone[0]} and your reply ${undone[1]}.`
+                  : `${current.opponent} took back their move ${undone[0]}.`
+              );
+            }
+            return {
+              ...current,
+              takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
+              abandoned: message.abandoned ?? current.abandoned,
+              drawOffered: null,
+            };
+          });
           break;
         case "ended":
           setNotice(null);
@@ -667,6 +685,7 @@ export function useFriendGame(listeners: FriendListeners) {
             opponent: message.opponent,
             terms: message.terms,
             takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
+            abandoned: message.abandoned ?? [],
             drawOffered: null,
             over: null,
             startedAt: message.startedAt,
@@ -733,6 +752,7 @@ export function useFriendGame(listeners: FriendListeners) {
                     w: message.terms.takebacks,
                     b: message.terms.takebacks,
                   },
+                  abandoned: [],
                   drawOffered: null,
                   over: null,
                   startedAt: message.startedAt,
@@ -842,6 +862,7 @@ export function useFriendGame(listeners: FriendListeners) {
                   opponent: message.opponent,
                   terms: message.terms,
                   takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
+                  abandoned: message.abandoned ?? [],
                   drawOffered: message.drawOfferedBy,
                   over:
                     message.status === "finished" && message.reason !== null
@@ -1119,7 +1140,8 @@ export function useFriendGame(listeners: FriendListeners) {
     }
   }, []);
 
-  const takeBack = useCallback(() => say({ type: "takeBack" } as never), [say]);
+  /** `ply`: how many moves the board shows played, so the object can refuse a takeback of a game that has moved on. */
+  const takeBack = useCallback((ply: number) => say({ type: "takeBack", ply } as never), [say]);
   const resign = useCallback(() => say({ type: "resign" } as never), [say]);
   const offerDraw = useCallback(
     () => say({ type: "offerDraw" } as never),

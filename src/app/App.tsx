@@ -31,6 +31,7 @@ import {
   type HistoryEntry,
 } from "../chess/history";
 import {
+  gameTree,
   lineIndex,
   linesOf,
   lineTree,
@@ -179,6 +180,19 @@ type PanelTab = "game" | "match" | "balance" | "gif" | SettingsGroup;
  * trusted — a game with one line and no surprises is better than one whose
  * branches start from a board it was never on.
  */
+/**
+ * A history cut back to its first `ply` moves — the moves after them dropped
+ * from its head, where the newest are — and a place on it moved back with
+ * them, as near as it is still there.
+ */
+function trimTo(history: PositionHistory, ply: number): PositionHistory {
+  const gone = Math.max(0, history.entries.length - 1 - ply);
+  return {
+    entries: history.entries.slice(gone),
+    current: Math.max(0, history.current - gone),
+  };
+}
+
 function gameLines(pgn: string, given: PositionHistory): TreeLine[] {
   const tree = readTree(pgn);
   const lines = tree === null ? [] : linesOf(tree);
@@ -916,7 +930,36 @@ export default function App() {
     /* A game read in goes out as it came, less the tags that say nothing —
        see `withoutUnknownTags`, which `toPgn` writes through as well. */
     const original = originalPgn();
-    return original !== null ? withoutUnknownTags(original) : toPgn(history, stashName, players, ending);
+    if (original !== null) {
+      return withoutUnknownTags(original);
+    }
+    const written = toPgn(history, stashName, players, ending);
+    /* A game with a friend in which moves were taken back goes out with them,
+       each as a variation where it left the line that was played. */
+    const abandoned = friend.phase.kind === "playing" ? friend.phase.abandoned : [];
+    return written === null || abandoned.length === 0 ? written : withTakenBack(written, abandoned);
+  }
+
+  /**
+   * A game's PGN, as `toPgn` writes its one line, with the lines taken back in
+   * it put in as variations: the tags as they were, and the moves written
+   * again from the tree of them — see `gameTree` — with what the last move
+   * said, the way the game ended, kept on it.
+   */
+  function withTakenBack(written: string, abandoned: string[][]): string {
+    const [tags, ...rest] = written.split("\n\n");
+    const movetext = rest.join("\n\n");
+    const result = /\[Result "([^"]*)"\]/.exec(tags)?.[1] ?? "*";
+    const ending = /\{([^}]*)\}\s*(?:1-0|0-1|1\/2-1\/2|\*)\s*$/.exec(movetext)?.[1];
+    const tree = gameTree(here.initialFEN, here.moves, abandoned);
+    if (ending !== undefined) {
+      let last = tree;
+      while (last.next.length > 0) {
+        last = last.next[0];
+      }
+      last.comment = [ending, last.comment].filter((text) => text !== "").join("; ");
+    }
+    return `${tags}\n\n${writeMovetext(tree)} ${result}\n`;
   }
 
   /**
@@ -1615,7 +1658,33 @@ export default function App() {
    * held back behind it are three parts of one change, and a reader who saw
    * them arrive separately would be watching a flicker.
    */
-  function showPosition(next: string) {
+  /*
+    A takeback of two moves being played backwards: the first has gone, and
+    this is where the second is to take the board, and when. Anything that
+    arrives before then — a move, another takeback — finishes it first, so it
+    is always played on the position the takeback left.
+  */
+  const rewinding = useRef<{ ply: number; fen: string; timer: number } | null>(null);
+  /** The game as handed, cut back to its first `ply` moves with the board. */
+  function handedTo(ply: number) {
+    if (handed.current !== null) {
+      handed.current = { ...handed.current, moves: handed.current.moves.slice(0, ply) };
+    }
+  }
+  function finishRewind() {
+    const pending = rewinding.current;
+    if (pending === null) {
+      return;
+    }
+    rewinding.current = null;
+    window.clearTimeout(pending.timer);
+    handedTo(pending.ply);
+    setHistory((current) => trimTo(current, pending.ply));
+    showPosition(pending.fen);
+  }
+
+  /** Puts `next` on the board, flying the piece where one move apart; says how long the flight takes, nought where there is none. */
+  function showPosition(next: string): number {
     const before = shownFen.current;
     shownFen.current = next;
     const dragged = draggedTo.current;
@@ -1629,6 +1698,7 @@ export default function App() {
     setFlight(journey?.flight ?? null);
     setDuring(journey?.during ?? null);
     setFen(next);
+    return journey?.flight?.ms ?? 0;
   }
 
   /*
@@ -1693,6 +1763,9 @@ export default function App() {
       the same board rather than two agreeing accounts of one.
     */
     onMoved: ({ san, fen: after }) => {
+      /* A takeback still being played backwards is finished first: the move
+         is played on the position the takeback left. */
+      finishRewind();
       setHistory((current) => pushPosition(current, after, san));
       showPosition(after);
       if (handed.current !== null) {
@@ -1711,21 +1784,46 @@ export default function App() {
       A move unmade. The line is kept newest-first, so the move just played is
       the entry at the head, and dropping it is the whole of it.
     */
-    onTookBack: ({ fen: back }) => {
-      setHistory((current) =>
-        current.entries.length > 1
-          ? { entries: current.entries.slice(1), current: 0 }
-          : current
-      );
-      showPosition(back);
-      if (handed.current !== null) {
-        handed.current = {
-          ...handed.current,
-          moves: handed.current.moves.slice(0, -1),
-        };
+    onTookBack: ({ ply, fen: back }) => {
+      /*
+        Back to the move the object says, however many that is: one, or two
+        where the reply went with the move it answered. Played backwards a
+        move at a time, the last first, so both players see the moves go
+        rather than the board jump — the second when the first has landed.
+        A board being looked at somewhere further back keeps its place on it.
+      */
+      finishRewind();
+      const count = Math.max(0, history.entries.length - 1 - ply);
+      if (history.current >= count || count <= 1) {
+        const watching = history.current;
+        handedTo(ply);
+        setHistory((current) => trimTo(current, ply));
+        if (watching === 0) {
+          showPosition(back);
+        }
+        return;
       }
+      /* The first move back now; the rest when it has landed — or at once,
+         should anything else arrive first: see `finishRewind`. The game as
+         handed goes back with the board, a move at a time, or the board and
+         the game would differ in between and the board be taken for another
+         game arriving. */
+      handedTo(ply + count - 1);
+      setHistory((current) => trimTo(current, ply + count - 1));
+      const took = showPosition(history.entries[1].fen);
+      rewinding.current = {
+        ply,
+        fen: back,
+        timer: window.setTimeout(finishRewind, took + 150),
+      };
     },
     onLine: ({ initialFEN, moves }) => {
+      /* The whole line again, from the object: a takeback still being played
+         backwards has nothing left to finish. */
+      if (rewinding.current !== null) {
+        window.clearTimeout(rewinding.current.timer);
+        rewinding.current = null;
+      }
       if (initialFEN === "") {
         return;
       }
@@ -2408,18 +2506,19 @@ export default function App() {
     }
     const left = phase.takebacksLeft?.[phase.you] ?? 0;
     // Whose move it is in the game, which is the head of the line — not the
-    // position being looked at, which may be anywhere in it.
+    // position being looked at, which may be anywhere in it. Your own move is
+    // the last one, or the one before the reply to it: a takeback unmakes the
+    // reply too, as the object does — see its `takeBack`.
     const toMove = history.entries[0].fen.split(" ")[1];
-    if (history.entries.length - 1 <= (phase.terms.priorMoves ?? 0)) {
+    const answered = toMove === phase.you;
+    const played = history.entries.length - 1;
+    if (played < (answered ? 2 : 1)) {
+      return { can: false, why: "You have not moved yet" };
+    }
+    if (played - (answered ? 2 : 1) < (phase.terms.priorMoves ?? 0)) {
       return {
         can: false,
         why: "The game was taken up from here; these moves came with it",
-      };
-    }
-    if (toMove === phase.you) {
-      return {
-        can: false,
-        why: "Your opponent has replied — only your own last move can be taken back",
       };
     }
     if (history.current !== 0) {
@@ -2431,7 +2530,12 @@ export default function App() {
     if (left <= 0) {
       return { can: false, why: "No takebacks left" };
     }
-    return { can: true, why: `Take your last move back (${left} left)` };
+    return {
+      can: true,
+      why: answered
+        ? `Take back your last move and the reply to it (${left} left)`
+        : `Take your last move back (${left} left)`,
+    };
   })();
 
   /*
@@ -2469,6 +2573,43 @@ export default function App() {
       entries: history.entries,
     });
   }, [friend.phase, friend.name, history.entries]);
+
+  /*
+    And, finished with moves taken back in it, it becomes a game with
+    variations: the line played and each line taken back, as the PGN it is
+    written out as has them — so the list of lines offers them, Play walks
+    every one of them, and exporting or sharing writes them. Not before it is
+    over: while it is being played the board stays on the line being played,
+    the one place a move can be made from.
+  */
+  const branched = useRef<string | null>(null);
+  useEffect(() => {
+    const phase = friend.phase;
+    if (
+      phase.kind !== "playing" ||
+      phase.over === null ||
+      phase.abandoned.length === 0 ||
+      branched.current === phase.gameId
+    ) {
+      return;
+    }
+    branched.current = phase.gameId;
+    const players = {
+      white: phase.you === "w" ? friend.name : phase.opponent,
+      black: phase.you === "b" ? friend.name : phase.opponent,
+    };
+    const written = toPgn(history, null, { ...players, site: window.location.host }, {
+      result: phase.over.result,
+      how: describeEnding(phase.over.reason),
+    });
+    if (written === null) {
+      return;
+    }
+    const pgn = withTakenBack(written, phase.abandoned);
+    setRead({ players, result: phase.over.result, lines: gameLines(pgn, history), pgn });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per game, when
+    // it ends; `withTakenBack` reads the line it is handed and nothing else.
+  }, [friend.phase, friend.name, history]);
 
   /*
     Sitting down at a game turns the board round to the side being played.
@@ -3741,7 +3882,7 @@ export default function App() {
                 movesPlayed={Math.max(history.entries.length - 1, 0)}
                 canTakeBack={takeback.can}
                 takebackReason={takeback.why}
-                onTakeBack={friend.takeBack}
+                onTakeBack={() => friend.takeBack(history.entries.length - 1)}
                 onLeave={friend.leave}
                 onResign={friend.resign}
                 onOfferDraw={friend.offerDraw}

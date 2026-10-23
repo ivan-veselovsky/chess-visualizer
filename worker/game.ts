@@ -448,6 +448,7 @@ export class Game extends DurableObject {
                 opponent: record.host.name,
                 terms: termsOf(record),
                 moves: record.moves,
+                abandoned: record.abandoned ?? [],
                 takebacksLeft: record.takebacksLeft,
                 startedAt: record.startedAt,
                 endedAt: record.endedAt,
@@ -560,6 +561,7 @@ export class Game extends DurableObject {
       // Whatever the game already stands on: empty for one starting from
       // scratch, the carried line for one being taken up.
       moves: record.moves,
+      abandoned: record.abandoned ?? [],
       takebacksLeft: record.takebacksLeft,
       startedAt: settledRecord.startedAt,
       endedAt: settledRecord.endedAt,
@@ -649,6 +651,7 @@ export class Game extends DurableObject {
       reason: record.reason,
       terms: termsOf(record),
       moves: record.moves,
+      abandoned: record.abandoned ?? [],
       takebacksLeft: record.takebacksLeft,
       drawOfferedBy: record.drawOfferedBy,
       startedAt: record.startedAt,
@@ -692,6 +695,7 @@ export class Game extends DurableObject {
       reason: record.reason,
       terms: termsOf(record),
       moves: record.moves,
+      abandoned: record.abandoned ?? [],
       takebacksLeft: record.takebacksLeft,
       drawOfferedBy: record.drawOfferedBy,
       startedAt: record.startedAt,
@@ -798,11 +802,17 @@ export class Game extends DurableObject {
   }
 
   /**
-   * Unmakes the move just played, if it was yours and nobody has answered it.
+   * Unmakes your last move — and the reply to it, where the opponent has
+   * already answered it.
    *
    * Not a chess rule — a courtesy, and one worth having when the opponent is
    * eight years old. Each side is given a number of them at the start, and
-   * each takeback spends one of that player's own.
+   * each takeback spends one of that player's own, whether it unmakes one move
+   * or two. Taking back one move as much as allows another after it, as far as
+   * the takebacks go: playing a bot works the same way.
+   *
+   * The moves unmade are kept rather than lost — see `abandoned` — and a game
+   * that is over is over: the move that finished it is not taken back.
    */
   private async takeBack(
     ws: WebSocket,
@@ -824,31 +834,42 @@ export class Game extends DurableObject {
       return this.deny(ws, "nothingToTakeBack", "Nothing has been played yet");
     }
     /*
-      A game continued from another one can be taken back only as far as the
-      point it was taken up at. What came before was played somewhere else, by
-      people who are not at this board to agree to it being unmade.
+      Of the game as the player saw it. A second press, or a reply that
+      arrived while the first was on its way, would otherwise unmake more than
+      was asked for.
     */
-    if (record.moves.length <= (record.priorMoves ?? 0)) {
-      return this.deny(
-        ws,
-        "nothingToTakeBack",
-        "Those moves came with the game rather than from it"
-      );
+    if (message.ply !== undefined && message.ply !== record.moves.length) {
+      return this.deny(ws, "nothingToTakeBack", "The game has moved on since; look again");
     }
 
     /*
-      The last move must be yours. Whose it was follows from the count: the side
-      to move now is the side that did not just move.
+      Your last move, and the reply to it if there is one: whose the last move
+      was follows from the count — the side to move now is the side that did
+      not just move.
     */
     const board = new Chess(record.initialFEN);
     for (const san of record.moves) {
       board.move(san);
     }
-    if (board.turn() === player.color) {
+    const answered = board.turn() === player.color;
+    const count = answered ? 2 : 1;
+    if (record.moves.length < count) {
       return this.deny(
         ws,
         "nothingToTakeBack",
-        "The last move was not yours to take back"
+        "You have not moved yet: there is nothing of yours to take back"
+      );
+    }
+    /*
+      A game continued from another one can be taken back only as far as the
+      point it was taken up at. What came before was played somewhere else, by
+      people who are not at this board to agree to it being unmade.
+    */
+    if (record.moves.length - count < (record.priorMoves ?? 0)) {
+      return this.deny(
+        ws,
+        "nothingToTakeBack",
+        "Those moves came with the game rather than from it"
       );
     }
     const colour = player.color as Color;
@@ -856,12 +877,14 @@ export class Game extends DurableObject {
       return this.deny(ws, "noTakebacksLeft", "No takebacks left");
     }
 
-    const moves = record.moves.slice(0, -1);
+    const moves = record.moves.slice(0, -count);
+    const undone = record.moves.slice(-count);
+    const abandoned = [...(record.abandoned ?? []), record.moves];
     const takebacksLeft = {
       ...record.takebacksLeft,
       [colour]: record.takebacksLeft[colour] - 1,
     };
-    await this.write({ ...record, moves, takebacksLeft, drawOfferedBy: null });
+    await this.write({ ...record, moves, abandoned, takebacksLeft, drawOfferedBy: null });
 
     const back = new Chess(record.initialFEN);
     for (const san of moves) {
@@ -872,6 +895,9 @@ export class Game extends DurableObject {
       ply: moves.length,
       fen: back.fen(),
       takebacksLeft,
+      by: colour,
+      undone,
+      abandoned,
     });
   }
 

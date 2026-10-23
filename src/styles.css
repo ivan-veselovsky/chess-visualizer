@@ -167,15 +167,15 @@ body {
 
     Never a number of pixels: worked out from the board, which is as big as
     the window's height allows, and from the type. One board: the board, its
-    bars, the gap, and the panel beside it, which is held to the board's own
-    size or a hundred ems, whichever is less — no wider than the board, and
-    not so wide that a row of controls stands apart across the screen; never
-    less than the 27rem it needs. Two boards: the pair, side by side at their
-    own ceiling, and the bars beside them; the panel under them takes that.
-    Plus the page's own padding either side.
+    bars, the gap, and the panel beside it, which takes whatever width is
+    left — the board against the left edge, the panel to the right one — up
+    to a hundred ems, past which a row of controls would stand apart across
+    the screen; never less than the 27rem it needs. Two boards: the pair, side
+    by side at their own ceiling, and the bars beside them; the panel under
+    them takes that. Plus the page's own padding either side.
   */
   --page-bars: calc(var(--men-bars, 0) * (var(--men-bar-width) + var(--men-bar-gap)));
-  --panel-room: max(27rem, min(var(--board-cap), 100em));
+  --panel-room: max(27rem, 100em);
   max-width: calc(var(--board-cap) + var(--page-bars) + 1rem + var(--panel-room) + 1.5rem);
   margin: 0 auto;
   /* Less under the board than above the header: the board is the page, and a
@@ -329,7 +329,7 @@ body {
 .side-column {
   flex: 1 1 27rem;
   min-width: 27rem;
-  /* No wider than the board beside it, nor than a hundred ems: see `.app`. */
+  /* No wider than a hundred ems: see `.app`. */
   max-width: var(--panel-room);
   /* So the tabs can size themselves to this column rather than to the window:
      between about 1400 and 1440 pixels the board squeezes it to its minimum,

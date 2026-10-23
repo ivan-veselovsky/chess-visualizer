@@ -114,6 +114,19 @@ export interface GameRecord {
    */
   priorMoves: number;
   /**
+   * Every line taken back, as it stood on the board when it was: all its moves
+   * from the start, the ones taken back at the end of it. Oldest first.
+   *
+   * Kept so a takeback unmakes moves without losing them: the game is written
+   * out, and replayed, with each of these as a variation where it left the
+   * line that was played. Whole lines rather than only the moves taken back,
+   * because takebacks follow one another — a line taken back may leave from
+   * moves that were themselves taken back later — and a whole line says where
+   * it belongs however the game has moved on since. Missing in a record
+   * written before there was any such thing, which is the same as none.
+   */
+  abandoned?: string[][];
+  /**
    * Takebacks each player has left, counted down from `takebacks`.
    *
    * Per player, and spent by using them: a game where one side has thought
@@ -241,7 +254,13 @@ export type FromClient =
    * Takes back the move just made — your own, and only while it is still the
    * last. Once the opponent has replied it is part of the game.
    */
-  | { type: "takeBack"; token: string }
+  /**
+   * `ply` is how many moves the client sees played: the takeback is of the
+   * game as it saw it, and is refused if the game has moved on since — a
+   * second press, or a reply that arrived on the way, unmaking more than was
+   * asked. Missing from an older client, which is not checked.
+   */
+  | { type: "takeBack"; token: string; ply?: number }
   | { type: "resign"; token: string }
   /**
    * Takes an invite back. The challenger's own, and only while it is still
@@ -264,6 +283,8 @@ export type FromServer =
       terms: Terms;
       /** Everything played so far — nothing, unless this is a reconnection. */
       moves: string[];
+      /** Lines taken back; see the record's own field. */
+      abandoned: string[][];
       takebacksLeft: Tally;
       startedAt: number | null;
       endedAt: number | null;
@@ -304,6 +325,8 @@ export type FromServer =
       reason: EndReason | null;
       terms: Terms;
       moves: string[];
+      /** Lines taken back; see the record's own field. */
+      abandoned: string[][];
       takebacksLeft: Tally;
       drawOfferedBy: Color | null;
       startedAt: number | null;
@@ -325,8 +348,20 @@ export type FromServer =
       reason: EndReason | null;
       takebacksLeft: Tally;
     }
-  /** A move unmade, and what that left. */
-  | { type: "tookBack"; ply: number; fen: string; takebacksLeft: Tally }
+  /**
+   * Moves unmade, and what that left: who took them back, which moves they
+   * were — their own last move, and the reply to it where there was one — and
+   * every line taken back so far, this one last.
+   */
+  | {
+      type: "tookBack";
+      ply: number;
+      fen: string;
+      takebacksLeft: Tally;
+      by: Color;
+      undone: string[];
+      abandoned: string[][];
+    }
   /** The game is over by something other than a move. */
   | { type: "ended"; result: GameResult; reason: EndReason; at: number }
   | { type: "drawOffered"; by: Color }
@@ -453,7 +488,7 @@ export interface Terms {
  */
 export const KEPT_FOR_MS = 7 * 24 * 60 * 60 * 1000;
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /**
  * How often each player asks the other, and how long an unanswered question

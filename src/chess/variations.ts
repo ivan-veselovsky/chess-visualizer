@@ -550,6 +550,84 @@ export function tourPlaces(lines: TreeLine[]): TourPlace[] {
 }
 
 /**
+ * A game played between two people, with the moves taken back in it kept: the
+ * line that was played, as the main line, and each line taken back — whole,
+ * from the start, as it stood when it was taken back — as a variation where it
+ * leaves the lines before it. Taken back one after another, a line may leave
+ * from moves that were themselves taken back later, and a whole line puts it
+ * where it belongs all the same.
+ *
+ * A line taken back that runs on past the last move played has nothing yet
+ * to be a variation of: a variation is an alternative to a move, and no move
+ * has been played there. It is said in a comment on that last move instead —
+ * "taken back: 12... Nc6 13. Bb5" — until a move is played there, when it
+ * becomes a variation of that move, or the same move, when it is that move.
+ *
+ * Moves that will not play from where they stand end the line they are in,
+ * rather than the game: a record is not made worse by being read.
+ */
+export function gameTree(initialFEN: string, played: string[], abandoned: string[][]): MoveTree {
+  const grown = (moves: string[]): { fen: string; move: string }[] => {
+    const board = new Chess(initialFEN);
+    const out: { fen: string; move: string }[] = [];
+    for (const san of moves) {
+      try {
+        const made = board.move(san);
+        out.push({ fen: board.fen(), move: made.san });
+      } catch {
+        break;
+      }
+    }
+    return out;
+  };
+  const root: MoveTree = { fen: new Chess(initialFEN).fen(), move: null, note: "", comment: "", lead: "", next: [] };
+  let head = root;
+  for (const step of grown(played)) {
+    const next: MoveTree = { fen: step.fen, move: step.move, note: "", comment: "", lead: "", next: [] };
+    head.next.push(next);
+    head = next;
+  }
+  const dangling: string[] = [];
+  for (const line of abandoned) {
+    const steps = grown(line);
+    let here = root;
+    for (const [index, step] of steps.entries()) {
+      if (here === head) {
+        dangling.push(writtenFrom(head.fen, steps.slice(index).map((later) => later.move)));
+        break;
+      }
+      let next = here.next.find((child) => child.move === step.move);
+      if (next === undefined) {
+        next = { fen: step.fen, move: step.move, note: "", comment: "", lead: "", next: [] };
+        here.next.push(next);
+      }
+      here = next;
+    }
+  }
+  if (dangling.length > 0 && head !== root) {
+    head.comment = [head.comment, ...dangling.map((moves) => `taken back: ${moves}`)].filter((text) => text !== "").join("; ");
+  }
+  return root;
+}
+
+/** Moves written out with their numbers, from the position `fen` they start at: "12... Nc6 13. Bb5". */
+function writtenFrom(fen: string, moves: string[]): string {
+  const [, side, , , , full] = fen.split(" ");
+  let number = Number(full) || 1;
+  let black = side === "b";
+  return moves
+    .map((move, index) => {
+      const text = black ? (index === 0 ? `${number}... ${move}` : move) : `${number}. ${move}`;
+      if (black) {
+        number += 1;
+      }
+      black = !black;
+      return text;
+    })
+    .join(" ");
+}
+
+/**
  * Where a board on `line`, `depth` moves in, stands in `places` — the place
  * `remembered` if it is that position, the first that is otherwise. Any line
  * that has the same moves up to there is the same position. -1 where it is
