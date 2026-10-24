@@ -1,5 +1,6 @@
 import { describeEntry, type HistoryEntry } from "../chess/history";
 import { figurine } from "../chess/figurine";
+import { useFiguresLoaded } from "./useFiguresLoaded";
 
 interface MovesSelectProps {
   /** Every position reached so far, newest first. */
@@ -28,6 +29,8 @@ export default function MovesSelect({
   disabled = false,
   onSelect,
 }: MovesSelectProps) {
+  /* The pieces in the moves a size up: see `FIGURE_SCALE`. */
+  useFiguresLoaded();
   return (
     <div className={`moves-field${disabled ? " label-off" : ""}`}>
       <label htmlFor="moves">Moves</label>

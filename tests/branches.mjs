@@ -795,6 +795,105 @@ try {
   check("and the one after them on again, the board still where it was",
     paged.turnedOn.had && paged.turnedOn.text !== paged.turnedBack.text && paged.turnedOn.fen === paged.beforeTurn.fen,
     JSON.stringify(paged.turnedOn));
+
+  console.log("\nThe library, in the list of stashed games, and the game's title\n");
+  /*
+    The library's games are in the stash's list, locked: read, stepped
+    through, never written over. A move of the reader's own makes the game
+    theirs — the list lets go of it, and the title over the page gets an
+    asterisk, which is the same answer as the question about stashing it
+    before something else goes up. Stashed under a name of its own, it goes by
+    that name, nothing unsaved.
+  */
+  const shelf = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    const state = () => ({ title: document.querySelector(".header-game-name")?.textContent ?? null,
+      star: document.querySelector(".header-game-unsaved") !== null, list: document.querySelector("#stashed-game").value,
+      asked: document.querySelector("dialog[open] .stash-prompt")?.textContent ?? null,
+      stash: [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Stash game").disabled });
+    const pick = (value) => { const list = document.querySelector("#stashed-game");
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(list, value);
+      list.dispatchEvent(new Event("change", { bubbles: true })); };
+    const library = [...document.querySelectorAll('#stashed-game optgroup[label="Library"] option')];
+    const listed = { count: library.length, locked: library.every((option) => option.textContent.startsWith("\u{1F512}")),
+      named: library.map((option) => option.textContent).find((text) => text.includes("Kieseritzky")) ?? "" };
+    const immortal = library.find((option) => option.textContent.includes("Kieseritzky")).value;
+    const morphy = library.find((option) => option.textContent.includes("Morphy")).value;
+    pick(immortal); await sleep(1200);
+    const read = state();
+    key("ArrowLeft", true); await sleep(1200);
+    const stepped = state();
+    const d2 = __sq("d2"), d4 = __sq("d4");
+    return JSON.stringify({ listed, read, stepped, d2, d4, morphy });`));
+  check("the library's games are in the list of stashed games, in a group of their own, each with a lock",
+    shelf.listed.count === 10 && shelf.listed.locked && shelf.listed.named.endsWith("Adolf Anderssen \u2013 Lionel Kieseritzky (1851)"),
+    JSON.stringify(shelf.listed));
+  check("one taken up is named over the page by who played it, nothing unsaved, and is not to be stashed over",
+    shelf.read.title === "Adolf Anderssen \u2013 Lionel Kieseritzky (1851)" && !shelf.read.star && shelf.read.list.startsWith("library:") && shelf.read.stash,
+    JSON.stringify(shelf.read));
+  check("and stays so, read back to its start", JSON.stringify(shelf.stepped) === JSON.stringify(shelf.read), JSON.stringify(shelf.stepped));
+  await page.click(shelf.d2.cx, shelf.d2.cy); await pause(300);
+  await page.click(shelf.d4.cx, shelf.d4.cy); await pause(1200);
+  const theirs = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    const state = () => ({ title: document.querySelector(".header-game-name")?.textContent ?? null,
+      star: document.querySelector(".header-game-unsaved") !== null, list: document.querySelector("#stashed-game").value,
+      asked: document.querySelector("dialog[open] .stash-prompt")?.textContent ?? null });
+    const pick = (value) => { const list = document.querySelector("#stashed-game");
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(list, value);
+      list.dispatchEvent(new Event("change", { bubbles: true })); };
+    const played = state();
+    pick(${JSON.stringify(shelf.morphy)}); await sleep(600);
+    const asked = state();
+    const offered = document.querySelector("dialog[open] input")?.value ?? "";
+    const name = document.querySelector("dialog[open] input");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(name, "My immortal");
+    name.dispatchEvent(new Event("input", { bubbles: true })); await sleep(100);
+    [...document.querySelectorAll("dialog[open] button")].find((b) => /^(Stash|Replace)$/.test(b.textContent.trim())).click(); await sleep(1500);
+    const moved = state();
+    pick("My immortal"); await sleep(1200);
+    const back = state();
+    return JSON.stringify({ played, asked, offered, moved, back });`));
+  check("a move of one's own makes it the reader's: the asterisk after its title, and the list letting go of it",
+    theirs.played.title === shelf.read.title && theirs.played.star && theirs.played.list === "", JSON.stringify(theirs.played));
+  check("and another game taken from the list asks first whether to stash it, offering its title as the name",
+    theirs.asked.asked === "Stash current game?" && theirs.offered === shelf.read.title, JSON.stringify({ ...theirs.asked, offered: theirs.offered }));
+  check("stashed, the other game goes up, untouched", theirs.moved.title?.startsWith("Paul Morphy") && !theirs.moved.star && theirs.moved.asked === null,
+    JSON.stringify(theirs.moved));
+  check("and the stashed one comes back under its own name, nothing unsaved",
+    theirs.back.title === "My immortal" && !theirs.back.star && theirs.back.list === "My immortal", JSON.stringify(theirs.back));
+
+  /*
+    Export all stashed: every stashed game in one PGN, a game to a block of
+    tags and moves — and with the library's too, where that is ticked, which it
+    is not as the dialog opens.
+  */
+  const all = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    window.__tab("Lab"); await sleep(300);
+    const games = (text) => text.trim().split(/\\n\\n(?=\\[)/).length;
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Export all stashed").click(); await sleep(400);
+    const area = () => document.querySelector("dialog[open] textarea");
+    const stashed = [...document.querySelectorAll('#stashed-game optgroup[label="Stashed"] option')].map((option) => option.value);
+    const own = area().value;
+    const ticked = document.querySelector("#export-with-library").checked;
+    document.querySelector("#export-with-library").click(); await sleep(300);
+    const withLibrary = area().value;
+    document.querySelector("dialog[open] .dialog-close").click(); await sleep(300);
+    return JSON.stringify({ stashed, own, games: games(own), ticked, withLibrary, together: games(withLibrary),
+      open: document.querySelector("dialog[open]") !== null });`));
+  check("Export all stashed writes every stashed game, one after another, the library's left out",
+    all.stashed.length >= 2 && all.games === all.stashed.length && !all.ticked && all.own.includes('[Event "Three defences"]') &&
+      all.own.includes("Kieseritzky") === all.stashed.includes("My immortal") && !all.own.includes("Morphy"),
+    JSON.stringify({ stashed: all.stashed, games: all.games, ticked: all.ticked }));
+  check("and with Include library games ticked, the library's ten after them",
+    all.together === all.games + 10 && all.withLibrary.startsWith(all.own.trim()) && all.withLibrary.includes("Morphy") && !all.open,
+    JSON.stringify({ together: all.together, games: all.games }));
+
+  /* What the file says about a move is in the row without PGN's braces, set apart in a span of its own. */
+  const remark = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    await load(${JSON.stringify(PGN)}); key("ArrowLeft", true); await sleep(900);
+    const path = document.querySelector(".branch-path");
+    return JSON.stringify({ text: lettered(path.textContent.replace(/\\s+/g, " ")), comment: path.querySelector(".move-comment")?.textContent ?? null });`));
+  check("a comment in the line over the board is shown without its braces",
+    remark.text === "Line 1 of 3: 1. Rhg7 Nf7 case A 2. Rg8#" && remark.comment === "case A", JSON.stringify(remark));
 } catch (error) {
   check("the branch tests could not run", false, error.message);
 }

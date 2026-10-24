@@ -1,10 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 interface PgnExportDialogProps {
   open: boolean;
   /** The game, or null when the line cannot be written as one. */
   pgn: string | null;
   onClose: () => void;
+  /** What the text is: "Game as PGN" unless said otherwise. */
+  heading?: string;
+  /** What stands in the box where there is nothing to write. */
+  emptyText?: string;
+  /** A choice about what is written, under the text: see "Export all stashed". */
+  children?: ReactNode;
 }
 
 /**
@@ -18,7 +24,13 @@ export default function PgnExportDialog({
   open,
   pgn,
   onClose,
+  heading = "Game as PGN",
+  emptyText = "This position was set by hand, so there is no game to write.",
+  children = null,
 }: PgnExportDialogProps) {
+  /* Two of these are in the document at once, open or not, so the label's
+     field is named by an id of its own rather than one written out. */
+  const field = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const text = useRef<HTMLTextAreaElement>(null);
   const [copied, setCopied] = useState(false);
@@ -35,6 +47,11 @@ export default function PgnExportDialog({
       element.close();
     }
   }, [open]);
+
+  /* What was copied is not what is there once the text changes under it. */
+  useEffect(() => {
+    setCopied(false);
+  }, [pgn]);
 
   async function copy() {
     if (pgn === null) {
@@ -63,7 +80,7 @@ export default function PgnExportDialog({
       }}
     >
       <div className="pgn-dialog-header">
-        <label htmlFor="pgn-export">Game as PGN</label>
+        <label htmlFor={field}>{heading}</label>
         <button
           type="button"
           className="dialog-close"
@@ -75,13 +92,14 @@ export default function PgnExportDialog({
         </button>
       </div>
       <textarea
-        id="pgn-export"
+        id={field}
         ref={text}
         className="pgn-text"
         rows={12}
         readOnly
-        value={pgn ?? "This position was set by hand, so there is no game to write."}
+        value={pgn ?? emptyText}
       />
+      {children}
       <div className="pgn-dialog-actions">
         <button
           type="button"

@@ -55,6 +55,7 @@ import { applyMove, isPromotion } from "../src/chess/moves.ts";
 import { asBoardEditorPosition, flipped, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
 import { lineLabel, pageAround, pageLine } from "../src/chess/linePath.ts";
 import { figurine, isPieceGlyph, lettered } from "../src/chess/figurine.ts";
+import { titleOfPgn } from "../src/chess/gameTitle.ts";
 import { actionFor, bind, comboOf, defaultBindings, describeCombo, readBindings } from "../src/app/keyBindings.ts";
 import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
 import { readdirSync, readFileSync } from "node:fs";
@@ -2446,6 +2447,25 @@ console.log("\nThe keys that walk a game\n");
       JSON.stringify(readBindings("not json", linux)) === JSON.stringify(linux));
   check("and all of them at their defaults if two came back sharing a key",
     JSON.stringify(readBindings(JSON.stringify({ ...linux, next: linux.previous }), linux)) === JSON.stringify(linux));
+}
+
+console.log("\nA game of no moves, written out\n");
+{
+  const none = toPgn({ entries: [{ fen: "4k3/8/8/8/8/8/8/4K3 w - - 0 1", move: null }], current: 0 }, "Two kings");
+  check("its result under a blank line after the tags, as in any other game, so a file of many games reads right",
+    /\]\n\n1\/2-1\/2$/.test(none) && !/\n \S/.test(none), JSON.stringify(none));
+}
+
+console.log("\nWhat a game is called\n");
+{
+  check("who played it and the year, as the file says",
+    titleOfPgn('[White "Adolf Anderssen"]\n[Black "Lionel Kieseritzky"]\n[Date "1851.??.??"]\n\n1. e4 *') === "Adolf Anderssen \u2013 Lionel Kieseritzky (1851)");
+  check("no year where the date has none",
+    titleOfPgn('[White "Anna"]\n[Black "Boris"]\n[Date "????.??.??"]\n\n1. e4 *') === "Anna \u2013 Boris");
+  check("a player the file does not name goes by the colour played",
+    titleOfPgn('[White "Anna"]\n[Black "?"]\n\n1. e4 *') === "Anna \u2013 Black");
+  check("and a file that names neither has no title to give",
+    titleOfPgn('[White "?"]\n[Black ""]\n[Date "2024.01.01"]\n\n1. e4 *') === null && titleOfPgn("1. e4 e5 *") === null);
 }
 
 console.log("\nA position flipped in the editor\n");

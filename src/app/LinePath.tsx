@@ -219,7 +219,16 @@ function coloured(
       );
     } else if (piece === "…") {
       parts.push(more(`on-${index}`, "Later moves", on));
-    } else if (/^\s+$/.test(piece) || piece.startsWith("{")) {
+    } else if (piece.startsWith("{")) {
+      /* What the file says about a move, without the braces PGN keeps it in:
+         those are for the file's reader, not this one. Set apart by its slant
+         instead, so it is not read as moves. */
+      parts.push(
+        <span key={index} className="move-comment">
+          {piece.replace(/^\{\s*|\s*\}$/g, "")}
+        </span>
+      );
+    } else if (/^\s+$/.test(piece)) {
       parts.push(piece);
     } else {
       const classes = [

@@ -260,5 +260,14 @@ export function toPgn(
     }
   }
 
-  return withoutUnknownTags(game.pgn({ maxWidth: 72, newline: "\n" }));
+  /*
+    chess.js writes a game of no moves — a position stashed as it was set up —
+    with its result straight under the tags, after a space, where PGN wants a
+    blank line between the two: what tells a reader of a file of many games
+    where one game's tags end. Put back.
+  */
+  return withoutUnknownTags(game.pgn({ maxWidth: 72, newline: "\n" })).replace(
+    /^((?:\[[^\n]*\]\n)+)(?![\n[])[ \t]*/,
+    "$1\n"
+  );
 }

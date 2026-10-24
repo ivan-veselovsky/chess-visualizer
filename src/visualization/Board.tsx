@@ -86,6 +86,13 @@ interface BoardProps {
    * milliseconds. Every mark on the board is timed by it; see `Settings.fade`.
    */
   fadeTimeMs?: number;
+  /**
+   * The fade as the settings give it, fitted to the pace of a game playing
+   * itself but never drawn out to a flight's length, as `fadeTimeMs` is while
+   * a piece is in the air. What a mated king falls and stands up again by:
+   * see `KING_FALL_FADES`. The board's own fade where none is given.
+   */
+  steadyFadeMs?: number;
   /** Omit to make the board read-only. */
   /**
    * A move the reader has made. `dragged` says whether the piece was carried
@@ -176,6 +183,7 @@ export default function Board({
   glyphs,
   attacks,
   fadeTimeMs = 0,
+  steadyFadeMs,
   onMove,
   grid,
   playable = null,
@@ -254,8 +262,14 @@ export default function Board({
     /* Published for the marks the stylesheet times on its own — the wash on the
        squares, which transitions rather than being redrawn. */
     "--fade-time": `${Math.max(fadeTimeMs, 0)}ms`,
-    /* How long a mated king takes to fall: see `KING_FALL_FADES`. */
-    "--king-fall-time": `${Math.max(fadeTimeMs, 0) * KING_FALL_FADES}ms`,
+    /*
+      How long a mated king takes to fall, and to stand up again: see
+      `KING_FALL_FADES`. From the steady fade rather than the board's: the
+      king stands up as the board steps back from the mate, while the piece
+      that mated him is flying back, and timed by the fade then — drawn out to
+      the flight's length — he stood up at half the speed he fell.
+    */
+    "--king-fall-time": `${Math.max(steadyFadeMs ?? fadeTimeMs, 0) * KING_FALL_FADES}ms`,
     "--square-light": colors.lightSquare,
     "--square-dark": colors.useLightForDark
       ? colors.lightSquare

@@ -9,50 +9,6 @@
   box-sizing: border-box;
 }
 
-/*
-  The pieces in written moves — "♛h2#" — a size up from the letters round
-  them, and only they: a face for the five characters alone, which a font
-  family names first and the rest of the text passes by. A size of their own,
-  rather than of the text's, because the figures are drawn small for their
-  type in every font that has them, and a span round each cannot do it where
-  it is most wanted: an option in a list the platform draws is one run of
-  text, and takes no markup.
-
-  From a font the reader already has, whichever comes first that has the
-  pieces — DejaVu and Noto on Linux, Segoe on Windows, Apple Symbols on a Mac,
-  each by its full and its PostScript name — and from none of them where none
-  is there: the face is passed over then, and the pieces come at their own
-  size from whatever the text falls back to, as before.
-
-  Measured as drawn, since what fits a line to its room measures it in the
-  element's own font: see `useFiguresLoaded`.
-*/
-@font-face {
-  font-family: "Chess Figures";
-  src:
-    local("DejaVu Sans"),
-    local("DejaVuSans"),
-    local("Noto Sans Symbols2"),
-    local("NotoSansSymbols2-Regular"),
-    local("Segoe UI Symbol"),
-    local("SegoeUISymbol"),
-    local("Apple Symbols"),
-    local("AppleSymbols"),
-    local("Arial Unicode MS"),
-    local("ArialUnicodeMS");
-  unicode-range: U+265A-265E;
-  size-adjust: 120%;
-  /*
-    Drawn larger, but claiming no more height on the line than the letters do:
-    without these, the fonts' own heights, scaled with the figures, made the
-    line a pixel taller than the row it sits in. Where the figures are drawn
-    is not changed by them, only the room they ask for.
-  */
-  ascent-override: 75%;
-  descent-override: 20%;
-  line-gap-override: 0%;
-}
-
 :root {
   /* --square-light / --square-dark are supplied per-board by <Board>. */
   --board-frame: #4a3728;
@@ -234,6 +190,36 @@ body {
   align-items: center;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+/*
+  The game on the board, by name, after the app's: in the text's own colour
+  rather than the title's livery, being the reader's game rather than the
+  page's, and half again the size of the text round the page — the 0.9rem of
+  its controls — so it reads as what the page is about now. One line, cut
+  short where the header runs out of room before the links.
+*/
+.header-game {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  margin: 0 0 0 1rem;
+  font-size: 1.35rem;
+  color: var(--app-fg);
+}
+
+.header-game-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The asterisk of a game with something unsaved: the tooltip on it says so. */
+.header-game-unsaved {
+  flex: 0 0 auto;
+  margin-left: 0.3em;
+  cursor: help;
 }
 
 /* The links beside the title: plain text until pointed at. */
@@ -815,14 +801,37 @@ body {
   flex: 0 1 26rem;
 }
 
-/* Held at the far end of its row, beside the buttons that fill it. */
-.stashed-games {
+/*
+  The list and Export all stashed after it, as one, at the far end of the row:
+  the list as wide as its longest game and no wider — a list made to take what
+  the row left was half the width of two boards across — and the button
+  beside it. As one, so they go to a line of their own together where the
+  panel is narrow, rather than the button to a line by itself; there the list
+  gives up width to keep the button beside it, down to a floor, and the list
+  it opens is the platform's, which shows each name whole. Its label kept
+  beside it throughout.
+*/
+.stash-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  flex: 0 1 auto;
+  min-width: 0;
   margin-left: auto;
+}
+
+.stashed-games {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
 }
 
 .stashed-games > .game-select {
   flex: 0 1 auto;
-  min-width: 12rem;
+  min-width: 8rem;
+}
+
+.stash-pick > .reset-button {
+  flex: 0 0 auto;
 }
 
 /*
@@ -955,7 +964,7 @@ body {
 }
 
 /* The pieces in the lines a size up, in the list and in what it opens: see
-   "Chess Figures". In the page's own type otherwise, as the line over the
+   `FIGURES_FAMILY`. In the page's own type otherwise, as the line over the
    board is. */
 .line-select,
 .line-select option {
@@ -1320,7 +1329,7 @@ body {
   min-width: 10em;
   padding: 0.4rem 0.5rem;
   /* Fixed pitch, so the indent under a move number lines the columns up; the
-     pieces in the moves a size up, see "Chess Figures". */
+     pieces in the moves a size up, see `FIGURES_FAMILY`. */
   font-family: "Chess Figures", ui-monospace, monospace;
   font-size: 0.9rem;
   color: var(--app-fg);
@@ -5012,6 +5021,19 @@ input[type="color"]::-moz-color-swatch {
   color: oklch(from var(--app-fg) l var(--move-black-c) var(--move-black-h));
 }
 
+/* A choice about what is written, under the text in an export: set off from
+   the box by more than the line's own height, so it reads as about the text
+   rather than as part of its edge. */
+.pgn-dialog > .toggle-field {
+  margin-top: 0.75rem;
+}
+
+/* What the file says about a move, its braces left off: in the text's own
+   colour, slanted, so it reads as a remark and not as moves. */
+.branch-path .move-comment {
+  font-style: italic;
+}
+
 /* A move, pressed, takes the board to where it left it. */
 .branch-path .move-pick {
   cursor: pointer;
@@ -5206,7 +5228,7 @@ input[type="color"]::-moz-color-swatch {
   overflow: hidden;
   white-space: nowrap;
   color: var(--app-fg);
-  /* The pieces in the moves a size up: see "Chess Figures". */
+  /* The pieces in the moves a size up: see `FIGURES_FAMILY`. */
   font-family: "Chess Figures", system-ui, sans-serif;
 }
 

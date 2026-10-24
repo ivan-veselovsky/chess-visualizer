@@ -62,8 +62,10 @@ import {
   type PgnEnding,
   type PgnPlayers,
 } from "../chess/pgn";
-import type { LibraryGame } from "../chess/gameLibrary";
+import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
+import { titleOfPgn } from "../chess/gameTitle";
 import {
+  isStashed,
   nextStashName,
   stashGame,
   stashedGame,
@@ -88,7 +90,6 @@ import CopyButton from "./CopyButton";
 import { forgetOpeningInAddress, gameLink, openingFromLocation } from "./sharing";
 import Board from "../visualization/Board";
 import type { LastMove } from "../visualization/layers/HighlightLayer";
-import GameLibrary from "./GameLibrary";
 import FenField from "./FenField";
 import InfoButton from "./InfoButton";
 import MovesSelect from "./MovesSelect";
@@ -382,13 +383,17 @@ export default function App() {
      not; switching it off is the way back to one line. */
   const [treeMode, setTreeMode] = useState(true);
   /*
-    Whether the board editor is open, and what is chosen in its palette; and
-    whether it is waiting on the reader to say whether the game on the board is
-    stashed first. See `openEditor`.
+    Whether the board editor is open, and what is chosen in its palette.
   */
   const [editor, setEditor] = useState(false);
   const [tool, setTool] = useState<BoardEditorTool | null>(null);
-  const [stashingForEditor, setStashingForEditor] = useState(false);
+  /*
+    Whether something is waiting on the reader to say whether the game on the
+    board is stashed first — the editor opening, another game taken from the
+    list — and what that is: see `askToStashThen`.
+  */
+  const [stashingFirst, setStashingFirst] = useState(false);
+  const afterStashing = useRef<(() => void) | null>(null);
   /* The positions the editor has been through, for Undo, and the ones undone,
      for Redo: emptied as it opens and closes. */
   const [editorPast, setEditorPast] = useState<string[]>([]);
@@ -737,6 +742,10 @@ export default function App() {
         : fadeWithin === null
           ? fadeMs
           : Math.min(fadeMs, fadeWithin);
+  /* The same, but never drawn out to a flight: what a mated king turns by,
+     falling or standing up — see `Board`'s `steadyFadeMs`. */
+  const steady = (fadeMs: number) =>
+    fadeMs <= 0 ? 0 : fadeWithin === null ? fadeMs : Math.min(fadeMs, fadeWithin);
   /* Whether a shared link should set the game playing for whoever opens it. */
   const [pgnOpen, setPgnOpen] = useState(false);
   // Which library game the board is on, so the list can keep naming it, and why
@@ -804,9 +813,19 @@ export default function App() {
       setTreeMode(true);
     }
   }, [read]);
+  /*
+    Which library game the board is on, for as long as it is that game
+    untouched: the list goes on naming it while it is read, stepped through or
+    looked at line by line, and lets go of it at the first move of the reader's
+    own — the game is theirs from there, to keep under a name of their own.
+    See `StashedGames`.
+  */
   const [libraryGame, setLibraryGame] = useState<string | null>(null);
-  const [libraryGameError, setLibraryGameError] = useState<string | null>(null);
   const [pgnExportOpen, setPgnExportOpen] = useState(false);
+  /* Every stashed game written out at once — and the library's with them, where
+     the reader asks for those too: see `allStashedPgn`. Off each time it opens. */
+  const [exportAllOpen, setExportAllOpen] = useState(false);
+  const [exportWithLibrary, setExportWithLibrary] = useState(false);
   /*
     Games put aside, and the name the one on the board goes by. The name is what
     "Stash it" writes back over; until the game has been given one there is
@@ -820,6 +839,19 @@ export default function App() {
   const [stash, setStash] = useState<GameStash>(() => loadStash());
   const [stashName, setStashName] = useState<string | null>(null);
   const [stashDialogOpen, setStashDialogOpen] = useState(false);
+  /*
+    What the game on the board is called, in the page's header: the name it is
+    stashed under, the library's name for it, or who played it as the file it
+    was read from says — see `titleOfPgn`. Kept through the moves played on
+    it, the game being that game changed until it is stashed under a name of
+    its own, and let go of when a position is set outright.
+  */
+  const [title, setTitle] = useState<string | null>(() =>
+    opening?.game == null ? null : titleOfPgn(opening.game.pgn)
+  );
+  /* What the board held when it was last stashed, as `boardSignature` writes
+     it: see `unsaved`. */
+  const [savedAs, setSavedAs] = useState<string | null>(null);
 
   /**
    * Replaces the history with a whole game, positioned at the last move it
@@ -840,6 +872,8 @@ export default function App() {
     setRead({ players, result, lines: gameLines(pgn, loaded), pgn });
     setLibraryGame(null);
     setStashName(null);
+    setTitle(titleOfPgn(pgn));
+    setSavedAs(null);
     return null;
   }
 
@@ -849,9 +883,9 @@ export default function App() {
    */
   function loadLibraryGame(game: LibraryGame) {
     const error = loadPgn(game.pgn);
-    setLibraryGameError(error);
     if (error === null) {
       setLibraryGame(game.id);
+      setTitle(game.label);
       /*
         And the board stops being anybody's game.
 
@@ -941,6 +975,32 @@ export default function App() {
   }
 
   /**
+   * Every stashed game as one PGN file — the format's own way of holding many
+   * games, each its tags and its moves, a blank line between them — in the
+   * order the list has them, and the library's after them where `withLibrary`
+   * asks for those too. Each as it was kept: the export it was stashed as, its
+   * name the event where nothing else named it; and a game stashed before the
+   * export was kept with it, written from its line under its name. Null where
+   * there is nothing to write.
+   */
+  function allStashedPgn(withLibrary: boolean): string | null {
+    /* The name it was stashed under, as its event, where nothing else is: a
+       game written out before it had a name was written without one. In
+       PGN's own quoting, a quote or a backslash escaped. */
+    const named = (pgn: string | null, name: string) =>
+      pgn === null || /^\[Event\s+"/m.test(pgn)
+        ? pgn
+        : `[Event "${name.replace(/[\\"]/g, (character) => `\\${character}`)}"]\n${pgn.trimStart()}`;
+    const games = [
+      ...stash.map((game) => named(game.pgn ?? toPgn(game.history, game.name), game.name)),
+      ...(withLibrary ? GAME_LIBRARY.map((game) => withoutUnknownTags(game.pgn)) : []),
+    ]
+      .filter((text): text is string => text !== null && text.trim() !== "")
+      .map((text) => text.trim());
+    return games.length === 0 ? null : `${games.join("\n\n")}\n`;
+  }
+
+  /**
    * A game's PGN, as `toPgn` writes its one line, with the lines taken back in
    * it put in as variations: the tags as they were, and the moves written
    * again from the tree of them — see `gameTree` — with what the last move
@@ -997,6 +1057,8 @@ export default function App() {
     };
     setLibraryGame(null);
     setStashName(null);
+    setTitle(null);
+    setSavedAs(null);
   }
 
   /**
@@ -1030,6 +1092,11 @@ export default function App() {
     /* What exporting it would write, kept with it: a stash and an export are
        one thing, the game as PGN, kept in two places. */
     setStash(saveStash(stashGame(held, name, history, sharablePgn() ?? undefined)));
+    /* Kept, under this name now: the board is that stashed game, nothing
+       about it unsaved, and no longer the library's if it ever was. */
+    setSavedAs(boardSignature());
+    setTitle(name);
+    setLibraryGame(null);
   }
 
   /**
@@ -1085,7 +1152,8 @@ export default function App() {
     }
     setStashName(name);
     setLibraryGame(null);
-    setLibraryGameError(null);
+    setTitle(name);
+    setSavedAs(null);
   }
 
   /**
@@ -1128,8 +1196,9 @@ export default function App() {
     handed.current = null;
     setRead(null);
     setLibraryGame(null);
-    setLibraryGameError(null);
     setStashName(null);
+    setTitle(null);
+    setSavedAs(null);
   }
 
   /**
@@ -1163,11 +1232,7 @@ export default function App() {
       return;
     }
     setPlaying(false);
-    if (boardIsDirty()) {
-      setStashingForEditor(true);
-      return;
-    }
-    startEditing();
+    askToStashThen(startEditing);
   }
 
   /**
@@ -1181,10 +1246,13 @@ export default function App() {
     if (history.entries.length === 1 && (read === null || read.lines.every((line) => line.moves.length === 0))) {
       return false;
     }
-    if (read !== null) {
+    const here = lineOf(history);
+    /* A game read in, while the board is on one of its lines; off them — a
+       move of one's own with Keep variations off — it is a line of the
+       reader's, as any other. */
+    if (read !== null && lineIndex(read.lines, here.initialFEN, here.moves) >= 0) {
       return read.recorded === true || read.changed === true;
     }
-    const here = lineOf(history);
     return !(
       handed.current !== null &&
       handed.current.initialFEN === here.initialFEN &&
@@ -1192,11 +1260,69 @@ export default function App() {
     );
   }
 
+  /**
+   * Everything the board holds that makes it the game it is — every line of a
+   * game read in, while it is on one, or else the one line it has — written
+   * out to be compared, with where the board stands on it left out: stepping
+   * through a game is not changing it.
+   */
+  function boardSignature(): string {
+    const now = lineOf(history);
+    const lines =
+      read !== null && lineIndex(read.lines, now.initialFEN, now.moves) >= 0
+        ? read.lines.map((line) => ({ initialFEN: line.entries[line.entries.length - 1]?.fen ?? "", moves: line.moves }))
+        : [now];
+    return lines.map((line) => `${line.initialFEN}|${line.moves.join(" ")}`).join("\n");
+  }
+
+  /**
+   * Whether the board holds something that would be lost if another game took
+   * its place — what the asterisk after the title in the header says, and
+   * what the reader is asked to stash first: one answer to both, so the two
+   * cannot disagree. See `boardIsDirty`, less what has been stashed since,
+   * unchanged.
+   */
+  function unsaved(): boolean {
+    return savedAs !== boardSignature() && boardIsDirty();
+  }
+
+  /**
+   * A name to offer for stashing the game on the board under: what it is
+   * called, where that is not a stashed game's name already — a library game
+   * played on, a game read in — and otherwise, nothing naming it, the day,
+   * with which of the day's it is where there is more than one.
+   */
+  function suggestedName(): string {
+    const taken = stash.map((game) => game.name);
+    return title !== null && !isStashed(stash, title) ? title : nextStashName(taken);
+  }
+
+  /**
+   * Does `then` — which is about to put something else on the board — once the
+   * reader has said whether to stash what is there, where there is anything
+   * there to lose; and at once where there is not. Either answer goes on.
+   */
+  function askToStashThen(then: () => void) {
+    if (!unsaved()) {
+      then();
+      return;
+    }
+    afterStashing.current = then;
+    setStashingFirst(true);
+  }
+
+  /** The question answered, either way: on with what was waiting on it, once. */
+  function goOnAfterStashing() {
+    const then = afterStashing.current;
+    afterStashing.current = null;
+    setStashingFirst(false);
+    then?.();
+  }
+
   function startEditing() {
     if (shown === null) {
       return;
     }
-    setStashingForEditor(false);
     setEditor(true);
     /* Always set up with White at the bottom, however the board it came from
        was turned: the position is read off it as it stands, and the board
@@ -1881,7 +2007,7 @@ export default function App() {
         */
         return;
       }
-      if (!asHanded && history.entries.length > 1 && stashName === null) {
+      if (!asHanded && unsaved()) {
         setWaitingToStart({ initialFEN, moves });
         return;
       }
@@ -2105,6 +2231,18 @@ export default function App() {
               mine: null,
             }
           : null;
+  /*
+    A library game played on is the reader's own from the first move of their
+    own: the list lets go of it, so "Stash game" has nothing of the library's
+    to write over — see `StashedGames`. Its title stays, with the asterisk
+    after it, until it is stashed under a name of its own.
+  */
+  const offTheShelf = libraryGame !== null && unsaved();
+  useEffect(() => {
+    if (offTheShelf) {
+      setLibraryGame(null);
+    }
+  }, [offTheShelf]);
   /** A challenge being looked at while another game is being played. */
   const [considering, setConsidering] = useState<{
     gameId: string;
@@ -2159,7 +2297,7 @@ export default function App() {
       }
       return;
     }
-    if (history.entries.length > 1 && stashName === null) {
+    if (unsaved()) {
       setWaitingToStart(game);
       return;
     }
@@ -3010,6 +3148,22 @@ export default function App() {
     (friend.phase.kind === "playing" &&
       (history.current !== 0 || !friend.link.mine));
 
+  /*
+    What the game on the board is called, over it all in the page's header,
+    and whether it holds anything unsaved — the asterisk after it, which is
+    the same answer the question about stashing it gets: see `unsaved`.
+
+    A game with a friend goes by its two players, and is never unsaved: the
+    game itself keeps it. A board with moves of the reader's own on it that
+    nothing names is Untitled; one that is a position and nothing else, set
+    up or typed in, has no title at all.
+  */
+  const isUnsaved = friend.phase.kind === "playing" || friend.phase.kind === "waiting" ? false : unsaved();
+  const boardTitle =
+    named !== null && (friend.phase.kind === "playing" || friend.phase.kind === "waiting")
+      ? `${named.names.w} \u2013 ${named.names.b}`
+      : (title ?? (isUnsaved ? "Untitled" : null));
+
   return (
     <main
       className={[
@@ -3054,6 +3208,21 @@ export default function App() {
           <PieceGlyph set={glyphs} type="q" color="b" side="me" className="title-piece" />
           Chess Visualizer
         </h1>
+        {/* The game on the board, by name, and an asterisk while it holds
+            anything unsaved: see `boardTitle`. */}
+        {boardTitle !== null && (
+          <p className="header-game" title={boardTitle}>
+            <span className="header-game-name">{boardTitle}</span>
+            {isUnsaved && (
+              <span
+                className="header-game-unsaved"
+                title="Unsaved: this game holds moves or lines that are not stashed, and would be lost if another game took its place. Stash game, or Stash game as …, keeps them."
+              >
+                *
+              </span>
+            )}
+          </p>
+        )}
         {/* New tabs throughout: the stash and the game on the board are held
             in memory alone, and navigating away would take them with it. */}
         <a
@@ -3215,6 +3384,7 @@ export default function App() {
                 glyphs={glyphs}
                 attacks={settings.attacks}
                 fadeTimeMs={fitted(settings.pieces.fadeTimeMs)}
+                steadyFadeMs={steady(settings.pieces.fadeTimeMs)}
                 onMove={handleMove}
                 flight={flight}
                 onFlightLanded={land}
@@ -3265,6 +3435,7 @@ export default function App() {
                     glyphs={rightGlyphs}
                     attacks={rightSettings.attacks}
                     fadeTimeMs={fitted(rightSettings.pieces.fadeTimeMs)}
+                    steadyFadeMs={steady(rightSettings.pieces.fadeTimeMs)}
                     flight={flight}
                     showing={during?.board ?? null}
                     flying={during?.flying ?? []}
@@ -3699,7 +3870,9 @@ export default function App() {
                 disabled={stashName === null || editor}
                 title={
                   stashName === null
-                    ? "Stash game as \u2026 first, to give the game a name"
+                    ? title !== null
+                      ? "Not stashed under a name of its own yet: Stash game as \u2026 keeps it, under a new name"
+                      : "Stash game as \u2026 first, to give the game a name"
                     : `Put this game back under \u201c${stashName}\u201d`
                 }
                 onClick={() => {
@@ -3719,26 +3892,39 @@ export default function App() {
               >
                 Stash game as {"\u2026"}
               </button>
+              {/* The list, and the export of everything in it, as one at the
+                  row's far end: see `.stash-pick`. */}
+              <div className="stash-pick">
+              {/* The reader's own games and the library's, in one list:
+                  either taken up, the reader is asked first whether to stash
+                  what the board holds, where it holds anything unsaved. */}
               <StashedGames
                 stash={stash}
+                library={GAME_LIBRARY}
                 value={stashName}
+                libraryValue={libraryGame}
                 locked={editor ? "Not while the board is being set up" : null}
                 /* Read afresh as the list is opened, so a game another tab put
                    aside a moment ago is in it. */
                 onOpen={freshStash}
-                onSelect={loadStashedGame}
+                onSelect={(name) => askToStashThen(() => loadStashedGame(name))}
+                onSelectLibrary={(game) => askToStashThen(() => loadLibraryGame(game))}
               />
-            </div>
-
-            <SectionRule name="Library" />
-
-            <div className="board-controls">
-              <GameLibrary
-                value={libraryGame}
-                error={libraryGameError}
-                locked={editor ? "Not while the board is being set up" : null}
-                onSelect={loadLibraryGame}
-              />
+              {/* Everything kept, as one PGN file: see `allStashedPgn`. Read
+                  afresh first, so another tab's games go with it. */}
+              <button
+                type="button"
+                className="reset-button"
+                title="Every stashed game as one PGN, to copy"
+                onClick={() => {
+                  freshStash();
+                  setExportWithLibrary(false);
+                  setExportAllOpen(true);
+                }}
+              >
+                Export all stashed
+              </button>
+              </div>
             </div>
 
             {/*
@@ -4444,12 +4630,13 @@ export default function App() {
       {/* Asked before the board changes, not after: the game is waiting to go
           up, and what is on the board now is still there to be kept. Either
           answer starts the game. */}
-      {/* Asked before the board editor takes the place of a game on the board:
-          either answer opens it, on the position the board was on. */}
+      {/* Asked before something takes the place of an unsaved game on the
+          board — the editor opening, a game taken from the list: either answer
+          goes on with it. See `askToStashThen`. */}
       <StashDialog
-        open={stashingForEditor}
+        open={stashingFirst}
         taken={stash.map((game) => game.name)}
-        initialName={nextStashName(stash.map((game) => game.name))}
+        initialName={suggestedName()}
         prompt="Stash current game?"
         submitLabel="Stash"
         dismissLabel="Don't stash"
@@ -4458,14 +4645,13 @@ export default function App() {
           if (refused !== undefined) {
             return refused;
           }
-          startEditing();
         }}
-        onClose={startEditing}
+        onClose={goOnAfterStashing}
       />
       <StashDialog
         open={waitingToStart !== null}
         taken={stash.map((game) => game.name)}
-        initialName={nextStashName(stash.map((game) => game.name))}
+        initialName={suggestedName()}
         /* What is actually at stake, which is never the game about to go up —
            that one is on the server and in the list. It is what is on the board
            now: a line somebody made here, which nothing else has a copy of. */
@@ -4507,9 +4693,7 @@ export default function App() {
                 friend.phase.you === "b" ? friend.name : friend.phase.opponent,
                 friend.phase.gameId
               )
-            : /* Nothing names this one, so the day does — and says which of
-                 the day's it is, where there is more than one. */
-              nextStashName(stash.map((game) => game.name)))
+            : suggestedName())
         }
         onSubmit={stashHere}
         onClose={() => setStashDialogOpen(false)}
@@ -4521,6 +4705,21 @@ export default function App() {
         pgn={pgnExportOpen ? sharablePgn() : null}
         onClose={() => setPgnExportOpen(false)}
       />
+      <PgnExportDialog
+        open={exportAllOpen}
+        heading="All stashed games as PGN"
+        emptyText="Nothing is stashed yet."
+        // Only written when it is about to be shown.
+        pgn={exportAllOpen ? allStashedPgn(exportWithLibrary) : null}
+        onClose={() => setExportAllOpen(false)}
+      >
+        <ToggleField
+          id="export-with-library"
+          label="Include library games"
+          checked={exportWithLibrary}
+          onChange={setExportWithLibrary}
+        />
+      </PgnExportDialog>
       {/* What a pawn reaching the last rank becomes; see `handleMove`. Only
           while the board still holds the position it was asked about. */}
       {promoting !== null && shown !== null && shown.fen() === promoting.fen && (

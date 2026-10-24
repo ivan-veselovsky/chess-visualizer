@@ -2,5 +2,5 @@
 [SetUp "1"]
 [FEN "8/8/8/4R3/4P3/3Kn2q/4n3/4k3 b - - 0 1"]
 
-1... Qd7+ 2. Kxe3 Qh3# 0-1
+1... Qd7+ 2. Kxe3 (2. Rd5 {what to do in this case?}) 2... Qh3# 0-1
 
