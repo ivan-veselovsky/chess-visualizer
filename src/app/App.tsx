@@ -1059,6 +1059,12 @@ export default function App() {
     setStashName(null);
     setTitle(null);
     setSavedAs(null);
+    /* The game as the game has it, and nothing tried on it here: a game that
+       is over is made a game read in again, afresh, from what was just put
+       up — see `branched` — rather than keeping the lines tried on it before
+       it was put back. */
+    setRead(null);
+    branched.current = null;
   }
 
   /**
@@ -2131,7 +2137,7 @@ export default function App() {
     comes back to the last move, and the move can be made again.
   */
   const steppedBack =
-    friend.phase.kind === "playing" && history.current !== 0;
+    friend.phase.kind === "playing" && friend.phase.over === null && history.current !== 0;
   const playedSoFar = history.entries.length - 1;
   const lookingAt = playedSoFar - history.current;
 
@@ -2270,8 +2276,10 @@ export default function App() {
     Not a game that is over, though. There is nothing to come back to play, so
     the position the reader left the board at is the one they meant to be
     looking at — and taking them to the last move of a game that ended a week
-    ago is undoing what they just did. The lock in the title says why no move
-    can be made from where they are standing.
+    ago is undoing what they just did. Nor is it put back up, or asked about,
+    when the board has gone on from it: a game that is over is a record, and
+    lines tried on it are the reader's own, as on a library game — see
+    `branched`. The game is put back up by choosing it in the list.
 
     And if what is on the board is no longer that game — a PGN read in, a line
     played out by hand on the other tab — that is asked about before the game
@@ -2282,6 +2290,7 @@ export default function App() {
     if (
       tab !== "match" ||
       friend.phase.kind !== "playing" ||
+      friend.phase.over !== null ||
       handed.current === null
     ) {
       return;
@@ -2736,12 +2745,15 @@ export default function App() {
   }, [friend.phase, friend.name, history.entries]);
 
   /*
-    And, finished with moves taken back in it, it becomes a game with
-    variations: the line played and each line taken back, as the PGN it is
-    written out as has them — so the list of lines offers them, Play walks
-    every one of them, and exporting or sharing writes them. Not before it is
-    over: while it is being played the board stays on the line being played,
-    the one place a move can be made from.
+    And, finished, it becomes a game read in, as a library game is: a record,
+    read and stepped through, and a move of the reader's own on it is theirs —
+    a line tried, the game unsaved, to be stashed under a name of their own.
+    With moves taken back in it, a game with variations: the line played and
+    each line taken back, as the PGN it is written out as has them — so the
+    list of lines offers them, Play walks every one of them, and exporting or
+    sharing writes them. Not before it is over: while it is being played the
+    board stays on the line being played, the one place a move can be made
+    from.
   */
   const branched = useRef<string | null>(null);
   useEffect(() => {
@@ -2749,7 +2761,6 @@ export default function App() {
     if (
       phase.kind !== "playing" ||
       phase.over === null ||
-      phase.abandoned.length === 0 ||
       branched.current === phase.gameId
     ) {
       return;
@@ -2766,8 +2777,11 @@ export default function App() {
     if (written === null) {
       return;
     }
-    const pgn = withTakenBack(written, phase.abandoned);
+    const pgn = phase.abandoned.length === 0 ? written : withTakenBack(written, phase.abandoned);
     setRead({ players, result: phase.over.result, lines: gameLines(pgn, history), pgn });
+    /* The game as it ended is what was handed over: nothing of the reader's
+       on it yet. */
+    handed.current = lineOf(history);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per game, when
     // it ends; `withTakenBack` reads the line it is handed and nothing else.
   }, [friend.phase, friend.name, history]);
@@ -2989,8 +3003,12 @@ export default function App() {
       In a game with somebody else the move is offered, not made. It reaches the
       board when the object says it happened — which is the same moment the
       opponent hears about it, and the only account either of them acts on.
+
+      Not once it is over: a game that has ended is a record, as a library
+      game is, and a move made on it is the reader's own — trying another way
+      it could have gone — played here as on any game read in. See `branched`.
     */
-    if (friend.phase.kind === "playing") {
+    if (friend.phase.kind === "playing" && friend.phase.over === null) {
       // Only from the position the game is actually at: a move worked out from
       // an earlier one would be sent for a ply that has already been played.
       // And only while there is a line to send it down — a move handed to a
@@ -3142,23 +3160,27 @@ export default function App() {
     answers it, and a board that took moves would be offering to play against
     nobody. Stepping away is what hands the position back to the reader.
   */
-  const playable = friend.phase.kind === "playing" ? friend.phase.you : null;
+  const going = friend.phase.kind === "playing" && friend.phase.over === null;
+  const playable = going && friend.phase.kind === "playing" ? friend.phase.you : null;
+  /* A game that is over is neither: anybody may move on it, as on any game
+     read in. */
   const frozen =
     friend.phase.kind === "waiting" ||
-    (friend.phase.kind === "playing" &&
-      (history.current !== 0 || !friend.link.mine));
+    (going && (history.current !== 0 || !friend.link.mine));
 
   /*
     What the game on the board is called, over it all in the page's header,
     and whether it holds anything unsaved — the asterisk after it, which is
     the same answer the question about stashing it gets: see `unsaved`.
 
-    A game with a friend goes by its two players, and is never unsaved: the
-    game itself keeps it. A board with moves of the reader's own on it that
+    A game with a friend goes by its two players, and is never unsaved while
+    it is being played: the game itself keeps it. Over, it is a record, and
+    unsaved as a library game is, once a move of the reader's own is on it. A board with moves of the reader's own on it that
     nothing names is Untitled; one that is a position and nothing else, set
     up or typed in, has no title at all.
   */
-  const isUnsaved = friend.phase.kind === "playing" || friend.phase.kind === "waiting" ? false : unsaved();
+  const isUnsaved =
+    friend.phase.kind === "waiting" || (friend.phase.kind === "playing" && friend.phase.over === null) ? false : unsaved();
   const boardTitle =
     named !== null && (friend.phase.kind === "playing" || friend.phase.kind === "waiting")
       ? `${named.names.w} \u2013 ${named.names.b}`
@@ -3325,20 +3347,33 @@ export default function App() {
                   color={farSide}
                   mine={named?.mine === farSide}
                   toMove={atAGame && shown?.turn() === farSide}
-                  lined={named !== null && friend.phase.kind !== "playing" && branch !== null}
+                  lined={named !== null && friend.phase.kind !== "waiting" && branch !== null}
                   result={
-                    named === null ? null : friend.phase.kind === "playing" &&
-                      friend.phase.over !== null ? (
-                      scoreOf(friend.phase.over.result)
-                    ) : friend.phase.kind === "playing" ? (
+                    named === null ? null : friend.phase.kind === "playing" && friend.phase.over === null ? (
+                      /*
+                        A game with a friend being played: its moves as any
+                        game's are, from the name on, and by the counter that
+                        it is still going on. Over, it is shown as a game read
+                        in is, below.
+                      */
                       <>
-                        <span className="player-live" aria-hidden="true" />
-                        In play
+                        {branchLabel(false)}
+                        {branch !== null && (
+                          <span className="branch-sep" aria-hidden="true">
+                            ·
+                          </span>
+                        )}
+                        <span className="player-in-play">
+                          <span className="player-live" aria-hidden="true" />
+                          In play
+                        </span>
                       </>
                     ) : (
                       /*
-                        A game read in: the line on the board, from the name
-                        on, and how it comes out, by the counter. In the row of
+                        A game read in — or a game with a friend that is over,
+                        which is one now: see `branched`: the line on the
+                        board, from the name on, and how it comes out, by the
+                        counter. In the row of
                         names rather than on a row of its own: a line over the
                         names was taken from the height of the board.
                       */
@@ -3359,11 +3394,14 @@ export default function App() {
                     named === null ? null : (
                       <>
                         {/* Nothing can be played from what is showing: an
-                            earlier position of a game, a game that is over, or
-                            a challenge with no game in it yet. */}
+                            earlier position of a game still going on, or a
+                            challenge with no game in it yet. Not a game that
+                            is over, which is shown as any game read in is —
+                            its line, how it came out, and where the board is
+                            on it, with nothing more said. */}
                         {((friend.phase.kind === "playing" &&
-                          (history.current !== 0 ||
-                            friend.phase.over !== null)) ||
+                          friend.phase.over === null &&
+                          history.current !== 0) ||
                           friend.phase.kind === "waiting") && <LockIcon />}
                         {counted}
                       </>

@@ -420,6 +420,12 @@ type Stroke =
       opacity: number;
       /** Where the page underlines it — the move the board is on, over the board. */
       underline: { y: number; width: number; thickness: number; colour: string } | null;
+      /**
+       * Set in a vertical writing mode — how many there are of a kind in a bar
+       * of men, turned as the men are: drawn turned a quarter clockwise, its
+       * baseline running down the page from `x`, `y`.
+       */
+      turned: boolean;
     }
   | { kind: "svg"; markup: string; left: number; top: number; width: number; height: number; opacity: number };
 
@@ -496,7 +502,15 @@ function draw(context: CanvasRenderingContext2D, stroke: Stroke, image: HTMLImag
     context.font = stroke.font;
     context.textAlign = "left";
     context.textBaseline = "alphabetic";
-    context.fillText(stroke.text, stroke.x, stroke.y);
+    if (stroke.turned) {
+      context.save();
+      context.translate(stroke.x, stroke.y);
+      context.rotate(Math.PI / 2);
+      context.fillText(stroke.text, 0, 0);
+      context.restore();
+    } else {
+      context.fillText(stroke.text, stroke.x, stroke.y);
+    }
     if (stroke.underline !== null) {
       context.fillStyle = stroke.underline.colour;
       context.fillRect(stroke.x, stroke.underline.y, stroke.underline.width, stroke.underline.thickness);
@@ -634,6 +648,27 @@ function planText(painter: Painter, node: Text, at: Corner, opacity: number): St
     }
   }
   const ascent = context.measureText(text).fontBoundingBoxAscent;
+  /*
+    Set vertically, the browser turns it a quarter clockwise, its tops to the
+    right: the line runs down the page, and its baseline is a line down it,
+    an ascent and half the leading in from the right of the box the run takes.
+  */
+  if (seen.writingMode.startsWith("vertical")) {
+    const descent = context.measureText(text).fontBoundingBoxDescent;
+    const thick = rect.width * stage.scale;
+    const leading = Math.max(thick - ascent - descent, 0) / 2;
+    return {
+      kind: "text",
+      text,
+      font,
+      colour: seen.color,
+      x: (rect.right - at.x) * stage.scale - leading - ascent,
+      y: (rect.top - at.y) * stage.scale,
+      opacity,
+      underline: null,
+      turned: true,
+    };
+  }
   const baseline = (rect.top - at.y) * stage.scale + ascent;
   /*
     And its underline, where the page draws one: a bar under the run, as thick
@@ -661,6 +696,7 @@ function planText(painter: Painter, node: Text, at: Corner, opacity: number): St
     y: baseline,
     opacity,
     underline,
+    turned: false,
   };
 }
 

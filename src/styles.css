@@ -76,6 +76,13 @@
      Named here because the board's own column has to make room for both. */
   --men-bar-width: 1.7rem;
   --men-bar-gap: 0.4rem;
+  /* How large the numbers in a bar of men are — how many of a kind, and how
+     far one army is ahead: see `.men-bar-count` and `.men-bar-lead`. A third
+     larger than the page's own 0.9rem text. */
+  --men-bar-number: calc(1.3 * 0.9rem);
+  /* And how far apart its kinds are — and the last of them from the count of
+     who is ahead, which reads as one more thing in the same row. */
+  --men-bar-spacing: 0.6rem;
   /*
     How many such bars are up — none, one, or both — which App publishes on the
     board's pane from the two switches that raise them.
@@ -3411,16 +3418,10 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
-  Held at their natural size rather than squeezed.
-
-  These used to be allowed to shrink all the way down, which on a short bar
-  made the men smaller and smaller until they were unreadable — and on a bar
-  short enough, ran the two groups into each other anyway. Closing the gaps
-  between men of a kind is the better thing to give up, so that is what the bar
-  now does, and the men keep the size at which they can be told apart.
+  Held at their natural size rather than squeezed: see `MenBar`, which makes
+  the men smaller only where a board is too short for them.
 */
-.men-bar-group,
-.men-bar-run {
+.men-bar-group {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3429,16 +3430,39 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
-  Repeats of one kind lie over each other — never across kinds, so a stack of
-  pawns still reads as pawns while the kinds stay told apart. It also buys
-  room: fifteen men end to end are taller than half a board.
-
-  How far they lie over is set by the bar itself, which measures what it has to
-  hold against the room it has. The value here is only what they lie by when
-  there is room to spare.
+  One kind: how many there are, then the man — "5♟" — down the bar. Kinds set
+  further apart than a number is from its man, so the bar reads "6♟  2♞  ♝"
+  rather than "6 ♟ 2 ♞ ♝".
 */
-.men-bar-run > .men-bar-piece + .men-bar-piece {
-  margin-top: calc(-1 * var(--men-bar-overlap, 0.35em));
+.men-bar-run {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.men-bar-run + .men-bar-run,
+.men-bar-run + .men-bar-lead,
+.men-bar-lead + .men-bar-run {
+  margin-top: var(--men-bar-spacing);
+}
+
+/*
+  How many, written as the men lie: the bar is a row of them turned a quarter
+  clockwise, and the number is turned with it — set vertically, which turns
+  figures the way the men are turned, its tops towards the board — so "5♟"
+  reads as one thing along the bar, in the bar's own width. Large, being the
+  thing read first; a man on his own has no number.
+*/
+.men-bar-count {
+  /* Close against its man, with no gap of its own: the figures' advance
+     leaves air enough, and their kind's man is the next thing down. */
+  margin-bottom: 0;
+  writing-mode: vertical-rl;
+  font-size: var(--men-bar-number);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-fg);
 }
 
 /*
@@ -3503,10 +3527,18 @@ input[type="color"]::-moz-color-swatch {
 /* How far ahead, against whoever is: at the group's inner end, by the queens.
    In the page's own text colour, whole: a quieter grey left it hard to read
    beside the men on the dark page. */
+/*
+  How far one army is ahead, at the inner end of its men: the size of the
+  counts, but upright — a total, read on its own rather than along the row.
+  "+21" that large is a little wider than the bar, and is let past its edges,
+  centred, into the air beside it rather than squeezed.
+*/
 .men-bar-lead {
   flex: 0 0 auto;
-  margin: 0.15em 0;
-  font-size: 0.8rem;
+  margin: 0;
+  font-size: var(--men-bar-number);
+  line-height: 1;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   color: var(--app-fg);
 }
@@ -5274,6 +5306,15 @@ input[type="color"]::-moz-color-swatch {
 
 .branch-sep,
 .player-score {
+  flex: none;
+}
+
+/* A game with a friend still being played: the green dot and the words, held
+   together and given their room before the line is. */
+.player-in-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
   flex: none;
 }
 
