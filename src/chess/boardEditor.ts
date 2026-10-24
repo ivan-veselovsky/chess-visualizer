@@ -110,6 +110,27 @@ export function shift(fen: string, from: Square, to: Square | null): string | nu
   return written(board, turnOf(fen));
 }
 
+/**
+ * The position turned round on the board: every man to the square opposite
+ * his own through the middle, a1 to h8 and h8 to a1, and each still the colour
+ * he was, with the same side to move. Which way round the board is drawn is
+ * nothing to do with it — the board stays as it is, and the men go round.
+ *
+ * Read off the FEN's own field rather than worked out square by square: the
+ * ranks run from the eighth down, each from the a-file along, so the field
+ * written backwards is the eighth rank's last square first — h1's man where
+ * a8's was — which is exactly the half turn. A pawn cannot come out on an end
+ * rank, having been on neither.
+ */
+export function flipped(fen: string): string | null {
+  const board = boardOf(fen);
+  if (board === null) {
+    return null;
+  }
+  const placement = board.fen().split(" ")[0].split("").reverse().join("");
+  return `${placement} ${turnOf(fen)} - - 0 1`;
+}
+
 const SIDES: Record<Color, string> = { w: "White", b: "Black" };
 
 /**

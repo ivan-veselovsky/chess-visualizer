@@ -44,6 +44,13 @@ import SquareLayer from "./layers/SquareLayer";
 import HeatmapLayer from "./layers/HeatmapLayer";
 import { heatmapShown, raysShown } from "./visible";
 
+/**
+ * How long a mated king takes to fall over, in fade times: the mate's mark
+ * comes up in one, and the king goes down over two — slow enough to be seen
+ * falling rather than found fallen.
+ */
+const KING_FALL_FADES = 2;
+
 interface BoardProps {
   /** Hatching over the dark squares. */
   hedge: HedgeLines;
@@ -247,6 +254,8 @@ export default function Board({
     /* Published for the marks the stylesheet times on its own — the wash on the
        squares, which transitions rather than being redrawn. */
     "--fade-time": `${Math.max(fadeTimeMs, 0)}ms`,
+    /* How long a mated king takes to fall: see `KING_FALL_FADES`. */
+    "--king-fall-time": `${Math.max(fadeTimeMs, 0) * KING_FALL_FADES}ms`,
     "--square-light": colors.lightSquare,
     "--square-dark": colors.useLightForDark
       ? colors.lightSquare
@@ -595,6 +604,7 @@ export default function Board({
           flying={flying}
           orientation={orientation}
           glyphs={glyphs}
+          fallen={alert?.kind === "checkmate" ? alert.square : null}
         />
 
         {inHand !== null && (

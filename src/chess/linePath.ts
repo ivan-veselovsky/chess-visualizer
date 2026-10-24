@@ -140,6 +140,13 @@ export function lineLabel(line: TreeLine, name: string, fits: (label: string) =>
  *
  * `previous` is where the label started last time, kept by the caller: it is
  * what lets the label stand still.
+ *
+ * `held`, where the reader has put the page themselves, is the page whatever
+ * the zones would say: the page they were reading when they pressed a move in
+ * it — so the move pressed stays under the pointer, rather than the line
+ * moving away beneath it — or the page they turned to by pressing an ellipsis,
+ * the move the board is on there or not. A page held for a move pressed, on
+ * which that move no longer fits — the row narrowed since — is let go of.
  */
 export function pageLine(
   line: TreeLine,
@@ -147,7 +154,8 @@ export function pageLine(
   measure: (text: string) => number,
   width: number,
   current: number,
-  previous: number | null
+  previous: number | null,
+  held: { first: number; showingCurrent: boolean } | null = null
 ): FittedLine {
   const moves = pathMoves(line);
   const head = (from: number) => headOf(name, from);
@@ -176,7 +184,15 @@ export function pageLine(
      a long note, a narrow row — starts a page of its own. */
   const fitting = starts.filter((from) => after(from) <= (width * 3) / 4);
   let first: number;
-  if (at < 0) {
+  /* Where the page may be held: where a page may start, and — held for the
+     move the board is on — with that move on it. */
+  const holding =
+    held !== null &&
+    startsOf(moves).includes(held.first) &&
+    (!held.showingCurrent || at < 0 || (at >= held.first && after(held.first) <= width));
+  if (holding) {
+    first = held.first;
+  } else if (at < 0) {
     first = 0;
   } else if (previous !== null && starts.includes(previous) && standing(previous)) {
     first = previous;
@@ -200,11 +216,47 @@ export function pageLine(
     first = last ?? [...fitting].reverse().find((from) => before(from) >= width / 4) ?? fitting[0];
   }
 
-  /* And on from the page's start as far as the room goes, an ellipsis after it where that is not all. */
-  let to = Math.max(at + 1, first + 1);
+  /* And on from the page's start as far as the room goes, an ellipsis after it
+     where that is not all — the move the board is on always among it, unless
+     the reader has turned the page away from it. */
+  let to = holding && held !== null && !held.showingCurrent ? first + 1 : Math.max(at + 1, first + 1);
   const ending = (end: number) => `${head(first)}${written(moves, first, end, true)}${end < moves.length ? " …" : ""}`;
   while (to < moves.length && measure(ending(to + 1)) <= width) {
     to += 1;
   }
   return { label: ending(to), first, head: head(first) };
+}
+
+/**
+ * Where a page of the row over the board starts that has `move` in its middle,
+ * or as near it as a page starting at a White move can put it: the page an
+ * ellipsis turns to, with the first move it left off — before the page, or
+ * after it — in the middle of the room.
+ *
+ * Where that page shows the line to its end, the page showing the end with
+ * the most before it instead: the middle is not worth half a row of nothing.
+ */
+export function pageAround(
+  line: TreeLine,
+  name: string,
+  measure: (text: string) => number,
+  width: number,
+  move: number
+): number {
+  const moves = pathMoves(line);
+  if (moves.length === 0) {
+    return 0;
+  }
+  const target = Math.min(Math.max(move, 0), moves.length - 1);
+  const head = (from: number) => headOf(name, from);
+  /* The middle of the move, on a page from `from`, against the middle of the room. */
+  const off = (from: number) => {
+    const before = measure(`${head(from)}${target > from ? `${written(moves, from, target, true)} ` : ""}`);
+    const through = measure(`${head(from)}${written(moves, from, target + 1, true)}`);
+    return Math.abs((before + through) / 2 - width / 2);
+  };
+  const starts = startsOf(moves);
+  const best = starts.filter((from) => from <= target).reduce((was, from) => (off(from) < off(was) ? from : was));
+  const toTheEnd = (from: number) => measure(`${head(from)}${written(moves, from, moves.length, true)}`) <= width;
+  return toTheEnd(best) ? (starts.find(toTheEnd) ?? best) : best;
 }

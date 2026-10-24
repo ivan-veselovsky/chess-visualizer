@@ -103,17 +103,21 @@ export function Flower({ color, open }: { color: Color; open: boolean }) {
           the disc as the move arrives. The angle travels as a variable
           because the growing is a transform too, and the two have to be
           written together. */}
-      {PETALS.map((turn) => (
-        <ellipse
-          key={turn}
-          className="player-petal"
-          cx="12"
-          cy="-5"
-          rx="3.8"
-          ry="6.6"
-          style={{ "--petal-turn": `${turn}deg` } as CSSProperties}
-        />
-      ))}
+      {/* In a group of their own, which turns as a whole while the flower is
+          open: see `.player-petals`. */}
+      <g className="player-petals">
+        {PETALS.map((turn) => (
+          <ellipse
+            key={turn}
+            className="player-petal"
+            cx="12"
+            cy="-5"
+            rx="3.8"
+            ry="6.6"
+            style={{ "--petal-turn": `${turn}deg` } as CSSProperties}
+          />
+        ))}
+      </g>
       {/*
         Last, and larger than the box it is drawn in: the core is opaque and
         covers where the petals start, so they read as growing out from behind

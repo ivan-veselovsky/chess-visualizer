@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { TreeLine } from "../chess/variations";
 import { lineLabel } from "../chess/linePath";
+import { figurine } from "../chess/figurine";
+import { useFiguresLoaded } from "./useFiguresLoaded";
 import { LabelWithInfo } from "./InfoButton";
 
 interface LineSelectProps {
@@ -32,6 +34,7 @@ const ARROW = 22;
 export default function LineSelect({ lines, value, disabled = false, hint, onChange }: LineSelectProps) {
   const select = useRef<HTMLSelectElement>(null);
   const [room, setRoom] = useState<{ width: number; font: string } | null>(null);
+  useFiguresLoaded();
 
   useLayoutEffect(() => {
     const list = select.current;
@@ -58,7 +61,8 @@ export default function LineSelect({ lines, value, disabled = false, hint, onCha
       return lines.map((line, index) => lineLabel(line, String(index + 1), () => true));
     }
     context.font = room.font;
-    const fits = (label: string) => context.measureText(label).width <= room.width;
+    /* Measured as it is shown, the pieces drawn: see `figurine`. */
+    const fits = (label: string) => context.measureText(figurine(label)).width <= room.width;
     return lines.map((line, index) => lineLabel(line, String(index + 1), fits));
   })();
 
@@ -77,8 +81,10 @@ export default function LineSelect({ lines, value, disabled = false, hint, onCha
         onChange={(event) => onChange(Number(event.target.value))}
       >
         {labels.map((label, index) => (
+          /* Shown with the pieces drawn; the tooltip, the whole line, in
+             letters — what it says whatever the font. */
           <option key={index} value={String(index)} title={lineLabel(lines[index], String(index + 1), () => true)}>
-            {label}
+            {figurine(label)}
           </option>
         ))}
       </select>

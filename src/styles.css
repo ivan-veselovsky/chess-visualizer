@@ -9,6 +9,50 @@
   box-sizing: border-box;
 }
 
+/*
+  The pieces in written moves — "♛h2#" — a size up from the letters round
+  them, and only they: a face for the five characters alone, which a font
+  family names first and the rest of the text passes by. A size of their own,
+  rather than of the text's, because the figures are drawn small for their
+  type in every font that has them, and a span round each cannot do it where
+  it is most wanted: an option in a list the platform draws is one run of
+  text, and takes no markup.
+
+  From a font the reader already has, whichever comes first that has the
+  pieces — DejaVu and Noto on Linux, Segoe on Windows, Apple Symbols on a Mac,
+  each by its full and its PostScript name — and from none of them where none
+  is there: the face is passed over then, and the pieces come at their own
+  size from whatever the text falls back to, as before.
+
+  Measured as drawn, since what fits a line to its room measures it in the
+  element's own font: see `useFiguresLoaded`.
+*/
+@font-face {
+  font-family: "Chess Figures";
+  src:
+    local("DejaVu Sans"),
+    local("DejaVuSans"),
+    local("Noto Sans Symbols2"),
+    local("NotoSansSymbols2-Regular"),
+    local("Segoe UI Symbol"),
+    local("SegoeUISymbol"),
+    local("Apple Symbols"),
+    local("AppleSymbols"),
+    local("Arial Unicode MS"),
+    local("ArialUnicodeMS");
+  unicode-range: U+265A-265E;
+  size-adjust: 120%;
+  /*
+    Drawn larger, but claiming no more height on the line than the letters do:
+    without these, the fonts' own heights, scaled with the figures, made the
+    line a pixel taller than the row it sits in. Where the figures are drawn
+    is not changed by them, only the room they ask for.
+  */
+  ascent-override: 75%;
+  descent-override: 20%;
+  line-gap-override: 0%;
+}
+
 :root {
   /* --square-light / --square-dark are supplied per-board by <Board>. */
   --board-frame: #4a3728;
@@ -21,10 +65,12 @@
   --piece-dark-mix: 45%;
   /* The page's one piece of livery, worn by the title over the board. */
   --livery: #49d0fd;
-  /* And what the flower's petals are: the livery the title wears, and the move
-     numbers in the line over the board — the flower says whose move it is, and
-     shares a colour with what counts the moves. */
-  --petal: var(--livery);
+  /* And what the flower's petals are: white, under either theme — their
+     outline holds the shape on a light page — so the flower reads as a flower
+     round the side's disc rather than as a mark in a colour of its own. */
+  --petal: #ffffff;
+  /* How fast an open flower turns, in degrees a second. */
+  --flower-spin: 90;
   --panel-border: color-mix(in srgb, currentColor 25%, transparent);
   --panel-bg: color-mix(in srgb, currentColor 5%, transparent);
   /*
@@ -282,6 +328,17 @@ body {
     a scrollbar.
   */
   --player-names: 4rem;
+}
+
+/*
+  The board editor has a row under the board as well as the one over it: the
+  near side's flower, as a name stands there in a game. What it takes is the
+  row's line of type and its margins, on top of the row over the board — so
+  the board gives up that much on going into the editor, rather than the page
+  growing a scrollbar.
+*/
+.app-editing {
+  --player-names: calc(1.6rem + 1.32 * 0.95rem + 0.5rem);
 }
 
 /* Board on the left, everything else stacked on the right. */
@@ -897,6 +954,14 @@ body {
   min-width: 8em;
 }
 
+/* The pieces in the lines a size up, in the list and in what it opens: see
+   "Chess Figures". In the page's own type otherwise, as the line over the
+   board is. */
+.line-select,
+.line-select option {
+  font-family: "Chess Figures", system-ui, sans-serif;
+}
+
 .moves-field > label {
   flex: 0 0 auto;
   font-size: 0.9rem;
@@ -1254,8 +1319,9 @@ body {
   flex: 0 0 auto;
   min-width: 10em;
   padding: 0.4rem 0.5rem;
-  /* Fixed pitch, so the indent under a move number lines the columns up. */
-  font-family: ui-monospace, monospace;
+  /* Fixed pitch, so the indent under a move number lines the columns up; the
+     pieces in the moves a size up, see "Chess Figures". */
+  font-family: "Chess Figures", ui-monospace, monospace;
   font-size: 0.9rem;
   color: var(--app-fg);
   background: var(--app-bg);
@@ -1266,7 +1332,7 @@ body {
 /* The popup list is drawn by the platform and does not reliably inherit the
    control's font, so the options state it themselves. */
 .moves-select option {
-  font-family: ui-monospace, monospace;
+  font-family: "Chess Figures", ui-monospace, monospace;
   color: var(--app-fg);
   background: var(--app-bg);
 }
@@ -1610,6 +1676,47 @@ body {
   /* In board units, as the pin ring's is: the setting's square sides, from
      the board. */
   stroke-width: var(--check-ring-width, 2.56);
+}
+
+/*
+  A mated king falls over, a quarter turn to the left about his own middle,
+  over the time the board gives — twice its fade, see `KING_FALL_FADES` — and
+  stays down; and once the mate is taken back he stands up again the same way,
+  as the mate's marks fade back out. A transition rather than an animation, so
+  it runs both ways: the king is in the same group either side of the mate,
+  and only its class changes.
+
+  A king first drawn already mated — a position pasted in, a game opened on
+  its mate — has no upright king before him to turn from, and a transition
+  would have him lying there from the start: he is taken to have stood, as he
+  is drawn, and falls from there.
+
+  At once, without the turn, for a reader who asked for less movement — but
+  not in a GIF being made, which keeps its movement (see `motion.ts`) and
+  steps the turn frame by frame as it does a fade: on a mate, and on the step
+  back from one, the turn is what is shown of the rest, in place of the fade.
+*/
+.piece-king {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(0deg);
+  transition: transform var(--king-fall-time, 400ms) ease-in-out;
+}
+
+.piece-fallen {
+  transform: rotate(-90deg);
+}
+
+@starting-style {
+  .piece-fallen {
+    transform: rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not(.motion-forced) .piece-king {
+    transition: none;
+  }
 }
 
 .check-disc-checkmate {
@@ -3420,6 +3527,15 @@ input[type="color"]::-moz-color-swatch {
 .board-editor-column {
   justify-content: space-between;
   gap: 0.6rem;
+  /* Measured by what it holds, to close up when it is short: see
+     `.board-editor-men`. */
+  container-type: size;
+  /*
+    The size of a tool: the bar's width, while sixteen of them fit the board's
+    height with the men closed up — see below — and smaller, all alike, on a
+    board too short for that. Measured from the column, inside it.
+  */
+  --tool: min(var(--men-bar-width), (100cqh - 5 * 0.55rem - 0.75rem - 2 * 0.6rem) / 14.4);
 }
 
 .board-editor-men,
@@ -3428,6 +3544,33 @@ input[type="color"]::-moz-color-swatch {
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
+}
+
+/*
+  Sixteen buttons a bar wide, with the gaps between them, are taller than a
+  short board: the men close up to make room, a fifth of a rem apart while
+  there is room to spare, then nearer, until their boxes lie a fifth over each
+  other — where the men in them, drawn at three quarters of the box, just
+  touch. The middle's switches keep their room; the men are where it is taken
+  from, as on the bars' own columns. Shorter still, and every tool is made
+  smaller instead, by `--tool`, rather than run off the end of the board: with
+  the eight gaps at that fifth, sixteen tools come to 14.4 of one.
+
+  What the column has to hold besides the eight gaps between men: the sixteen
+  tools, the five gaps of the middle, Clear's margin, and the column's own
+  two gaps. What is left over, shared between the eight, is the gap — kept
+  between that floor and its fifth of a rem.
+*/
+.board-editor-men {
+  gap: 0;
+}
+
+.board-editor-men > .board-editor-man + .board-editor-man {
+  margin-top: clamp(
+    -0.2 * var(--tool),
+    (100cqh - 16 * var(--tool) - 5 * 0.55rem - 0.75rem - 2 * 0.6rem) / 8,
+    0.2rem
+  );
 }
 
 .board-editor-middle {
@@ -3440,8 +3583,8 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--men-bar-width);
-  height: var(--men-bar-width);
+  width: var(--tool, var(--men-bar-width));
+  height: var(--tool, var(--men-bar-width));
   padding: 0.1rem;
   color: var(--app-fg);
   background: none;
@@ -3493,8 +3636,8 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--men-bar-width);
-  height: var(--men-bar-width);
+  width: var(--tool, var(--men-bar-width));
+  height: var(--tool, var(--men-bar-width));
   padding: 0;
   color: var(--app-fg);
   background: none;
@@ -3517,6 +3660,15 @@ input[type="color"]::-moz-color-swatch {
   width: 72%;
   height: 72%;
   fill: currentColor;
+}
+
+/* The board turned round: drawn in lines rather than filled. */
+.board-editor-flip svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Clear: the eraser's cross, heavier, on a button pressed rather than chosen;
@@ -3563,8 +3715,31 @@ input[type="color"]::-moz-color-swatch {
   overflow: visible;
 }
 
-.board-editor-row > .board-editor-turn {
-  justify-self: end;
+/*
+  In the editor the row is the editor's, end to end, its three columns
+  measured on the whole width of the board rather than on the middle of a
+  name's row — so the signal is in the middle of the board, and the far side's
+  flower at its edge, over a8 as a name's flower is.
+*/
+.board-editor-counter > .board-editor-row {
+  grid-column: 1 / -1;
+}
+
+/* The far side's flower at the start of the row, Black at bottom at the end
+   of the same column, three ems short of the signal. */
+.board-editor-far {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  min-width: 0;
+}
+
+/* Black at bottom as it is in the Lab, but on the row's one line: none of the
+   gap a field keeps under itself in a panel. */
+.board-editor-far > .toggle-field {
+  margin-bottom: 0;
+  white-space: nowrap;
 }
 
 .board-editor-row > .board-editor-done {
@@ -3580,18 +3755,18 @@ input[type="color"]::-moz-color-swatch {
   white-space: nowrap;
 }
 
+/* A flower, pressed: no box of its own, and standing where a name's flower
+   stands, at the start of its row. */
 .board-editor-turn {
   display: inline-flex;
-  padding: 0 0.15rem;
+  padding: 0;
   background: none;
   border: 0;
   cursor: pointer;
 }
 
 .board-editor-turn .player-color {
-  width: 0.85rem;
-  height: 0.85rem;
-  margin: 0 0.3rem;
+  margin: 0;
 }
 
 .board-editor-signal {
@@ -3657,7 +3832,7 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* The editor's button, after the FEN field: an em and a half of room either
-   side of its word, and the same width whichever it says, "Board editor" or
+   side of its word, and the same width whichever it says, "Position editor" or
    "Done editing" — both held in the same place unseen — so the field beside it
    keeps its width as the editor opens and closes. */
 .fen-row > .editor-button {
@@ -4837,6 +5012,37 @@ input[type="color"]::-moz-color-swatch {
   color: oklch(from var(--app-fg) l var(--move-black-c) var(--move-black-h));
 }
 
+/* A move, pressed, takes the board to where it left it. */
+.branch-path .move-pick {
+  cursor: pointer;
+}
+
+.branch-path .move-pick:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* An ellipsis, where the line is left off, pressed, turns the row to the
+   moves it stands for: in the livery the move numbers are in, so it reads as
+   something to press rather than as punctuation, and lit up under the pointer. */
+.branch-path .line-more {
+  color: var(--livery);
+  cursor: pointer;
+}
+
+.branch-path .line-more:hover {
+  color: color-mix(in srgb, var(--livery), white 45%);
+}
+
+/* In a move, its piece, drawn, in the colour its side's men are, lightened. */
+.branch-path .move-piece-w {
+  color: var(--line-piece-w);
+}
+
+.branch-path .move-piece-b {
+  color: var(--line-piece-b);
+}
+
 /* In a move, the signs: a capture's "x" in the livery the numbers are in, and
    a check's "+" and a mate's "#" in the colours the board marks them in. */
 .branch-path .move-capture {
@@ -5000,6 +5206,8 @@ input[type="color"]::-moz-color-swatch {
   overflow: hidden;
   white-space: nowrap;
   color: var(--app-fg);
+  /* The pieces in the moves a size up: see "Chess Figures". */
+  font-family: "Chess Figures", system-ui, sans-serif;
 }
 
 /*
@@ -5151,6 +5359,38 @@ input[type="color"]::-moz-color-swatch {
 .player-color-turn .player-petal {
   transform: rotate(var(--petal-turn)) scale(1);
   opacity: 1;
+}
+
+/*
+  An open flower turns, slowly, so a glance finds whose move it is: the petals
+  as a group, round the disc's centre, a full turn every 360 / --flower-spin
+  seconds. Not for a reader who asked for less movement; and not while frames
+  of the page are being made into a GIF or a video, where a turn running on
+  the clock rather than on the frame would come out different every time.
+*/
+.player-petals {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+}
+
+.player-color-turn .player-petals {
+  animation: flower-spin calc(360s / var(--flower-spin)) linear infinite;
+}
+
+@keyframes flower-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-color-turn .player-petals {
+    animation: none;
+  }
+}
+
+.app-exporting .player-petals {
+  animation: none;
 }
 
 /* "(me)" after the reader's own name: in the name's own colour, as the rest of

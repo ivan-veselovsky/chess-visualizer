@@ -52,8 +52,9 @@ import { friendlyGameName } from "../src/app/friend/gameName.ts";
 import { describeEnding } from "../src/app/friend/ending.ts";
 import { mix, readRgb, toHex, toLinear, toSrgb } from "../src/visualization/color.ts";
 import { applyMove, isPromotion } from "../src/chess/moves.ts";
-import { asBoardEditorPosition, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
-import { lineLabel, pageLine } from "../src/chess/linePath.ts";
+import { asBoardEditorPosition, flipped, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, withTurn } from "../src/chess/boardEditor.ts";
+import { lineLabel, pageAround, pageLine } from "../src/chess/linePath.ts";
+import { figurine, isPieceGlyph, lettered } from "../src/chess/figurine.ts";
 import { actionFor, bind, comboOf, defaultBindings, describeCombo, readBindings } from "../src/app/keyBindings.ts";
 import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
 import { readdirSync, readFileSync } from "node:fs";
@@ -2140,7 +2141,7 @@ console.log("\nThe walk through every line, a position at a time\n");
     tourIndex(lines, all, 1, 1, 5) === 5 && tourIndex(lines, all, 0, 1, 2) === 1, String(tourIndex(lines, all, 1, 1, 5)));
 }
 
-console.log("\nThe board editor\n");
+console.log("\nThe position editor\n");
 {
   const knight = place(TWO_KINGS, "d4", { type: "n", color: "w" });
   check("a man is put where he is put, the move White's and nothing else said",
@@ -2377,6 +2378,42 @@ console.log("\nA line written out for the list of lines\n");
     back.map((page) => `${page.move}:${page.first}`).join(" "));
   check("and at the first position, the line from its start",
     back[back.length - 1].first === 0, back[back.length - 1].label);
+
+  /*
+    A move pressed in the row: the page held where it was, though the zones
+    would have turned it — the move stays under the pointer. Let go of where
+    the move would not be on it.
+  */
+  const late = forward.find((page) => page.first > 0 && !toTheEnd(page));
+  const lastShown = late.first + shownMoves(late).split(/\s+/).filter((token) => token !== "" && !/^\d+\.(\.\.)?$/.test(token)).length - 1;
+  const pressed = pageLine(long, "", chars, 40, lastShown, null, { first: late.first, showingCurrent: true });
+  check("a move pressed near the end of the row leaves the row where it was",
+    pressed.first === late.first && spanOf(pressed, lastShown) !== null && pageLine(long, "", chars, 40, lastShown, late.first).first !== late.first,
+    `${late.first} -> ${pressed.first}: ${pressed.label}`);
+  check("held for a move no longer on it, the page is let go of",
+    pageLine(long, "", chars, 40, long.moves.length - 1, null, { first: 0, showingCurrent: true }).first !== 0);
+  /*
+    An ellipsis pressed: the page turned to put the move it stands for in the
+    middle of the row, the move the board is on there or not.
+  */
+  const middleOf = (page, move) => { const span = spanOf(page, move); return span === null ? null : (span[0] + span[1]) / 2; };
+  const before = late.first - 1;
+  const backward = pageLine(long, "", chars, 40, lastShown, null, { first: pageAround(long, "", chars, 40, before), showingCurrent: false });
+  check("the ellipsis before the moves turns back to put the move before them near the middle — or as near as the line's start lets it",
+    middleOf(backward, before) !== null && (Math.abs(middleOf(backward, before) - 20) <= 8 || backward.first === 0),
+    `${backward.label} / ${middleOf(backward, before)}`);
+  const deep = pageLine(long, "", chars, 40, 0, null, { first: pageAround(long, "", chars, 40, end[0].first - 1), showingCurrent: false });
+  check("from further on, the move before the moves in the middle itself",
+    middleOf(deep, end[0].first - 1) !== null && Math.abs(middleOf(deep, end[0].first - 1) - 20) <= 8 && deep.first > 0,
+    `${deep.label} / ${middleOf(deep, end[0].first - 1)}`);
+  const next = lastShown + 1;
+  const onward = pageLine(long, "", chars, 40, 0, null, { first: pageAround(long, "", chars, 40, next), showingCurrent: false });
+  check("and the one after them, on, to put the move after them near the middle — the board's own move left behind",
+    middleOf(onward, next) !== null && (Math.abs(middleOf(onward, next) - 20) <= 8 || toTheEnd(onward)) && spanOf(onward, 0) === null,
+    `${onward.label} / ${middleOf(onward, next)}`);
+  const atEnd = pageLine(long, "", chars, 40, 0, null, { first: pageAround(long, "", chars, 40, long.moves.length - 1), showingCurrent: false });
+  check("but near the end of the line, the page that shows its end, with as much before it as there is room for",
+    toTheEnd(atEnd) && atEnd.first === end[0].first, `${atEnd.label}`);
 }
 
 console.log("\nThe keys that walk a game\n");
@@ -2409,6 +2446,31 @@ console.log("\nThe keys that walk a game\n");
       JSON.stringify(readBindings("not json", linux)) === JSON.stringify(linux));
   check("and all of them at their defaults if two came back sharing a key",
     JSON.stringify(readBindings(JSON.stringify({ ...linux, next: linux.previous }), linux)) === JSON.stringify(linux));
+}
+
+console.log("\nA position flipped in the editor\n");
+{
+  check("every man to the square opposite, a1's to h8, each his own colour, the same side to move",
+    flipped("r3k2r/pp3ppp/8/8/8/8/PP3PPP/R3K2R b KQkq - 4 20") === "R2K3R/PPP3PP/8/8/8/8/ppp3pp/r2k3r b - - 0 1",
+    flipped("r3k2r/pp3ppp/8/8/8/8/PP3PPP/R3K2R b KQkq - 4 20"));
+  check("and twice, back where it was", flipped(flipped("4k3/4K3/8/5N2/8/8/8/8 w - - 0 1")) === "4k3/4K3/8/5N2/8/8/8/8 w - - 0 1");
+}
+
+console.log("\nMoves written with their pieces drawn\n");
+{
+  check("a piece's move has its letter drawn, whatever it is followed by",
+    figurine("Qh2#") === "♛h2#" && figurine("Nbd2") === "♞bd2" && figurine("R1e2") === "♜1e2" && figurine("Kxe5+") === "♚xe5+",
+    [figurine("Qh2#"), figurine("Nbd2"), figurine("R1e2"), figurine("Kxe5+")].join(" "));
+  check("and every one in a line, after a number, a space or a bracket",
+    figurine("1. e4 e5 2. Nf3 Nc6 3. Bb5 (3. Bc4 Bc5) 3... a6") === "1. e4 e5 2. ♞f3 ♞c6 3. ♝b5 (3. ♝c4 ♝c5) 3... a6");
+  check("a pawn's promotion drawn as the piece it becomes; pawn moves and castling left as written",
+    figurine("e8=Q+ exd8=N O-O-O O-O e4") === "e8=♛+ exd8=♞ O-O-O O-O e4", figurine("e8=Q+ exd8=N O-O-O O-O e4"));
+  check("words that begin with a capital are not moves, and are left alone",
+    figurine("Line 2 of 3: Kasparov – Topalov, Black resigns") === "Line 2 of 3: Kasparov – Topalov, Black resigns");
+  check("lettered again, a line reads as it was written",
+    lettered(figurine("1. Nf3 d5 2. g3 Bg4 3. Bg2 Qd7 4. O-O Kd8 5. Rxe1 e1=R")) === "1. Nf3 d5 2. g3 Bg4 3. Bg2 Qd7 4. O-O Kd8 5. Rxe1 e1=R");
+  check("each glyph known for one, and no other character",
+    ["♚", "♛", "♜", "♝", "♞"].every(isPieceGlyph) && !isPieceGlyph("K") && !isPieceGlyph("♟"));
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed\n`);

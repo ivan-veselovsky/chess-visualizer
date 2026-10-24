@@ -68,9 +68,12 @@ const page = lab.page;
 
 /* Where the board is, as the reader reads it: the move the list is on, and the line named over the board. */
 const WHERE = `
+  /* Moves are shown with their pieces drawn, "♞f3": lettered again, to be
+     compared with what was written. */
+  const lettered = (text) => text.replace(/[♚♛♜♝♞]/g, (glyph) => "KQRBN"["♚♛♜♝♞".indexOf(glyph)]);
   const where = () => [
     /* The list sets its numbers off with no-break spaces, to keep them in a column. */
-    document.querySelector(".moves-select").selectedOptions[0].textContent.replace(/\\s+/g, " ").trim(),
+    lettered(document.querySelector(".moves-select").selectedOptions[0].textContent.replace(/\\s+/g, " ").trim()),
     document.querySelector(".branch-path")?.title ?? "",
   ];
   const key = (k, ctrl = false) => window.dispatchEvent(new KeyboardEvent("keydown", { key: k, ctrlKey: ctrl, bubbles: true }));
@@ -373,9 +376,9 @@ try {
       middle: box(".board-and-players > .player-name .player-result"),
       position: box(".board-and-players > .player-name .player-position"),
       /* Fitted by leaving moves off its front, not cut off by the row. */
-      shown: path.textContent.replace(/\\s+/g, " "),
+      shown: lettered(path.textContent.replace(/\\s+/g, " ")),
       whole: path.title,
-      cut: (() => { const shown = path.textContent.replace(/\\s+/g, " "); return shown !== path.title && /^Line 3 of 3: … /.test(shown) && path.title.endsWith(shown.replace(/^Line 3 of 3: … /, "")); })(),
+      cut: (() => { const shown = lettered(path.textContent.replace(/\\s+/g, " ")); return shown !== path.title && /^Line 3 of 3: … /.test(shown) && path.title.endsWith(shown.replace(/^Line 3 of 3: … /, "")); })(),
       fits: path.scrollWidth <= path.clientWidth + 1,
       counter: document.querySelector(".board-and-players > .player-name .player-position").textContent,
     });`));
@@ -430,7 +433,7 @@ try {
   const NAMELESS = PGN.replace(/\[(White|Black) "[^"]*"\]\n/g, "");
   const rows = `({
     named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
-    row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent.replace(/\\s+/g, " ")),
+    row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => lettered(c.textContent.replace(/\\s+/g, " "))),
     branch: box(".board-counter .branch-path"),
     board: box(".board-holder > svg"),
   })`;
@@ -517,9 +520,9 @@ try {
   */
   const tree = `
     const state = () => ({
-      row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => c.textContent.replace(/\\s+/g, " ")),
+      row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => lettered(c.textContent.replace(/\\s+/g, " "))),
       branches: [...(document.querySelector("#branch")?.options ?? [])].map((o) => o.title),
-      moves: [...document.querySelector(".moves-select").options].map((o) => o.textContent.replace(/\\s+/g, " ").trim()),
+      moves: [...document.querySelector(".moves-select").options].map((o) => lettered(o.textContent.replace(/\\s+/g, " ").trim())),
       named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
     });
     const exported = async () => {
@@ -722,6 +725,76 @@ try {
   check("and Shift and ← takes the same walk back to the start",
     JSON.stringify(backward) === JSON.stringify([...tour].reverse()),
     backward.map((step) => step.join(" | ")).join(" ; "));
+
+  console.log("\nA move picked from the line over the board\n");
+  /*
+    A move in the line over the board, pressed, puts the board on the position
+    after it — at once, nothing flying — and its pieces are drawn there, each
+    in its side's colour: "♜g7", not "Rg7".
+  */
+  const picked = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    await load(${JSON.stringify(PGN)}); key("ArrowRight", true); await sleep(1200);
+    /* Over the board, wherever its row has put the line: by the counter, or in a row of its own. */
+    const moves = () => [...document.querySelector(".branch-path").querySelectorAll(".move-pick")];
+    const first = moves().find((move) => lettered(move.textContent).trim() === "Rhg7");
+    const glyph = first?.querySelector(".move-piece");
+    const drawn = { text: first?.textContent ?? "", side: glyph?.className ?? "",
+      colour: glyph ? getComputedStyle(glyph).color : "", number: getComputedStyle(first.parentElement).color };
+    first.click(); await sleep(60);
+    const flying = document.querySelector(".flight-layer") !== null;
+    await sleep(400);
+    const there = { fen: document.querySelector("#fen").value, where: where(), flying };
+    return JSON.stringify({ drawn, there });`));
+  check("the pieces in the line over the board are drawn, in their side's colour",
+    picked.drawn.text === "♜hg7" && /move-piece-w/.test(picked.drawn.side) && picked.drawn.colour !== picked.drawn.number,
+    JSON.stringify(picked.drawn));
+  check("and a move pressed there puts the board on the position after it, at once",
+    picked.there.fen === "3k4/R5R1/3n4/8/8/8/8/K7 b - - 1 1" && picked.there.where[0] === "1. Rhg7" && !picked.there.flying,
+    JSON.stringify(picked.there));
+
+  /*
+    A move pressed in a line too long for the row leaves the row where it is:
+    the move stays under the pointer. Stepped on from there by the keys, the
+    row follows the board again. And the ellipsis at either end, pressed, turns
+    the row to the moves it stands for, the board where it was.
+  */
+  const LONG = "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 " +
+    "11. c4 c6 12. cxb5 axb5 13. Nc3 Bb7 14. Bg5 b4 15. Nb1 h6 16. Bh4 c5 17. dxe5 Nxe4 18. Bxe7 Qxe7 19. exd6 Qf6 20. Nbd2 Nxd6 *";
+  const paged = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    await load(${JSON.stringify(LONG)}); key("ArrowRight", true); await sleep(1200);
+    const path = () => document.querySelector(".branch-path");
+    const text = () => path().textContent.replace(/\\s+/g, " ");
+    const fen = () => document.querySelector("#fen").value;
+    const atEnd = text();
+    /* The third move from the end of what shows, well into its last quarter. */
+    const shown = [...path().querySelectorAll(".move-pick")];
+    const target = shown[shown.length - 3];
+    const name = target.textContent;
+    target.click(); await sleep(500);
+    const pick = { before: atEnd, after: text(), moved: fen() !== ${JSON.stringify("")} , current: path().querySelector(".move-current")?.textContent ?? "", name };
+    const pickedFen = fen();
+    /* Back by the keys: the board steps, and the row follows it as it always has. */
+    key("ArrowLeft"); await sleep(600);
+    const stepped = { fen: fen() !== pickedFen, current: path().querySelector(".move-current")?.textContent ?? "" };
+    const mores = () => [...path().querySelectorAll(".line-more")];
+    const beforeTurn = { text: text(), fen: fen() };
+    const front = mores().find((more) => more.title === "Earlier moves");
+    front?.click(); await sleep(400);
+    const turnedBack = { had: front !== undefined, text: text(), fen: fen() };
+    const tail = mores().find((more) => more.title === "Later moves");
+    tail?.click(); await sleep(400);
+    const turnedOn = { had: tail !== undefined, text: text(), fen: fen() };
+    return JSON.stringify({ pick, stepped, beforeTurn, turnedBack, turnedOn });`));
+  check("a move pressed in a row too long for it takes the board there, and leaves the row where it was",
+    paged.pick.after === paged.pick.before && paged.pick.current === paged.pick.name, JSON.stringify(paged.pick));
+  check("stepped from there by the keys, the board moves on and the row follows it",
+    paged.stepped.fen && paged.stepped.current !== "", JSON.stringify(paged.stepped));
+  check("the ellipsis before the moves, pressed, turns the row back to them, the board where it was",
+    paged.turnedBack.had && paged.turnedBack.text !== paged.beforeTurn.text && paged.turnedBack.fen === paged.beforeTurn.fen,
+    JSON.stringify(paged.turnedBack));
+  check("and the one after them on again, the board still where it was",
+    paged.turnedOn.had && paged.turnedOn.text !== paged.turnedBack.text && paged.turnedOn.fen === paged.beforeTurn.fen,
+    JSON.stringify(paged.turnedOn));
 } catch (error) {
   check("the branch tests could not run", false, error.message);
 }

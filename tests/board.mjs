@@ -472,6 +472,41 @@ try {
     JSON.stringify(balance.squares)
   );
 
+  console.log("\nA mated king\n");
+
+  /*
+    On a mate the king falls over: a quarter turn to the left, over twice the
+    board's fade, and stays down. Only the mated king — not the one who mated,
+    and not a king only in check. And the mate taken away, he stands up again
+    the same way.
+  */
+  const fall = (fen) => page.run(`${HELPERS}
+    window.__tab("Lab"); await sleep(300);
+    const svg = document.querySelector(".board-holder > svg");
+    __set("#fen", "${fen}"); await sleep(150);
+    /* Under way, a moment in: how long the turn takes, and how far it has come. */
+    const turning = [...svg.querySelectorAll(".piece-king")].flatMap((king) => king.getAnimations());
+    const lasts = turning[0]?.effect.getComputedTiming().duration ?? null;
+    await sleep(1400);
+    const fallen = [...svg.querySelectorAll(".piece-fallen")];
+    const king = fallen[0]?.getBoundingClientRect();
+    const g8 = svg.querySelector('.square-layer [data-square="g8"]').getBoundingClientRect();
+    return JSON.stringify({
+      count: fallen.length,
+      over: king === undefined ? null : Math.abs(king.left + king.width / 2 - (g8.left + g8.width / 2)) < 2 && Math.abs(king.top + king.height / 2 - (g8.top + g8.height / 2)) < 2,
+      turn: fallen[0] === undefined ? null : new DOMMatrixReadOnly(getComputedStyle(fallen[0]).transform).b,
+      lasts,
+      standing: [...svg.querySelectorAll(".piece-king")].map((king) => new DOMMatrixReadOnly(getComputedStyle(king).transform).b),
+      fade: parseFloat(getComputedStyle(svg).getPropertyValue("--fade-time")),
+    });`);
+  const mated = JSON.parse(await fall("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1"));
+  check("the mated king, and only he, lies fallen on his square, turned a quarter to the left",
+    mated.count === 1 && mated.over && Math.abs(mated.turn - -1) < 1e-6, JSON.stringify(mated));
+  check("having fallen over twice the board's fade", mated.lasts === 2 * mated.fade && mated.fade > 0, JSON.stringify(mated));
+  const checked = JSON.parse(await fall("R5k1/5pp1/8/8/8/8/8/6K1 b - - 0 1"));
+  check("and with the mate taken away — a pawn's way out, a king only in check — he stands up again, over the same time",
+    checked.count === 0 && checked.lasts === mated.lasts && checked.standing.every((turn) => Math.abs(turn) < 1e-6), JSON.stringify(checked));
+
   console.log("\nWhat a pawn becomes\n");
 
   /*
@@ -490,7 +525,9 @@ try {
       over: r === undefined ? null : Math.round(s.top - r.bottom),
       closeButton: box?.querySelector(".info-close, .promotion-close") != null,
       /* The list sets its numbers off with no-break spaces. */
-      played: document.querySelector(".moves-select").options[0].textContent.replace(/\\s+/g, " ").trim(),
+      /* Lettered again: the list draws its pieces, "e8=♞". */
+      played: document.querySelector(".moves-select").options[0].textContent.replace(/\\s+/g, " ").trim()
+        .replace(/[♚♛♜♝♞]/g, (glyph) => "KQRBN"["♚♛♜♝♞".indexOf(glyph)]),
       marked: window.__marked ? window.__marked() : null,
     });`);
   const promotionAt = (two) => page.run(`${HELPERS}
@@ -608,7 +645,7 @@ try {
     Number(onPiecesAfter) === Number(onPiecesBefore) + 1 && inField === onPiecesAfter,
     `moves list at ${onPiecesBefore}, then ${onPiecesAfter}; with a field focused, ${inField}`);
 
-  console.log("\nThe board editor\n");
+  console.log("\nThe position editor\n");
 
   /*
     Opened beside the FEN, on the position on the board, and cleared to the
@@ -630,12 +667,16 @@ try {
   await page.run(`${HELPERS}
     window.__tab("Lab"); await sleep(300); window.scrollTo(0, 0);
     __set("#fen", "8/8/8/8/8/2k5/8/4K3 b - - 0 1"); await sleep(800);
+    /* From a board with Black at the bottom: the editor starts with White there all the same. */
+    if (!document.querySelector("#flip-board").checked) document.querySelector("#flip-board").click(); await sleep(500);
     ${openEditorButton}
     return "ok";`);
   const editorOpened = JSON.parse(await page.run(`return JSON.stringify({ fen: document.querySelector("#fen").value, asked: document.querySelector("dialog[open]") !== null,
-    palette: document.querySelector(".board-editor-palette") !== null && document.querySelectorAll(".board-editor-palette .board-editor-man").length === 10 });`));
+    palette: document.querySelector(".board-editor-palette") !== null && document.querySelectorAll(".board-editor-palette .board-editor-man").length === 10,
+    blackAtBottom: document.querySelector("#flip-board").checked || document.querySelector("#editor-flip-board").checked });`));
   check("on a board with one position, the editor opens on it without asking, a palette of five men a side in the bars' place",
     editorOpened.fen === "8/8/8/8/8/2k5/8/4K3 b - - 0 1" && !editorOpened.asked && editorOpened.palette, JSON.stringify(editorOpened));
+  check("with White at the bottom, though the board it came from had Black there", editorOpened.blackAtBottom === false, JSON.stringify(editorOpened));
   await page.run(`document.querySelector(".board-editor-clear").click(); await sleep(500); return "ok";`);
   check("and Clear takes it back to the two kings, White to move", (await fenNow()) === "4k3/8/8/8/8/8/8/4K3 w - - 0 1", await fenNow());
   await tap(await paletteTool("White knight"));
@@ -698,27 +739,56 @@ try {
   check("a king pressed on with a man chosen lets the choice go, and is dragged",
     kingMoved.fen === "4k3/4K3/8/5N2/8/8/8/8 b - - 0 1" && kingMoved.chosen === "Move pieces", JSON.stringify(kingMoved));
   /*
-    Over the board, the flower, the signal and Done again: the signal in the
-    middle of the board, and Done there only for a position a game could reach
-    — this one, with the kings side by side, is not. And the board can be
-    turned round while it is set up, which changes nothing in the position.
+    Over the board, the far side's flower at its edge, over a8 as a name's is,
+    and Black at bottom; the signal in the middle of the board, three ems from
+    each; and Done there only for a position a game could reach — this one,
+    with the kings side by side, is not. Under it, the near side's flower, over
+    a1's file. Either flower gives the move away; Black at bottom, here as in
+    the Lab, turns the board round, the flowers going with their ends, and the
+    position as it was. Flip position turns the position round instead, on a
+    board that stays as it is.
   */
   const topRow = JSON.parse(await page.run(`const r = (s) => document.querySelector(s).getBoundingClientRect();
-    const board = r(".board-holder > svg"), signal = r(".board-editor-signal"), turn = r(".board-editor-turn"), done = r(".board-editor-done");
+    const board = r(".board-holder > svg"), signal = r(".board-editor-signal"), field = r(".board-editor-far .toggle-field"), done = r(".board-editor-done");
+    const square = (name) => document.querySelector('.board-holder > svg .square-layer [data-square="' + name + '"]').getBoundingClientRect();
+    const flowers = () => [...document.querySelectorAll(".board-editor-turn")];
+    const look = () => flowers().map((flower) => flower.querySelector("svg").getAttribute("class").replace("player-color ", ""));
     const fen = document.querySelector("#fen").value;
+    const ends = flowers().map((flower) => flower.getBoundingClientRect());
+    const placed = { top: Math.abs(ends[0].left - square("a8").left) < 1 && ends[0].bottom < square("a8").top,
+      bottom: Math.abs(ends[1].left - square("a1").left) < 1 && ends[1].top > square("a1").bottom, look: look() };
+    const given = [];
+    for (const which of [1, 0]) { flowers()[which].click(); await sleep(300); given.push(document.querySelector("#fen").value.split(" ")[1]); }
+    document.querySelector("#editor-flip-board").click(); await sleep(600);
+    const flipped = { fen: document.querySelector("#fen").value, checked: document.querySelector("#flip-board").checked,
+      palette: document.querySelector(".board-editor-palette") !== null, look: look() };
     document.querySelector("#flip-board").click(); await sleep(600);
-    const flipped = { fen: document.querySelector("#fen").value, checked: document.querySelector("#flip-board").checked, palette: document.querySelector(".board-editor-palette") !== null };
-    document.querySelector("#flip-board").click(); await sleep(600);
-    return JSON.stringify({ fen, flipped, disabled: document.querySelector(".board-editor-done").disabled,
+    flipped.back = !document.querySelector("#editor-flip-board").checked;
+    const a8 = () => square("a8").top;
+    const topBefore = a8();
+    document.querySelector(".board-editor-flip").click(); await sleep(600);
+    const turned = { fen: document.querySelector("#fen").value, checked: document.querySelector("#flip-board").checked, still: a8() === topBefore };
+    document.querySelector(".board-editor-flip").click(); await sleep(600);
+    turned.back = document.querySelector("#fen").value;
+    return JSON.stringify({ fen, placed, given, flipped, turned, disabled: document.querySelector(".board-editor-done").disabled,
       /* The board's squares are 512 of its 536 units, after the 24 the rank labels take. */
       off: Math.abs((signal.left + signal.right) / 2 - (board.left + board.width * (24 + 256) / 536)),
-      order: turn.right < signal.left && signal.right < done.left,
-      gaps: [signal.left - turn.right, done.left - signal.right].map((gap) => gap / parseFloat(getComputedStyle(document.querySelector(".board-editor-row")).fontSize)) });`));
-  check("over the board in the editor: the flower, the signal in the middle of the board, and Done, three ems apart",
+      order: field.right < signal.left && signal.right < done.left,
+      gaps: [signal.left - field.right, done.left - signal.right].map((gap) => gap / parseFloat(getComputedStyle(document.querySelector(".board-editor-row")).fontSize)) });`));
+  check("over the board in the editor: Black at bottom, the signal in the middle of the board, and Done, three ems apart",
     topRow.order && topRow.off < 1 && topRow.gaps.every((gap) => Math.abs(gap - 3) < 0.1), JSON.stringify(topRow));
+  check("a flower at each end, over a8 and under a1, its middle the colour of that end's side, the one to move open",
+    topRow.placed.top && topRow.placed.bottom && JSON.stringify(topRow.placed.look) === JSON.stringify(["player-color-b player-color-turn", "player-color-w"]),
+    JSON.stringify(topRow.placed));
+  check("either flower pressed gives the move to the other side", topRow.given.join() === "w,b", topRow.given.join());
   check("Done over the board is closed while no game could reach the position", topRow.disabled === true, JSON.stringify(topRow));
-  check("and Black at bottom turns the board round in the editor, the position as it was",
-    topRow.flipped.checked && topRow.flipped.palette && topRow.flipped.fen === topRow.fen, JSON.stringify(topRow));
+  check("and Black at bottom over the board turns it round, as the Lab's does, the flowers going with their ends and the position as it was",
+    topRow.flipped.checked && topRow.flipped.palette && topRow.flipped.fen === topRow.fen && topRow.flipped.back &&
+      JSON.stringify(topRow.flipped.look) === JSON.stringify(["player-color-w", "player-color-b player-color-turn"]),
+    JSON.stringify(topRow.flipped));
+  check("Flip position turns the men round, a1's to h8, on a board left the way round it was — and again, back",
+    topRow.turned.fen === "8/8/8/8/2N5/8/3K4/3k4 b - - 0 1" && !topRow.turned.checked && topRow.turned.still && topRow.turned.back === topRow.fen,
+    JSON.stringify(topRow.turned));
   const refused = JSON.parse(await page.run(`const button = document.querySelector(".editor-button");
     const disabled = button.disabled;
     button.click(); await sleep(700);

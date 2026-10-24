@@ -1,4 +1,5 @@
 import { describeEntry, type HistoryEntry } from "../chess/history";
+import { figurine } from "../chess/figurine";
 
 interface MovesSelectProps {
   /** Every position reached so far, newest first. */
@@ -40,7 +41,8 @@ export default function MovesSelect({
       >
         {entries.map((entry, index) => (
           <option key={index} value={index}>
-            {describeEntry(entry)}
+            {/* With the piece drawn rather than lettered: see `figurine`. */}
+            {figurine(describeEntry(entry))}
           </option>
         ))}
       </select>

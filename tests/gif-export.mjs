@@ -185,9 +185,11 @@ try {
   const HOLD = DEFAULTS.lab.playLineEndHoldSec * 1000;
   /* A position's rest, from the landing: its pace less what was shown of the
      fade in it — a frame a step, up to the fade's end, with the fade fitted
-     into the pace where it would not go. */
-  const restFor = (pace) => {
-    const fade = Math.min(FADE, pace);
+     into the pace where it would not go. On a mate, what is shown is the
+     mated king falling over, which takes two fades. */
+  const FALL = 2 * FADE;
+  const restFor = (pace, shown = FADE) => {
+    const fade = Math.min(shown, pace);
     return Math.max(pace - STEP * Math.max(Math.ceil(fade / STEP) - 1, 0), STEP);
   };
   const delays = gif.frames.map((frame) => frame.delayMs);
@@ -199,8 +201,8 @@ try {
   check("each position after a move stands for what is left of the period once its fade has shown",
     rests.slice(1, -1).every(([delay]) => delay === restFor(PERIOD)),
     `${rests.map(([delay]) => delay).join(",")} vs ${restFor(PERIOD)}`);
-  check("the last stands for the Lab's hold at the end of a branch, less its fade, before the GIF starts again",
-    delays[delays.length - 1] === restFor(HOLD), `${delays[delays.length - 1]} vs ${restFor(HOLD)}`);
+  check("the last, the mate, stands for the Lab's hold at the end of a branch, less its king's fall, before the GIF starts again",
+    delays[delays.length - 1] === restFor(HOLD, FALL), `${delays[delays.length - 1]} vs ${restFor(HOLD, FALL)}`);
   check("one position at rest for each position in the game", rests.length === 4, String(rests.length));
 
   /* What it was estimated to come to, beforehand: "~ 0.25 MB / 64 frames / 5.3 seconds". */
@@ -273,7 +275,8 @@ try {
     them the steps back — the last of which lands on the fork, where the next
     line is taken up and the period is the time there is to read its name.
   */
-  const [p, h, b] = [restFor(PERIOD), restFor(HOLD), restFor(500)];
+  /* Each line ends in mate, so its hold is less the king's fall. */
+  const [p, h, b] = [restFor(PERIOD), restFor(HOLD, FALL), restFor(500)];
   const expected = [INITIAL, p, p, h, b, p, p, h, b, p, p, h];
   check("it plays every line, at the Lab's pace for each kind of step",
     JSON.stringify(branchedRests) === JSON.stringify(expected), `${branchedRests.join(",")} vs ${expected.join(",")}`);

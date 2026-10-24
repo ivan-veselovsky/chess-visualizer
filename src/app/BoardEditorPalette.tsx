@@ -26,6 +26,8 @@ interface BoardEditorPaletteProps {
   /** The last change taken back, and made again; null where there is none. */
   onUndo: (() => void) | null;
   onRedo: (() => void) | null;
+  /** The position turned round on the board — a1's man to h8 — the board as it is. */
+  onFlip: () => void;
   /** The tint the men are drawn in, as the bars it stands in for are given it. */
   style: CSSProperties;
   /** And the pictures they are drawn with. */
@@ -60,7 +62,7 @@ function squareUnder(x: number, y: number): Square | null {
  * from here and let go over the square. The eraser is chosen and used the same
  * way, on the men already there.
  */
-export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, onClear, onUndo, onRedo, style, glyphs }: BoardEditorPaletteProps) {
+export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, onClear, onUndo, onRedo, onFlip, style, glyphs }: BoardEditorPaletteProps) {
   const top: Color = orientation === "white" ? "b" : "w";
   const bottom: Color = top === "w" ? "b" : "w";
   /* The man being dragged from here, and where the pointer is: drawn under it
@@ -219,6 +221,22 @@ export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, 
               <path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" />
             </svg>
           </button>
+          {/* The position turned round on a board that stays put: a square
+              and an arrow half round it. Turning the board itself is Black at
+              bottom, over it. Pressed rather than chosen, as Undo is. */}
+          <button
+            type="button"
+            className="board-editor-step board-editor-flip"
+            aria-label="Flip position"
+            title="Flip position: every man to the square opposite, a1 to h8, the board the way round it is."
+            onClick={onFlip}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="9" width="10" height="10" rx="1" />
+              <path d="M8.5 5.5a8 8 0 0 1 11.2 9.3" />
+              <path d="M17 13.6l2.7 1.4 1.3-2.8" />
+            </svg>
+          </button>
           {/* A heavier cross than the eraser's, and pressed rather than chosen:
               it does the one thing at once. Last, and set off from the rest,
               so it is not pressed for one of them by mistake. */}
@@ -260,21 +278,28 @@ export default function BoardEditorPalette({ orientation, tool, onTool, onDrop, 
 }
 
 /**
- * Whose move the position being set up is: the flower the names use, pressed
- * to give the move to the other side.
+ * One side of the position being set up, at its end of the board, as the
+ * names stand in a game: the flower the names use, its middle in the side's
+ * colour, open while it is that side's move. Either flower pressed gives the
+ * move to the other side — the open one handing it over, the closed one
+ * taking it.
  */
-export function EditorTurn({ turn, onTurn }: { turn: Color; onTurn: () => void }) {
-  const side = turn === "w" ? "White" : "Black";
-  const other = turn === "w" ? "Black" : "White";
+export function EditorTurn({ color, turn, onTurn }: { color: Color; turn: Color; onTurn: () => void }) {
+  const side = color === "w" ? "White" : "Black";
+  const other = color === "w" ? "Black" : "White";
+  const label =
+    color === turn
+      ? `${side} to move — press to give the move to ${other}`
+      : `${other} to move — press to give the move to ${side}`;
   return (
     <button
       type="button"
-      className="board-editor-turn"
-      aria-label={`${side} to move — press to give the move to ${other}`}
-      title={`${side} to move. Press to give the move to ${other}.`}
+      className={`board-editor-turn board-editor-turn-${color}`}
+      aria-label={label}
+      title={`${label.replace(" — p", ". P")}.`}
       onClick={onTurn}
     >
-      <Flower color={turn} open />
+      <Flower color={color} open={color === turn} />
     </button>
   );
 }
@@ -297,14 +322,14 @@ export function EditorSignal({ problems, warnings }: { problems: string[]; warni
           ? `Not a legal position: ${problems.join(" ")}`
           : state === "warning"
             ? `Unusual, but playable: ${warnings.join(" ")}`
-            : "A legal position"
+            : "Valid position (a game could reach it)"
       }
       title={
         state === "illegal"
           ? problems.join("\n")
           : state === "warning"
             ? `Unusual, but it can be played from:\n${warnings.join("\n")}`
-            : "A position a game could reach."
+            : "Valid position (a game could reach it)"
       }
     >
       <svg viewBox="0 0 16 16" aria-hidden="true">

@@ -119,7 +119,7 @@ import PgnExportDialog from "./PgnExportDialog";
 import PgnHelp from "./PgnHelp";
 import PromotionChooser from "./PromotionChooser";
 import BoardEditorPalette, { EditorSignal, EditorTurn, type BoardEditorTool } from "./BoardEditorPalette";
-import { asBoardEditorPosition, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, turnOf, withTurn } from "../chess/boardEditor";
+import { asBoardEditorPosition, flipped, place, boardEditorProblems, boardEditorWarnings, shift, TWO_KINGS, turnOf, withTurn } from "../chess/boardEditor";
 import { pieceVars } from "../visualization/pieceVars";
 import StashDialog from "./StashDialog";
 import StashedGames from "./StashedGames";
@@ -1198,6 +1198,10 @@ export default function App() {
     }
     setStashingForEditor(false);
     setEditor(true);
+    /* Always set up with White at the bottom, however the board it came from
+       was turned: the position is read off it as it stands, and the board
+       turns round under it. Black at bottom, over the board, turns it back. */
+    turnBoard("white");
     setTool(null);
     setEditorPast([]);
     setEditorFuture([]);
@@ -1658,6 +1662,25 @@ export default function App() {
    * held back behind it are three parts of one change, and a reader who saw
    * them arrive separately would be watching a flicker.
    */
+  /**
+   * The board to the position `ply` moves into the line it holds, at once —
+   * no piece travelling, as a move picked in the line over the board asks.
+   */
+  function jumpToPly(ply: number) {
+    const index = history.entries.length - 1 - ply;
+    if (index < 0 || index >= history.entries.length || index === history.current) {
+      return;
+    }
+    setPlaying(false);
+    const next = history.entries[index].fen;
+    shownFen.current = next;
+    draggedTo.current = null;
+    setFlight(null);
+    setDuring(null);
+    setHistory({ ...history, current: index });
+    setFen(next);
+  }
+
   /*
     A takeback of two moves being played backwards: the first has gone, and
     this is where the second is to take the board, and when. Anything that
@@ -2690,6 +2713,15 @@ export default function App() {
     w: moveTint(settings.attacks.rays.colors[settingsSide("w", side)].king),
     b: moveTint(settings.attacks.rays.colors[settingsSide("b", side)].king),
   };
+  /* And the pieces drawn in its moves, each side's in the colour its men are,
+     lightened as White's are on the board — lightened for Black too, so a dark
+     army's pieces are read on a dark page. */
+  const lightened = (hex: string) =>
+    `color-mix(in srgb, ${hex}, white ${Math.round(Math.min(Math.max(settings.pieces.tint.lightenWhite, 0), 1) * 100)}%)`;
+  const movePieces = {
+    w: lightened(settings.attacks.rays.colors[settingsSide("w", side)].king),
+    b: lightened(settings.attacks.rays.colors[settingsSide("b", side)].king),
+  };
   const branchLabel = (between: boolean) =>
     branch !== null ? (
       <LinePath
@@ -2703,6 +2735,8 @@ export default function App() {
           check: settings.attacks.checkAndCheckmate.checkColor,
           mate: settings.attacks.checkAndCheckmate.checkmateColor,
         }}
+        pieces={movePieces}
+        onPick={jumpToPly}
       />
     ) : null;
   /*
@@ -2981,10 +3015,15 @@ export default function App() {
       className={[
         "app",
         atAGame ? "app-playing" : "",
+        /* The editor's rows over and under the board: see `.app-editing`. */
+        editor && !atAGame ? "app-editing" : "",
         /* Two boards take the width the panel had, so the panel goes under
            them and the page grows a scroller. The shape of the page is
            decided here, in one class, rather than in each part of it. */
         twoBoard ? "app-two-up" : "",
+        /* Whatever moves by itself holds still while frames are being made:
+           see `.app-exporting`. */
+        exporting ? "app-exporting" : "",
       ]
         .filter((name) => name !== "")
         .join(" ")}
@@ -3057,43 +3096,57 @@ export default function App() {
                 `.board-counter`.
               */}
               {!atAGame && (
-                <p className={`player-name board-counter${branch !== null && !editor ? " board-counter-line" : ""}`}>
-                  {/* Where a name would be, as there is none: which line of
-                      the game is up, from where the first file begins, and as
-                      far along the row as how it comes out. */}
-                  <span className="player-who">{branchLabel(false)}</span>
-                  <span className={`player-result${editor ? " board-editor-row" : ""}`}>
-                    {/* In the editor, whose move it is — pressed to give it to
-                        the other side — whether a game could reach the
-                        position, in the middle, and the way out of the editor
-                        on the far side, as the button after the FEN field is:
-                        here only for a position a game could reach, since
-                        leaving on any other puts the starting position back
-                        and throws the work away. The position being built has
-                        no result to show. */}
-                    {editor ? (
-                      <>
-                        <EditorTurn turn={turnOf(editedFen)} onTurn={() => editTo(withTurn(editedFen))} />
-                        <EditorSignal problems={boardEditorProblems(editedFen)} warnings={boardEditorWarnings(editedFen)} />
-                        <button
-                          type="button"
-                          className="reset-button board-editor-done"
-                          disabled={boardEditorProblems(editedFen).length > 0}
-                          title={
-                            boardEditorProblems(editedFen).length > 0
-                              ? "No game could reach this position yet: see the red cross."
-                              : "Finish setting up, and start from this position"
-                          }
-                          onClick={closeEditor}
-                        >
-                          Done editing
-                        </button>
-                      </>
-                    ) : (
-                      unnamedResult !== null && <span className="player-score">{scoreOf(unnamedResult)}</span>
-                    )}
-                  </span>
-                  <span className="player-position">{counted}</span>
+                <p className={`player-name board-counter${branch !== null && !editor ? " board-counter-line" : ""}${editor ? " board-editor-counter" : ""}`}>
+                  {editor ? (
+                    /*
+                      In the editor, the row is the editor's, end to end: the
+                      far side's flower at the far end of the board's edge, as
+                      a name's is in a game — the near side's is under the
+                      board — and which way round the board is, by it; whether
+                      a game could reach the position, in the middle; and the
+                      way out of the editor on the far side, as the button
+                      after the FEN field is: here only for a position a game
+                      could reach, since leaving on any other puts the starting
+                      position back and throws the work away. The position
+                      being built has no line, result or count to show.
+                    */
+                    <span className="player-result board-editor-row">
+                      <span className="board-editor-far">
+                        <EditorTurn color={farSide} turn={turnOf(editedFen)} onTurn={() => editTo(withTurn(editedFen))} />
+                        <ToggleField
+                          id="editor-flip-board"
+                          label="Black at bottom"
+                          checked={side === "black"}
+                          onChange={(flipped) => turnBoard(flipped ? "black" : "white")}
+                        />
+                      </span>
+                      <EditorSignal problems={boardEditorProblems(editedFen)} warnings={boardEditorWarnings(editedFen)} />
+                      <button
+                        type="button"
+                        className="reset-button board-editor-done"
+                        disabled={boardEditorProblems(editedFen).length > 0}
+                        title={
+                          boardEditorProblems(editedFen).length > 0
+                            ? "No game could reach this position yet: see the red cross."
+                            : "Finish setting up, and start from this position"
+                        }
+                        onClick={closeEditor}
+                      >
+                        Done editing
+                      </button>
+                    </span>
+                  ) : (
+                    <>
+                      {/* Where a name would be, as there is none: which line of
+                          the game is up, from where the first file begins, and as
+                          far along the row as how it comes out. */}
+                      <span className="player-who">{branchLabel(false)}</span>
+                      <span className="player-result">
+                        {unnamedResult !== null && <span className="player-score">{scoreOf(unnamedResult)}</span>}
+                      </span>
+                      <span className="player-position">{counted}</span>
+                    </>
+                  )}
                 </p>
               )}
               {/* Whoever is at the far end of the board as it now stands. */}
@@ -3240,6 +3293,7 @@ export default function App() {
                     onClear={() => editTo(TWO_KINGS)}
                     onUndo={editorPast.length > 0 ? undoEdit : null}
                     onRedo={editorFuture.length > 0 ? redoEdit : null}
+                    onFlip={() => editTo(flipped(editedFen))}
                     style={pieceVars(settings.pieces.tint, settings.attacks)}
                     glyphs={glyphs}
                   />
@@ -3266,6 +3320,15 @@ export default function App() {
                   />
                 )}
               </div>
+              {/* In the editor, the near side's flower, under the board where a
+                  name would be: see the row over it. */}
+              {!atAGame && editor && (
+                <p className="player-name board-editor-near">
+                  <span className="player-who">
+                    <EditorTurn color={nearSide} turn={turnOf(editedFen)} onTurn={() => editTo(withTurn(editedFen))} />
+                  </span>
+                </p>
+              )}
               {/* And whoever is at this end. */}
               {atAGame && (
                 <PlayerName
@@ -3541,9 +3604,9 @@ export default function App() {
                   {/* Whichever it says, as wide as the longer of the two, both
                       held in the same place unseen: the field beside it keeps
                       its width as the editor opens and closes. */}
-                  <span className="editor-button-label">{!editor ? "Board editor" : "Done editing"}</span>
+                  <span className="editor-button-label">{!editor ? "Position editor" : "Done editing"}</span>
                   <span className="editor-button-room" aria-hidden="true">
-                    Board editor
+                    Position editor
                   </span>
                   <span className="editor-button-room" aria-hidden="true">
                     Done editing

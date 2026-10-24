@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { TreeLine } from "../chess/variations";
-import { lineLabel, pageLine } from "../chess/linePath";
+import { lineLabel, pageAround, pageLine } from "../chess/linePath";
+import { figurine, isPieceGlyph } from "../chess/figurine";
+import { useFiguresLoaded } from "./useFiguresLoaded";
 
 interface LinePathProps {
   line: TreeLine;
@@ -23,6 +25,10 @@ interface LinePathProps {
   at: number;
   /** The colours the board marks a check and a mate in: a move's "+" and "#" are written in them. */
   marks: { check: string; mate: string };
+  /** The colour each side's pieces are drawn in, in a move: its men's, lightened. */
+  pieces: { w: string; b: string };
+  /** A move clicked: the board to the position it reached, `ply` moves into the line. */
+  onPick?: (ply: number) => void;
 }
 
 /**
@@ -41,9 +47,10 @@ interface LinePathProps {
  * whenever the row is resized; a measure that has not changed changes
  * nothing.
  */
-export default function LinePath({ line, number, of, between, tints, at, marks }: LinePathProps) {
+export default function LinePath({ line, number, of, between, tints, at, marks, pieces, onPick }: LinePathProps) {
   const span = useRef<HTMLSpanElement>(null);
   const [room, setRoom] = useState<{ width: number; font: string } | null>(null);
+  useFiguresLoaded();
 
   const measure = () => {
     const self = span.current;
@@ -96,16 +103,40 @@ export default function LinePath({ line, number, of, between, tints, at, marks }
      middle of the room; a different line starts afresh. */
   const page = useRef<{ line: string; first: number } | null>(null);
   const which = `${line.entries[line.entries.length - 1]?.fen ?? ""} ${line.moves.join(" ")}`;
+  /*
+    A page the reader has put the row on: by pressing a move in it, which
+    holds the row still under the pointer while the board goes there, or by
+    pressing an ellipsis, which turns it — see `pageLine`. For as long as the
+    board stays on the move it was on then: a step by the keys, by Play or by
+    the buttons lets go of it, and the row follows the board again.
+  */
+  const [held, setHeld] = useState<{ line: string; at: number; first: number; showingCurrent: boolean } | null>(null);
+  const holding = held !== null && held.line === which && held.at === at ? held : null;
   let shown = { label: whole, first: 0, head: name === "" ? "" : `${name}: ` };
+  /* What the ellipses turn to: see `pageAround`. Nothing where the line fits. */
+  let around: ((move: number) => number) | null = null;
   if (room !== null && context !== null) {
     context.font = room.font;
     const previous = page.current !== null && page.current.line === which ? page.current.first : null;
     /* Less what the frame round the move the board is on adds to it: see
        `.branch-path .move-current`. */
     const frame = 0.2 * parseFloat(room.font.match(/([\d.]+)px/)?.[1] ?? "16");
-    shown = pageLine(line, name, (text) => context.measureText(text).width, room.width - frame, at - 1, previous);
+    /* Measured as it is shown, the pieces drawn: see `figurine`. */
+    const measured = (text: string) => context.measureText(figurine(text)).width;
+    shown = pageLine(line, name, measured, room.width - frame, at - 1, previous, holding);
+    around = (move) => pageAround(line, name, measured, room.width - frame, move);
   }
   const first = shown.first;
+  /* How many moves the page shows: where the ellipsis after it picks up. */
+  const count = (figurine(shown.label).slice(shown.head.length).match(/\{[^}]*\}|\S+/g) ?? []).filter(
+    (piece) => !/^\d+\.(\.\.)?$/.test(piece) && !piece.startsWith("{") && piece !== "…"
+  ).length;
+  /* A page turned by an ellipsis, with the first move it left off in the middle. */
+  const turn = (move: number) => {
+    if (around !== null) {
+      setHeld({ line: which, at, first: around(move), showingCurrent: false });
+    }
+  };
   useLayoutEffect(() => {
     page.current = { line: which, first };
   });
@@ -113,13 +144,27 @@ export default function LinePath({ line, number, of, between, tints, at, marks }
   const style = {
     "--line-check": marks.check,
     "--line-mate": marks.mate,
+    "--line-piece-w": pieces.w,
+    "--line-piece-b": pieces.b,
     ...(tints.w === null ? {} : { "--move-white-c": tints.w.c, "--move-white-h": tints.w.h }),
     ...(tints.b === null ? {} : { "--move-black-c": tints.b.c, "--move-black-h": tints.b.h }),
   } as CSSProperties;
 
   return (
     <span ref={span} className="branch-path" title={whole} style={style}>
-      {coloured(shown.label, shown.head, tints, at - 1 - shown.first)}
+      {coloured(
+        figurine(shown.label),
+        shown.head,
+        tints,
+        at - 1 - shown.first,
+        (index) => {
+          /* The board to that move, the row held where it is: see `held`. */
+          setHeld({ line: which, at: shown.first + index + 1, first: shown.first, showingCurrent: true });
+          onPick?.(shown.first + index + 1);
+        },
+        () => turn(shown.first - 1),
+        () => turn(shown.first + count)
+      )}
     </span>
   );
 }
@@ -139,9 +184,26 @@ export default function LinePath({ line, number, of, between, tints, at, marks }
  * And the move the board has just played underlined: `current` is where it
  * stands among the moves the label shows, from 0, which `pageLine` keeps in
  * it. At the line's first position no move has been played, and it is below 0.
+ *
+ * A move pressed is `pick`ed; an ellipsis pressed turns the page — `back` the
+ * one before the moves shown, `on` the one after.
  */
-function coloured(label: string, head: string, tints: LinePathProps["tints"], current: number): ReactNode[] {
-  const parts: ReactNode[] = [head];
+function coloured(
+  label: string,
+  head: string,
+  tints: LinePathProps["tints"],
+  current: number,
+  pick: (index: number) => void,
+  back: () => void,
+  on: () => void
+): ReactNode[] {
+  const more = (key: string, title: string, turn: () => void) => (
+    <span key={key} className="line-more" title={title} onClick={turn}>
+      …
+    </span>
+  );
+  const parts: ReactNode[] =
+    head.endsWith("… ") ? [head.slice(0, -2), more("back", "Earlier moves", back), " "] : [head];
   let side: "w" | "b" = "w";
   const body = label.slice(head.length);
   const pieces = body.match(/\{[^}]*\}|\S+|\s+/g) ?? [];
@@ -155,16 +217,21 @@ function coloured(label: string, head: string, tints: LinePathProps["tints"], cu
           {piece}
         </span>
       );
-    } else if (/^\s+$/.test(piece) || piece.startsWith("{") || piece === "…") {
+    } else if (piece === "…") {
+      parts.push(more(`on-${index}`, "Later moves", on));
+    } else if (/^\s+$/.test(piece) || piece.startsWith("{")) {
       parts.push(piece);
     } else {
       const classes = [
+        "move-pick",
         tints[side] === null ? null : side === "w" ? "move-white" : "move-black",
         moveIndex === current ? "move-current" : null,
       ].filter((name) => name !== null);
+      /* Pressed, the board goes to where this move left it. */
+      const which = moveIndex;
       parts.push(
-        <span key={index} className={classes.length > 0 ? classes.join(" ") : undefined}>
-          {marked(piece)}
+        <span key={index} className={classes.join(" ")} onClick={() => pick(which)}>
+          {marked(piece, side)}
         </span>
       );
       side = side === "w" ? "b" : "w";
@@ -175,14 +242,17 @@ function coloured(label: string, head: string, tints: LinePathProps["tints"], cu
 }
 
 /**
- * A move with the signs in it set apart: the "x" of a capture in the page's
- * livery, as the move numbers are, and a "+" or a "#" at its end in the colour
- * the board marks a check or a mate in — so a capture, a check and a mate are
- * seen in the line without reading it.
+ * A move with the signs in it set apart: the piece, drawn — see `figurine` —
+ * in its side's colour, lightened; the "x" of a capture in the page's livery,
+ * as the move numbers are; and a "+" or a "#" at its end in the colour the
+ * board marks a check or a mate in — so who moved what, a capture, a check
+ * and a mate are seen in the line without reading it.
  */
-function marked(move: string): ReactNode[] {
-  return (move.match(/x|[+#]$|[^x+#]+|[+#]/g) ?? [move]).map((part, index) => {
-    const kind = part === "x" ? "move-capture" : part === "+" ? "move-check" : part === "#" ? "move-mate" : null;
+function marked(move: string, side: "w" | "b"): ReactNode[] {
+  return (move.match(/[♚♛♜♝♞]|x|[+#]$|[^x+#♚♛♜♝♞]+|[+#]/g) ?? [move]).map((part, index) => {
+    const kind = isPieceGlyph(part)
+      ? `move-piece move-piece-${side}`
+      : part === "x" ? "move-capture" : part === "+" ? "move-check" : part === "#" ? "move-mate" : null;
     return kind === null ? (
       part
     ) : (
