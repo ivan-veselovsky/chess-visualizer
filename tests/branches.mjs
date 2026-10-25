@@ -920,8 +920,11 @@ try {
     await load(${JSON.stringify(PGN)}); key("ArrowLeft", true); await sleep(900);
     const path = document.querySelector(".branch-path");
     return JSON.stringify({ text: lettered(path.textContent.replace(/\\s+/g, " ")), comment: path.querySelector(".move-comment")?.textContent ?? null });`));
+  /* As far as the row has room for: whether all of the line fits is the
+     fonts' to say, and a CI machine's draw it wider than this one's. */
   check("a comment in the line over the board is shown without its braces",
-    remark.text === "Line 1 of 3: 1. Rhg7 Nf7 case A 2. Rg8#" && remark.comment === "case A", JSON.stringify(remark));
+    remark.text.startsWith("Line 1 of 3: 1. Rhg7 Nf7 case A") && !/[{}]/.test(remark.text) && remark.comment === "case A",
+    JSON.stringify(remark));
 
   /* A game imported over a game unsaved asks first whether to stash it — the
      game imported a moment ago being unsaved itself, kept nowhere. */
