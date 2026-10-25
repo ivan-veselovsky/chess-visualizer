@@ -735,10 +735,19 @@ try {
     in its side's colour: "♜g7", not "Rg7".
   */
   const picked = JSON.parse(await page.run(`${HELPERS}${WHERE}
-    await load(${JSON.stringify(PGN)}); key("ArrowRight", true); await sleep(1200);
+    /* At the game's first position, where the row is sure to start at the
+       line's start: at the end of a line, how much of it the row shows is the
+       fonts' to say, and a CI machine's are not this one's. */
+    await load(${JSON.stringify(PGN)}); key("ArrowLeft", true); await sleep(1200);
     /* Over the board, wherever its row has put the line: by the counter, or in a row of its own. */
     const moves = () => [...document.querySelector(".branch-path").querySelectorAll(".move-pick")];
     const first = moves().find((move) => lettered(move.textContent).trim() === "Rhg7");
+    if (first === undefined) {
+      /* Say what the row did show, rather than stop on the move it did not. */
+      const row = document.querySelector(".branch-path");
+      return JSON.stringify({ drawn: { text: row?.textContent ?? "no row", side: row?.closest(".player-name")?.className ?? "",
+        colour: String(row?.getBoundingClientRect().width), number: getComputedStyle(row ?? document.body).font }, there: {}, started: {} });
+    }
     const glyph = first?.querySelector(".move-piece");
     const drawn = { text: first?.textContent ?? "", side: glyph?.className ?? "",
       colour: glyph ? getComputedStyle(glyph).color : "", number: getComputedStyle(first.parentElement).color };
