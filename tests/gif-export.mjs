@@ -58,7 +58,7 @@ const load = (pgn) =>
     const box = document.querySelector("#pgn-text");
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, ${JSON.stringify(pgn)});
     box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
-    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900); if (document.querySelector("dialog[open] .stash-prompt")) { [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(900); }
     return "ok";`);
 
 const lab = await open({ port: PORT, debugPort: DEBUG_PORT, window: "1400,950" });
@@ -283,6 +283,56 @@ try {
   check("and leaves the board on the line it was on, where it was",
     branched.atAfter === branched.atBefore && branched.lineAfter === branched.lineBefore,
     `${branched.atBefore} ${branched.lineBefore} -> ${branched.atAfter} ${branched.lineAfter}`);
+
+  /*
+    Started from the position on the board rather than the beginning: the
+    board on the second line, after 1... Ne8, the GIF goes on from there as
+    Play would — to that line's mate, back to the fork, and through the third
+    line — so its rests are the full GIF's from that point on, after the
+    initial delay. Its first frame is the position the board was on.
+  */
+  const fromHere = JSON.parse(await page.run(`${HELPERS}
+    window.__tab("Lab"); await sleep(300);
+    const lines = document.querySelector(".line-select");
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(lines, lines.options[1].value);
+    lines.dispatchEvent(new Event("change", { bubbles: true })); await sleep(900);
+    const on = () => document.querySelector(".moves-select").selectedOptions[0].textContent;
+    for (let i = 0; i < 6 && !on().includes("e8"); i += 1) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: /Ra8/.test(on()) || /a8/.test(on()) ? "ArrowLeft" : "ArrowRight", bubbles: true }));
+      await sleep(700);
+    }
+    document.querySelector("#tab-gif").click();
+    for (let i = 0; i < 40 && document.querySelector("#export-start") === null; i += 1) await sleep(100);
+    const start = document.querySelector("#export-start");
+    const offered = start.value;
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(start, "here");
+    start.dispatchEvent(new Event("change", { bubbles: true })); await sleep(300);
+    return JSON.stringify({ on: on(), offered, label: document.querySelector(".gif-size").textContent });`));
+  const partway = await exportOnce();
+  const partwayRests = partway.gif.frames.map((frame) => frame.delayMs).filter((delay) => delay !== STEP);
+  check("Start from offers the beginning first", fromHere.offered === "beginning", fromHere.offered);
+  check("started from the position on the board, it plays on from there through the lines after it",
+    fromHere.on.includes("e8") && JSON.stringify(partwayRests) === JSON.stringify([INITIAL, ...expected.slice(7)]),
+    `${fromHere.on}: ${partwayRests.join(",")} vs ${[INITIAL, ...expected.slice(7)].join(",")}`);
+  check("the label by the button counts what is left from there: this line and the one after it",
+    /, 2 lines$/.test(fromHere.label), fromHere.label);
+  check("and leaves the board where it was", partway.atAfter === partway.atBefore && partway.lineAfter === partway.lineBefore,
+    `${partway.atBefore} -> ${partway.atAfter}`);
+  /* From the last position of the last line there is nothing to play: the
+     reader is told so, and nothing is made. */
+  const nothing = JSON.parse(await page.run(`${HELPERS}
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", ctrlKey: true, bubbles: true })); await sleep(1500);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.includes("Export animated GIF")).click(); await sleep(400);
+    const dialog = document.querySelector("dialog[open]");
+    const said = { label: document.querySelector(".gif-size").textContent, question: dialog?.querySelector(".confirm-question")?.textContent ?? null, naming: document.querySelector("#gif-name") !== null && document.querySelector("dialog[open] #gif-name") !== null };
+    [...(dialog?.querySelectorAll("button") ?? [])].find((b) => b.textContent.trim() === "OK")?.click(); await sleep(300);
+    return JSON.stringify({ ...said, closed: document.querySelector("dialog[open]") === null });`));
+  check("and from the last position of the last line, it says there is nothing to record, and makes nothing",
+    nothing.question === "Nothing to record from here." && !nothing.naming && nothing.closed && /nothing to record from here$/.test(nothing.label),
+    JSON.stringify(nothing));
+  await page.run(`const start = document.querySelector("#export-start");
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(start, "beginning");
+    start.dispatchEvent(new Event("change", { bubbles: true })); await new Promise((r) => setTimeout(r, 300)); return "ok";`);
 
   /*
     A back step period shorter than the fade: the fade is fitted into it rather

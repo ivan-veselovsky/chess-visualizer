@@ -63,7 +63,7 @@ import {
   type PgnPlayers,
 } from "../chess/pgn";
 import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
-import { titleOfPgn } from "../chess/gameTitle";
+import { gameNameOfPgn, titleOfPgn } from "../chess/gameTitle";
 import {
   isStashed,
   nextStashName,
@@ -136,7 +136,7 @@ import RefreshIcon from "./RefreshIcon";
 import SavedGames from "./friend/SavedGames";
 import { describeEnding } from "./friend/ending";
 import { friendlyGameName } from "./friend/gameName";
-import PlayerName from "./friend/PlayerName";
+import PlayerName, { Flower } from "./friend/PlayerName";
 import { useFriendGame } from "./friend/useFriendGame";
 import type { Heatmap, Settings } from "./settings";
 import { OPPONENT_CHOOSES } from "../../worker/protocol";
@@ -257,7 +257,7 @@ const TABS: readonly Tab<PanelTab>[] = [
   // What the board is made into rather than how it is drawn, so it stands
   // apart from the settings, beside the gear; marked, like the gear, since the
   // strip has no room left for a word.
-  { id: "gif", label: <ClapperboardIcon />, name: "Animated GIF export" },
+  { id: "gif", label: <ClapperboardIcon />, name: "Animated Gif/MP4 export" },
   // Marked rather than named: it holds the settings themselves — the file they
   // are written to and read from — rather than any setting, and a gear says
   // that in the space a word would need.
@@ -849,6 +849,22 @@ export default function App() {
   const [title, setTitle] = useState<string | null>(() =>
     opening?.game == null ? null : titleOfPgn(opening.game.pgn)
   );
+  /*
+    And whether that title is the game's own name — the one its file gives it,
+    or the one it is stashed under — rather than only who played it: what a
+    file made of it is named after. See `suggestedFileName`.
+  */
+  const [ownName, setOwnName] = useState<string | null>(() =>
+    opening?.game == null ? null : gameNameOfPgn(opening.game.pgn)
+  );
+  /*
+    Whether the game on the board is kept nowhere: imported as a PGN, or opened
+    from a link — the text pasted from wherever it was, the link cleared from
+    the address once it was read. Unsaved from the first, then, as a game of the
+    reader's own is: see `unsaved`. A game from the library, the stash or a
+    game with a friend is kept where it came from; a game stashed is kept.
+  */
+  const [unkept, setUnkept] = useState(() => opening?.entries != null);
   /* What the board held when it was last stashed, as `boardSignature` writes
      it: see `unsaved`. */
   const [savedAs, setSavedAs] = useState<string | null>(null);
@@ -873,7 +889,27 @@ export default function App() {
     setLibraryGame(null);
     setStashName(null);
     setTitle(titleOfPgn(pgn));
+    setOwnName(gameNameOfPgn(pgn));
+    setUnkept(true);
     setSavedAs(null);
+    return null;
+  }
+
+  /**
+   * A game pasted into the import dialog. Read first, so that what is wrong
+   * with it is said in the dialog, as it always was; and then, where the board
+   * holds anything unsaved, the reader is asked whether to stash it before the
+   * game goes up — as for a game taken from the list — and either answer puts
+   * it up. See `askToStashThen`.
+   */
+  function importPgn(pgn: string): string | null {
+    const { entries, error } = parsePgn(pgn);
+    if (entries === null) {
+      return error;
+    }
+    askToStashThen(() => {
+      loadPgn(pgn);
+    });
     return null;
   }
 
@@ -885,6 +921,8 @@ export default function App() {
     const error = loadPgn(game.pgn);
     if (error === null) {
       setLibraryGame(game.id);
+      /* Read in as an imported game is, but kept: it is the library's. */
+      setUnkept(false);
       setTitle(game.label);
       /*
         And the board stops being anybody's game.
@@ -1058,6 +1096,8 @@ export default function App() {
     setLibraryGame(null);
     setStashName(null);
     setTitle(null);
+    setOwnName(null);
+    setUnkept(false);
     setSavedAs(null);
     /* The game as the game has it, and nothing tried on it here: a game that
        is over is made a game read in again, afresh, from what was just put
@@ -1102,6 +1142,8 @@ export default function App() {
        about it unsaved, and no longer the library's if it ever was. */
     setSavedAs(boardSignature());
     setTitle(name);
+    setOwnName(name);
+    setUnkept(false);
     setLibraryGame(null);
   }
 
@@ -1159,6 +1201,8 @@ export default function App() {
     setStashName(name);
     setLibraryGame(null);
     setTitle(name);
+    setOwnName(name);
+    setUnkept(false);
     setSavedAs(null);
   }
 
@@ -1204,6 +1248,8 @@ export default function App() {
     setLibraryGame(null);
     setStashName(null);
     setTitle(null);
+    setOwnName(null);
+    setUnkept(false);
     setSavedAs(null);
   }
 
@@ -1286,10 +1332,18 @@ export default function App() {
    * its place — what the asterisk after the title in the header says, and
    * what the reader is asked to stash first: one answer to both, so the two
    * cannot disagree. See `boardIsDirty`, less what has been stashed since,
-   * unchanged.
+   * unchanged — and a game kept nowhere, from the first: see `unkept`. A
+   * position and nothing else is never unsaved, whatever it came from.
    */
   function unsaved(): boolean {
-    return savedAs !== boardSignature() && boardIsDirty();
+    if (savedAs === boardSignature()) {
+      return false;
+    }
+    if (boardIsDirty()) {
+      return true;
+    }
+    const moves = history.entries.length > 1 || (read !== null && read.lines.some((line) => line.moves.length > 0));
+    return unkept && moves;
   }
 
   /**
@@ -1543,8 +1597,15 @@ export default function App() {
         ? game.lines
         : [soleLine(now.entries, here.moves)];
     };
+    /* Which of those the board is on, and how many of its moves are played. */
+    const standing = () => {
+      const { history: now, read: game } = latest.current;
+      const here = lineOf(now);
+      const index = game === null ? -1 : lineIndex(game.lines, here.initialFEN, here.moves);
+      return { line: Math.max(index, 0), depth: now.entries.length - 1 - now.current };
+    };
     return {
-      begin: () => {
+      begin: (from) => {
         const was = latest.current.history;
         const handedWas = handed.current;
         const first = linesNow()[0];
@@ -1552,9 +1613,13 @@ export default function App() {
           setPlaying(false);
           landingFade.current = null;
           setFadeWithin(null);
-          const start: PositionHistory = { entries: first.entries, current: first.entries.length - 1 };
-          handed.current = lineOf(start);
-          latest.current.showHistory(start);
+          /* From where the board is, it is left there; from the beginning,
+             it is taken to the first position of the first line. */
+          if (from === "beginning") {
+            const start: PositionHistory = { entries: first.entries, current: first.entries.length - 1 };
+            handed.current = lineOf(start);
+            latest.current.showHistory(start);
+          }
         });
         /* And back: the line the reader was on, where they were on it, and
            whatever the board thought of it as — theirs, or handed to it. */
@@ -1566,7 +1631,13 @@ export default function App() {
             latest.current.showHistory(was);
           });
       },
-      steps: () => walk(linesNow(), 0, 0),
+      steps: (from) => {
+        if (from === "beginning") {
+          return walk(linesNow(), 0, 0);
+        }
+        const { line, depth } = standing();
+        return walk(linesNow(), line, depth);
+      },
       forward: (restMs) => {
         flushSync(() => {
           landingFade.current = restMs;
@@ -3191,8 +3262,8 @@ export default function App() {
       className={[
         "app",
         atAGame ? "app-playing" : "",
-        /* The editor's rows over and under the board: see `.app-editing`. */
-        editor && !atAGame ? "app-editing" : "",
+        /* The rows over and under a board without names: see `.app-near-row`. */
+        !atAGame ? "app-near-row" : "",
         /* Two boards take the width the panel had, so the panel goes under
            them and the page grows a scroller. The shape of the page is
            decided here, in one class, rather than in each part of it. */
@@ -3328,10 +3399,15 @@ export default function App() {
                     </span>
                   ) : (
                     <>
-                      {/* Where a name would be, as there is none: which line of
-                          the game is up, from where the first file begins, and as
-                          far along the row as how it comes out. */}
-                      <span className="player-who">{branchLabel(false)}</span>
+                      {/* Where a name would be, as there is none: the far
+                          side's flower, as a name has, so whose move it is
+                          shows on any board; then which line of the game is
+                          up, from where the first file begins, and as far
+                          along the row as how it comes out. */}
+                      <span className="player-who">
+                        <Flower color={farSide} open={shown?.turn() === farSide} turn={shown?.turn() ?? null} />
+                        {branchLabel(false)}
+                      </span>
                       <span className="player-result">
                         {unnamedResult !== null && <span className="player-score">{scoreOf(unnamedResult)}</span>}
                       </span>
@@ -3347,6 +3423,7 @@ export default function App() {
                   color={farSide}
                   mine={named?.mine === farSide}
                   toMove={atAGame && shown?.turn() === farSide}
+                  turn={atAGame ? (shown?.turn() ?? null) : null}
                   lined={named !== null && friend.phase.kind !== "waiting" && branch !== null}
                   result={
                     named === null ? null : friend.phase.kind === "playing" && friend.phase.over === null ? (
@@ -3529,12 +3606,17 @@ export default function App() {
                   />
                 )}
               </div>
-              {/* In the editor, the near side's flower, under the board where a
-                  name would be: see the row over it. */}
-              {!atAGame && editor && (
-                <p className="player-name board-editor-near">
+              {/* On a board without names, the near side's flower, under the
+                  board where a name would be: see the row over it. In the
+                  editor, one that is pressed to give the move away. */}
+              {!atAGame && (
+                <p className={`player-name board-near${editor ? " board-editor-near" : ""}`}>
                   <span className="player-who">
-                    <EditorTurn color={nearSide} turn={turnOf(editedFen)} onTurn={() => editTo(withTurn(editedFen))} />
+                    {editor ? (
+                      <EditorTurn color={nearSide} turn={turnOf(editedFen)} onTurn={() => editTo(withTurn(editedFen))} />
+                    ) : (
+                      <Flower color={nearSide} open={shown?.turn() === nearSide} turn={shown?.turn() ?? null} />
+                    )}
                   </span>
                 </p>
               )}
@@ -3545,6 +3627,7 @@ export default function App() {
                   color={nearSide}
                   mine={named?.mine === nearSide}
                   toMove={atAGame && shown?.turn() === nearSide}
+                  turn={atAGame ? (shown?.turn() ?? null) : null}
                 />
               )}
             </div>
@@ -4415,11 +4498,13 @@ export default function App() {
                 lineEndHoldMs={settings.lab.playLineEndHoldSec * 1000}
                 players={named === null ? null : { white: named.names.w, black: named.names.b }}
                 keptAs={stashName}
+                gameName={ownName}
                 twoBoards={twoBoard}
                 positions={history.entries.length}
                 branches={readGame === null ? 1 : readGame.lines.length}
                 look={gifLook}
                 game={readGame !== null ? readGame.pgn : `${here.initialFEN} ${here.moves.join(" ")}`}
+                at={`${onLine} ${history.current}`}
                 onExporting={(on) => {
                   exportingRef.current = on;
                   setExporting(on);
@@ -4661,7 +4746,7 @@ export default function App() {
 
       <PgnDialog
         open={pgnOpen}
-        onSubmit={loadPgn}
+        onSubmit={importPgn}
         onClose={() => setPgnOpen(false)}
       />
 

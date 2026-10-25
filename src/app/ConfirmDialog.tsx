@@ -6,11 +6,11 @@ interface ConfirmDialogProps {
   question: string;
   /** More about it, when a sentence is not enough. */
   detail?: string;
-  /** What agreeing is called. */
-  confirmLabel: string;
-  /** What declining is called. */
+  /** What agreeing is called — or nothing, for a notice with only the one way out. */
+  confirmLabel?: string;
+  /** What declining is called: the notice's way out, where there is nothing to agree to. */
   dismissLabel: string;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   onClose: () => void;
 }
 
@@ -52,16 +52,18 @@ export default function ConfirmDialog({
         <button type="button" className="reset-button" onClick={onClose}>
           {dismissLabel}
         </button>
-        <button
-          type="button"
-          className="reset-button"
-          onClick={() => {
-            onConfirm();
-            onClose();
-          }}
-        >
-          {confirmLabel}
-        </button>
+        {confirmLabel !== undefined && (
+          <button
+            type="button"
+            className="reset-button"
+            onClick={() => {
+              onConfirm?.();
+              onClose();
+            }}
+          >
+            {confirmLabel}
+          </button>
+        )}
       </div>
     </dialog>
   );

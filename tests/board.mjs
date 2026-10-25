@@ -222,7 +222,9 @@ try {
      running, once the board has settled. */
   const after = await page.run(`
     return { going: document.querySelectorAll(".mark-going").length,
-             running: document.getAnimations().length,
+             /* All but the flower of the side to move, which turns for as
+                long as it is that side's move. */
+             running: document.getAnimations().filter((a) => !a.effect?.target?.closest?.(".player-color")).length,
              marks: document.querySelectorAll("[class*=attack-side]").length,
              men: document.querySelectorAll(".piece-layer .piece").length };`);
   check(
@@ -370,7 +372,7 @@ try {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box,
       '1. Nf3 Nf6 *\\n');
     box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
-    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900); if (document.querySelector("dialog[open] .stash-prompt")) { [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(900); }
     /* At the last position, where a move plays on rather than starting a line. */
     const moves = document.querySelector(".moves-select");
     Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(moves, "0");
@@ -613,7 +615,7 @@ try {
     const box = document.querySelector("#pgn-text");
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, "1. e4 e5 2. Nf3 *");
     box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
-    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900); if (document.querySelector("dialog[open] .stash-prompt")) { [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(900); }
     return "ok";`);
   /* Onto the import button by the keyboard, as a reader working by keys would be. */
   await press("Tab", "Tab", 9);
@@ -866,26 +868,36 @@ try {
     const box = document.querySelector("#pgn-text");
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, ${JSON.stringify(POSITION_PGN)});
     box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
-    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900); if (document.querySelector("dialog[open] .stash-prompt")) { [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(900); }
     return JSON.stringify({ fen: document.querySelector("#fen").value, open: document.querySelector("dialog[open]") !== null });`));
   check("which reads back in as that position",
     importedBack.fen === "8/8/8/8/8/2k5/8/4K3 b - - 0 1" && !importedBack.open, JSON.stringify(importedBack));
 
-  /* A game on the board as it came: opened on its position without a word. */
+  /*
+    A game on the board as it came from somewhere that keeps it — the library
+    — opened on its position without a word. (A game imported is kept nowhere,
+    and is asked about from the first: see the branch tests.)
+  */
+  const pickLibrary = `
+    const list = document.querySelector("#stashed-game");
+    const opera = [...list.options].find((option) => option.textContent.includes("Opera Game"));
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(list, opera.value);
+    list.dispatchEvent(new Event("change", { bubbles: true })); await sleep(1200);`;
   const loadGame = `
     [...document.querySelectorAll("button")].find((b) => /import game/i.test(b.textContent)).click(); await sleep(400);
     const box = document.querySelector("#pgn-text");
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, "1. e4 e5 *");
     box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
-    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);`;
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900); if (document.querySelector("dialog[open] .stash-prompt")) { [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(900); }`;
   const untouched = JSON.parse(await page.run(`${HELPERS}
-    ${loadGame}
+    ${pickLibrary}
+    const shown = document.querySelector("#fen").value.split(" ").slice(0, 2).join(" ");
     ${openEditorButton}
-    const result = { asked: document.querySelector("dialog[open]") !== null, fen: document.querySelector("#fen").value, palette: document.querySelector(".board-editor-palette") !== null };
+    const result = { asked: document.querySelector("dialog[open]") !== null, fen: document.querySelector("#fen").value, palette: document.querySelector(".board-editor-palette") !== null, shown };
     document.querySelector(".editor-button").click(); await sleep(600);
     return JSON.stringify(result);`));
   check("a game on the board as it came opens the editor on its position without asking",
-    !untouched.asked && untouched.palette && untouched.fen === "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w - - 0 1",
+    !untouched.asked && untouched.palette && untouched.fen.startsWith(untouched.shown),
     JSON.stringify(untouched));
 
   /* One with a move of the reader's own in it: asked first, and opened either way. */

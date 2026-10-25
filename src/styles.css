@@ -144,7 +144,19 @@ body {
     at nothing, the board kept that height and the page ran a scroller's worth
     past the bottom of the window, for some twenty pixels nobody needed.
   */
-  --player-names: 1.6rem;
+  --player-names: calc(1.6rem + var(--top-row-extra));
+  /*
+    The row over the board — the line of moves, how it came out, the counter,
+    or the far player's name — set larger than the rest of the rows' type, as
+    the thing read most: see `.board-and-players > .player-name:first-child`.
+    And what that takes from the board's height, over a row in the rows' own
+    type: its line, and the part of its margins written in ems.
+  */
+  --top-row-scale: 1.2;
+  --top-row-extra: calc((var(--top-row-scale) - 1) * (1.32 + 0.5) * 0.95rem);
+  /* The name under the board, in a game with names, at the same size: its line
+     the extra it takes, its margins being in rems. */
+  --bottom-row-extra: calc((var(--top-row-scale) - 1) * 1.32 * 0.95rem);
   /*
     What the page keeps for itself around the board, whatever else is on.
 
@@ -153,8 +165,13 @@ body {
     not wrap at — which is all of them, it being one line of a title and two
     links. Six rems is that with a few pixels in hand. It was a rem more, and
     the board gave up a line of squares for space nothing was using.
+
+    Five of them, now, and the padding below the board on top — that last
+    written apart, as `--page-bottom`, to be tried at different heights: at
+    nothing, the board takes the room down to the window's edge.
   */
-  --page-reserve: 6rem;
+  --page-bottom: 0rem;
+  --page-reserve: calc(5rem + var(--page-bottom));
   --board-reserve: calc(var(--page-reserve) + var(--player-names));
   --board-cap: calc((100vh - var(--board-reserve)) * var(--board-zoom));
   /* Excludes mobile browser chrome; ignored where unsupported. */
@@ -188,8 +205,8 @@ body {
   max-width: calc(var(--board-cap) + var(--page-bars) + 1rem + var(--panel-room) + 1.5rem);
   margin: 0 auto;
   /* Less under the board than above the header: the board is the page, and a
-     wide margin below it is a wide margin below nothing. */
-  padding: 1.5rem 0.75rem 1rem;
+     wide margin below it is a wide margin below nothing. See `--page-bottom`. */
+  padding: 1.5rem 0.75rem var(--page-bottom);
 }
 
 .app-header {
@@ -209,6 +226,9 @@ body {
 .header-game {
   display: flex;
   align-items: baseline;
+  /* On the app's name's baseline, though it is the smaller type: the row
+     centres its items, which set the two a pixel apart. See `.app-header h1`. */
+  align-self: baseline;
   min-width: 0;
   margin: 0 0 0 1rem;
   font-size: 1.35rem;
@@ -222,11 +242,34 @@ body {
   white-space: nowrap;
 }
 
-/* The asterisk of a game with something unsaved: the tooltip on it says so. */
+/* The asterisk of a game with something unsaved: the tooltip on it says so.
+   High as a superscript is, larger than the name, and in the title's own
+   livery, so it reads as a mark on the name rather than as a letter of it. */
 .header-game-unsaved {
   flex: 0 0 auto;
-  margin-left: 0.3em;
+  /* Not raised any further: an asterisk is drawn high in its line already,
+     and at this size that is high enough to read as a superscript. */
+  margin-left: 0.15em;
+  font-size: 1.3em;
+  color: var(--livery);
   cursor: help;
+}
+
+/*
+  The app's name and the links keep their size and their one line: the game's
+  title between them is what gives way, cut short with an ellipsis. Left to
+  the row, a long title squeezed them instead, and the name and the links each
+  went onto two lines — which made the header taller and moved the board down.
+*/
+.app-header h1,
+.header-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* The name and the game's title on one baseline: see `.header-game`. */
+.app-header h1 {
+  align-self: baseline;
 }
 
 /* The links beside the title: plain text until pointed at. */
@@ -320,18 +363,42 @@ body {
     measured against space the names are already sitting in and the page grows
     a scrollbar.
   */
-  --player-names: 4rem;
+  --player-names: calc(4rem + var(--top-row-extra) + var(--bottom-row-extra));
 }
 
 /*
-  The board editor has a row under the board as well as the one over it: the
-  near side's flower, as a name stands there in a game. What it takes is the
-  row's line of type and its margins, on top of the row over the board — so
-  the board gives up that much on going into the editor, rather than the page
-  growing a scrollbar.
+  A board without names has a row under it as well as the one over it: the
+  near side's flower, as a name stands there in a game — and in the editor,
+  the one pressed to give the move away. What it takes is the row's line of
+  type and its margins, on top of the row over the board — so the board gives
+  up that much, rather than the page growing a scrollbar.
 */
-.app-editing {
-  --player-names: calc(1.6rem + 1.32 * 0.95rem + 0.5rem);
+.app-near-row {
+  --player-names: calc(1.6rem + var(--top-row-extra) + 1.32 * 0.95rem + 0.5rem - var(--near-row-lift));
+  /* How far that row is drawn up into the strip of file letters: see
+     `.board-near`. */
+  --near-row-lift: 15px;
+}
+
+/*
+  That row drawn up into the strip of file letters under the board, by
+  `--near-row-lift`:
+  a flower and nothing else, at the board's left edge where no letter is, it
+  sits closer to the board it is the side of without touching anything — and
+  the board has that much more height. The rows of a game with names keep
+  their place, being names.
+*/
+.board-and-players > .player-name.board-near {
+  margin-top: calc(0.25rem - var(--near-row-lift));
+  /*
+    And over the board, where it lies over it: the board is positioned, and
+    is drawn above what is not, so the strip of file letters — the board's own
+    box — covered the flower drawn up into it. Seen through it, but under it
+    to the pointer: the flower's tooltip never came. The row is a flower at the
+    strip's empty end, over nothing that is pressed.
+  */
+  position: relative;
+  z-index: 1;
 }
 
 /* Board on the left, everything else stacked on the right. */
@@ -3528,15 +3595,15 @@ input[type="color"]::-moz-color-swatch {
    In the page's own text colour, whole: a quieter grey left it hard to read
    beside the men on the dark page. */
 /*
-  How far one army is ahead, at the inner end of its men: the size of the
-  counts, but upright — a total, read on its own rather than along the row.
-  "+21" that large is a little wider than the bar, and is let past its edges,
-  centred, into the air beside it rather than squeezed.
+  How far one army is ahead, at the inner end of its men: upright — a total,
+  read on its own rather than along the row — and four fifths the size of the
+  counts, so that "+12" is about as wide as the bar. Anything wider is let past
+  its edges, centred, into the air beside it rather than squeezed.
 */
 .men-bar-lead {
   flex: 0 0 auto;
   margin: 0;
-  font-size: var(--men-bar-number);
+  font-size: calc(0.8 * var(--men-bar-number));
   line-height: 1;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -5076,6 +5143,16 @@ input[type="color"]::-moz-color-swatch {
   text-underline-offset: 2px;
 }
 
+/* The line's first number, pressed, takes the board to its first position. */
+.branch-path .move-start {
+  cursor: pointer;
+}
+
+.branch-path .move-start:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* An ellipsis, where the line is left off, pressed, turns the row to the
    moves it stands for: in the livery the move numbers are in, so it reads as
    something to press rather than as punctuation, and lit up under the pointer. */
@@ -5198,6 +5275,23 @@ input[type="color"]::-moz-color-swatch {
   */
   padding-right: var(--men-bars-extent);
   font-size: 0.95rem;
+}
+
+/*
+  The row over the board, larger by `--top-row-scale`: the line of moves, the
+  pieces drawn in it and the frame round the move the board is on, the result
+  and the counter all in ems of it, and so all of them larger together, and
+  the row's height with them.
+*/
+.board-and-players > .player-name:first-child {
+  font-size: calc(var(--top-row-scale) * 0.95rem);
+}
+
+/* And the near player's name under the board, the same size as the far one's
+   over it. Not the row under a board without names, which holds a flower and
+   nothing to read. */
+.board-and-players > .player-name:last-child:not(.board-near) {
+  font-size: calc(var(--top-row-scale) * 0.95rem);
 }
 
 /* The lower name is under the coordinates, and takes the plain gap. */
@@ -5357,6 +5451,11 @@ input[type="color"]::-moz-color-swatch {
      within a hair of the first letter of the name. */
   margin-right: 0.35rem;
   overflow: visible;
+}
+
+/* What says whose move it is round a flower: there for its tooltip alone. */
+.player-color-tip {
+  display: contents;
 }
 
 .player-disc {

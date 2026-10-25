@@ -31,6 +31,27 @@ export function asFileName(typed: string, extension: string): string {
   return safe === "" ? "" : `${safe}.${extension}`;
 }
 
+/**
+ * A game's name made into a file name the way a page's address is made from
+ * its title: "Mate in 2, task #52" is `mate-in-2-task-52`. Lower case, accents
+ * taken off their letters, an apostrophe dropped rather than made a break —
+ * "Kasparov's Immortal" is `kasparovs-immortal` — and every other run of what
+ * is neither a letter nor a figure, in any script, one dash. Nothing, where
+ * that leaves nothing.
+ */
+export function slugFileName(name: string, extension: string): string {
+  const slug = name
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .replace(/['\u2019]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120)
+    .replace(/-+$/, "");
+  return slug === "" ? "" : `${slug}.${extension}`;
+}
+
 /** A name as typed, made into a file name: safe, and ending in `.gif` once. */
 export const asGifName = (typed: string): string => asFileName(typed, "gif");
 
@@ -47,18 +68,29 @@ const unnamed = (name: string, colour: string) =>
  * The name offered for a file made of what is on the board — a GIF or a video,
  * which `extension` says.
  *
- * Who played it, where the board says so — "Krylov - Arslanov.gif" — which is
- * what somebody would look for it by. A board that names nobody — its rows say
- * White and Black — is a position rather than a game: "White - Black.gif" says
- * nothing a reader could find it by, so it goes by the name it is kept under,
- * if it has one, and otherwise by the app and the day.
+ * The game's own name, where it has one — the name its file gives it, or the
+ * one it is stashed under, as the page's title says it — made a file name as
+ * a page's address is: "Mate in 2, task #52" is `mate-in-2-task-52.gif`. See
+ * `slugFileName`. Otherwise who played it, where the board says so —
+ * "Krylov - Arslanov.gif" — which is what somebody would look for it by. A
+ * board that names nobody — its rows say White and Black — is a position
+ * rather than a game: "White - Black.gif" says nothing a reader could find it
+ * by, so it goes by the name it is kept under, if it has one, and otherwise by
+ * the app and the day.
  */
 export function suggestedFileName(
   players: { white: string; black: string } | null,
   keptAs: string | null,
   extension: string,
-  today: Date = new Date()
+  today: Date = new Date(),
+  gameName: string | null = null
 ): string {
+  if (gameName !== null) {
+    const slug = slugFileName(gameName, extension);
+    if (slug !== "") {
+      return slug;
+    }
+  }
   /* Asked of the whole name, not the surname: "White, John" is somebody. */
   if (players !== null && !unnamed(players.white, "White") && !unnamed(players.black, "Black")) {
     const named = asFileName(`${surnameOf(players.white)} - ${surnameOf(players.black)}`, extension);

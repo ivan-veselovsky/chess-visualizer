@@ -77,7 +77,7 @@ const SETUP = `${HELPERS}
   const box = document.querySelector("#pgn-text");
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, ${JSON.stringify(PGN)});
   box.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
-  [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+  [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900); if (document.querySelector("dialog[open] .stash-prompt")) { [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(900); }
   return "ok";`;
 
 /**

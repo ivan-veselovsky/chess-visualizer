@@ -1,0 +1,7 @@
+[Event "Mate in 2, task #5"]
+[Result "1-0"]
+[SetUp "1"]
+[FEN "6q1/3p4/4np2/2P1k2K/8/3PP3/8/1B3R2 w - - 0 1"]
+
+1. Rf5+ Kxf5 2. d4# 1-0
+

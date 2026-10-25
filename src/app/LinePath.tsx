@@ -163,7 +163,15 @@ export default function LinePath({ line, number, of, between, tints, at, marks, 
           onPick?.(shown.first + index + 1);
         },
         () => turn(shown.first - 1),
-        () => turn(shown.first + count)
+        () => turn(shown.first + count),
+        /* The line's first number, where the page starts the line: the
+           board to the line's first position, the row held as for a move. */
+        shown.first === 0
+          ? () => {
+              setHeld({ line: which, at: 0, first: shown.first, showingCurrent: true });
+              onPick?.(0);
+            }
+          : null
       )}
     </span>
   );
@@ -186,7 +194,10 @@ export default function LinePath({ line, number, of, between, tints, at, marks, 
  * it. At the line's first position no move has been played, and it is below 0.
  *
  * A move pressed is `pick`ed; an ellipsis pressed turns the page — `back` the
- * one before the moves shown, `on` the one after.
+ * one before the moves shown, `on` the one after. And where the label starts
+ * the line, its first number — "1.", or "1..." for a line Black begins —
+ * pressed is `start`: the board to the line's first position, before any of
+ * its moves, which is where a task is set.
  */
 function coloured(
   label: string,
@@ -195,7 +206,8 @@ function coloured(
   current: number,
   pick: (index: number) => void,
   back: () => void,
-  on: () => void
+  on: () => void,
+  start: (() => void) | null
 ): ReactNode[] {
   const more = (key: string, title: string, turn: () => void) => (
     <span key={key} className="line-more" title={title} onClick={turn}>
@@ -212,10 +224,17 @@ function coloured(
     const number = /^(\d+)\.(\.\.)?$/.exec(piece);
     if (number !== null) {
       side = number[2] === undefined ? "w" : "b";
+      const first = start !== null && moveIndex === 0;
       parts.push(
-        <span key={index} className="move-number">
-          {piece}
-        </span>
+        first ? (
+          <span key={index} className="move-number move-start" title="The first position" onClick={start}>
+            {piece}
+          </span>
+        ) : (
+          <span key={index} className="move-number">
+            {piece}
+          </span>
+        )
       );
     } else if (piece === "…") {
       parts.push(more(`on-${index}`, "Later moves", on));

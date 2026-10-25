@@ -89,7 +89,7 @@ const WHERE = `
     const text = document.querySelector("#pgn-text");
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(text, pgn);
     text.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
-    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(900); if (document.querySelector("dialog[open] .stash-prompt")) { [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash").click(); await sleep(900); }
   };
   const box = (selector, index = 0) => {
     const found = document.querySelectorAll(selector)[index];
@@ -432,9 +432,10 @@ try {
   */
   const NAMELESS = PGN.replace(/\[(White|Black) "[^"]*"\]\n/g, "");
   const rows = `({
-    named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
+    named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter):not(.board-near)").length,
     row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => lettered(c.textContent.replace(/\\s+/g, " "))),
     branch: box(".board-counter .branch-path"),
+    flower: box(".board-counter .player-color"),
     board: box(".board-holder > svg"),
   })`;
   const at = (square) => page.run(`${HELPERS} return window.__sq("${square}");`);
@@ -466,9 +467,10 @@ try {
     nameless.row.length === 3 && /^Line 1 of 3: /.test(nameless.row[0]) && nameless.row[1] === "1 : 0" &&
       nameless.row[2] === "half-move 3 of 3",
     JSON.stringify(nameless.row));
-  check("the line's name beginning where the first file does",
-    nameless.branch !== null && Math.abs(nameless.branch.left - noNamesFirstFile) < 2,
-    `${nameless.branch?.left} vs ${noNamesFirstFile}`);
+  check("the far side's flower where the first file begins, as a name's is, and the line's name after it",
+    nameless.flower !== null && nameless.branch !== null && Math.abs(nameless.flower.left - noNamesFirstFile) < 2 &&
+      nameless.branch.left > nameless.flower.right,
+    `${nameless.flower?.left} vs ${noNamesFirstFile}; line at ${nameless.branch?.left}`);
   check("and the board a row's height bigger than a game with names has",
     nameless.board.height > withNames.board.height + 5, `${nameless.board.height} vs ${withNames.board.height}`);
   /* A move of one's own on it, from the position before the mate — with
@@ -523,7 +525,7 @@ try {
       row: [...(document.querySelector(".board-counter")?.children ?? [])].map((c) => lettered(c.textContent.replace(/\\s+/g, " "))),
       branches: [...(document.querySelector("#branch")?.options ?? [])].map((o) => o.title),
       moves: [...document.querySelector(".moves-select").options].map((o) => lettered(o.textContent.replace(/\\s+/g, " ").trim())),
-      named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter)").length,
+      named: document.querySelectorAll(".board-and-players > .player-name:not(.board-counter):not(.board-near)").length,
     });
     const exported = async () => {
       [...document.querySelectorAll("button")].find((b) => /Export game \\(PGN\\)/.test(b.textContent)).click(); await sleep(500);
@@ -744,10 +746,20 @@ try {
     const flying = document.querySelector(".flight-layer") !== null;
     await sleep(400);
     const there = { fen: document.querySelector("#fen").value, where: where(), flying };
-    return JSON.stringify({ drawn, there });`));
+    /* And the line's first number, pressed: the board to its first position. */
+    const startNumber = document.querySelector(".branch-path .move-start");
+    startNumber?.click(); await sleep(500);
+    const started = { had: startNumber?.textContent ?? null, fen: document.querySelector("#fen").value, where: where(),
+      said: [...document.querySelectorAll(".board-and-players .player-color-tip")].map((tip) => tip.title) };
+    return JSON.stringify({ drawn, there, started });`));
   check("the pieces in the line over the board are drawn, in their side's colour",
     picked.drawn.text === "♜hg7" && /move-piece-w/.test(picked.drawn.side) && picked.drawn.colour !== picked.drawn.number,
     JSON.stringify(picked.drawn));
+  check("the line's first number pressed puts the board on the line's first position",
+    picked.started.had === "1." && picked.started.fen === "3k4/R6R/3n4/8/8/8/8/K7 w - - 0 1" && picked.started.where[0] === "start",
+    JSON.stringify(picked.started));
+  check("both flowers say whose move it is, on hovering either",
+    picked.started.said.length === 2 && picked.started.said.every((said) => said === "White to move"), JSON.stringify(picked.started.said));
   check("and a move pressed there puts the board on the position after it, at once",
     picked.there.fen === "3k4/R5R1/3n4/8/8/8/8/K7 b - - 1 1" && picked.there.where[0] === "1. Rhg7" && !picked.there.flying,
     JSON.stringify(picked.there));
@@ -813,22 +825,29 @@ try {
     const pick = (value) => { const list = document.querySelector("#stashed-game");
       Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(list, value);
       list.dispatchEvent(new Event("change", { bubbles: true })); };
+    /* The board holds a game imported a moment ago, which is kept nowhere:
+       unsaved from the first. A position typed in has nothing to lose. */
+    const imported = state();
+    __set("#fen", "4k3/8/8/8/8/8/8/4K3 w - - 0 1"); await sleep(700);
+    const typed = state();
     const library = [...document.querySelectorAll('#stashed-game optgroup[label="Library"] option')];
     const listed = { count: library.length, locked: library.every((option) => option.textContent.startsWith("\u{1F512}")),
-      named: library.map((option) => option.textContent).find((text) => text.includes("Kieseritzky")) ?? "" };
-    const immortal = library.find((option) => option.textContent.includes("Kieseritzky")).value;
-    const morphy = library.find((option) => option.textContent.includes("Morphy")).value;
+      named: library.map((option) => option.textContent).find((text) => text.includes("Immortal Game")) ?? "" };
+    const immortal = library.find((option) => option.textContent.includes("The Immortal Game")).value;
+    const morphy = library.find((option) => option.textContent.includes("Opera Game")).value;
     pick(immortal); await sleep(1200);
     const read = state();
     key("ArrowLeft", true); await sleep(1200);
     const stepped = state();
     const d2 = __sq("d2"), d4 = __sq("d4");
-    return JSON.stringify({ listed, read, stepped, d2, d4, morphy });`));
+    return JSON.stringify({ listed, read, stepped, d2, d4, morphy, imported, typed });`));
+  check("an imported game, kept nowhere, is unsaved from the first; a position typed in is not",
+    shelf.imported.star && !shelf.typed.star, JSON.stringify({ imported: shelf.imported, typed: shelf.typed }));
   check("the library's games are in the list of stashed games, in a group of their own, each with a lock",
-    shelf.listed.count === 10 && shelf.listed.locked && shelf.listed.named.endsWith("Adolf Anderssen \u2013 Lionel Kieseritzky (1851)"),
+    shelf.listed.count === 10 && shelf.listed.locked && shelf.listed.named.endsWith("The Immortal Game (1851)"),
     JSON.stringify(shelf.listed));
-  check("one taken up is named over the page by who played it, nothing unsaved, and is not to be stashed over",
-    shelf.read.title === "Adolf Anderssen \u2013 Lionel Kieseritzky (1851)" && !shelf.read.star && shelf.read.list.startsWith("library:") && shelf.read.stash,
+  check("one taken up is named over the page by the game's own name, nothing unsaved, and is not to be stashed over",
+    shelf.read.title === "The Immortal Game (1851)" && !shelf.read.star && shelf.read.list.startsWith("library:") && shelf.read.stash,
     JSON.stringify(shelf.read));
   check("and stays so, read back to its start", JSON.stringify(shelf.stepped) === JSON.stringify(shelf.read), JSON.stringify(shelf.stepped));
   await page.click(shelf.d2.cx, shelf.d2.cy); await pause(300);
@@ -856,7 +875,7 @@ try {
     theirs.played.title === shelf.read.title && theirs.played.star && theirs.played.list === "", JSON.stringify(theirs.played));
   check("and another game taken from the list asks first whether to stash it, offering its title as the name",
     theirs.asked.asked === "Stash current game?" && theirs.offered === shelf.read.title, JSON.stringify({ ...theirs.asked, offered: theirs.offered }));
-  check("stashed, the other game goes up, untouched", theirs.moved.title?.startsWith("Paul Morphy") && !theirs.moved.star && theirs.moved.asked === null,
+  check("stashed, the other game goes up, untouched", theirs.moved.title === "The Opera Game (1858)" && !theirs.moved.star && theirs.moved.asked === null,
     JSON.stringify(theirs.moved));
   check("and the stashed one comes back under its own name, nothing unsaved",
     theirs.back.title === "My immortal" && !theirs.back.star && theirs.back.list === "My immortal", JSON.stringify(theirs.back));
@@ -894,6 +913,22 @@ try {
     return JSON.stringify({ text: lettered(path.textContent.replace(/\\s+/g, " ")), comment: path.querySelector(".move-comment")?.textContent ?? null });`));
   check("a comment in the line over the board is shown without its braces",
     remark.text === "Line 1 of 3: 1. Rhg7 Nf7 case A 2. Rg8#" && remark.comment === "case A", JSON.stringify(remark));
+
+  /* A game imported over a game unsaved asks first whether to stash it — the
+     game imported a moment ago being unsaved itself, kept nowhere. */
+  const importedOver = JSON.parse(await page.run(`${HELPERS}${WHERE}
+    await load(${JSON.stringify(PGN)});
+    [...document.querySelectorAll("button")].find((b) => /import game/i.test(b.textContent)).click(); await sleep(400);
+    const text = document.querySelector("#pgn-text");
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(text, ${JSON.stringify(TWO_WAYS)});
+    text.dispatchEvent(new Event("input", { bubbles: true })); await sleep(200);
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Load").click(); await sleep(600);
+    const asked = document.querySelector("dialog[open] .stash-prompt")?.textContent ?? null;
+    const before = document.querySelector("#fen").value;
+    [...document.querySelectorAll("dialog[open] button")].find((b) => b.textContent.trim() === "Don't stash")?.click(); await sleep(1000);
+    return JSON.stringify({ asked, changedOnlyAfter: before !== document.querySelector("#fen").value });`));
+  check("a game imported over an unsaved one asks first whether to stash it, and goes up either way",
+    importedOver.asked === "Stash current game?" && importedOver.changedOnlyAfter, JSON.stringify(importedOver));
 } catch (error) {
   check("the branch tests could not run", false, error.message);
 }

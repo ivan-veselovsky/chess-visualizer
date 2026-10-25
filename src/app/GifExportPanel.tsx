@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import ConfirmDialog from "./ConfirmDialog";
 import GifNameDialog from "./GifNameDialog";
 import SectionRule from "./SectionRule";
 import SelectField from "./SelectField";
@@ -9,6 +10,7 @@ import {
   type GifDriver,
   type GifEstimate,
   type GifPlan,
+  type GifStart,
   type GifProgress,
 } from "./gif/capture";
 import { suggestedFileName } from "./gif/fileName";
@@ -59,6 +61,8 @@ interface GifExportPanelProps {
   players: { white: string; black: string } | null;
   /** The name the game is kept under, if it is kept under one. */
   keptAs: string | null;
+  /** The game's own name, where it has one: what the file is named after first. */
+  gameName: string | null;
   twoBoards: boolean;
   /** How many positions the line on the board has. */
   positions: number;
@@ -71,6 +75,8 @@ interface GifExportPanelProps {
   look: unknown;
   /** Which game is on the board, as a string that changes when the game does. */
   game: string;
+  /** Where on it the board stands, as a string that changes when that does. */
+  at: string;
   /** Said when an export starts and ends, so the app can keep hands off the board. */
   onExporting: (on: boolean) => void;
 }
@@ -147,13 +153,27 @@ export default function GifExportPanel({
   lineEndHoldMs,
   players,
   keptAs,
+  gameName,
   twoBoards,
   positions,
   branches,
   look,
   game,
+  at,
   onExporting,
 }: GifExportPanelProps) {
+  /* Where the GIF starts: the beginning, unless the reader says otherwise —
+     each time the app is opened, rather than kept with the other options. */
+  const [from, setFrom] = useState<GifStart>("beginning");
+  /*
+    Whether the reader is being told there is nothing to record: started from
+    the position on the board, with the board at the end of the game's last
+    line, there is no move after it to play. Asked as the export or the
+    estimate is asked for, rather than kept up to date, the walk being the
+    driver's to work out.
+  */
+  const [nothingAfter, setNothingAfter] = useState(false);
+  const nothingToRecord = () => from === "here" && driver.steps("here").length === 0;
   const [options, setOptions] = useState<GifOptions>(loadGifOptions);
   const [folder, setFolder] = useState<FolderHandle | null>(null);
   const [naming, setNaming] = useState(false);
@@ -187,6 +207,7 @@ export default function GifExportPanel({
   /* The GIF or the video as it would be made now, which an export makes and an
      estimate reckons. A video's moves are drawn at its own frame rate. */
   const plan: GifPlan = {
+    from,
     store: options.store,
     boardPx: BOARD_UNITS * scale,
     stepMs: video ? 1000 / options.videoRate : options.step * 10,
@@ -198,7 +219,7 @@ export default function GifExportPanel({
   /* An estimate stands for as long as nothing it was made from has changed —
      the options here, the Lab's pace, the boards, the game, and the look of
      the board — and is not shown once anything has. */
-  const estimateKey = JSON.stringify({ ...plan, format: options.format, twoBoards, game });
+  const estimateKey = JSON.stringify({ ...plan, format: options.format, twoBoards, game, at: from === "here" ? at : null });
   const estimated =
     estimate !== null && estimate.key === estimateKey && estimate.look === look ? estimate.value : null;
 
@@ -271,7 +292,7 @@ export default function GifExportPanel({
     setProgress({
       done: 0,
       move: 0,
-      of: driver.steps().filter((step) => step.kind !== "switch").length,
+      of: driver.steps(from).filter((step) => step.kind !== "switch").length,
       frames: 0,
       bytes: 0,
       firstBytes: 0,
@@ -327,6 +348,10 @@ export default function GifExportPanel({
    * export, while the board is walked.
    */
   async function estimateSize() {
+    if (nothingToRecord()) {
+      setNothingAfter(true);
+      return;
+    }
     setTrouble(null);
     const stop = new AbortController();
     estimateStop.current = stop;
@@ -347,10 +372,35 @@ export default function GifExportPanel({
     }
   }
 
-  const moves = Math.max(positions - 1, 0);
+  /*
+    What the export will walk, as the label beside the button says it: the
+    moves it plays and the lines it plays them on — counted from where it
+    starts, so from the position on the board it is what is left of the game
+    from there, not the whole of it. Asked of the walk itself, the one the
+    export takes: see `GifDriver.steps`.
+  */
+  const walk = driver.steps(from);
+  const walked = {
+    moves: walk.filter((step) => step.kind === "forward").length,
+    lines: 1 + walk.filter((step) => step.kind === "switch").length,
+  };
 
   return (
     <div className="settings-panel gif-panel">
+      {/* Where it starts, first of all: the one question about the game rather
+          than about the file. */}
+      <SelectField
+        id="export-start"
+        label="Start from"
+        value={from}
+        choices={[
+          { value: "beginning", label: "Beginning" },
+          { value: "here", label: "Current position on the board" },
+        ]}
+        hint="Beginning: the first position of the game, and every line of it. Current position on the board: the line and the position the board is on now, and on from there as Play goes — to the end of this line, and on through the lines after it."
+        disabled={busy}
+        onChange={(value) => setFrom(value as GifStart)}
+      />
       <SectionRule name={format.title} />
       <p className="gif-about">
         Made from the board as it is set up now: {twoBoards ? "both boards" : "the board"}, in the
@@ -516,7 +566,7 @@ export default function GifExportPanel({
           type="button"
           className="reset-button gif-export-button"
           disabled={busy || (video && codec === null)}
-          onClick={() => setNaming(true)}
+          onClick={() => (nothingToRecord() ? setNothingAfter(true) : setNaming(true))}
         >
           {format.button}
         </button>
@@ -524,11 +574,13 @@ export default function GifExportPanel({
           {size === null
             ? ""
             : `${(video ? evenSize(size) : size).width} × ${(video ? evenSize(size) : size).height} px, ${
-                branches > 1
-                  ? `${branches} lines`
-                  : moves === 0
-                    ? "one position"
-                    : `${moves} move${moves === 1 ? "" : "s"}`
+                from === "here" && walked.moves === 0 && walked.lines === 1
+                  ? "nothing to record from here"
+                  : walked.lines > 1
+                    ? `${walked.lines} lines`
+                    : walked.moves === 0
+                      ? "one position"
+                      : `${walked.moves} move${walked.moves === 1 ? "" : "s"}`
               }`}
         </span>
       </div>
@@ -586,13 +638,20 @@ export default function GifExportPanel({
 
       <GifNameDialog
         open={naming}
-        suggested={suggestedFileName(players, keptAs, format.extension)}
+        suggested={suggestedFileName(players, keptAs, format.extension, new Date(), gameName)}
         what={format.what}
         extension={format.extension}
         folder={folder?.name ?? null}
         exists={folder === null ? null : exists}
         onExport={(name) => void start(name)}
         onClose={() => setNaming(false)}
+      />
+      <ConfirmDialog
+        open={nothingAfter}
+        question="Nothing to record from here."
+        detail="The board is on the last position of the game, at the end of its last line, so there is no move after it to play. Step back on the board, or start from the beginning."
+        dismissLabel="OK"
+        onClose={() => setNothingAfter(false)}
       />
     </div>
   );

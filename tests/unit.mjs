@@ -20,7 +20,7 @@ import { nextStashName } from "../src/chess/stash.ts";
 import { pinnedSquares } from "../src/chess/pins.ts";
 import { availableFor, materialOn } from "../src/chess/available.ts";
 import { createGifWriter } from "../src/app/gif/encoder.ts";
-import { asFileName, asGifName, suggestedFileName, suggestedGifName, surnameOf } from "../src/app/gif/fileName.ts";
+import { asFileName, asGifName, slugFileName, suggestedFileName, suggestedGifName, surnameOf } from "../src/app/gif/fileName.ts";
 import { FRAME_STEPS, frameStepLabel, restAfterFade } from "../src/app/gif/timing.ts";
 import { i420Size, toI420, VIDEO_COLOUR_SPACE } from "../src/app/gif/yuv.ts";
 import { readGif } from "./gif.mjs";
@@ -2456,6 +2456,22 @@ console.log("\nA game of no moves, written out\n");
     /\]\n\n1\/2-1\/2$/.test(none) && !/\n \S/.test(none), JSON.stringify(none));
 }
 
+console.log("\nA file named after the game's own name\n");
+{
+  check("written as a page's address is: lower case, a dash for each run of anything else",
+    slugFileName("Mate in 2, task #52", "gif") === "mate-in-2-task-52.gif" &&
+      slugFileName("The Immortal Game (1851)", "mp4") === "the-immortal-game-1851.mp4",
+    slugFileName("Mate in 2, task #52", "gif"));
+  check("accents off their letters, an apostrophe dropped, letters of any script kept",
+    slugFileName("Réti's Opening", "gif") === "retis-opening.gif" && slugFileName("Задача 5", "gif") === "задача-5.gif",
+    `${slugFileName("Réti's Opening", "gif")} ${slugFileName("Задача 5", "gif")}`);
+  check("and nothing, where nothing is left",
+    slugFileName("?!", "gif") === "");
+  check("the game's own name is offered before who played it; without one, as before",
+    suggestedFileName({ white: "Anderssen, Adolf", black: "Dufresne, Jean" }, null, "gif", new Date(), "The Evergreen Game (1852)") === "the-evergreen-game-1852.gif" &&
+      suggestedFileName({ white: "Anderssen, Adolf", black: "Dufresne, Jean" }, null, "gif", new Date(), null) === "Anderssen - Dufresne.gif");
+}
+
 console.log("\nWhat a game is called\n");
 {
   check("who played it and the year, as the file says",
@@ -2464,8 +2480,17 @@ console.log("\nWhat a game is called\n");
     titleOfPgn('[White "Anna"]\n[Black "Boris"]\n[Date "????.??.??"]\n\n1. e4 *') === "Anna \u2013 Boris");
   check("a player the file does not name goes by the colour played",
     titleOfPgn('[White "Anna"]\n[Black "?"]\n\n1. e4 *') === "Anna \u2013 Black");
+  check("the game's own name where the file gives one: its GameTitle first, with the year",
+    titleOfPgn('[Event "Evergreen Game"]\n[GameTitle "The Evergreen Game"]\n[White "Adolf Anderssen"]\n[Black "Jean Dufresne"]\n[Date "1852.??.??"]\n\n1. e4 *') === "The Evergreen Game (1852)");
+  check("then its event, which is how a task is named — no year where it has none",
+    titleOfPgn('[Event "Mate in 2, task #54"]\n[Date "????.??.??"]\n\n1. Qa6 *') === "Mate in 2, task #54" &&
+      titleOfPgn('[Event "Opera Game"]\n[White "Paul Morphy"]\n[Date "1858.??.??"]\n\n1. e4 *') === "Opera Game (1858)");
+  check("and not the year twice, where the name says it already",
+    titleOfPgn('[Event "New York"]\n[GameTitle "Reti-Capablanca, New York 1924"]\n[Date "1924.??.??"]\n\n1. Nf3 *') === "Reti-Capablanca, New York 1924");
+  check("an event of \"?\" names nothing, and the players are the title",
+    titleOfPgn('[Event "?"]\n[White "Anna"]\n[Black "Boris"]\n\n1. e4 *') === "Anna \u2013 Boris");
   check("and a file that names neither has no title to give",
-    titleOfPgn('[White "?"]\n[Black ""]\n[Date "2024.01.01"]\n\n1. e4 *') === null && titleOfPgn("1. e4 e5 *") === null);
+    titleOfPgn('[Event "?"]\n[White "?"]\n[Black ""]\n[Date "2024.01.01"]\n\n1. e4 *') === null && titleOfPgn("1. e4 e5 *") === null);
 }
 
 console.log("\nA position flipped in the editor\n");

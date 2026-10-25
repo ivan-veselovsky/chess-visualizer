@@ -25,14 +25,22 @@
 export interface StageRoots {
   app: Element;
   title: Element;
+  /**
+   * The game's own title beside the app's, where the header has one — "Mate in
+   * 2, task #52" — so that a GIF of a task says which task it is. Its name
+   * alone: the asterisk after it is about the reader's work rather than the
+   * game, and comes and goes as the export walks the game.
+   */
+  game: Element | null;
   column: Element;
 }
 
 export function stageRoots(): StageRoots | null {
   const app = document.querySelector(".app");
   const title = document.querySelector(".app-header h1");
+  const game = document.querySelector(".app-header .header-game-name");
   const column = document.querySelector(".board-and-players");
-  return app === null || title === null || column === null ? null : { app, title, column };
+  return app === null || title === null || column === null ? null : { app, title, game, column };
 }
 
 /**
@@ -83,6 +91,9 @@ export function measureStage(roots: StageRoots, boardPx: number): Stage | null {
     return null;
   }
   const ink: Box[] = [];
+  /* Not the game's title: it is fitted into the frame these make, cut short
+     where it is longer — see `planText` — rather than making every frame of a
+     game with a long name wider. */
   inkOf(roots.title, ink);
   inkOf(roots.column, ink);
   for (const bar of roots.column.querySelectorAll(".men-bar")) {
@@ -462,6 +473,9 @@ export async function drawFrame(painter: Painter): Promise<void> {
   const at = { x: origin.left + stage.left, y: origin.top + stage.top };
   const strokes: Stroke[] = [];
   plan(painter, roots.title, at, 1, strokes);
+  if (roots.game !== null) {
+    plan(painter, roots.game, at, 1, strokes);
+  }
   plan(painter, roots.column, at, 1, strokes);
 
   const images = await Promise.all(
@@ -622,23 +636,35 @@ function planText(painter: Painter, node: Text, at: Corner, opacity: number): St
   const font = `${seen.fontStyle} ${seen.fontWeight} ${parseFloat(seen.fontSize) * stage.scale}px ${seen.fontFamily}`;
   context.font = font;
 
-  /* Cut short where the page cuts it short: at the inner edge of whichever box
-     round it ends its text with an ellipsis, which need not be its own. */
-  let clipping: Element | null = null;
-  for (
-    let box: Element | null = parent;
-    box !== null && box !== painter.roots.column && box !== painter.roots.title;
-    box = box.parentElement
-  ) {
-    if (getComputedStyle(box).textOverflow === "ellipsis") {
-      clipping = box;
-      break;
+  /*
+    Cut short where the page cuts it short: at the inner edge of whichever box
+    round it ends its text with an ellipsis, which need not be its own — up to
+    the root it is drawn from.
+
+    Not the game's title, though. On the page it shares the header with the
+    links at its far end, and is cut short to leave them room; in a frame there
+    are no links, and the title has the frame's whole width after it, to the
+    margin the frame keeps on its other side. It is cut short only where it is
+    longer than that.
+  */
+  const { roots } = painter;
+  let room: number | null = null;
+  if (roots.game !== null && roots.game.contains(node)) {
+    const em = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    room = (at.x + stage.width - em - rect.left) * stage.scale;
+  } else {
+    for (let box: Element | null = parent; box !== null; box = box.parentElement) {
+      if (getComputedStyle(box).textOverflow === "ellipsis") {
+        const edge = box.getBoundingClientRect().right - parseFloat(getComputedStyle(box).paddingRight);
+        room = (edge - rect.left) * stage.scale;
+        break;
+      }
+      if (box === roots.column || box === roots.title) {
+        break;
+      }
     }
   }
-  if (clipping !== null) {
-    const box = clipping.getBoundingClientRect();
-    const inside = box.right - parseFloat(getComputedStyle(clipping).paddingRight);
-    const room = (inside - rect.left) * stage.scale;
+  if (room !== null) {
     if (context.measureText(text).width > room + 0.5) {
       let kept = text.length;
       while (kept > 0 && context.measureText(`${text.slice(0, kept).trimEnd()}…`).width > room) {

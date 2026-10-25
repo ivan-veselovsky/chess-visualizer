@@ -26,10 +26,17 @@ import type { Step } from "../../chess/variations";
  * fades are fitted into that, as they are when the game plays itself in the
  * Lab, so each finishes before the next move sets off.
  */
+/**
+ * Where a GIF starts: the first position of the game's first line, or the
+ * position the board is on, the walk going on from there as Play goes.
+ */
+export type GifStart = "beginning" | "here";
+
 export interface GifDriver {
-  begin(): () => void;
-  /** Every step, from the first position of the first line to the end of the last. */
-  steps(): Step[];
+  /** The board set where the GIF starts; what it returns puts it back. */
+  begin(from: GifStart): () => void;
+  /** Every step, from where the GIF starts to the end of the last line. */
+  steps(from: GifStart): Step[];
   forward(restMs: number): void;
   back(restMs: number): void;
   switchTo(line: number): void;
@@ -37,6 +44,8 @@ export interface GifDriver {
 
 /** What goes into the GIF besides the board: how it is stored, how big, how paced. */
 export interface GifPlan {
+  /** Where it starts: see `GifStart`. */
+  from: GifStart;
   store: FrameStore;
   /** How many pixels across each board comes out. */
   boardPx: number;
@@ -164,7 +173,10 @@ function aTurn(): Promise<void> {
 function animating(roots: StageRoots): Animation[] {
   return document.getAnimations().filter((animation) => {
     const target = (animation.effect as KeyframeEffect | null)?.target;
-    return target instanceof Element && (roots.column.contains(target) || roots.title.contains(target));
+    return (
+      target instanceof Element &&
+      (roots.column.contains(target) || roots.title.contains(target) || roots.game?.contains(target) === true)
+    );
   });
 }
 
@@ -288,7 +300,7 @@ export async function exportFrames(
   if (roots === null) {
     throw new Error("There is no board on the page to make a GIF of.");
   }
-  const steps = driver.steps();
+  const steps = driver.steps(plan.from);
   const moves = steps.filter((step) => step.kind !== "switch").length;
   const stop = () => {
     if (signal.aborted) {
@@ -301,7 +313,7 @@ export async function exportFrames(
   let sink: FrameSink | null = null;
   let finished = false;
   try {
-    putBack = driver.begin();
+    putBack = driver.begin(plan.from);
     await settle(roots);
     const measured = measureStage(roots, plan.boardPx);
     if (measured === null) {
@@ -503,7 +515,7 @@ export async function estimateGif(
   if (roots === null) {
     throw new Error("There is no board on the page to make a GIF of.");
   }
-  const steps = driver.steps();
+  const steps = driver.steps(plan.from);
   const moves = steps.flatMap((step, index) => (step.kind === "switch" ? [] : [index]));
   /*
     Which moves are measured: the moves played and the moves taken back
@@ -532,7 +544,7 @@ export async function estimateGif(
   forceMotion(true);
   let putBack: (() => void) | null = null;
   try {
-    putBack = driver.begin();
+    putBack = driver.begin(plan.from);
     await settle(roots);
     const stage = measureStage(roots, plan.boardPx);
     if (stage === null) {

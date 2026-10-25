@@ -8,6 +8,8 @@ interface PlayerNameProps {
   mine: boolean;
   /** Whether the position on the board is waiting on this side. */
   toMove?: boolean;
+  /** Whose move it is on the board, for the flower's tooltip; nothing where no board says. */
+  turn?: Color | null;
   /**
    * What the board is showing, said across the top of it: how the game came
    * out, in the middle, and where in the game the board is standing, at the
@@ -46,6 +48,7 @@ export default function PlayerName({
   color,
   mine,
   toMove = false,
+  turn = null,
   result = null,
   position = null,
   lined = false,
@@ -67,7 +70,7 @@ export default function PlayerName({
         name starts in the same place whether or not the flower is open, so a
         move played does not shift the board under the reader.
       */}
-      <Flower color={color} open={toMove} />
+      <Flower color={color} open={toMove} turn={turn} />
       {/* The name in a box of its own, so that a long one is cut short rather
           than wrapped: the row is one line high whatever it holds, and the
           board below it does not move because somebody is called something
@@ -89,14 +92,15 @@ export default function PlayerName({
  * says whose move it is — the board editor's switch for it — says it with the
  * same flower the names do.
  */
-export function Flower({ color, open }: { color: Color; open: boolean }) {
-  return (
+export function Flower({ color, open, turn = null }: { color: Color; open: boolean; turn?: Color | null }) {
+  const flower = (
     <svg
       className={`player-color player-color-${color}${open ? " player-color-turn" : ""}`}
       viewBox="0 0 24 24"
       aria-hidden="true"
       focusable="false"
     >
+
       {/* Always here, opened and closed by the stylesheet: a petal that came
           and went with the render would appear at its full size and vanish
           the same way, and what is wanted is a flower growing out from behind
@@ -140,5 +144,19 @@ export function Flower({ color, open }: { color: Color; open: boolean }) {
         r={color === "w" ? 13.86 : 14.52}
       />
     </svg>
+  );
+  /*
+    Whose move it is, said on hovering either flower — the same words on both,
+    the closed one as much as the open. On a wrapper that takes no part in the
+    layout rather than as a <title> in the drawing, which is text and was read
+    as part of the row's. Left off a flower in a button that says more of its
+    own: see `EditorTurn`.
+  */
+  return turn === null ? (
+    flower
+  ) : (
+    <span className="player-color-tip" title={turn === "w" ? "White to move" : "Black to move"}>
+      {flower}
+    </span>
   );
 }
