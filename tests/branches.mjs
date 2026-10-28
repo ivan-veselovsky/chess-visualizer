@@ -137,8 +137,11 @@ try {
   check("and as big as for the same game with no variations: the name takes no row of its own",
     JSON.stringify(named.boardPlain) === JSON.stringify(named.boardAtFork),
     `${JSON.stringify(named.boardPlain)} vs ${JSON.stringify(named.boardAtFork)}`);
+  /* Within the names' row and level with it — centred in it, where the
+     layout makes the row taller than the line, as the computed one does. */
   check("it goes in the middle of the row the names are in",
-    named.middle.top === named.row.top && named.middle.bottom === named.row.bottom,
+    named.middle.top >= named.row.top && named.middle.bottom <= named.row.bottom &&
+      Math.abs(named.middle.top - named.row.top - (named.row.bottom - named.middle.bottom)) <= 1,
     `${JSON.stringify(named.middle)} in ${JSON.stringify(named.row)}`);
 
   console.log("\nEvery line played, one after another\n");
@@ -471,8 +474,11 @@ try {
     nameless.flower !== null && nameless.branch !== null && Math.abs(nameless.flower.left - noNamesFirstFile) < 2 &&
       nameless.branch.left > nameless.flower.right,
     `${nameless.flower?.left} vs ${noNamesFirstFile}; line at ${nameless.branch?.left}`);
-  check("and the board a row's height bigger than a game with names has",
-    nameless.board.height > withNames.board.height + 5, `${nameless.board.height} vs ${withNames.board.height}`);
+  /* Never smaller for the names' row it does not have: larger by it where the
+     window's height is what sizes the board, the same where its width is — as
+     where the panel beside it takes its share of a board's width. */
+  check("and the board no smaller than a game with names has",
+    nameless.board.height >= withNames.board.height - 0.5, `${nameless.board.height} vs ${withNames.board.height}`);
   /* A move of one's own on it, from the position before the mate — with
      variations not kept, switched off after the game is read in: a game with
      variations arriving turns the switch on. */

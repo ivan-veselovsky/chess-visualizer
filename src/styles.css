@@ -2924,9 +2924,9 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .settings-footer {
-  /* Nothing above it now: it has a tab to itself, and held the margin off the
-     settings it used to sit under. */
-  margin-top: 0;
+  /* The one step every block on this tab stands off the one before it by:
+     see `.settings-two-up`. */
+  margin-top: 0.6rem;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -2944,9 +2944,8 @@ input[type="color"]::-moz-color-swatch {
 /* Stood off from the buttons above it, and holding no margin below: the line
    over the build note is what closes the panel. */
 .settings-logging {
-  /* Half an em more than the panel's own spacing: it is not another of the
-     buttons above it, and standing at their distance it read as one. */
-  margin-top: calc(1.1rem + 0.5em);
+  /* The tab's one step: see `.settings-two-up`. */
+  margin-top: 0.6rem;
   /* At the far end, under "Reset to defaults": the left of this panel is a
      column of settings, and this is not one of them. */
   justify-content: flex-end;
@@ -4638,12 +4637,12 @@ input[type="color"]::-moz-color-swatch {
   wearing the panel's ground. What differs is what a row holds — a lock instead
   of a status light, and a word about the row rather than about a game.
 */
-/* A column, so the list inside it can be the part that gives way. */
+/* A column, so the list inside it can be the part that gives way. Nothing
+   under it: what follows says how far it stands off — see `.settings-two-up`. */
 .preset-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  margin-bottom: 0.9rem;
 }
 
 /*
@@ -4725,14 +4724,11 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
-  Room under the question about unsaved settings.
-
-  It belongs to the presets above it and the two file buttons belong to
-  themselves, and at the panel's own spacing the three read as one block of
-  controls. A line of air says which way the question faces.
+  Nothing under the question about unsaved settings: what follows stands off
+  it by the tab's one step, as everything here does — see `.settings-two-up`.
 */
 .settings-ask {
-  margin-bottom: 2em;
+  margin-bottom: 0;
 }
 
 /*
@@ -4750,8 +4746,14 @@ input[type="color"]::-moz-color-swatch {
   and wrapped the field underneath, right-aligned, when they did not.
 */
 .settings-two-up {
-  margin-top: calc(1.1rem + 0.5em);
-  margin-bottom: 2em;
+  /*
+    The tab's one step between blocks, said once over each block and never
+    under one: the tab is a column of flex items, whose margins add up rather
+    than collapse, and the two together made gaps of two and three lines.
+    0.6 of the page's text, whatever size the text in the block is.
+  */
+  margin-top: 0.6rem;
+  margin-bottom: 0;
 }
 
 .preset-trouble {
@@ -5299,6 +5301,18 @@ input[type="color"]::-moz-color-swatch {
   margin-bottom: 0.25rem;
 }
 
+/*
+  What the lower row holds — the flower, the name, the score — drawn a quarter
+  of a line up, nearer the file letters it is read with. Only drawn there: the
+  row keeps its place and its height, so nothing under it, and nothing the
+  layout measured, moves. A board without names has a lift of its own: see
+  `.board-near`.
+*/
+.board-and-players > .player-name:last-child:not(.board-near) > * {
+  position: relative;
+  top: -0.25em;
+}
+
 /* Cut short rather than wrapped; see the row above. */
 /* Who is at this end: the flower, the name, and whether it is the reader. The
    spacing here is what stands between the name and the "(me)" after it. */
@@ -5813,4 +5827,264 @@ input[type="color"]::-moz-color-swatch {
 
 .tab-panel > .panel-divider {
   margin: calc(1em - var(--panel-gap)) 0;
+}
+
+/* --- The computed layout ------------------------------------------------ */
+
+/*
+  The page's regions where they are computed rather than left to the rules
+  above: the header, the boards with their rows and bars, and the panel, each
+  placed at the box `layout` gave it — see `usePageLayout` — and what is inside
+  each laid out by the stylesheet as before. The regions' sizes are the
+  layout's to say, so nothing in them can push the page wider or taller than it
+  was laid out for: a long line in a list is cut off in its box, where before
+  it could carry the panel past the window.
+
+  The page's text is the layout's too: the document's font size is set to the
+  `em` it computed, and everything above measured in rems follows.
+
+  Last in the sheet, so that where these and the rules above say different
+  things about one element, these are what it does.
+*/
+html.layout-computed {
+  /* The width the page is laid out for is the same whether it scrolls or
+     not: a scrollbar coming or going would otherwise change it, and lay the
+     page out again. */
+  scrollbar-gutter: stable;
+}
+
+.app.app-computed {
+  position: relative;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: var(--lay-height);
+}
+
+.app-computed .app-header {
+  position: absolute;
+  left: var(--lay-header-x);
+  top: var(--lay-header-y);
+  width: var(--lay-header-w);
+  height: var(--lay-header-h);
+  margin: 0;
+  /* Kept in its box, like every region: on a phone the links at its far end
+     are cut off rather than carrying the page past the screen's edge. */
+  overflow: hidden;
+}
+
+.app.app-computed .app-body {
+  display: block;
+}
+
+.app.app-computed .board-pane {
+  position: absolute;
+  left: var(--lay-group-x);
+  top: var(--lay-group-y);
+  width: var(--lay-group-w);
+  height: var(--lay-group-h);
+  min-height: 0;
+  flex: none;
+}
+
+.app.app-computed .side-column {
+  position: absolute;
+  left: var(--lay-panel-x);
+  top: var(--lay-panel-y);
+  width: var(--lay-panel-w);
+  height: var(--lay-panel-h);
+  min-width: 0;
+  max-width: none;
+  /* What is taller than the box scrolls inside it rather than past it. */
+  overflow: auto;
+}
+
+/* The tabs as tall as their box lets them be, not the window's height. */
+.app.app-computed .tabbed {
+  max-height: 100%;
+}
+
+/* The rows over and under the boards, exactly as tall as their boxes: their
+   margins and their lines' heights are the layout's to say now. */
+.app.app-computed .board-and-players > .player-name:first-child {
+  height: var(--lay-top-h);
+  margin: 0 0 var(--lay-gap-over-boards);
+}
+
+.app.app-computed .board-and-players > .player-name:last-child {
+  height: var(--lay-bottom-h);
+  margin: 0;
+}
+
+/*
+  A board without names: its row under the board is shorter by
+  `--lay-near-lift`, and what is in it drawn up to where the stylesheet's own
+  lift puts it (see `.board-near`): the middle of a line set 0.25rem under
+  the board and lifted, rather than the middle of the shorter row. The row's
+  own box stays the one computed; only its contents stand higher.
+*/
+.app.app-computed .board-and-players > .player-name.board-near > * {
+  position: relative;
+  top: calc(0.25rem + 0.5 * 1.32 * 0.95rem - var(--lay-near-lift) - 0.5 * var(--lay-bottom-h));
+}
+
+/* The boards, each its computed side, side by side or one over the other, the
+   bars beside them as tall as they are. */
+.app.app-computed .board-with-bars {
+  height: var(--lay-boards-h);
+}
+
+.app.app-computed .boards {
+  flex: none;
+  width: var(--lay-boards-w);
+}
+
+.app.app-computed .boards > .board-holder {
+  flex: none;
+  width: var(--lay-side);
+  max-width: none;
+}
+
+/* One over the other: the classic board on top, as it is on the left in a row. */
+.app.app-computed.app-flow-column .boards {
+  flex-direction: column-reverse;
+}
+
+/* The gaps between two boards and beside a bar, the layout's rather than the
+   stylesheet's own: see `Gaps`. */
+.app.app-computed {
+  --two-up-gap: var(--lay-gap-between-boards);
+  --men-bar-gap: var(--lay-gap-beside-bar);
+}
+
+/* What the rows measure themselves by, with two boards: the boards' width and
+   one board's side, as computed rather than worked out from the window. */
+.app.app-computed .board-and-players {
+  --two-up-boards: var(--lay-boards-w);
+  --two-up-size: var(--lay-side);
+}
+
+/* The regions outlined, in the layout's debug mode: in pixels of their own,
+   whatever size the page's text is. */
+.layout-debug {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.layout-debug > div {
+  position: absolute;
+  outline: 1px solid #ff2020;
+  outline-offset: -1px;
+}
+
+.layout-debug span {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  padding: 0 3px;
+  font: 11px/1.3 ui-monospace, monospace;
+  color: #ff4040;
+  background: rgb(0 0 0 / 55%);
+}
+
+/* The stub: blank where the panel would have shown only a sliver above the
+   window's foot, but for an arrow to say there is more below. Faint, being a
+   hint; plainer when pointed at. */
+.layout-stub {
+  position: absolute;
+  /* Over whatever meets its edges — the tabs' strip starts where it ends,
+     raised over what comes before it — so all of it can be taken hold of. */
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  opacity: 0.45;
+}
+
+.layout-stub:hover,
+.layout-stub:focus-visible {
+  opacity: 0.8;
+}
+
+/* As tall as the stub lets it be, up to two lines of text. */
+.layout-stub svg {
+  height: min(100%, 2em);
+  aspect-ratio: 1;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .layout-stub svg {
+    animation: layout-stub-bob 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes layout-stub-bob {
+  50% {
+    transform: translateY(15%);
+  }
+}
+
+/*
+  The page scrolling, the panel as tall as its tallest tab — see
+  `usePanelWants` — and nothing in it scrolling of its own: a scroller inside
+  a scroller fights it over every turn of the wheel, and a page scrolling a
+  little further costs next to nothing.
+
+  Every part that gave way to the window's height is its own height again. The
+  two lists the most: as tall as their rows, up to a dozen or so of them,
+  beyond which a list is a list and scrolls as one — the panel is as tall as
+  its tallest tab whichever is open, and a stash of a hundred games would make
+  every tab that tall.
+*/
+.app.app-computed.app-panel-natural .side-column {
+  /* Down as far as the tabs go; across, no further than the panel, whatever
+     in a tab is wider than a phone's screen. */
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+.app.app-computed.app-panel-natural .tabbed {
+  position: relative;
+  flex: none;
+  max-height: none;
+}
+
+.app.app-computed.app-panel-natural .tab-panel {
+  flex: none;
+  min-height: auto;
+  overflow-y: visible;
+}
+
+.app.app-computed.app-panel-natural .preset-panel {
+  min-height: auto;
+}
+
+.app.app-computed.app-panel-natural .presets-scroll,
+.app.app-computed.app-panel-natural .games-scroll {
+  flex: none;
+  max-height: 24em;
+}
+
+/* A tab drawn only to be measured: across the panel, as it would be open, but
+   out of the flow and unseen, and gone again before anything is painted. */
+.tab-panel-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  visibility: hidden;
+  pointer-events: none;
 }

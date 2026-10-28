@@ -7,10 +7,11 @@
  * talk to. What is here is what a machine can be handed with no setup beyond
  * `npm install`, and what a pull request has to be green on.
  *
- * Six suites: the unit tests, the board's behaviour in a real browser, the
+ * Seven suites: the unit tests, the board's behaviour in a real browser, the
  * picture it draws, the animated GIF it exports, a game with variations
- * played through in the Lab, and the export made in Firefox held up against
- * the same export made in Chrome. Each suite is its own process, so
+ * played through in the Lab, the export made in Firefox held up against
+ * the same export made in Chrome, and the computed layout in Chromium and
+ * WebKit. Each suite is its own process, so
  * one that hangs a socket or leaves a browser behind cannot take the rest down
  * with it, and each reports its own tally before this one adds them up.
  *
@@ -45,6 +46,7 @@ const suites = [
   { name: "gif export", file: "gif-export.mjs", args: [] },
   { name: "branches", file: "branches.mjs", args: [] },
   { name: "firefox", file: "firefox.mjs", args: [] },
+  { name: "layout", file: "layout.mjs", args: [] },
 ];
 
 const run = (command, args, options = {}) =>

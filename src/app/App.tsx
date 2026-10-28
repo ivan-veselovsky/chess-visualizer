@@ -64,6 +64,9 @@ import {
 } from "../chess/pgn";
 import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
 import { gameNameOfPgn, titleOfPgn } from "../chess/gameTitle";
+import { DEFAULT_METRICS, regionsOf } from "./layout";
+import { allowScrolling, layoutModeFromLocation, setAllowScrolling, usePageLayout } from "./usePageLayout";
+import { usePanelWants } from "./usePanelWants";
 import {
   isStashed,
   nextStashName,
@@ -170,6 +173,9 @@ import {
  * default: it is what the page is for, and the rest is how it looks.
  */
 type PanelTab = "game" | "match" | "balance" | "gif" | SettingsGroup;
+
+/** The tabs the settings panel draws, each a group of its own. */
+const SETTINGS_TABS = ["board", "pieces", "rays", "heatmap", "check", "keys", "manage"] as const satisfies readonly SettingsGroup[];
 
 /**
  * Every line of a game read from a PGN — each way through its variations — or
@@ -371,6 +377,10 @@ export default function App() {
     rather than in the settings; see `twoBoard.ts` for why.
   */
   const [twoBoard, setTwoBoard] = useState(twoBoardMode);
+  /* How the page is laid out: see `usePageLayout`. Read once, as the page opens. */
+  const [layoutMode] = useState(layoutModeFromLocation);
+  /* Whether that layout may run the page on past the window's foot; kept in this browser. */
+  const [scrolling, setScrolling] = useState(allowScrolling);
   /*
     The Lab's "Keep variations": moves played on the board are kept as a tree
     rather than as one line. A move from an earlier position does not throw away
@@ -3250,6 +3260,79 @@ export default function App() {
     nothing names is Untitled; one that is a position and nothing else, set
     up or typed in, has no title at all.
   */
+  /*
+    The page's regions, where they are computed rather than left to the
+    stylesheet — which they are unless the address asks for `?layout=css`:
+    see `usePageLayout`.
+  */
+  const menBars = editor ? 1 : (settings.pieces.showCaptured ? 1 : 0) + (settings.pieces.showAvailable ? 1 : 0);
+  /* How tall the panel's tabs want to be, where the page scrolls: see `usePanelWants`. */
+  const [panelWantsPx, setPanelWantsPx] = useState<number | null>(null);
+  /*
+    The row under a board without names — the near side's flower and nothing
+    to read — drawn up by this much into the strip of file letters, as
+    `--near-row-lift` draws it where the stylesheet lays the page out: 15px of
+    16px text, here in ems of the page's text, which the computed layout
+    measures everything in.
+
+    The strip it is given then reaches as far down as the flower does, and a
+    little further, rather than a line's height less the lift: the flower is
+    the one thing in it, and its petals reach past the line it is set in.
+    Where its middle is — the middle of a line of 0.95em type at 1.32, set
+    0.25em under the boards and lifted — and how far a petal reaches from it:
+    the tip 23.6 of the 24 units the 0.8em flower is drawn in, and half its
+    0.9-unit outline. Then a tenth of an em, so the tip is not on the edge.
+  */
+  const nearLiftEm = atAGame ? 0 : 15 / 16;
+  const nearFlowerReachEm = 0.25 + (1.32 * 0.95) / 2 - 15 / 16 + ((23.6 + 0.45) / 24) * 0.8 + 0.1;
+  const laid = usePageLayout(
+    layoutMode,
+    scrolling,
+    twoBoard ? 2 : 1,
+    menBars,
+    { bar: editor ? 2.3 : 1.7, bottomRow: atAGame ? DEFAULT_METRICS.bottomRow : nearFlowerReachEm },
+    panelWantsPx
+  );
+  const { tabbed, measuring } = usePanelWants(
+    laid !== null && laid.scrolls,
+    laid === null ? "" : `${Math.round(laid.panel.w)} ${laid.em}`,
+    tab,
+    (px) => setPanelWantsPx((was) => (was !== null && Math.abs(was - px) < 1 ? was : px))
+  );
+  /* A tab drawn only to be measured, in that pass: out of the flow, unseen, and out of reach. */
+  const measuredOnly = (id: PanelTab) =>
+    measuring && tab !== id ? { className: " tab-panel-measure", inert: true, "aria-hidden": true as const } : { className: "" };
+  const px = (value: number) => `${value}px`;
+  const laidVars: Record<string, string> =
+    laid === null
+      ? {}
+      : {
+          "--lay-height": px(laid.height),
+          "--lay-header-x": px(laid.header.x),
+          "--lay-header-y": px(laid.header.y),
+          "--lay-header-w": px(laid.header.w),
+          "--lay-header-h": px(laid.header.h),
+          "--lay-group-x": px(laid.group.x),
+          "--lay-group-y": px(laid.group.y),
+          "--lay-group-w": px(laid.group.w),
+          "--lay-group-h": px(laid.group.h),
+          "--lay-top-h": px(laid.top.h),
+          "--lay-bottom-h": px(laid.bottom.h),
+          "--lay-near-lift": px(nearLiftEm * laid.em),
+          "--lay-side": px(laid.boards[0].w),
+          /* The boards alone, without the bars: in a row, as far as the last one's right edge; in a column, one board's width. */
+          "--lay-boards-w": px(Math.max(...laid.boards.map((board) => board.x + board.w)) - laid.group.x),
+          "--lay-boards-h": px(laid.bottom.y - laid.boards[0].y),
+          "--lay-panel-x": px(laid.panel.x),
+          "--lay-panel-y": px(laid.panel.y),
+          "--lay-panel-w": px(laid.panel.w),
+          "--lay-panel-h": px(laid.panel.h),
+          /* Every gap the layout left, by name: `pageTop` as `--lay-gap-page-top`, and so on. See `Gaps`. */
+          ...Object.fromEntries(
+            Object.entries(laid.gaps).map(([name, size]) => [`--lay-gap-${name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`, px(size)])
+          ),
+        };
+
   const isUnsaved =
     friend.phase.kind === "waiting" || (friend.phase.kind === "playing" && friend.phase.over === null) ? false : unsaved();
   const boardTitle =
@@ -3271,6 +3354,10 @@ export default function App() {
         /* Whatever moves by itself holds still while frames are being made:
            see `.app-exporting`. */
         exporting ? "app-exporting" : "",
+        /* The regions computed and placed: see `usePageLayout`. */
+        laid !== null ? `app-computed app-flow-${laid.flow} app-panel-${laid.panelPlace}` : "",
+        /* The page scrolls, and the panel is as tall as its tabs: nothing in it scrolls of its own. */
+        laid !== null && laid.scrolls ? "app-panel-natural" : "",
       ]
         .filter((name) => name !== "")
         .join(" ")}
@@ -3283,15 +3370,45 @@ export default function App() {
              editor's palette stands in for the bars, one bar wide, whichever
              of them are up — and a bar a little wider than the men in it,
              these being taken hold of rather than counted. */
-          "--men-bars": String(
-            editor
-              ? 1
-              : (settings.pieces.showCaptured ? 1 : 0) + (settings.pieces.showAvailable ? 1 : 0)
-          ),
+          "--men-bars": String(menBars),
           ...(editor ? { "--men-bar-width": "2.3rem" } : {}),
+          ...laidVars,
         } as CSSProperties
       }
     >
+      {/* Each computed region outlined and named, in the layout's debug mode:
+          what was computed, to be seen apart from what is laid out in it. */}
+      {laid !== null && layoutMode === "debug" && (
+        <div className="layout-debug" aria-hidden="true">
+          {regionsOf(laid).map(({ name, box }) => (
+            <div key={name} style={{ left: px(box.x), top: px(box.y), width: px(box.w), height: px(box.h) }}>
+              <span>{name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Where too little of the panel would show above the window's foot to
+          be of use: that much left blank, and an arrow on it to say the tabs
+          are below — and, taken hold of, to scroll down to them. */}
+      {laid !== null && laid.stub !== null && (
+        <button
+          type="button"
+          className="layout-stub"
+          style={{ left: px(laid.stub.x), top: px(laid.stub.y), width: px(laid.stub.w), height: px(laid.stub.h) }}
+          title="The tabs are below"
+          aria-label="Scroll down to the tabs"
+          onClick={() =>
+            window.scrollTo({
+              top: document.documentElement.scrollHeight,
+              behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+            })
+          }
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 9l7 7 7-7" />
+          </svg>
+        </button>
+      )}
       <header className="app-header">
         <h1>
           {/* The app's own queen, in the title's own colour. Hidden from a
@@ -3639,7 +3756,7 @@ export default function App() {
           {/* Strip and panel are one thing, so they are wrapped as one: as
               separate children of the column the flex gap would put a space
               between the selected tab and what it opens. */}
-          <div className="tabbed">
+          <div className="tabbed" ref={tabbed}>
           {/*
             One column, six tabs. The panel was a single column of everything
             at once, which made the setting being looked for a question of how
@@ -3660,11 +3777,12 @@ export default function App() {
             settings should not throw either away.
           */}
           <div
-            className="tab-panel tab-panel-flush"
+            {...measuredOnly("game")}
+            className={`tab-panel tab-panel-flush${measuredOnly("game").className}`}
             role="tabpanel"
             id="panel-game"
             aria-labelledby="tab-game"
-            hidden={tab !== "game"}
+            hidden={tab !== "game" && !measuring}
           >
             {/* Which way round the board is, and the way back to the start: the
                 two that set a board up rather than move through one. */}
@@ -4159,11 +4277,12 @@ export default function App() {
           </div>
 
           <div
-            className="tab-panel"
+            {...measuredOnly("match")}
+            className={`tab-panel${measuredOnly("match").className}`}
             role="tabpanel"
             id="panel-match"
             aria-labelledby="tab-match"
-            hidden={tab !== "match"}
+            hidden={tab !== "match" && !measuring}
           >
                 {/* Offering a game, and taking one up. */}
               <div className="board-controls match-actions">
@@ -4397,9 +4516,10 @@ export default function App() {
 
           </div>
 
-          {tab === "balance" && (
+          {(tab === "balance" || measuring) && (
             <div
-              className="tab-panel"
+              {...measuredOnly("balance")}
+              className={`tab-panel${measuredOnly("balance").className}`}
               role="tabpanel"
               id="panel-balance"
               aria-labelledby="tab-balance"
@@ -4481,9 +4601,10 @@ export default function App() {
             </div>
           )}
 
-          {tab === "gif" && (
+          {(tab === "gif" || measuring) && (
             <div
-              className="tab-panel"
+              {...measuredOnly("gif")}
+              className={`tab-panel${measuredOnly("gif").className}`}
               role="tabpanel"
               id="panel-gif"
               aria-labelledby="tab-gif"
@@ -4515,19 +4636,24 @@ export default function App() {
             </div>
           )}
 
-          {tab !== "game" && tab !== "match" && tab !== "balance" && tab !== "gif" && (
+          {/* The settings group open — or every one of them, in a pass that
+              measures them. The open one keeps its key whichever group it is,
+              so changing tabs does not draw the panel afresh. */}
+          {SETTINGS_TABS.filter((group) => group === tab || measuring).map((group) => (
             <div
+              key={group === tab ? "settings" : `measure-${group}`}
+              {...measuredOnly(group)}
               /* The rays are the longest of the settings groups and open with a
                  row of their own rather than with a name, so they keep the thin
                  top the named panels have: the height is worth more there than
                  the margin is. */
-              className={`tab-panel${tab === "rays" ? " tab-panel-tight" : ""}`}
+              className={`tab-panel${group === "rays" ? " tab-panel-tight" : ""}${measuredOnly(group).className}`}
               role="tabpanel"
-              id={`panel-${tab}`}
-              aria-labelledby={`tab-${tab}`}
+              id={`panel-${group}`}
+              aria-labelledby={`tab-${group}`}
             >
               <SettingsPanel
-                group={tab}
+                group={group}
                 settings={settings}
                 onChange={setSettings}
                 presetName={presets.target}
@@ -4545,6 +4671,11 @@ export default function App() {
                 onTwoBoard={(on) => {
                   setTwoBoard(on);
                   setTwoBoardMode(on);
+                }}
+                allowScrolling={layoutMode === "css" ? null : scrolling}
+                onAllowScrolling={(on) => {
+                  setScrolling(on);
+                  setAllowScrolling(on);
                 }}
                 rightPreset={rightNamed}
                 rightPresetChoices={rightChoices}
@@ -4616,7 +4747,7 @@ export default function App() {
                 }
               />
             </div>
-          )}
+          ))}
           </div>
         </div>
       </div>

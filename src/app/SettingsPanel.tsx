@@ -74,6 +74,13 @@ interface SettingsPanelProps {
   /** Whether a second board stands beside the first, drawn from another preset. */
   twoBoard: boolean;
   onTwoBoard: (on: boolean) => void;
+  /**
+   * Whether the page may scroll, kept in this browser: see `allowScrolling`.
+   * Null where the page is laid out by the stylesheet, which has no say in it,
+   * and the switch is not shown.
+   */
+  allowScrolling: boolean | null;
+  onAllowScrolling: (on: boolean) => void;
   /** Which preset that board is drawn with, and every preset it could be. */
   rightPreset: string;
   rightPresetChoices: readonly string[];
@@ -96,6 +103,8 @@ export default function SettingsPanel({
   onForgetStashes,
   twoBoard,
   onTwoBoard,
+  allowScrolling,
+  onAllowScrolling,
   rightPreset,
   rightPresetChoices,
   onRightPreset,
@@ -802,6 +811,20 @@ export default function SettingsPanel({
               onChange={onRightPreset}
             />
           </div>
+
+          {/* About the screen, like the two boards over it, and kept in this
+              browser as they are. */}
+          {allowScrolling !== null && (
+            <div className="board-controls settings-logging settings-ask">
+              <ToggleField
+                id="allow-scrolling"
+                label="Allow scrolling"
+                hint="Let the page run on past the bottom of the window where that gives the boards a good deal more room, the tabs then being scrolled to. Off, everything is fitted into the window, the tabs the smaller for it. Kept in this browser rather than in the settings."
+                checked={allowScrolling}
+                onChange={onAllowScrolling}
+              />
+            </div>
+          )}
 
           {/* Above the two file buttons rather than below them: it is about
               the presets over it — what happens to settings that have nowhere
