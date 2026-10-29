@@ -46,6 +46,13 @@ jobs:
       - name: Install
         run: npm ci
 
+      # The browsers Playwright drives for the layout suite: Chromium, and
+      # WebKit, which is Safari's engine. `npm ci` brings Playwright but not
+      # them — they are downloads of their own, at the version this lockfile's
+      # Playwright expects, with the system libraries WebKit needs alongside.
+      - name: Playwright's browsers
+        run: npx playwright install --with-deps chromium webkit
+
       # Said out loud, so a runner image that stops shipping Chrome fails here
       # with one line rather than inside a suite with a timeout.
       - name: Chrome

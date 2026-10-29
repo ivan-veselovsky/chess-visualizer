@@ -2560,6 +2560,7 @@ console.log("\nThe page's regions, from the window's shape\n");
       }
     }
     if (!shape.scrollable && (laid.scrolls || laid.height > shape.aspect + EPS)) trouble.push(`${JSON.stringify(shape)}: a page that may not scroll is taller than the window`);
+    if (!laid.scrolls && laid.height !== shape.aspect) trouble.push(`${JSON.stringify(shape)}: a page that fits not exactly the window's height`);
     if (laid.scrolls !== laid.height > shape.aspect + EPS) trouble.push(`${JSON.stringify(shape)}: says it scrolls when it does not, or the other way`);
     if (laid.panelPlace === "below" && laid.panel.h < DEFAULT_METRICS.panelMinHeight * laid.em - EPS) {
       trouble.push(`${JSON.stringify(shape)}: the panel under the boards under its least height`);
@@ -2639,10 +2640,12 @@ console.log("\nThe page's regions, from the window's shape\n");
   check("with the text no smaller than it can be read", one.em >= 12 - 1e-9, String(one.em));
 
   /* A window as wide as 1905 × 970, two boards with names under them: the
-     panel not squeezed in beside them, but under them. */
+     panel beside them — scrolling would not buy the boards enough — and as
+     wide as its share of a board, not squeezed to its least width. */
   const wideish = layout({ aspect: 970 / 1905, scrollable: true, boards: 2, bars: 1, minEm: minEmFor(1905), metrics: { bottomRow: 1.55 } });
-  check("1905 × 970, two boards: the panel under them, rather than narrow beside them",
-    wideish.panelPlace === "below", `${wideish.panelPlace}, panel ${wideish.panel.w}`);
+  check("1905 × 970, two boards: the panel beside them, at least its share of a board wide",
+    wideish.panelPlace === "right" && !wideish.scrolls && wideish.panel.w >= DEFAULT_METRICS.panelBesideTwoBoards * wideish.boards[0].w - 1e-9,
+    `${wideish.panelPlace}, panel ${wideish.panel.w * 1905} beside boards ${wideish.boards[0].w * 1905}`);
 
   /* Side by side wherever the window is not much taller than wide, though stacked would be larger there. */
   const squarish = layout({ aspect: 569 / 641, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(641) });

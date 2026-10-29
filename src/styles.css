@@ -5873,6 +5873,17 @@ html.layout-computed {
   overflow: hidden;
 }
 
+/*
+  A page laid out to fit the window, and nothing in it lengthening the page:
+  whatever pokes out of the regions — a petal past its row, a pixel rounded
+  up — is cut off at the page's edge rather than given a scrollbar of a few
+  pixels to be seen by. Every region is inside the window already; what is
+  drawn in the page's top layer — a dialog, an explanation — is not clipped.
+*/
+.app.app-computed.app-fits {
+  overflow: clip;
+}
+
 .app.app-computed .app-body {
   display: block;
 }

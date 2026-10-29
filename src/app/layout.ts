@@ -337,11 +337,17 @@ function arranged(
       panel = { ...panel, y: aspect };
     }
   }
-  const height = Math.max(aspect, panel.y + panel.h + m(g.pageBottom));
+  /* The window's height itself where nothing runs past its foot, rather than
+     the larger of it and a sum that comes to it: the sum is as often a hair
+     over as under, and a page a ten-trillionth of a pixel taller than the
+     window is one a browser may give a scrollbar to. */
+  const end = panel.y + panel.h + m(g.pageBottom);
+  const scrolls = end > aspect + 1e-9;
+  const height = scrolls ? end : aspect;
   return {
     flow,
     panelPlace,
-    scrolls: height > aspect + 1e-9,
+    scrolls,
     em,
     aspect,
     header: { x: left, y: m(g.pageTop), w: inside, h: m(metrics.header) },

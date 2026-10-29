@@ -3358,6 +3358,8 @@ export default function App() {
         laid !== null ? `app-computed app-flow-${laid.flow} app-panel-${laid.panelPlace}` : "",
         /* The page scrolls, and the panel is as tall as its tabs: nothing in it scrolls of its own. */
         laid !== null && laid.scrolls ? "app-panel-natural" : "",
+        /* Or it fits the window, and nothing in it may lengthen the page: see `.app-fits`. */
+        laid !== null && !laid.scrolls ? "app-fits" : "",
       ]
         .filter((name) => name !== "")
         .join(" ")}

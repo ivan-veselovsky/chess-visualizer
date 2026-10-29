@@ -109,6 +109,12 @@ export function usePageLayout(
           size.w
         );
 
+  /* A page that fits is the window's height to the pixel, as measured: the
+     height in units of the width, times the width, can miss it by a hair. */
+  if (laid !== null && !laid.scrolls && size !== null) {
+    laid.height = size.h;
+  }
+
   /* The page's text, at the size the regions were computed for: everything
      the stylesheet measures in rems grows and shrinks with it. */
   useEffect(() => {
