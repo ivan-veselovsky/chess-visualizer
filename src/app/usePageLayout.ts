@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { inPixels, layout, minEmFor, type Layout, type MetricsAsked } from "./layout";
+import { inPixels, layout, minEmFor, scaleFor, type Layout, type MetricsAsked } from "./layout";
 
 /**
  * How the page is laid out: by `layout`, the regions computed from the
@@ -104,6 +104,7 @@ export function usePageLayout(
             bars,
             metrics,
             minEm: minEmFor(size.w),
+            scale: scaleFor(size.w, size.h),
             ...(panelWantsPx === null ? {} : { panelWants: panelWantsPx / size.w }),
           }),
           size.w

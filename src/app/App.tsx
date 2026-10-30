@@ -3295,7 +3295,7 @@ export default function App() {
   );
   const { tabbed, measuring } = usePanelWants(
     laid !== null && laid.scrolls,
-    laid === null ? "" : `${Math.round(laid.panel.w)} ${laid.em}`,
+    laid === null ? "" : `${Math.round(laid.panel.w)} ${laid.em} ${laid.settingsEm}`,
     tab,
     (px) => setPanelWantsPx((was) => (was !== null && Math.abs(was - px) < 1 ? was : px))
   );

@@ -12,7 +12,11 @@
  * The type is part of the layout: `em`, the size of the page's text, comes out
  * of it like any other size, in proportion to the window's area, so the text
  * takes the same share of the screen whether the screen is a laptop's or a
- * wall's. Everything here that is not a board is measured in it.
+ * wall's. Everything here that is not a board is measured in it — but the
+ * panel of tabs, which has text of its own, `settingsEm`: the same up to a
+ * window of the size the text is calibrated at, and growing more slowly past
+ * it, so that a large screen gives its room to the boards rather than to the
+ * settings.
  *
  * Written with its extensions, like the other modules `tests/unit.mjs` runs
  * straight from the TypeScript.
@@ -35,7 +39,7 @@ export interface LayoutInput {
    * the more so on a phone, and a layout that scrolls is taken only where its
    * boards are larger by `scrollPenalty` than the best one that does not; see
    * `layout`. Where the page may not, the panel is always fitted into what the
-   * window leaves it, at least `panelMinHeight` of it.
+   * window leaves it, at least `panelMinLines` of it.
    */
   scrollable: boolean;
   /** One board, or two. */
@@ -51,6 +55,13 @@ export interface LayoutInput {
    * where nothing is said.
    */
   minEm?: number;
+  /**
+   * How large the window is against the one the text is calibrated at, 1400 ×
+   * 950 pixels: the square root of their areas' ratio — see `scaleFor`. The
+   * panel's text grows with it more slowly than the page's past 1; see
+   * `settingsGrowth`. None, where nothing is said, and the two are the same.
+   */
+  scale?: number;
   /**
    * How tall the panel's contents are — the tallest of its tabs, not only the
    * one open — at the width the panel has under the boards, in units of the
@@ -113,6 +124,20 @@ export const DEFAULT_GAPS: Gaps = {
 export interface Metrics {
   /** The text's size, against the square root of the window's area. Calibrated so that a 1400 × 950 window has 16px text. */
   emPerRootArea: number;
+  /**
+   * How the panel's text grows past the window the text is calibrated at, as
+   * the power of `LayoutInput.scale` it grows by: 1 as the page's text does, ½
+   * as the square root of it — a window twice as large each way has its page's
+   * text twice as large, and the panel's √2. Under that window the two are the
+   * same. Not in ems: a power.
+   */
+  settingsGrowth: number;
+  /**
+   * And the panel's text against the page's at that window, where it is to be
+   * smaller or larger there as well: 1 the same, 0.9 a tenth smaller. Not in
+   * ems: a ratio.
+   */
+  settingsSize: number;
   /** The spaces between the regions and round the page: see `Gaps`. */
   gaps: Gaps;
   /** The header's own line. */
@@ -134,19 +159,22 @@ export interface Metrics {
    * well. Stacked is for a phone held upright, near 1:2 or taller.
    */
   columnFromAspect: number;
-  /** The panel's least and most width beside the boards, and its least height under them. */
-  panelMinWidth: number;
   /**
-   * And its least width beside them as a share of a board's side, with one
-   * board and with two: 1 is as wide as a board. Where the window is not wide
-   * enough for that, the boards give up width to it — and the panel goes
-   * under them instead, where that leaves them larger. Nought asks nothing
-   * beyond `panelMinWidth`. Not in ems: a share.
+   * The panel's least width beside the boards, in characters of its text, and
+   * its least height under them, in lines of it: room for the text, in the
+   * text's own size, `settingsEm` — which grows more slowly than the boards
+   * past the window the text is calibrated at, so that the larger the screen,
+   * the smaller the share of it the panel asks for. Where the window is not
+   * wide enough for the panel beside the boards, the boards give up width to
+   * it — and the panel goes under them instead, where that leaves them larger.
    */
-  panelBesideOneBoard: number;
-  panelBesideTwoBoards: number;
+  panelMinChars: number;
+  panelMinLines: number;
+  /** A character of the panel's text, on the average, and a line of it, in ems: as `system-ui` measures. */
+  charEm: number;
+  lineEm: number;
+  /** The panel's most width beside the boards, in ems of its text. */
   panelMaxWidth: number;
-  panelMinHeight: number;
   /**
    * How much larger its boards must be for a page that scrolls to be taken
    * over one that does not: 1.25 is a quarter larger. Not in ems: a ratio.
@@ -166,17 +194,19 @@ export interface Metrics {
 
 export const DEFAULT_METRICS: Metrics = {
   emPerRootArea: 16 / Math.sqrt(1400 * 950),
+  settingsGrowth: 0.5,
+  settingsSize: 1,
   gaps: DEFAULT_GAPS,
   header: 2.06,
   topRow: 1.75,
   bottomRow: 1.55,
   bar: 1.7,
   columnFromAspect: 1.75,
-  panelMinWidth: 27,
-  panelBesideOneBoard: 0.65,
-  panelBesideTwoBoards: 0.91,
+  panelMinChars: 46,
+  panelMinLines: 15,
+  charEm: 0.48,
+  lineEm: 1.375,
   panelMaxWidth: 100,
-  panelMinHeight: 25,
   scrollPenalty: 1.3,
   stubShare: 0.2,
 };
@@ -202,6 +232,8 @@ export interface Layout {
   scrolls: boolean;
   /** The page's text size, in units of the window's width. */
   em: number;
+  /** And the panel's: see `Metrics.settingsGrowth`. */
+  settingsEm: number;
   /** The window's height over its width, as asked. */
   aspect: number;
   header: Box;
@@ -229,10 +261,19 @@ export interface Layout {
   height: number;
 }
 
-/** The text's size from the window's shape: in proportion to its area, and never under the least asked for. */
-function emOf(aspect: number, metrics: Metrics, minEm: number): number {
+/**
+ * The text's sizes from the window's shape, the page's and the panel's: in
+ * proportion to its area's square root, the panel's past `scale` 1 as its
+ * `settingsGrowth` power, and `settingsSize` of it — and either never under
+ * the least asked for.
+ */
+function emsOf(input: LayoutInput, metrics: Metrics): { em: number; settingsEm: number } {
+  const minEm = input.minEm ?? 0;
   /* The area's square root, the window being 1 wide: √(1 × aspect). */
-  return Math.max(metrics.emPerRootArea * Math.sqrt(aspect), minEm);
+  const em = metrics.emPerRootArea * Math.sqrt(input.aspect);
+  const scale = input.scale ?? 1;
+  const slower = scale > 1 ? scale ** (metrics.settingsGrowth - 1) : 1;
+  return { em: Math.max(em, minEm), settingsEm: Math.max(em * slower * metrics.settingsSize, minEm) };
 }
 
 /**
@@ -244,12 +285,17 @@ function arranged(
   input: LayoutInput,
   metrics: Metrics,
   em: number,
+  settingsEm: number,
   flow: Flow,
   panelPlace: PanelPlace,
   scroll: boolean
 ): Layout | null {
   const { aspect, boards, bars } = input;
   const m = (ems: number) => ems * em;
+  /* The panel's sizes, in its own text's: its least width and height, from characters and lines of it. */
+  const ms = (ems: number) => ems * settingsEm;
+  const panelMinWidth = ms(metrics.panelMinChars * metrics.charEm);
+  const panelMinHeight = ms(metrics.panelMinLines * metrics.lineEm);
   const g = metrics.gaps;
   const barsWidth = bars * m(metrics.bar + g.besideBar);
   const gap = m(g.betweenBoards);
@@ -269,27 +315,18 @@ function arranged(
     on — so the row under the boards never stands on the window's edge, and
     the padding goes to the page's own end, under the panel.
   */
-  const across = inside - (panelPlace === "right" ? m(g.panel + metrics.panelMinWidth) : 0);
+  const across = inside - (panelPlace === "right" ? m(g.panel) + panelMinWidth : 0);
   const under =
     panelPlace === "right"
       ? m(g.pageBottom)
       : scroll
         ? m(g.panel)
-        : m(g.panel + metrics.panelMinHeight + g.pageBottom);
+        : m(g.panel + g.pageBottom) + panelMinHeight;
   const down = aspect - above - rows - under;
   /* And a board's side in that room: so many boards across it, or down it. */
   const many = (room: number) => (room - (boards - 1) * gap) / boards;
-  let side =
+  const side =
     flow === "row" ? Math.min(many(across - barsWidth), down) : Math.min(across - barsWidth, many(down));
-  /* Beside them, the panel as wide as its share of a board, as well as its
-     least width: the boards across the row, and the panel's share, out of
-     what the row has once the gaps and the bars are taken from it. */
-  const besideShare = boards === 1 ? metrics.panelBesideOneBoard : metrics.panelBesideTwoBoards;
-  if (panelPlace === "right" && besideShare > 0) {
-    const inRow = flow === "row" ? boards : 1;
-    const shared = inside - m(g.panel) - barsWidth - (flow === "row" ? (boards - 1) * gap : 0);
-    side = Math.min(side, shared / (inRow + besideShare));
-  }
   if (!(side > 0)) {
     return null;
   }
@@ -324,11 +361,11 @@ function arranged(
   let stub: Box | null = null;
   if (panelPlace === "right") {
     const x = group.x + group.w + m(g.panel);
-    panel = { x, y: above, w: Math.min(1 - left - x, m(metrics.panelMaxWidth)), h: aspect - above - m(g.pageBottom) };
+    panel = { x, y: above, w: Math.min(1 - left - x, ms(metrics.panelMaxWidth)), h: aspect - above - m(g.pageBottom) };
   } else {
     const y = group.y + group.h + m(g.panel);
     const room = aspect - m(g.pageBottom) - y;
-    panel = { x: left, y, w: inside, h: scroll ? Math.max(room, m(metrics.panelMinHeight), input.panelWants ?? 0) : room };
+    panel = { x: left, y, w: inside, h: scroll ? Math.max(room, panelMinHeight, input.panelWants ?? 0) : room };
     /* Only a sliver of it on the screen — a sliver of the tallest tab, where
        the tabs have been measured — the sliver left blank, and the panel moved
        down to start where the window ends. */
@@ -349,6 +386,7 @@ function arranged(
     panelPlace,
     scrolls,
     em,
+    settingsEm,
     aspect,
     header: { x: left, y: m(g.pageTop), w: inside, h: m(metrics.header) },
     group,
@@ -379,7 +417,7 @@ function arranged(
  */
 export function layout(input: LayoutInput): Layout {
   const metrics = metricsOf(input.metrics);
-  const em = emOf(input.aspect, metrics, input.minEm ?? 0);
+  const { em, settingsEm } = emsOf(input, metrics);
   const candidates: Layout[] = [];
   for (const scroll of input.scrollable ? [false, true] : [false]) {
     for (const panelPlace of ["right", "below"] as const) {
@@ -388,7 +426,7 @@ export function layout(input: LayoutInput): Layout {
       }
       const stacking = input.boards === 2 && input.aspect >= metrics.columnFromAspect;
       for (const flow of stacking ? (["row", "column"] as const) : (["row"] as const)) {
-        const candidate = arranged(input, metrics, em, flow, panelPlace, scroll);
+        const candidate = arranged(input, metrics, em, settingsEm, flow, panelPlace, scroll);
         if (candidate !== null) {
           candidates.push(candidate);
         }
@@ -407,6 +445,11 @@ export function minEmFor(widthPx: number, minEmPx = 12): number {
   return minEmPx / widthPx;
 }
 
+/** `scale` for a window so many pixels across and down: against 1400 × 950, the one the text is calibrated at. */
+export function scaleFor(widthPx: number, heightPx: number): number {
+  return Math.sqrt((widthPx * heightPx) / (1400 * 950));
+}
+
 /** A box in pixels, for a window so many pixels wide. */
 export function boxInPixels(box: Box, widthPx: number): Box {
   return { x: box.x * widthPx, y: box.y * widthPx, w: box.w * widthPx, h: box.h * widthPx };
@@ -418,6 +461,7 @@ export function inPixels(laid: Layout, widthPx: number): Layout {
   return {
     ...laid,
     em: laid.em * widthPx,
+    settingsEm: laid.settingsEm * widthPx,
     header: px(laid.header),
     group: px(laid.group),
     top: px(laid.top),

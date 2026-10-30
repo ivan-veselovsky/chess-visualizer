@@ -56,7 +56,7 @@ import { asBoardEditorPosition, flipped, place, boardEditorProblems, boardEditor
 import { lineLabel, pageAround, pageLine } from "../src/chess/linePath.ts";
 import { figurine, isPieceGlyph, lettered } from "../src/chess/figurine.ts";
 import { titleOfPgn } from "../src/chess/gameTitle.ts";
-import { DEFAULT_METRICS, inPixels, layout, minEmFor, regionsOf } from "../src/app/layout.ts";
+import { DEFAULT_METRICS, inPixels, layout, minEmFor, regionsOf, scaleFor } from "../src/app/layout.ts";
 import { actionFor, bind, comboOf, defaultBindings, describeCombo, readBindings } from "../src/app/keyBindings.ts";
 import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
 import { readdirSync, readFileSync } from "node:fs";
@@ -2562,13 +2562,13 @@ console.log("\nThe page's regions, from the window's shape\n");
     if (!shape.scrollable && (laid.scrolls || laid.height > shape.aspect + EPS)) trouble.push(`${JSON.stringify(shape)}: a page that may not scroll is taller than the window`);
     if (!laid.scrolls && laid.height !== shape.aspect) trouble.push(`${JSON.stringify(shape)}: a page that fits not exactly the window's height`);
     if (laid.scrolls !== laid.height > shape.aspect + EPS) trouble.push(`${JSON.stringify(shape)}: says it scrolls when it does not, or the other way`);
-    if (laid.panelPlace === "below" && laid.panel.h < DEFAULT_METRICS.panelMinHeight * laid.em - EPS) {
+    const M = DEFAULT_METRICS;
+    if (laid.panelPlace === "below" && laid.panel.h < M.panelMinLines * M.lineEm * laid.settingsEm - EPS) {
       trouble.push(`${JSON.stringify(shape)}: the panel under the boards under its least height`);
     }
     if (shape.boards === 1 && laid.flow !== "row") trouble.push(`${JSON.stringify(shape)}: one board in a column`);
-    /* Beside the boards, the panel at least its share of a board wide. */
-    const besideShare = shape.boards === 1 ? DEFAULT_METRICS.panelBesideOneBoard : DEFAULT_METRICS.panelBesideTwoBoards;
-    if (laid.panelPlace === "right" && laid.panel.w < besideShare * laid.boards[0].w - EPS) trouble.push(`${JSON.stringify(shape)}: the panel beside the boards narrower than its share of one`);
+    /* Beside the boards, the panel at least its least number of characters wide. */
+    if (laid.panelPlace === "right" && laid.panel.w < M.panelMinChars * M.charEm * laid.settingsEm - EPS) trouble.push(`${JSON.stringify(shape)}: the panel beside the boards narrower than its least`);
     /* The panel under the boards and the page scrolling: the gap over the panel is on the screen, so the row under the boards is never on its edge. */
     if (laid.panelPlace === "below" && laid.scrolls && laid.group.y + laid.group.h + laid.em * DEFAULT_METRICS.gaps.panel > shape.aspect + EPS) {
       trouble.push(`${JSON.stringify(shape)}: the gap under the boards past the window's foot`);
@@ -2609,8 +2609,8 @@ console.log("\nThe page's regions, from the window's shape\n");
   /* What the window leaves the board, down: all of it less the rows and the room round them, in 16px ems. */
   const M = DEFAULT_METRICS;
   const deskTall = 950 - 16 * (M.gaps.pageTop + M.header + M.gaps.underHeader + M.topRow + M.gaps.overBoards + M.bottomRow + M.gaps.pageBottom);
-  /* Or as wide as the row leaves it, the panel beside it taking its share of a board: whichever is the less. */
-  const deskWide = (1400 - 16 * (2 * M.gaps.pageSide + M.gaps.panel + 2 * (M.bar + M.gaps.besideBar))) / (1 + M.panelBesideOneBoard);
+  /* Or as wide as the row leaves it, the panel beside it at its least: whichever is the less. */
+  const deskWide = 1400 - 16 * (2 * M.gaps.pageSide + M.gaps.panel + 2 * (M.bar + M.gaps.besideBar) + M.panelMinChars * M.charEm);
   const deskSide = Math.min(deskTall, deskWide);
   check("1400 × 950, one board: the panel beside it, the text 16px, the board as tall as the window leaves, nothing scrolling",
     desk.panelPlace === "right" && !desk.scrolls && Math.abs(desk.em - 16) < 1e-6 && Math.abs(desk.boards[0].w - deskSide) < 1e-6,
@@ -2640,12 +2640,25 @@ console.log("\nThe page's regions, from the window's shape\n");
   check("with the text no smaller than it can be read", one.em >= 12 - 1e-9, String(one.em));
 
   /* A window as wide as 1905 × 970, two boards with names under them: the
-     panel beside them — scrolling would not buy the boards enough — and as
-     wide as its share of a board, not squeezed to its least width. */
-  const wideish = layout({ aspect: 970 / 1905, scrollable: true, boards: 2, bars: 1, minEm: minEmFor(1905), metrics: { bottomRow: 1.55 } });
-  check("1905 × 970, two boards: the panel beside them, at least its share of a board wide",
-    wideish.panelPlace === "right" && !wideish.scrolls && wideish.panel.w >= DEFAULT_METRICS.panelBesideTwoBoards * wideish.boards[0].w - 1e-9,
+     panel beside them — scrolling would not buy the boards enough — and at
+     least its least number of characters wide. */
+  const wideish = layout({ aspect: 970 / 1905, scrollable: true, boards: 2, bars: 1, minEm: minEmFor(1905), scale: scaleFor(1905, 970), metrics: { bottomRow: 1.55 } });
+  check("1905 × 970, two boards: the panel beside them, at least its least number of characters wide",
+    wideish.panelPlace === "right" && !wideish.scrolls &&
+      wideish.panel.w >= M.panelMinChars * M.charEm * wideish.settingsEm - 1e-9,
     `${wideish.panelPlace}, panel ${wideish.panel.w * 1905} beside boards ${wideish.boards[0].w * 1905}`);
+
+  /* The panel's text: the page's up to the window it is calibrated at, and
+     past it growing as the square root of what the page's does — so the
+     panel's least width is a smaller share of a larger screen. */
+  const at = (w, h) => inPixels(layout({ aspect: h / w, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(w), scale: scaleFor(w, h) }), w);
+  const laptop = at(1366, 768), calibrated = at(1400, 950), monitor = at(2560, 1440);
+  check("the panel's text the page's up to 1400 × 950",
+    laptop.settingsEm === laptop.em && Math.abs(calibrated.settingsEm - 16) < 1e-9, `${laptop.settingsEm} vs ${laptop.em}, ${calibrated.settingsEm}`);
+  check("and past it the page's over the square root of how much larger the window is",
+    Math.abs(monitor.settingsEm - monitor.em / Math.sqrt(scaleFor(2560, 1440))) < 1e-9, `${monitor.settingsEm} vs ${monitor.em}`);
+  check("so the panel's least width is a smaller share of 2560 × 1440 than of 1400 × 950",
+    monitor.settingsEm / 2560 < calibrated.settingsEm / 1400, `${monitor.settingsEm / 2560} vs ${calibrated.settingsEm / 1400}`);
 
   /* Side by side wherever the window is not much taller than wide, though stacked would be larger there. */
   const squarish = layout({ aspect: 569 / 641, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(641) });
@@ -2663,8 +2676,9 @@ console.log("\nThe page's regions, from the window's shape\n");
   check("and where it may not scroll, the room the window leaves, whatever the tabs want",
     !fittingWants.scrolls && fittingWants.panel.y + fittingWants.panel.h <= 950 / 1400 + 1e-9, JSON.stringify(fittingWants.panel));
 
-  /* A small phone, two boards: what the window leaves of the panel is a sliver, and a stub instead. */
-  const sliver = inPixels(layout({ aspect: 760 / 360, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(360) }), 360);
+  /* A small phone, two boards: what the window leaves of the panel is a sliver of its tallest tab — 600px, as
+     the tabs measure at that width — and a stub instead. */
+  const sliver = inPixels(layout({ aspect: 760 / 360, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(360), panelWants: 600 / 360 }), 360);
   check("a sliver of the panel over the window's foot: left blank, a stub, and the panel starting at the foot",
     sliver.stub !== null && sliver.stub.h < DEFAULT_METRICS.stubShare * sliver.panel.h &&
       Math.abs(sliver.stub.y + sliver.stub.h - (760 - sliver.em * DEFAULT_METRICS.gaps.pageBottom)) < 1e-6 && Math.abs(sliver.panel.y - 760) < 1e-6 &&
