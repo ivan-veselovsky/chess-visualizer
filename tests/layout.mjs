@@ -14,6 +14,7 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, webkit } from "playwright";
 import { check, summary } from "./browser.mjs";
+import { DEFAULT_METRICS, inPixels, layout, minEmFor, scaleFor } from "../src/app/layout.ts";
 
 const PORT = Number(process.env.LAYOUT_PORT ?? 4871);
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
@@ -45,6 +46,12 @@ const CASES = [
   { w: 390, h: 1170, boards: 2, expect: "below", column: true },
   /* Too little of the panel left over the window's foot: a stub in its place. */
   { w: 360, h: 800, boards: 2, expect: "below", stub: true },
+  /* Large windows, where the panel's text is smaller than the page's: a Mac's
+     window the panel stood beside two boards in, full HD, and 4K. */
+  { w: 2150, h: 1004, boards: 2, expect: "right" },
+  { w: 1920, h: 1080, boards: 1, expect: "right" },
+  { w: 3840, h: 2160, boards: 2, expect: "right" },
+  { w: 1280, h: 1024, boards: 2, expect: "below" },
 ];
 
 /* In the page: the game, the number of boards, and then every region against its outline. */
@@ -98,6 +105,16 @@ const measure = async (two) => {
     }
   }
   const app = document.querySelector(".app");
+  /* The panel's text as the open tab draws it: a character of it on the
+     average, and a line, from text of the panel's sort put in the tab. */
+  const tab = document.querySelector(".tab-panel:not(.tab-panel-measure)");
+  const probe = document.createElement("span");
+  probe.style.cssText = "position: absolute; visibility: hidden; white-space: nowrap;";
+  probe.textContent = "Pieces that attack the square are drawn with rays; the heat map shows how often each square is attacked, by whom.";
+  tab.append(probe);
+  const sample = probe.getBoundingClientRect();
+  probe.remove();
+  const side = document.querySelector(".side-column");
   return {
     wide: document.scrollingElement.scrollWidth - document.documentElement.clientWidth,
     off,
@@ -107,6 +124,12 @@ const measure = async (two) => {
     stub: document.querySelector(".layout-stub") !== null,
     panelTop: document.querySelector(".side-column").getBoundingClientRect().top,
     font: parseFloat(getComputedStyle(document.documentElement).fontSize),
+    panelFont: parseFloat(getComputedStyle(side).fontSize),
+    tabFont: parseFloat(getComputedStyle(tab).fontSize),
+    charPx: sample.width / probe.textContent.length,
+    linePx: sample.height,
+    panelW: side.getBoundingClientRect().width,
+    panelH: side.getBoundingClientRect().height,
   };
 };
 
@@ -126,6 +149,31 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       if (expect !== null) {
         check(`${at}: the panel ${expect === "right" ? "beside the boards" : "under them"}${column ? ", the boards one over the other" : ""}`,
           seen.panel === expect && (column === undefined || seen.column === column), JSON.stringify(seen));
+      }
+      /*
+        The panel's text at the size the layout gave it — its own, smaller
+        than the page's on a large screen — and the panel the room for as much
+        of it as the layout asks for: so many characters across, where it
+        stands beside the boards, and so many lines down, where it is under
+        them. Measured in the text the open tab draws, so a size the layout
+        reckoned with and the stylesheet did not draw — a rem left unscaled, a
+        tab with type of its own — is a panel too small for what it holds.
+      */
+      const sizes = inPixels(layout({ aspect: h / w, scrollable: true, boards, bars: 0, minEm: minEmFor(w), scale: scaleFor(w, h) }), w);
+      const text = { panelFont: seen.panelFont, tabFont: seen.tabFont, root: seen.font, charPx: seen.charPx, linePx: seen.linePx };
+      check(`${at}: the panel's text at the size the layout gave it, ${sizes.settingsEm.toFixed(2)}px`,
+        Math.abs(seen.panelFont - sizes.settingsEm) < 0.05 && Math.abs(seen.tabFont - sizes.settingsEm) < 0.05,
+        JSON.stringify(text));
+      const M = DEFAULT_METRICS;
+      if (seen.panel === "right") {
+        check(`${at}: the panel beside the boards ${M.panelMinChars} characters of its text wide, at least`,
+          seen.panelW >= M.panelMinChars * seen.charPx - 1,
+          `${seen.panelW.toFixed(1)}px for ${M.panelMinChars} × ${seen.charPx.toFixed(2)}px: ${(seen.panelW / seen.charPx).toFixed(1)} characters`);
+      }
+      if (seen.panel === "below") {
+        check(`${at}: the panel under the boards ${M.panelMinLines} lines of its text tall, at least`,
+          seen.panelH >= M.panelMinLines * seen.linePx - 1,
+          `${seen.panelH.toFixed(1)}px for ${M.panelMinLines} × ${seen.linePx.toFixed(2)}px: ${(seen.panelH / seen.linePx).toFixed(1)} lines`);
       }
       /* Where the case says: elsewhere a stub comes and goes with how tall the tabs are. */
       if (stub !== undefined) {

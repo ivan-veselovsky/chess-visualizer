@@ -202,13 +202,25 @@ function farthest(one, other, { dx, dy }) {
 const delaysOf = (gif) => gif.frames.map((frame) => frame.delayMs);
 const lengthOf = (gif) => delaysOf(gif).reduce((sum, delay) => sum + delay, 0);
 
+/*
+  The window both are made in: one where the boards' size does not depend on
+  the font. The layout measures the panel's text in the font the browser has,
+  and Chrome and Firefox are given different ones for `system-ui`; where the
+  panel's least height decides how large the boards are — two of them over the
+  panel at 1400 × 950 — the two browsers' boards come out different sizes, and
+  their exports, the board's lettering against the board, different pictures.
+  Here two boards are as wide as the window lets them be, the panel under them
+  running on past its foot.
+*/
+const WINDOW = { width: 1920, height: 1080 };
+
 let chrome = null;
 let firefox = null;
 try {
   console.log("\nThe export made in Chrome, to hold Firefox's up against\n");
-  chrome = await open({ port: PORT, debugPort: DEBUG_PORT, window: "1400,950" });
+  chrome = await open({ port: PORT, debugPort: DEBUG_PORT, window: `${WINDOW.width},${WINDOW.height}` });
   await chrome.page.send("Page.enable");
-  await chrome.page.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 950, deviceScaleFactor: 1, mobile: false });
+  await chrome.page.send("Emulation.setDeviceMetricsOverride", { ...WINDOW, deviceScaleFactor: 1, mobile: false });
   await chrome.page.send("Page.navigate", { url: chrome.app });
   await pause(2500);
   await chrome.page.run(SETUP);
@@ -218,7 +230,7 @@ try {
   console.log(`  ${reference.frames.length} frames, ${lengthOf(reference)} ms`);
 
   console.log("\nThe same, made in Firefox\n");
-  firefox = await openFirefox({ port: FIREFOX_PORT, debugPort: BIDI_PORT, width: 1400, height: 950 });
+  firefox = await openFirefox({ port: FIREFOX_PORT, debugPort: BIDI_PORT, ...WINDOW });
   await firefox.page.goto(firefox.app);
   await pause(2500);
   await firefox.page.run(SETUP);

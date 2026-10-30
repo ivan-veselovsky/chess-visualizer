@@ -444,8 +444,8 @@ body {
   wrapped under it is a page that scrolls.
 */
 .side-column {
-  flex: 1 1 27rem;
-  min-width: 27rem;
+  flex: 1 1 calc(27rem * var(--set-scale));
+  min-width: calc(27rem * var(--set-scale));
   /* No wider than a hundred ems: see `.app`. */
   max-width: var(--panel-room);
   /* So the tabs can size themselves to this column rather than to the window:
@@ -454,7 +454,7 @@ body {
   container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: calc(0.9rem * var(--set-scale));
 }
 
 /*
@@ -604,7 +604,7 @@ body {
 
 .fen-row > .field-label {
   flex: 0 0 auto;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /* The colon belongs to the layout, not to the label. */
@@ -614,7 +614,7 @@ body {
 
 .fen-row > .fen-input {
   flex: 1 1 0;
-  min-width: 8rem;
+  min-width: calc(8rem * var(--set-scale));
 }
 
 /* A button that carries an icon as well as a word keeps the two apart. */
@@ -668,18 +668,18 @@ body {
     the two on the left go back through the game, the two on the right go on
     through it — and the wider gap says so without a rule drawn between them.
   */
-  column-gap: 2rem;
+  column-gap: calc(2rem * var(--set-scale));
 }
 
 /* The middle gap: the ordinary two, and two more. */
 .step-buttons > .step-button:nth-child(2) {
-  margin-right: 2rem;
+  margin-right: calc(2rem * var(--set-scale));
 }
 
 /* The (i) after the last of them, beside it rather than a button's gap away. */
 .step-buttons > .info-button {
   align-self: center;
-  margin-left: calc(0.4em - 2rem);
+  margin-left: calc(0.4em - 2rem * var(--set-scale));
 }
 
 .board-controls .reset-button {
@@ -689,7 +689,7 @@ body {
 /* Clear of the game it stands under: what it does is turn the board round,
    which is nothing to do with the match being played on it. */
 .match-view {
-  margin-top: 0.9rem;
+  margin-top: calc(0.9rem * var(--set-scale));
 }
 
 /* Icon and word together, as one thing to press. */
@@ -753,7 +753,7 @@ body {
 .play-timing-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  row-gap: 0.5rem;
+  row-gap: calc(0.5rem * var(--set-scale));
 }
 
 .play-timing-grid > .number-field {
@@ -768,10 +768,12 @@ body {
   min-width: 4.3em;
 }
 
-@container play-timing (min-width: 36rem) {
+/* In ems, which here are the container's own: the panel's text, where it has
+   a size of its own — so the grid goes to two columns where two fit the text. */
+@container play-timing (min-width: 36em) {
   .play-timing-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 1.5rem;
+    column-gap: calc(1.5rem * var(--set-scale));
   }
 
   .play-timing-grid > .number-field {
@@ -821,8 +823,8 @@ body {
      the proportions below. */
   flex: 35 1 0;
   min-width: 0;
-  padding: 0.35rem 0.55rem;
-  font-size: 1rem;
+  padding: calc(0.35rem * var(--set-scale)) calc(0.55rem * var(--set-scale));
+  font-size: calc(1rem * var(--set-scale));
 }
 
 .step-button.step-button-end {
@@ -843,14 +845,14 @@ body {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
   min-width: 0;
 }
 
 .game-library > label,
 .stashed-games > label {
   flex: 0 0 auto;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /* The colon belongs to the layout, not to the label. */
@@ -872,7 +874,7 @@ body {
 
 /* Wide enough for a game's whole title, and no wider. */
 .game-library > .game-select {
-  flex: 0 1 26rem;
+  flex: 0 1 calc(26rem * var(--set-scale));
 }
 
 /*
@@ -884,9 +886,18 @@ body {
   gives up width to keep the button beside it, down to a floor, and the list
   it opens is the platform's, which shows each name whole. Its label kept
   beside it throughout.
+
+  And where even the floor and the button do not fit across the panel, the
+  button goes under the list. The list and its label wrap as one from a basis
+  of that floor — the label, and the list at its least — growing to their
+  whole width where the row has it: from their whole width, the button went
+  under them wherever the list would have had to give up any width at all;
+  shrinking with nothing to wrap to, the list ran on under the button, the
+  two drawn over each other.
 */
 .stash-pick {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75em;
   flex: 0 1 auto;
@@ -895,13 +906,14 @@ body {
 }
 
 .stashed-games {
-  flex: 0 1 auto;
+  flex: 1 1 calc(15.5rem * var(--set-scale));
+  max-width: max-content;
   flex-wrap: nowrap;
 }
 
 .stashed-games > .game-select {
   flex: 0 1 auto;
-  min-width: 8rem;
+  min-width: calc(8rem * var(--set-scale));
 }
 
 .stash-pick > .reset-button {
@@ -917,8 +929,8 @@ body {
 */
 .game-select {
   min-width: 0;
-  padding: 0.4rem 0.5rem;
-  font-size: 0.9rem;
+  padding: calc(0.4rem * var(--set-scale)) calc(0.5rem * var(--set-scale));
+  font-size: calc(0.9rem * var(--set-scale));
   color: var(--app-fg);
   background: var(--app-bg);
   border: 1px solid var(--panel-border);
@@ -935,7 +947,7 @@ body {
    than carrying the row past the edge of the panel. The list it opens is the
    platform's, and shows each choice whole. */
 .choice-select-capped {
-  max-width: 22rem;
+  max-width: calc(22rem * var(--set-scale));
   text-overflow: ellipsis;
 }
 
@@ -964,7 +976,7 @@ body {
 .moves-field {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
   /* Along its own row now, so it starts where the steps above it do rather
      than being pushed to the far end of a row it shared. */
   flex: 1;
@@ -979,7 +991,7 @@ body {
 .lines-row {
   flex-wrap: wrap;
   column-gap: 2em;
-  row-gap: 0.5rem;
+  row-gap: calc(0.5rem * var(--set-scale));
 }
 
 /* As wide as what it holds, so the branches and the button follow it along
@@ -1006,7 +1018,7 @@ body {
   room it has, the more of each line it shows.
 */
 .lines-row > .line-field {
-  flex: 1 1 8rem;
+  flex: 1 1 calc(8rem * var(--set-scale));
   min-width: 0;
   margin-bottom: 0;
 }
@@ -1019,16 +1031,21 @@ body {
 .lines-keep-row {
   flex-wrap: wrap;
   column-gap: 1em;
-  row-gap: 0.5rem;
+  row-gap: calc(0.5rem * var(--set-scale));
 }
 
 .lines-keep-row > .toggle-field {
   margin-bottom: 0;
 }
 
+/* And where the panel has no room for the two side by side either, the second
+   under the first, its (i) with it — rather than the pair running on past the
+   panel's edge, the (i) cut off there. */
 .lines-keep-row > .lines-remove {
   margin-left: auto;
   gap: 1em;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .line-field > .line-select {
@@ -1047,7 +1064,7 @@ body {
 
 .moves-field > label {
   flex: 0 0 auto;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /*
@@ -1072,10 +1089,10 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: calc(1.15rem * var(--set-scale));
+  height: calc(1.15rem * var(--set-scale));
   padding: 0;
-  font: italic 700 0.75rem/1 Georgia, "Times New Roman", serif;
+  font: italic 700 calc(0.75rem * var(--set-scale))/1 Georgia, "Times New Roman", serif;
   color: color-mix(in srgb, currentColor 70%, transparent);
   background: none;
   border: 1.5px solid color-mix(in srgb, currentColor 45%, transparent);
@@ -1102,12 +1119,12 @@ body {
   inset: auto;
   margin: 0;
   /* Until it is placed, which happens before it can be seen. */
-  width: min(25rem, calc(100vw - 16px));
-  padding: 0.75rem 3rem 0.8rem 0.9rem;
+  width: min(25rem * var(--set-scale), calc(100vw - 16px));
+  padding: calc(0.75rem * var(--set-scale)) calc(3rem * var(--set-scale)) calc(0.8rem * var(--set-scale)) calc(0.9rem * var(--set-scale));
   /* A long explanation scrolls within itself. Its height is capped as it is
      placed; this says what to do with the rest. */
   overflow-y: auto;
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--set-scale));
   font-weight: 400;
   line-height: 1.5;
   text-align: left;
@@ -1126,11 +1143,13 @@ body {
 */
 .info-close {
   position: absolute;
-  top: 0.35rem;
-  right: 0.35rem;
+  top: calc(0.35rem * var(--set-scale));
+  right: calc(0.35rem * var(--set-scale));
   display: flex;
   align-items: center;
   justify-content: center;
+  /* The page's rems, not the panel's: a target for a finger or a pointer,
+     which is no smaller where the panel's text is. */
   width: 2.25rem;
   height: 2.25rem;
   padding: 0;
@@ -1147,8 +1166,8 @@ body {
 }
 
 .info-close svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: calc(1.25rem * var(--set-scale));
+  height: calc(1.25rem * var(--set-scale));
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -1156,7 +1175,7 @@ body {
 }
 
 .info-text {
-  min-height: 1.6rem;
+  min-height: calc(1.6rem * var(--set-scale));
 }
 
 /*
@@ -1238,7 +1257,7 @@ body {
 .stripe-table thead .field-label {
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.2rem;
+  gap: calc(0.2rem * var(--set-scale));
 }
 
 .stripe-table tbody th .field-label {
@@ -1276,19 +1295,19 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.5rem;
-  margin: 0.4rem 0 0.85rem;
+  gap: calc(0.5rem * var(--set-scale));
+  margin: calc(0.4rem * var(--set-scale)) 0 calc(0.85rem * var(--set-scale));
 }
 
 .key-bindings-title {
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 .key-bindings-grid {
   display: grid;
   grid-template-columns: max-content 9em;
   column-gap: 1em;
-  row-gap: 0.35rem;
+  row-gap: calc(0.35rem * var(--set-scale));
   align-items: center;
 }
 
@@ -1297,7 +1316,7 @@ body {
 }
 
 .key-binding-name {
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 .key-capture {
@@ -1347,7 +1366,7 @@ body {
 
 /* An explanation in more than one paragraph: a line's gap between them. */
 .info-para {
-  margin: 0 0 0.6rem;
+  margin: 0 0 calc(0.6rem * var(--set-scale));
 }
 
 .info-para:last-child {
@@ -1357,8 +1376,8 @@ body {
 .info-keys {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.35rem 0.8rem;
-  margin: 0 0 0.6rem;
+  gap: calc(0.35rem * var(--set-scale)) calc(0.8rem * var(--set-scale));
+  margin: 0 0 calc(0.6rem * var(--set-scale));
 }
 
 .info-keys dt {
@@ -1384,9 +1403,9 @@ body {
      the dialog, and a field for a whole name should use it. */
   width: 100%;
   min-width: 0;
-  padding: 0.4rem 0.5rem;
+  padding: calc(0.4rem * var(--set-scale)) calc(0.5rem * var(--set-scale));
   font-family: ui-monospace, monospace;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
   color: inherit;
   background: none;
   border: 1px solid var(--panel-border);
@@ -1401,11 +1420,11 @@ body {
 .moves-select {
   flex: 0 0 auto;
   min-width: 10em;
-  padding: 0.4rem 0.5rem;
+  padding: calc(0.4rem * var(--set-scale)) calc(0.5rem * var(--set-scale));
   /* Fixed pitch, so the indent under a move number lines the columns up; the
      pieces in the moves a size up, see `FIGURES_FAMILY`. */
   font-family: "Chess Figures", ui-monospace, monospace;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
   color: var(--app-fg);
   background: var(--app-bg);
   border: 1px solid var(--panel-border);
@@ -1430,8 +1449,8 @@ body {
   backdrop is its own pseudo-element and has to be dimmed separately.
 */
 .pgn-dialog {
-  width: min(46rem, 90vw);
-  padding: 1rem;
+  width: min(46rem * var(--set-scale), 90vw);
+  padding: calc(1rem * var(--set-scale));
   color: var(--app-fg);
   background: var(--app-bg);
   border: 1px solid var(--panel-border);
@@ -1440,12 +1459,12 @@ body {
 
 /* Why the dialog opened, when it opened on its own account. */
 .stash-prompt {
-  margin: 0 0 0.7rem;
-  font-size: 0.9rem;
+  margin: 0 0 calc(0.7rem * var(--set-scale));
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 .stash-dialog {
-  width: min(24rem, 90vw);
+  width: min(24rem * var(--set-scale), 90vw);
 }
 
 .pgn-dialog::backdrop {
@@ -1457,12 +1476,12 @@ body {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
+  gap: calc(1rem * var(--set-scale));
 }
 
 .dialog-close {
-  padding: 0 0.35rem;
-  font-size: 1.2rem;
+  padding: 0 calc(0.35rem * var(--set-scale));
+  font-size: calc(1.2rem * var(--set-scale));
   line-height: 1;
   color: inherit;
   background: none;
@@ -1473,15 +1492,15 @@ body {
 .pgn-dialog label,
 .pgn-dialog > label {
   display: block;
-  margin-bottom: 0.3rem;
-  font-size: 0.9rem;
+  margin-bottom: calc(0.3rem * var(--set-scale));
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 .pgn-text {
   width: 100%;
-  padding: 0.5rem;
+  padding: calc(0.5rem * var(--set-scale));
   font-family: ui-monospace, monospace;
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--set-scale));
   line-height: 1.45;
   color: inherit;
   background: none;
@@ -1493,19 +1512,19 @@ body {
 .pgn-dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: calc(0.5rem * var(--set-scale));
+  margin-top: calc(0.75rem * var(--set-scale));
 }
 
 .pgn-error {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--set-scale));
   color: var(--invalid);
 }
 
 .fen-error {
-  margin: 0.35rem 0 0;
-  font-size: 0.8rem;
+  margin: calc(0.35rem * var(--set-scale)) 0 0;
+  font-size: calc(0.8rem * var(--set-scale));
   color: var(--invalid);
 }
 
@@ -1842,8 +1861,8 @@ body {
     the gap, and the offset that carries the side switches out of the left-hand
     chooser and into the middle of that column.
   */
-  --between: 6rem;
-  --apart: 0.75rem;
+  --between: calc(6rem * var(--set-scale));
+  --apart: calc(0.75rem * var(--set-scale));
   display: flex;
   align-items: stretch;
   /* Everything the panel has left over, which is why it comes last — and
@@ -1861,7 +1880,7 @@ body {
     of what it holds is not the middle of the panel. The difference, taken above,
     puts the squares' centres on the panel's own middle.
   */
-  margin-top: calc(var(--panel-pad, 1rem) - var(--panel-pad-top, 1rem));
+  margin-top: calc(var(--panel-pad, 1rem * var(--set-scale)) - var(--panel-pad-top, 1rem * var(--set-scale)));
 }
 
 .intensity-chooser {
@@ -1879,8 +1898,8 @@ body {
     `overflow-clip-margin` takes no `calc()`, so this is written out rather than
     worked out. Widen the handle and this may stay as it is.
   */
-  --handle: 2.55rem;
-  --handle-clip: 1rem;
+  --handle: calc(2.55rem * var(--set-scale));
+  --handle-clip: calc(1rem * var(--set-scale));
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1915,7 +1934,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: calc(0.45rem * var(--set-scale));
   text-align: center;
   font-size: 1.05em;
   /*
@@ -1926,13 +1945,13 @@ body {
     size container, so `100cqw` is the width the square takes and `100cqh` the
     height it is held to.
   */
-  bottom: calc(50% + min(100cqw, 100cqh - 3.9rem) / 2 + 2.4rem);
+  bottom: calc(50% + min(100cqw, 100cqh - 3.9rem * var(--set-scale)) / 2 + 2.4rem * var(--set-scale));
 }
 
 /* Said the same way the settings panel says it, this being the same switch. */
 .intensity-label input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
+  width: calc(1rem * var(--set-scale));
+  height: calc(1rem * var(--set-scale));
   margin: 0;
   accent-color: var(--checkbox-accent);
   cursor: pointer;
@@ -1965,7 +1984,7 @@ body {
     another. This is the height that gives it a square of some 200 pixels
     there, and it is well under what the column gives it beside the board.
   */
-  min-height: 19.5rem;
+  min-height: calc(19.5rem * var(--set-scale));
   width: 100%;
   /*
     Sides: for the 0 and the 1, which hang off the box's left and right edges.
@@ -1981,7 +2000,7 @@ body {
     character, while the right says what a whole one is worth — up to a pair of
     numbers when the two sides differ, which wants some three times the room.
   */
-  padding: 1.5rem 1.05rem;
+  padding: calc(1.5rem * var(--set-scale)) calc(1.05rem * var(--set-scale));
   /*
     `clip` rather than `hidden`, and with a margin: the frame paints half a
     handle beyond its edge, so nothing of the circle is lost, and then stops.
@@ -1999,7 +2018,7 @@ body {
     is a clip tight to the frame and a handle shaved at the corners. The
     variable stays as the note of where the number comes from.
   */
-  overflow-clip-margin: 1rem;
+  overflow-clip-margin: calc(1rem * var(--set-scale));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2022,7 +2041,7 @@ body {
   position: relative;
   /* The frame's height less what the title above it takes, so that where height
      is the binding side the square does not push the title out of the frame. */
-  width: min(100%, calc(100cqh - 3.9rem));
+  width: min(100%, calc(100cqh - 3.9rem * var(--set-scale)));
   aspect-ratio: 1;
   /* No auto margin: in a column it would swallow the free space and push the
      title back to the top, which is the thing the frame centres them to avoid. */
@@ -2127,14 +2146,14 @@ body {
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-bottom: 0.25rem;
+  margin-bottom: calc(0.25rem * var(--set-scale));
 }
 
 .intensity-corner-bottom {
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 0.25rem;
+  margin-top: calc(0.25rem * var(--set-scale));
 }
 
 /*
@@ -2149,7 +2168,7 @@ body {
 .intensity-frame-aside {
   /* The gap to the middle column, half of that column, and half a switch, which
      is 0.75 + 3 + 0.75. Written out for the same reason as the rule above. */
-  overflow-clip-margin: 4.5rem;
+  overflow-clip-margin: calc(4.5rem * var(--set-scale));
 }
 
 /*
@@ -2164,7 +2183,7 @@ body {
 */
 .intensity-aside {
   position: absolute;
-  left: calc(100% + 1.05rem + var(--apart) + var(--between) / 2);
+  left: calc(100% + 1.05rem * var(--set-scale) + var(--apart) + var(--between) / 2);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -2172,18 +2191,18 @@ body {
 
 .intensity-aside-top {
   bottom: 100%;
-  margin-bottom: 0.25rem;
+  margin-bottom: calc(0.25rem * var(--set-scale));
 }
 
 .intensity-aside-bottom {
   top: 100%;
-  margin-top: 0.25rem;
+  margin-top: calc(0.25rem * var(--set-scale));
 }
 
 /* Said the same way every other switch on the panel is said. */
 .intensity-side-switch {
-  width: 1rem;
-  height: 1rem;
+  width: calc(1rem * var(--set-scale));
+  height: calc(1rem * var(--set-scale));
   margin: 0;
   accent-color: var(--checkbox-accent);
   cursor: pointer;
@@ -2194,7 +2213,7 @@ body {
   right: 100%;
   top: 50%;
   transform: translateY(-50%);
-  margin-right: 0.3rem;
+  margin-right: calc(0.3rem * var(--set-scale));
 }
 
 /*
@@ -2227,11 +2246,11 @@ body {
   first translate runs back along the side, the second out from it.
 */
 .intensity-full-mine {
-  transform: translateY(-50%) rotate(45deg) translate(-0.4rem, -0.75rem);
+  transform: translateY(-50%) rotate(45deg) translate(calc(-0.4rem * var(--set-scale)), calc(-0.75rem * var(--set-scale)));
 }
 
 .intensity-full-opponent {
-  transform: translateY(-50%) rotate(-45deg) translate(-0.4rem, 0.75rem);
+  transform: translateY(-50%) rotate(-45deg) translate(calc(-0.4rem * var(--set-scale)), calc(0.75rem * var(--set-scale)));
 }
 
 .intensity-readout {
@@ -2272,7 +2291,7 @@ body {
   justify-content: center;
   /* Wide rather than tall: it stands between the two choosers and reads as the
      span joining them. */
-  padding: 0.4rem 2.1rem;
+  padding: calc(0.4rem * var(--set-scale)) calc(2.1rem * var(--set-scale));
   color: inherit;
   background: none;
   border: 1px solid transparent;
@@ -2304,12 +2323,12 @@ body {
   /* The handle's width, which the rail and the figures below are inset by.
      The same as the balance choosers' `--handle`: it is the same mark, and two
      handles of nearly the same size read as a mistake rather than a distinction. */
-  --slider-handle: 2.55rem;
+  --slider-handle: calc(2.55rem * var(--set-scale));
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  column-gap: 0.6rem;
-  row-gap: 0.1rem;
+  column-gap: calc(0.6rem * var(--set-scale));
+  row-gap: calc(0.1rem * var(--set-scale));
 }
 
 /*
@@ -2324,8 +2343,8 @@ body {
   grid-area: 2 / 2;
   align-self: center;
   margin: 0 calc(var(--slider-handle) / 2);
-  height: 0.35rem;
-  border-radius: 0.2rem;
+  height: calc(0.35rem * var(--set-scale));
+  border-radius: calc(0.2rem * var(--set-scale));
   background: color-mix(in srgb, currentColor 30%, transparent);
 }
 
@@ -2337,7 +2356,7 @@ body {
 
 .slider-track {
   grid-area: 2 / 2;
-  min-width: 4rem;
+  min-width: calc(4rem * var(--set-scale));
   /* Drawn rather than taken as it comes: the handle is a ring with a dot at its
      centre, the same mark the balance choosers carry, and a browser's own thumb
      is both too small to take hold of and nothing like it. */
@@ -2353,12 +2372,12 @@ body {
   neither browser drawing a track at all.
 */
 .slider-track::-webkit-slider-runnable-track {
-  height: 0.35rem;
+  height: calc(0.35rem * var(--set-scale));
   background: none;
 }
 
 .slider-track::-moz-range-track {
-  height: 0.35rem;
+  height: calc(0.35rem * var(--set-scale));
   background: none;
 }
 
@@ -2370,7 +2389,7 @@ body {
   -webkit-appearance: none;
   width: var(--slider-handle);
   height: var(--slider-handle);
-  margin-top: calc((0.35rem - var(--slider-handle)) / 2);
+  margin-top: calc((0.35rem * var(--set-scale) - var(--slider-handle)) / 2);
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.92);
   box-shadow:
@@ -2449,7 +2468,7 @@ body {
 /* Clear of the figures under the slider above it, which end where the slider's
    own box does and would otherwise sit on this row's label. */
 .slider-field + .number-field {
-  margin-top: 0.6rem;
+  margin-top: calc(0.6rem * var(--set-scale));
 }
 
 .slider-ticks span {
@@ -2546,7 +2565,7 @@ body {
 .tab-bar {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 0.1rem;
+  column-gap: calc(0.1rem * var(--set-scale));
   row-gap: 0;
   /* Down onto the panel's top border, which the selected tab then covers. */
   margin-bottom: -1px;
@@ -2693,8 +2712,11 @@ body {
   widths just above it where the strip wrapped: a game with a friend narrows
   the board and widens this column into exactly that band, so starting a game
   broke the strip in two.
+
+  In ems of the column's own text rather than rems, as the tabs' are: where the
+  panel's text is smaller than the page's, ten tabs fit a narrower column.
 */
-@container (max-width: 39rem) {
+@container (max-width: 39em) {
   .tab {
     font-size: 0.8em;
     /* Narrower than the 0.4em they had: each tab now keeps the room its word
@@ -2710,7 +2732,7 @@ body {
 }
 
 .tab-panel {
-  --panel-gap: 0.9rem;
+  --panel-gap: calc(0.9rem * var(--set-scale));
   display: flex;
   flex-direction: column;
   gap: var(--panel-gap);
@@ -2725,7 +2747,7 @@ body {
     than as the panel's own margin. Enough is left that the border does not
     crowd the letters.
   */
-  --panel-pad: 1rem;
+  --panel-pad: calc(1rem * var(--set-scale));
   /* The same as the rest by default; thin only where the tab opens with a
      section's name, which see. */
   --panel-pad-top: var(--panel-pad);
@@ -2752,7 +2774,7 @@ body {
 */
 .tab-panel:has(> .settings-panel > .section-rule:first-child),
 .tab-panel-tight {
-  --panel-pad-top: 0.3rem;
+  --panel-pad-top: calc(0.3rem * var(--set-scale));
 }
 
 .tab-panel[hidden] {
@@ -2767,7 +2789,7 @@ body {
     vertical rhythm: a tab that runs longer than the board is tall grows a
     scrollbar, and the fields' own spacing is what decides that.
   */
-  --field-gap: 0.5rem;
+  --field-gap: calc(0.5rem * var(--set-scale));
 }
 
 /*
@@ -2781,7 +2803,7 @@ body {
   /* Padding rather than a margin: the field above already leaves a margin, and
      two margins meeting in a block collapse into the larger of the two — so a
      margin here would add nothing at all. */
-  padding-top: calc(var(--field-gap, 0.85rem) / 2);
+  padding-top: calc(var(--field-gap, 0.85rem * var(--set-scale)) / 2);
 }
 
 /*
@@ -2795,7 +2817,7 @@ body {
 /* Unlabelled and unruled, so spacing alone separates one group from the next:
    noticeably wider than the gap between fields within a group. */
 .settings-group + .settings-group {
-  margin-top: 1rem;
+  margin-top: calc(1rem * var(--set-scale));
 }
 
 /*
@@ -2806,14 +2828,14 @@ body {
 .field-inline {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
+  margin-bottom: calc(0.5rem * var(--set-scale));
 }
 
 .field-inline > label,
 .field-inline > .field-label {
   flex: 0 1 auto;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /* The colon belongs to the layout, not to the label each caller passes in —
@@ -2842,11 +2864,11 @@ body {
 .color-field {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
   /* Never narrower than what it holds. Allowed to collapse it would overlap
      whatever shares its row rather than moving below it. */
   min-width: min-content;
-  margin-bottom: 0.5rem;
+  margin-bottom: calc(0.5rem * var(--set-scale));
 }
 
 /* The colour written out in the dialog, to be typed into or pasted over. */
@@ -2857,9 +2879,9 @@ body {
   /* Without this the box keeps the width a text input asks for by default,
      whatever the basis above says. */
   min-width: 0;
-  padding: 0.3rem 0.4rem;
+  padding: calc(0.3rem * var(--set-scale)) calc(0.4rem * var(--set-scale));
   font-family: ui-monospace, monospace;
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--set-scale));
   color: inherit;
   background: none;
   border: 1px solid var(--panel-border);
@@ -2873,8 +2895,8 @@ body {
 .color-field > label,
 .color-field > .field-label {
   flex: 0 0 auto;
-  min-width: 7rem;
-  font-size: 0.9rem;
+  min-width: calc(7rem * var(--set-scale));
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /*
@@ -2904,8 +2926,8 @@ input[type="color"]::-moz-color-swatch {
 
 .color-well {
   flex: 0 0 auto;
-  width: 1.8rem;
-  height: 1.8rem;
+  width: calc(1.8rem * var(--set-scale));
+  height: calc(1.8rem * var(--set-scale));
   padding: 0;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -2914,8 +2936,8 @@ input[type="color"]::-moz-color-swatch {
 
 .color-field input[type="color"] {
   flex: 0 0 auto;
-  width: 1.8rem;
-  height: 1.8rem;
+  width: calc(1.8rem * var(--set-scale));
+  height: calc(1.8rem * var(--set-scale));
   padding: 0;
   background: none;
   border: 1px solid var(--panel-border);
@@ -2926,10 +2948,10 @@ input[type="color"]::-moz-color-swatch {
 .settings-footer {
   /* The one step every block on this tab stands off the one before it by:
      see `.settings-two-up`. */
-  margin-top: 0.6rem;
+  margin-top: calc(0.6rem * var(--set-scale));
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
 }
 
 /*
@@ -2945,7 +2967,7 @@ input[type="color"]::-moz-color-swatch {
    over the build note is what closes the panel. */
 .settings-logging {
   /* The tab's one step: see `.settings-two-up`. */
-  margin-top: 0.6rem;
+  margin-top: calc(0.6rem * var(--set-scale));
   /* At the far end, under "Reset to defaults": the left of this panel is a
      column of settings, and this is not one of them. */
   justify-content: flex-end;
@@ -2970,10 +2992,10 @@ input[type="color"]::-moz-color-swatch {
 */
 .about-build {
   /* A paragraph now, so its own bottom margin has to go. */
-  margin: 1.4rem 0 0;
-  padding-top: 0.7rem;
+  margin: calc(1.4rem * var(--set-scale)) 0 0;
+  padding-top: calc(0.7rem * var(--set-scale));
   border-top: 1px solid var(--panel-border);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--set-scale));
   color: color-mix(in srgb, currentColor 55%, transparent);
   /* A commit subject can be long and has no spaces to break at in the worst
      case; wrapping it anywhere is better than widening the panel. */
@@ -2986,8 +3008,8 @@ input[type="color"]::-moz-color-swatch {
 
 .import-error {
   flex-basis: 100%;
-  margin: 0.25rem 0 0;
-  font-size: 0.8rem;
+  margin: calc(0.25rem * var(--set-scale)) 0 0;
+  font-size: calc(0.8rem * var(--set-scale));
   color: var(--invalid);
 }
 
@@ -3001,21 +3023,21 @@ input[type="color"]::-moz-color-swatch {
 
 .stripe-table th,
 .stripe-table td {
-  padding: 0.15rem 0.15rem 0.15rem 0;
+  padding: calc(0.15rem * var(--set-scale)) calc(0.15rem * var(--set-scale)) calc(0.15rem * var(--set-scale)) 0;
   text-align: left;
 }
 
 .stripe-table thead th {
-  font-size: 0.7rem;
+  font-size: calc(0.7rem * var(--set-scale));
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   opacity: 0.7;
-  padding-bottom: 0.3rem;
+  padding-bottom: calc(0.3rem * var(--set-scale));
 }
 
 .stripe-table tbody th {
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--set-scale));
   font-weight: 400;
   white-space: nowrap;
 }
@@ -3028,7 +3050,7 @@ input[type="color"]::-moz-color-swatch {
   opacity" has to fit there on one line.
 */
 .col-piece {
-  width: 6.5rem;
+  width: calc(6.5rem * var(--set-scale));
 }
 
 /*
@@ -3037,7 +3059,7 @@ input[type="color"]::-moz-color-swatch {
   left evenly so the sides are weighed against each other.
 */
 .col-setting {
-  width: 10rem;
+  width: calc(10rem * var(--set-scale));
 }
 
 .stripe-table-sides tbody th {
@@ -3050,7 +3072,7 @@ input[type="color"]::-moz-color-swatch {
    being rule enough for one small table. */
 .stripe-row-apart > th,
 .stripe-row-apart > td {
-  padding-top: 0.8rem;
+  padding-top: calc(0.8rem * var(--set-scale));
 }
 
 /* Over the middle of the column each names, as the wide table's groups are. */
@@ -3078,8 +3100,8 @@ input[type="color"]::-moz-color-swatch {
   and leave the pair visibly uneven.
 */
 .stripe-table-sides td {
-  padding-left: 0.65rem;
-  padding-right: 0.65rem;
+  padding-left: calc(0.65rem * var(--set-scale));
+  padding-right: calc(0.65rem * var(--set-scale));
 }
 
 /* In a cell the well is all there is: the row and the column name it. */
@@ -3091,20 +3113,20 @@ input[type="color"]::-moz-color-swatch {
 /* And it is the size the attack table's swatches are, being the same thing in
    the same kind of cell: a row this tall would push the table's rows apart. */
 .color-field-well-only > .color-well {
-  width: 1.3rem;
-  height: 1.3rem;
+  width: calc(1.3rem * var(--set-scale));
+  height: calc(1.3rem * var(--set-scale));
   border-radius: 4px;
 }
 
 /* Wide enough for the "Color" heading, with the well breathing inside it. */
 .col-swatch {
-  width: 3rem;
+  width: calc(3rem * var(--set-scale));
 }
 
 /* Centred in its column, heading included, rather than crowded to one side. */
 .stripe-table-swatch {
-  padding-left: 0.4rem;
-  padding-right: 0.4rem;
+  padding-left: calc(0.4rem * var(--set-scale));
+  padding-right: calc(0.4rem * var(--set-scale));
 }
 
 .stripe-table-color {
@@ -3114,7 +3136,7 @@ input[type="color"]::-moz-color-swatch {
 /* Separates White's pair of columns from Black's. */
 .stripe-group-start {
   border-left: 1px solid var(--panel-border);
-  padding-left: 0.4rem;
+  padding-left: calc(0.4rem * var(--set-scale));
 }
 
 .stripe-table-wide thead th[scope="colgroup"] {
@@ -3125,8 +3147,8 @@ input[type="color"]::-moz-color-swatch {
 .attack-swatch {
   display: block;
   margin-inline: auto;
-  width: 1.3rem;
-  height: 1.3rem;
+  width: calc(1.3rem * var(--set-scale));
+  height: calc(1.3rem * var(--set-scale));
   padding: 0;
   border: 1px solid var(--panel-border);
   border-radius: 4px;
@@ -3135,7 +3157,7 @@ input[type="color"]::-moz-color-swatch {
 
 /* Narrower than a game, wider than a colour: one long line of text. */
 .position-dialog {
-  width: min(34rem, 90vw);
+  width: min(34rem * var(--set-scale), 90vw);
   /*
     The explanation hangs below its label, out past the dialog's own box. Left
     scrollable, the dialog counted that panel as content and carried a scrollbar
@@ -3145,14 +3167,14 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .position-dialog .fen-input {
-  margin-top: 0.3rem;
+  margin-top: calc(0.3rem * var(--set-scale));
 }
 
 /* Narrow: it holds one colour and its name, not a game. */
 .color-dialog {
   /* Half as wide again as it was: the swatch, the hex and the button that
      copies it were three things on a line with nowhere to breathe. */
-  width: min(30rem, 90vw);
+  width: min(30rem * var(--set-scale), 90vw);
 }
 
 /* Roomier than a pair's usual three ems, which this box now has width for. */
@@ -3163,14 +3185,14 @@ input[type="color"]::-moz-color-swatch {
 /* And a line of air over them: the colour above is what the dialog is for, and
    the two ways out are a separate thought. */
 .color-dialog .pgn-dialog-actions {
-  margin-top: calc(0.75rem + 1em);
+  margin-top: calc(0.75rem * var(--set-scale) + 1em);
 }
 
 .color-dialog .color-field {
   /* Wraps rather than overflows: the copy button says how it went, and what it
      says is longer than what it usually reads. */
   flex-wrap: wrap;
-  margin: 0.6rem 0 0;
+  margin: calc(0.6rem * var(--set-scale)) 0 0;
 }
 
 /* The well stands off the field that spells the same colour out: they say one
@@ -3204,15 +3226,15 @@ input[type="color"]::-moz-color-swatch {
 
 .stripe-table .number-input {
   width: 100%;
-  padding: 0.3rem 0.3rem;
+  padding: calc(0.3rem * var(--set-scale)) calc(0.3rem * var(--set-scale));
 }
 
 .stripe-table-wide td {
-  padding-right: 0.3rem;
+  padding-right: calc(0.3rem * var(--set-scale));
 }
 
 .number-field {
-  margin-bottom: var(--field-gap, 0.85rem);
+  margin-bottom: var(--field-gap, calc(0.85rem * var(--set-scale)));
 }
 
 /*
@@ -3240,8 +3262,8 @@ input[type="color"]::-moz-color-swatch {
   /* A pair sits side by side where there is room and stacks where there is
      not, rather than one field overlapping the other. */
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: var(--field-gap, 0.85rem);
+  gap: calc(0.75rem * var(--set-scale));
+  margin-bottom: var(--field-gap, calc(0.85rem * var(--set-scale)));
 }
 
 /*
@@ -3315,29 +3337,29 @@ input[type="color"]::-moz-color-swatch {
 
 .number-field > label {
   display: block;
-  margin-bottom: 0.3rem;
-  font-size: 0.9rem;
+  margin-bottom: calc(0.3rem * var(--set-scale));
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /* The same, with an (i) beside the label: a line of its own over the box. */
 .number-field:not(.field-inline) > .field-label {
   display: flex;
-  margin-bottom: 0.3rem;
-  font-size: 0.9rem;
+  margin-bottom: calc(0.3rem * var(--set-scale));
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 .number-field-inputs {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
 }
 
 .number-input {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0.4rem 0.5rem;
+  padding: calc(0.4rem * var(--set-scale)) calc(0.5rem * var(--set-scale));
   font-family: ui-monospace, monospace;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
   color: inherit;
   background: none;
   border: 1px solid var(--panel-border);
@@ -3350,41 +3372,41 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .field-suffix {
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--set-scale));
   opacity: 0.7;
 }
 
 .toggle-field {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: var(--field-gap, 0.85rem);
+  gap: calc(0.5rem * var(--set-scale));
+  margin-bottom: var(--field-gap, calc(0.85rem * var(--set-scale)));
 }
 
 /* The Lab's switch for keeping variations stands under the row it changes,
    and the panel's own gap is room enough after it before the position. */
 .toggle-field:has(> #keep-variations) {
-  margin-bottom: 0.25rem;
+  margin-bottom: calc(0.25rem * var(--set-scale));
 }
 
 .toggle-field input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
+  width: calc(1rem * var(--set-scale));
+  height: calc(1rem * var(--set-scale));
   margin: 0;
   accent-color: var(--checkbox-accent);
   cursor: pointer;
 }
 
 .toggle-field label {
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
   cursor: pointer;
 }
 
 .reset-button {
-  padding: 0.35rem 0.7rem;
+  padding: calc(0.35rem * var(--set-scale)) calc(0.7rem * var(--set-scale));
   /* One type size across every control: the labels, the fields and the
      buttons. 0.85 left the buttons reading a step quieter than their row. */
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
   color: inherit;
   background: none;
   border: 1px solid var(--panel-border);
@@ -3959,20 +3981,20 @@ input[type="color"]::-moz-color-swatch {
 
 .editor-starts {
   align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.5rem;
+  gap: calc(0.6rem * var(--set-scale));
+  margin-top: calc(0.5rem * var(--set-scale));
 }
 
 .editor-starts-label {
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /* --- Animated GIF export ------------------------------------------------ */
 
 /* What goes into the GIF, said once at the top, in the panel's quieter voice. */
 .gif-about {
-  margin: 0 0 0.9rem;
-  font-size: 0.85rem;
+  margin: 0 0 calc(0.9rem * var(--set-scale));
+  font-size: calc(0.85rem * var(--set-scale));
   color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
@@ -3984,9 +4006,9 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem 0.6rem;
-  margin: 0.9rem 0 0;
-  font-size: 0.9rem;
+  gap: calc(0.4rem * var(--set-scale)) calc(0.6rem * var(--set-scale));
+  margin: calc(0.9rem * var(--set-scale)) 0 0;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 .gif-folder-name {
@@ -3996,13 +4018,13 @@ input[type="color"]::-moz-color-swatch {
 
 .gif-folder-actions {
   display: inline-flex;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
   margin-left: auto;
 }
 
 .gif-folder-note {
   flex-basis: 100%;
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--set-scale));
   color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
@@ -4012,21 +4034,21 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.9rem;
-  margin: 1.2rem 0 0;
+  gap: calc(0.5rem * var(--set-scale)) calc(0.9rem * var(--set-scale));
+  margin: calc(1.2rem * var(--set-scale)) 0 0;
 }
 
 .gif-go {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.9rem;
-  margin: 0.6rem 0 0;
+  gap: calc(0.5rem * var(--set-scale)) calc(0.9rem * var(--set-scale));
+  margin: calc(0.6rem * var(--set-scale)) 0 0;
 }
 
 .gif-size,
 .gif-estimate-value {
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--set-scale));
   font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, currentColor 70%, transparent);
 }
@@ -4038,11 +4060,11 @@ input[type="color"]::-moz-color-swatch {
   like it is going.
 */
 .gif-progress {
-  margin: 1rem 0 0;
+  margin: calc(1rem * var(--set-scale)) 0 0;
 }
 
 .gif-progress-track {
-  height: 0.55rem;
+  height: calc(0.55rem * var(--set-scale));
   border: 1px solid var(--panel-border);
   border-radius: 999px;
   overflow: hidden;
@@ -4058,9 +4080,9 @@ input[type="color"]::-moz-color-swatch {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
+  gap: calc(0.75rem * var(--set-scale));
+  margin: calc(0.5rem * var(--set-scale)) 0 0;
+  font-size: calc(0.85rem * var(--set-scale));
   font-variant-numeric: tabular-nums;
 }
 
@@ -4232,8 +4254,8 @@ input[type="color"]::-moz-color-swatch {
 .join-dialog[open] {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
-  padding: 1.4rem;
+  gap: calc(0.9rem * var(--set-scale));
+  padding: calc(1.4rem * var(--set-scale));
 }
 
 .challenge-dialog {
@@ -4249,7 +4271,7 @@ input[type="color"]::-moz-color-swatch {
     gives"; a narrow window is still free to wrap them, which is what wrapping
     is for.
   */
-  width: min(40rem, 94vw);
+  width: min(40rem * var(--set-scale), 94vw);
   /* The color swatch and the two lists sit on rows of their own; nothing here
      is long enough to need scrolling, and a hover panel would be clipped. */
   overflow: visible;
@@ -4258,7 +4280,7 @@ input[type="color"]::-moz-color-swatch {
 .challenge-title {
   /* The gap above does the spacing now. */
   margin: 0;
-  font-size: 1rem;
+  font-size: calc(1rem * var(--set-scale));
   font-weight: 600;
 }
 
@@ -4267,7 +4289,7 @@ input[type="color"]::-moz-color-swatch {
 .challenge-dialog .board-controls > label {
   /* Wider than the longest of them, and no wider: every pixel here comes off
      the color row, which has the least room to spare. */
-  flex: 0 0 5.4rem;
+  flex: 0 0 calc(5.4rem * var(--set-scale));
 }
 
 /*
@@ -4277,17 +4299,17 @@ input[type="color"]::-moz-color-swatch {
 */
 .challenge-dialog .challenge-name {
   width: auto;
-  flex: 1 1 12rem;
-  min-width: 8rem;
+  flex: 1 1 calc(12rem * var(--set-scale));
+  min-width: calc(8rem * var(--set-scale));
 }
 
 /* The row of buttons has the column's gap above it already. */
 .challenge-dialog .pgn-dialog-actions {
-  margin-top: 0.2rem;
+  margin-top: calc(0.2rem * var(--set-scale));
 }
 
 .challenge-number {
-  flex: 0 0 5rem;
+  flex: 0 0 calc(5rem * var(--set-scale));
 }
 
 /* At the size of the row it is part of. The quieter suffixes in the tabs stand
@@ -4295,7 +4317,7 @@ input[type="color"]::-moz-color-swatch {
    out of the way; here it is one word in a sentence — "0 each" — and reading it
    smaller than the label in front of it made the line look like two things. */
 .challenge-dialog .field-suffix {
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /*
@@ -4309,13 +4331,13 @@ input[type="color"]::-moz-color-swatch {
   thing it can say.
 */
 .color-shown {
-  flex: 0 0 9rem;
-  min-height: 2.05rem;
+  flex: 0 0 calc(9rem * var(--set-scale));
+  min-height: calc(2.05rem * var(--set-scale));
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.9rem;
+  padding: calc(0.35rem * var(--set-scale)) calc(0.5rem * var(--set-scale));
+  font-size: calc(0.9rem * var(--set-scale));
   border: 1px solid var(--panel-border);
   border-radius: 6px;
 }
@@ -4346,7 +4368,7 @@ input[type="color"]::-moz-color-swatch {
 
 .color-choices {
   display: flex;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
   margin-left: auto;
 }
 
@@ -4354,9 +4376,9 @@ input[type="color"]::-moz-color-swatch {
 .invite-terms {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.4rem 0.9rem;
-  margin: 0.8rem 0 0;
-  font-size: 0.9rem;
+  gap: calc(0.4rem * var(--set-scale)) calc(0.9rem * var(--set-scale));
+  margin: calc(0.8rem * var(--set-scale)) 0 0;
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 .invite-terms dt {
@@ -4367,7 +4389,7 @@ input[type="color"]::-moz-color-swatch {
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--set-scale));
 }
 
 /*
@@ -4387,7 +4409,7 @@ input[type="color"]::-moz-color-swatch {
   background: none;
   /* Stood off from the two buttons above it: those offer a game, this one is a
      game, and at the panel's own spacing the two ran together. */
-  margin-top: 0.7rem;
+  margin-top: calc(0.7rem * var(--set-scale));
 }
 
 /* The game being played, held apart from the list of the others below it. The
@@ -4403,7 +4425,7 @@ input[type="color"]::-moz-color-swatch {
     the list they were clicking in — moved with it. Measured at the tallest of
     them, with room to grow for a draw offered or a notice.
   */
-  min-height: 13rem;
+  min-height: calc(13rem * var(--set-scale));
   /*
     And as tall as it needs to be when there is more to say.
 
@@ -4413,7 +4435,7 @@ input[type="color"]::-moz-color-swatch {
     the box stayed where it was, and Resign hung out of the bottom of it.
   */
   flex: 0 0 auto;
-  padding: 0.75rem 0.9rem 0.9rem;
+  padding: calc(0.75rem * var(--set-scale)) calc(0.9rem * var(--set-scale)) calc(0.9rem * var(--set-scale));
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   background: var(--panel-bg);
@@ -4441,15 +4463,15 @@ input[type="color"]::-moz-color-swatch {
 
 /* Except a warning, which is a thing apart wherever it stands. */
 .invite-alert {
-  padding: 0.75rem 0.9rem;
+  padding: calc(0.75rem * var(--set-scale)) calc(0.9rem * var(--set-scale));
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   background: var(--panel-bg);
 }
 
 .invite-heading {
-  margin: 0 0 0.6rem;
-  font-size: 0.95rem;
+  margin: 0 0 calc(0.6rem * var(--set-scale));
+  font-size: calc(0.95rem * var(--set-scale));
   font-weight: 600;
 }
 
@@ -4464,7 +4486,7 @@ input[type="color"]::-moz-color-swatch {
   align-items: baseline;
   /* A gap this wide when there is room for it, and no less than this when there
      is not: what holds the button at the far end is the margin below. */
-  gap: 2rem;
+  gap: calc(2rem * var(--set-scale));
 }
 
 /* The number after the name of the game: quieter than the words, and in the
@@ -4485,7 +4507,7 @@ input[type="color"]::-moz-color-swatch {
   margin-left: auto;
   /* Wider than its two words ask for: it is the only thing on this line that
      can be pressed, and a button the size of the words reads as a label. */
-  min-width: 8rem;
+  min-width: calc(8rem * var(--set-scale));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4496,11 +4518,11 @@ input[type="color"]::-moz-color-swatch {
    names it: quieter than the heading, and on one line so that a game's whole
    standing can be taken in at a glance. */
 .invite-facts {
-  margin: 0.1rem 0 0;
+  margin: calc(0.1rem * var(--set-scale)) 0 0;
   /* The size the rest of the panel is written at. Left to inherit, it came out
      larger than the heading above it, which made the quietest line on the panel
      the loudest. */
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
   color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
@@ -4511,8 +4533,8 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .invite-note {
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
+  margin: calc(0.5rem * var(--set-scale)) 0 0;
+  font-size: calc(0.85rem * var(--set-scale));
   color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
@@ -4525,7 +4547,7 @@ input[type="color"]::-moz-color-swatch {
 /* The link shares its row with the button that copies it. */
 .invite-panel .board-controls > .fen-input {
   flex: 1 1 0;
-  min-width: 6rem;
+  min-width: calc(6rem * var(--set-scale));
 }
 
 /*
@@ -4541,12 +4563,12 @@ input[type="color"]::-moz-color-swatch {
      own text smaller, and an em here would be that smaller one. It is a picture
      rather than a control, and set tight against the heading above and the
      buttons below it read as a caption on one and a label on the other. */
-  margin: 2rem 0;
+  margin: calc(2rem * var(--set-scale)) 0;
   /* The size of everything else in the panel. It was set smaller when this was
      only a picture to glance at, but the two names in it are the players' own
      and are read as names rather than as a caption. Quieter than the rest is
      what the colour is for. */
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--set-scale));
   color: color-mix(in srgb, currentColor 75%, transparent);
 }
 
@@ -4594,14 +4616,14 @@ input[type="color"]::-moz-color-swatch {
 /* The link and the number are two ways of handing the same game on, not one
    control in two rows: at the panel's own spacing they ran together. */
 .invite-line + .invite-line {
-  margin-top: 0.6rem;
+  margin-top: calc(0.6rem * var(--set-scale));
 }
 
 .invite-number {
   flex: 0 0 auto;
-  padding: 0.35rem 0.6rem;
+  padding: calc(0.35rem * var(--set-scale)) calc(0.6rem * var(--set-scale));
   font-family: ui-monospace, monospace;
-  font-size: 1.05rem;
+  font-size: calc(1.05rem * var(--set-scale));
   letter-spacing: 0.04em;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -4619,7 +4641,7 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .saved-games > li + li {
-  margin-top: 0.4rem;
+  margin-top: calc(0.4rem * var(--set-scale));
 }
 
 /* A row is two things, not one: the game to go to, and a tick for forgetting
@@ -4656,16 +4678,16 @@ input[type="color"]::-moz-color-swatch {
 */
 .presets-scroll {
   flex: 0 1 auto;
-  min-height: 6rem;
+  min-height: calc(6rem * var(--set-scale));
   overflow-y: auto;
-  padding-right: 0.75rem;
+  padding-right: calc(0.75rem * var(--set-scale));
 }
 
 /* The list, and then air before the two buttons under it: they act on what is
    ticked in it, and standing them off says they are a separate act rather than
    another row. */
 .preset-list {
-  margin-bottom: 1.1rem;
+  margin-bottom: calc(1.1rem * var(--set-scale));
 }
 
 .preset-lock {
@@ -4752,7 +4774,7 @@ input[type="color"]::-moz-color-swatch {
     than collapse, and the two together made gaps of two and three lines.
     0.6 of the page's text, whatever size the text in the block is.
   */
-  margin-top: 0.6rem;
+  margin-top: calc(0.6rem * var(--set-scale));
   margin-bottom: 0;
 }
 
@@ -4764,7 +4786,7 @@ input[type="color"]::-moz-color-swatch {
 .save-as-choice {
   align-items: center;
   justify-content: space-between;
-  margin-top: 0.9rem;
+  margin-top: calc(0.9rem * var(--set-scale));
 }
 
 /*
@@ -4821,9 +4843,9 @@ input[type="color"]::-moz-color-swatch {
     sideways as its last row arrives is worse than one that is always a little
     inset.
   */
-  padding-right: 0.75rem;
+  padding-right: calc(0.75rem * var(--set-scale));
   /* Never squeezed to a line and a half, however little is left. */
-  min-height: 6rem;
+  min-height: calc(6rem * var(--set-scale));
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -4900,7 +4922,7 @@ input[type="color"]::-moz-color-swatch {
   flex-direction: column;
   min-height: 0;
   flex: 0 1 auto;
-  margin-top: 0.9rem;
+  margin-top: calc(0.9rem * var(--set-scale));
 }
 
 /* At the far end, under the rows they act on: the ticks they answer are at
@@ -4928,7 +4950,7 @@ input[type="color"]::-moz-color-swatch {
   --answer-room: 1em;
   justify-content: space-between;
   /* The same air under the games list as under the presets. */
-  margin-top: 1.3rem;
+  margin-top: calc(1.3rem * var(--set-scale));
 }
 
 /* The one at the left of that row, sized and padded like the two at the right. */
@@ -5026,7 +5048,7 @@ input[type="color"]::-moz-color-swatch {
 }
 
 .join-number {
-  flex: 0 0 9rem;
+  flex: 0 0 calc(9rem * var(--set-scale));
   font-family: ui-monospace, monospace;
 }
 
@@ -5126,7 +5148,7 @@ input[type="color"]::-moz-color-swatch {
    the box by more than the line's own height, so it reads as about the text
    rather than as part of its edge. */
 .pgn-dialog > .toggle-field {
-  margin-top: 0.75rem;
+  margin-top: calc(0.75rem * var(--set-scale));
 }
 
 /* What the file says about a move, its braces left off: in the text's own
@@ -5577,7 +5599,7 @@ input[type="color"]::-moz-color-swatch {
 
 /* What can still be done about the game, before what the game is. */
 .invite-actions {
-  margin-bottom: 0.55rem;
+  margin-bottom: calc(0.55rem * var(--set-scale));
 }
 
 /*
@@ -5592,8 +5614,8 @@ input[type="color"]::-moz-color-swatch {
   aimed at, so it is given a little more to aim at.
 */
 .invite-actions > button:nth-child(2) {
-  padding-left: 1.7rem;
-  padding-right: 1.7rem;
+  padding-left: calc(1.7rem * var(--set-scale));
+  padding-right: calc(1.7rem * var(--set-scale));
 }
 
 /* The switch and the button it governs, together at the end of the row: what
@@ -5601,7 +5623,7 @@ input[type="color"]::-moz-color-swatch {
 .share-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: calc(0.75rem * var(--set-scale));
 }
 
 .share-actions > .toggle-field {
@@ -5611,7 +5633,7 @@ input[type="color"]::-moz-color-swatch {
 /* The two ways into a game, spaced as the two ways out of one are: they are
    the same kind of pair, and the same distance apart reads as much. */
 .match-actions {
-  column-gap: 4rem;
+  column-gap: calc(4rem * var(--set-scale));
 }
 
 /* Their contents centred, not left where the words end: these are the widest
@@ -5627,7 +5649,7 @@ input[type="color"]::-moz-color-swatch {
   and two boxes of different sizes made them look like different kinds of thing.
 */
 .invite-actions {
-  --offer-width: 10.3rem;
+  --offer-width: calc(10.3rem * var(--set-scale));
 }
 
 .invite-actions > button:nth-child(2),
@@ -5637,17 +5659,17 @@ input[type="color"]::-moz-color-swatch {
 
 .invite-actions > button:first-child {
   /* Half again as wide as its words ask for — 89px of text, held at 160. */
-  min-width: 10rem;
+  min-width: calc(10rem * var(--set-scale));
   /* Four ems between the two, of which the row's own gap gives three quarters
      of one. Written in root ems, which is what the four means: the button sets
      its own text smaller, and an em here would be that smaller one. */
-  margin-right: calc(4rem - 0.75rem);
+  margin-right: calc(4rem * var(--set-scale) - 0.75rem * var(--set-scale));
 }
 
 /* A refusal, said where the game is and gone as soon as anything happens. */
 .invite-notice {
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
+  margin: calc(0.5rem * var(--set-scale)) 0 0;
+  font-size: calc(0.85rem * var(--set-scale));
   color: var(--invalid);
   cursor: pointer;
 }
@@ -5708,25 +5730,25 @@ input[type="color"]::-moz-color-swatch {
    another line of the panel but a thing being asked, and pressed against the
    count above it the two read as one block. */
 .invite-question {
-  margin-top: 1.1rem;
-  margin-bottom: 0.55rem;
-  font-size: 0.9rem;
+  margin-top: calc(1.1rem * var(--set-scale));
+  margin-bottom: calc(0.55rem * var(--set-scale));
+  font-size: calc(0.9rem * var(--set-scale));
 }
 
 /* A question asked before a setting is changed on the reader's behalf. */
 .confirm-dialog {
-  width: min(28rem, 92vw);
+  width: min(28rem * var(--set-scale), 92vw);
 }
 
 .confirm-question {
-  margin: 0 0 0.4rem;
-  font-size: 1rem;
+  margin: 0 0 calc(0.4rem * var(--set-scale));
+  font-size: calc(1rem * var(--set-scale));
   font-weight: 600;
 }
 
 /* Between the settings for the marks and the one that colours the board. */
 .settings-divider {
-  margin: 1.4rem 0 1.1rem;
+  margin: calc(1.4rem * var(--set-scale)) 0 calc(1.1rem * var(--set-scale));
   border: none;
   border-top: 1px solid var(--panel-border);
 }
@@ -5752,7 +5774,7 @@ input[type="color"]::-moz-color-swatch {
 .section-rule {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: calc(0.6rem * var(--set-scale));
   /*
     Above only. A heading belongs to what follows it, so the space goes between
     it and the section before — putting space below as well pushed every group
@@ -5799,7 +5821,7 @@ input[type="color"]::-moz-color-swatch {
   as headings only if they are lettered unlike the rows beneath them.
 */
 .section-rule-name {
-  font-size: 0.7rem;
+  font-size: calc(0.7rem * var(--set-scale));
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -5882,6 +5904,31 @@ html.layout-computed {
 */
 .app.app-computed.app-fits {
   overflow: clip;
+}
+
+/*
+  The panel's text, and the dialogs it opens, at a size of their own: the
+  page's times `--lay-settings-scale`, which is smaller than 1 on a large
+  screen — the settings growing more slowly with the window than the boards
+  do. See `settingsEm` in the layout.
+
+  Every size in rems in what can be drawn there is written as so many rems
+  times `--set-scale`: 1 everywhere else — the boards, the rows round them, the
+  header — and the layout's ratio here. Ems follow by themselves, from the
+  text size set here; where a rule sets one of its own, the rule's wins, these
+  being of no weight.
+*/
+:root {
+  --set-scale: 1;
+}
+
+.app.app-computed .side-column,
+.app.app-computed dialog {
+  --set-scale: var(--lay-settings-scale, 1);
+}
+
+:where(.app.app-computed .side-column, .app.app-computed dialog) {
+  font-size: calc(1rem * var(--set-scale));
 }
 
 .app.app-computed .app-body {
@@ -5984,10 +6031,13 @@ html.layout-computed {
   pointer-events: none;
 }
 
+/* Each outline's name kept inside it: a bar of men at the window's edge is
+   narrower than its name, which would carry the page past the window. */
 .layout-debug > div {
   position: absolute;
   outline: 1px solid #ff2020;
   outline-offset: -1px;
+  overflow: clip;
 }
 
 .layout-debug span {

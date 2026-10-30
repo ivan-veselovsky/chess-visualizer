@@ -3319,6 +3319,8 @@ export default function App() {
           "--lay-top-h": px(laid.top.h),
           "--lay-bottom-h": px(laid.bottom.h),
           "--lay-near-lift": px(nearLiftEm * laid.em),
+          /* The panel's text against the page's: see `--set-scale` in the stylesheet. */
+          "--lay-settings-scale": String(laid.settingsEm / laid.em),
           "--lay-side": px(laid.boards[0].w),
           /* The boards alone, without the bars: in a row, as far as the last one's right edge; in a column, one board's width. */
           "--lay-boards-w": px(Math.max(...laid.boards.map((board) => board.x + board.w)) - laid.group.x),

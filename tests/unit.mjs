@@ -56,7 +56,7 @@ import { asBoardEditorPosition, flipped, place, boardEditorProblems, boardEditor
 import { lineLabel, pageAround, pageLine } from "../src/chess/linePath.ts";
 import { figurine, isPieceGlyph, lettered } from "../src/chess/figurine.ts";
 import { titleOfPgn } from "../src/chess/gameTitle.ts";
-import { DEFAULT_METRICS, inPixels, layout, minEmFor, regionsOf, scaleFor } from "../src/app/layout.ts";
+import { DEFAULT_METRICS, inPixels, layout, MIN_TEXT_PX, minEmFor, regionsOf, scaleFor } from "../src/app/layout.ts";
 import { actionFor, bind, comboOf, defaultBindings, describeCombo, readBindings } from "../src/app/keyBindings.ts";
 import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
 import { readdirSync, readFileSync } from "node:fs";
@@ -2643,7 +2643,7 @@ console.log("\nThe page's regions, from the window's shape\n");
   check("and two boards one over the other, the panel still under them",
     two.flow === "column" && two.panelPlace === "below" && two.boards[1].y > two.boards[0].y + two.boards[0].h && two.panel.y > two.bottom.y,
     `${two.flow} ${two.panelPlace}`);
-  check("with the text no smaller than it can be read", one.em >= 12 - 1e-9, String(one.em));
+  check("with the text no smaller than it can be read", one.em >= MIN_TEXT_PX - 1e-9, String(one.em));
 
   /* A window as wide as 1905 × 970, two boards with names under them: the
      panel beside them — scrolling would not buy the boards enough — and at

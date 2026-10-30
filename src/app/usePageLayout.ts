@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { inPixels, layout, minEmFor, scaleFor, type Layout, type MetricsAsked } from "./layout";
 
 /**
@@ -48,6 +48,39 @@ export function setAllowScrolling(on: boolean): void {
   }
 }
 
+/**
+ * Text of the sort the panel holds, to measure an average character of it by:
+ * words of the lengths its labels and its explanations have, with the spaces
+ * between them — a character being any of them, as a reader counts.
+ */
+const SAMPLE_TEXT =
+  "Pieces that attack the square are drawn with rays; the heat map shows how often each square is attacked, by whom.";
+
+/**
+ * A character of the page's text, on the average, and a line of it, in ems, as
+ * this browser draws them in the font it has: see `Metrics.charEm`. Measured
+ * rather than assumed, as the font is the machine's own — `system-ui` is one
+ * font on a Mac and another on Linux, the one a few hundredths of an em wider
+ * a character than the other — and the panel asks for its room in characters
+ * of it, which is only room for so many where they are the ones drawn.
+ *
+ * At the size the panel's text is drawn at, not at a larger one for the
+ * measure's precision: a line's height is rounded to whole pixels, so a line
+ * of 14px text is a larger share of an em than a line of 100px text is.
+ */
+function measuredText(px: number): { charEm: number; lineEm: number } | null {
+  const probe = document.createElement("div");
+  probe.style.cssText = `position: absolute; visibility: hidden; left: 0; top: 0; white-space: nowrap; font-size: ${px}px; line-height: normal;`;
+  probe.textContent = SAMPLE_TEXT;
+  document.body.append(probe);
+  const box = probe.getBoundingClientRect();
+  probe.remove();
+  if (!(box.width > 0 && box.height > 0)) {
+    return null;
+  }
+  return { charEm: box.width / SAMPLE_TEXT.length / px, lineEm: box.height / px };
+}
+
 /** The class the document carries while the layout is computed: see `html.layout-computed`. */
 const COMPUTED_CLASS = "layout-computed";
 
@@ -74,6 +107,8 @@ export function usePageLayout(
 ): Layout | null {
   const computed = mode !== "css";
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [text, setText] = useState<{ charEm: number; lineEm: number } | null>(null);
+
 
   useEffect(() => {
     if (!computed) {
@@ -102,13 +137,39 @@ export function usePageLayout(
             scrollable,
             boards,
             bars,
-            metrics,
+            metrics: text === null ? metrics : { ...text, ...metrics },
             minEm: minEmFor(size.w),
             scale: scaleFor(size.w, size.h),
             ...(panelWantsPx === null ? {} : { panelWants: panelWantsPx / size.w }),
           }),
           size.w
         );
+
+  /* The font's character and line, measured at the size the panel's text is
+     drawn at — once the layout has said what that is, which does not depend
+     on them, so one measure settles it — and again when the fonts have
+     loaded, in case the first measure was of one standing in. */
+  const panelTextPx = laid?.settingsEm;
+  /* Before the page is painted, so it is never seen laid out for a font it does not have. */
+  useLayoutEffect(() => {
+    if (panelTextPx === undefined) {
+      return;
+    }
+    let live = true;
+    const measure = () => {
+      if (live) {
+        const measured = measuredText(panelTextPx);
+        setText((was) =>
+          was !== null && measured !== null && was.charEm === measured.charEm && was.lineEm === measured.lineEm ? was : measured
+        );
+      }
+    };
+    measure();
+    void document.fonts?.ready.then(measure);
+    return () => {
+      live = false;
+    };
+  }, [panelTextPx]);
 
   /* A page that fits is the window's height to the pixel, as measured: the
      height in units of the width, times the width, can miss it by a hair. */

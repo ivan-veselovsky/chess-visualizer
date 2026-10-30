@@ -170,7 +170,11 @@ export interface Metrics {
    */
   panelMinChars: number;
   panelMinLines: number;
-  /** A character of the panel's text, on the average, and a line of it, in ems: as `system-ui` measures. */
+  /**
+   * A character of the panel's text, on the average, and a line of it, in ems.
+   * The page measures them in the font it has — see `usePageLayout` — and
+   * these are what `system-ui` measures on Linux, for wherever nothing is.
+   */
   charEm: number;
   lineEm: number;
   /** The panel's most width beside the boards, in ems of its text. */
@@ -440,8 +444,11 @@ export function layout(input: LayoutInput): Layout {
   return candidates.reduce((best, candidate) => (worth(candidate) > worth(best) + 1e-9 ? candidate : best));
 }
 
+/** The least text size, in pixels, that is still read: the page's and the panel's, on a small screen. */
+export const MIN_TEXT_PX = 10;
+
 /** `minEm` for a window so many pixels wide, from the least text size in pixels that is still read. */
-export function minEmFor(widthPx: number, minEmPx = 12): number {
+export function minEmFor(widthPx: number, minEmPx = MIN_TEXT_PX): number {
   return minEmPx / widthPx;
 }
 

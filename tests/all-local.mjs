@@ -46,7 +46,7 @@ const suites = [
   { name: "gif export", file: "gif-export.mjs", args: [] },
   { name: "branches", file: "branches.mjs", args: [] },
   { name: "firefox", file: "firefox.mjs", args: [] },
-  { name: "layout", file: "layout.mjs", args: [] },
+  { name: "layout", file: "layout.mjs", args: ["--experimental-strip-types"] },
 ];
 
 const run = (command, args, options = {}) =>
