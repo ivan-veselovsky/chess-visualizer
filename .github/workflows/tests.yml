@@ -25,8 +25,10 @@ jobs:
     name: Unit, board and rendering
     runs-on: ubuntu-latest
     # Generous against a hung browser, tight enough that one cannot sit there
-    # for an hour: the whole set takes well under a minute in the ordinary case.
-    timeout-minutes: 15
+    # for an hour: the whole set takes some ten minutes on a desktop, and more
+    # on a runner — the layout suite alone lays out a dozen windows, 4K among
+    # them, in two browsers.
+    timeout-minutes: 25
     env:
       # Chrome's sandbox wants unprivileged user namespaces, which these images
       # refuse. Without this the browser never comes up and every browser suite
