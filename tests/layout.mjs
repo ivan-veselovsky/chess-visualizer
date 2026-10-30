@@ -44,8 +44,18 @@ const CASES = [
   { w: 820, h: 1180, boards: 1, expect: "below", stub: false },
   { w: 390, h: 844, boards: 1, expect: "below" },
   { w: 390, h: 1170, boards: 2, expect: "below", column: true },
-  /* Too little of the panel left over the window's foot: a stub in its place. */
-  { w: 360, h: 800, boards: 2, expect: "below", stub: true },
+  { w: 360, h: 800, boards: 2, expect: "below" },
+  /*
+    Too little of the panel left over the window's foot: a stub in its place.
+    Sought rather than said: a phone's height where it comes is a band some
+    tens of pixels deep, and where the band is depends on the font — the stub
+    is on a page that scrolls, which it does where the panel's least height,
+    so many lines of its text, does not fit under the boards, and a line of
+    `system-ui` at 10px is 11px on one machine and 14px on another. The first
+    height of these that has a stub is the one tested; none having one is a
+    failure, not a check left out.
+  */
+  { w: 360, seek: [700, 710, 720, 730, 740, 750, 760, 770, 780, 790, 800, 810, 820, 830, 840, 850, 860], boards: 2, expect: "below", stub: true },
   /* Large windows, where the panel's text is smaller than the page's: a Mac's
      window the panel stood beside two boards in, full HD, and 4K. */
   { w: 2150, h: 1004, boards: 2, expect: "right" },
@@ -137,12 +147,23 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
   console.log(`\nThe computed layout, in ${name}\n`);
   const browser = await engine.launch();
   try {
-    for (const { w, h, boards, expect, column, stub } of CASES) {
-      const page = await browser.newPage({ viewport: { width: w, height: h } });
-      await page.goto(`http://127.0.0.1:${PORT}/?layout=debug`);
-      await page.waitForTimeout(1500);
-      const seen = await page.evaluate(measure, boards === 2);
-      const at = `${w} × ${h}, ${boards === 2 ? "two boards" : "one board"}`;
+    for (const { w, h: asked, seek, boards, expect, column, stub } of CASES) {
+      /* The window asked for, or the first of those sought that has a stub. */
+      let h = asked;
+      let page = null;
+      let seen = null;
+      for (const height of seek ?? [asked]) {
+        await page?.close();
+        h = height;
+        page = await browser.newPage({ viewport: { width: w, height: h } });
+        await page.goto(`http://127.0.0.1:${PORT}/?layout=debug`);
+        await page.waitForTimeout(1500);
+        seen = await page.evaluate(measure, boards === 2);
+        if (seen.stub) {
+          break;
+        }
+      }
+      const at = `${w} × ${seek === undefined ? h : `${h}${seen.stub ? "" : `, the tallest of ${seek[0]} to ${seek.at(-1)}`}`}, ${boards === 2 ? "two boards" : "one board"}`;
       check(`${at}: no wider than the window, and every region where it was computed`,
         seen.wide <= 0 && seen.off.length === 0 && seen.boards === boards,
         JSON.stringify(seen));
@@ -180,7 +201,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         check(`${at}: ${stub ? "a stub over the window's foot, the panel under it" : "no stub"}`,
           seen.stub === stub && (!stub || Math.abs(seen.panelTop - h) < 1.5), JSON.stringify(seen));
       }
-      if (stub) {
+      if (stub && seen.stub) {
         /* The stub's arrow taken hold of: the page scrolled to its foot, the
            panel filling the screen — the whole of it, or as much as there is
            room for where it is the taller. */
