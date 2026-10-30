@@ -2648,15 +2648,16 @@ console.log("\nThe page's regions, from the window's shape\n");
       wideish.panel.w >= M.panelMinChars * M.charEm * wideish.settingsEm - 1e-9,
     `${wideish.panelPlace}, panel ${wideish.panel.w * 1905} beside boards ${wideish.boards[0].w * 1905}`);
 
-  /* The panel's text: the page's up to the window it is calibrated at, and
-     past it growing as the square root of what the page's does — so the
-     panel's least width is a smaller share of a larger screen. */
+  /* The panel's text: `settingsSize` of the page's up to the window it is
+     calibrated at, and past it growing as the square root of what the page's
+     does — so the panel's least width is a smaller share of a larger screen. */
+  const SIZE = DEFAULT_METRICS.settingsSize;
   const at = (w, h) => inPixels(layout({ aspect: h / w, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(w), scale: scaleFor(w, h) }), w);
   const laptop = at(1366, 768), calibrated = at(1400, 950), monitor = at(2560, 1440);
-  check("the panel's text the page's up to 1400 × 950",
-    laptop.settingsEm === laptop.em && Math.abs(calibrated.settingsEm - 16) < 1e-9, `${laptop.settingsEm} vs ${laptop.em}, ${calibrated.settingsEm}`);
+  check("the panel's text its share of the page's up to 1400 × 950",
+    Math.abs(laptop.settingsEm - SIZE * laptop.em) < 1e-9 && Math.abs(calibrated.settingsEm - 16 * SIZE) < 1e-9, `${laptop.settingsEm} vs ${laptop.em}, ${calibrated.settingsEm}`);
   check("and past it the page's over the square root of how much larger the window is",
-    Math.abs(monitor.settingsEm - monitor.em / Math.sqrt(scaleFor(2560, 1440))) < 1e-9, `${monitor.settingsEm} vs ${monitor.em}`);
+    Math.abs(monitor.settingsEm - (SIZE * monitor.em) / Math.sqrt(scaleFor(2560, 1440))) < 1e-9, `${monitor.settingsEm} vs ${monitor.em}`);
   check("so the panel's least width is a smaller share of 2560 × 1440 than of 1400 × 950",
     monitor.settingsEm / 2560 < calibrated.settingsEm / 1400, `${monitor.settingsEm / 2560} vs ${calibrated.settingsEm / 1400}`);
 
@@ -2667,7 +2668,7 @@ console.log("\nThe page's regions, from the window's shape\n");
     squarish.flow === "row" && upright.flow === "row", `${squarish.flow}, ${upright.flow}`);
 
   /* The page scrolling, the panel given all its tabs want, which takes it on past the window's foot. */
-  const wanting = layout({ aspect: 950 / 1400, scrollable: true, boards: 2, bars: 2, panelWants: 1.2 });
+  const wanting = layout({ aspect: 950 / 1400, scrollable: true, boards: 2, bars: 2, panelWants: 1.2, metrics: { scrollPenalty: 1 } });
   check("where the page scrolls, the panel as tall as its tabs want, however far past the window's foot that runs",
     wanting.scrolls && Math.abs(wanting.panel.h - 1.2) < 1e-9 &&
       Math.abs(wanting.height - (wanting.panel.y + 1.2 + wanting.em * DEFAULT_METRICS.gaps.pageBottom)) < 1e-9,
