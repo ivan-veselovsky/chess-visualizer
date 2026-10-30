@@ -11,7 +11,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
 import DEFAULTS from "../src/app/presets/default-settings.json" with { type: "json" };
@@ -24,25 +24,35 @@ import DEFAULTS from "../src/app/presets/default-settings.json" with { type: "js
   of difference that is invisible until two failures are read side by side. It
   goes under when it is long enough to need the room, and after when it is not,
   by measure rather than by which file it happened to be in.
+
+  Each check is numbered, after the suite's file — `layout-41` is the layout
+  suite's forty-first — so a failure can be named in a log where the same words
+  come up twice, as they do where a suite runs its checks in two browsers. The
+  number is the check's place in the run, not a name it keeps: a check added
+  above it moves it along.
 */
+const SUITE = basename(process.argv[1] ?? "test", ".mjs");
 let passed = 0;
 let failed = 0;
+const failures = [];
 
 export function check(what, ok, detail = "") {
+  const id = `${SUITE}-${passed + failed + 1}`;
   if (ok) {
     passed += 1;
-    console.log(`  PASS  ${what}`);
+    console.log(`  PASS  ${id}  ${what}`);
     return;
   }
   failed += 1;
+  failures.push(id);
   const said =
     detail === "" ? "" : detail.length > 48 ? `\n          ${detail}` : `  <- ${detail}`;
-  console.log(`  FAIL  ${what}${said}`);
+  console.log(`  FAIL  ${id}  ${what}${said}`);
 }
 
-/** The tally, and whether it is worth exiting cleanly on. */
+/** The tally, the failures by number, and whether it is worth exiting cleanly on. */
 export function summary() {
-  console.log(`\n  ${passed} passed, ${failed} failed\n`);
+  console.log(`\n  ${passed} passed, ${failed} failed${failures.length === 0 ? "" : `: ${failures.join(", ")}`}\n`);
   return failed === 0;
 }
 

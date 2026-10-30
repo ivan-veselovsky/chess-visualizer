@@ -171,9 +171,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.close();
     }
     /* The page scrolling, two boards over the panel: the panel as tall as its
-       tallest tab, whichever is open, and nothing in it scrolling of its own. */
+       tallest tab, whichever is open, and nothing in it scrolling of its own.
+       At 1920 × 1080, where two boards make the page scroll: at 1400 × 950
+       the panel's least height fits under them since its text is smaller. */
     {
-      const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+      const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
       await page.goto(`http://127.0.0.1:${PORT}/?layout=debug`);
       await page.waitForTimeout(1500);
       const seen = [];
@@ -196,8 +198,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           };
         }, tab));
       }
-      check("1400 × 950, two boards, the page scrolling: nothing in the panel scrolls, on any tab",
-        seen.every((tab) => tab.natural && tab.scrolling.length === 0), JSON.stringify(seen));
+      check("1920 × 1080, two boards: the page scrolls",
+        seen.every((tab) => tab.natural), JSON.stringify(seen.map(({ tab, natural, page }) => ({ tab, natural, page }))));
+      check("and nothing in the panel scrolls, on any tab",
+        seen.every((tab) => tab.scrolling.length === 0), JSON.stringify(seen));
       check("and the page as long whichever tab is open, the panel as tall as the tallest of them",
         seen.every((tab) => tab.page === seen[0].page && tab.panel === seen[0].panel) &&
           Math.abs(Math.max(...seen.map((tab) => tab.tabbed)) - seen[0].panel) <= 2,

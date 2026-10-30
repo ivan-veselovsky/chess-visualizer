@@ -64,12 +64,18 @@ import CLASSIC_BROWN_JSON from "../src/app/presets/settings-classic-brown.json" 
 import CLASSIC_GREEN_JSON from "../src/app/presets/settings-classic-green.json" with { type: "json" };
 import { Chess } from "chess.js";
 
+/* Each check numbered, as the browser suites number theirs: see `check` in `browser.mjs`. */
 let passed = 0;
 let failed = 0;
+const failures = [];
 function check(what, ok, detail = "") {
+  const id = `unit-${passed + failed + 1}`;
   if (ok) passed += 1;
-  else failed += 1;
-  console.log(`  ${ok ? "PASS" : "FAIL"}  ${what}${ok ? "" : "  <- " + detail}`);
+  else {
+    failed += 1;
+    failures.push(id);
+  }
+  console.log(`  ${ok ? "PASS" : "FAIL"}  ${id}  ${what}${ok ? "" : "  <- " + detail}`);
 }
 
 /** A history of a few moves, newest first, as the app keeps one. */
@@ -2688,5 +2694,5 @@ console.log("\nThe page's regions, from the window's shape\n");
   check("and none where the panel shows as it is", desk.stub === null && one.stub === null && two.stub === null);
 }
 
-console.log(`\n  ${passed} passed, ${failed} failed\n`);
+console.log(`\n  ${passed} passed, ${failed} failed${failures.length === 0 ? "" : `: ${failures.join(", ")}`}\n`);
 process.exit(failed === 0 ? 0 : 1);
