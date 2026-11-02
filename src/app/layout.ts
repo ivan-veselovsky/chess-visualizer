@@ -177,6 +177,18 @@ export interface Metrics {
    */
   charEm: number;
   lineEm: number;
+  /**
+   * The row of tabs over the panel, in ems of the panel's text, as it is set
+   * in a panel narrower than 39 of them (see `@container (max-width: 39em)`):
+   * the panel beside the boards is never narrower than this, whatever its
+   * characters come to. The tabs are words of their own, not text of the
+   * average sort: a font may set them in fewer of its characters or in more —
+   * 61.4 in Noto Sans, 63.9 in Liberation Sans — and the last of them, with
+   * the panel no wider than the characters asked, would go round onto a
+   * second row. Measured, like the characters; this is what `system-ui`
+   * measures on Linux, for wherever nothing is.
+   */
+  tabsEm: number;
   /** The panel's most width beside the boards, in ems of its text. */
   panelMaxWidth: number;
   /**
@@ -210,6 +222,7 @@ export const DEFAULT_METRICS: Metrics = {
   panelMinLines: 15,
   charEm: 0.48,
   lineEm: 1.375,
+  tabsEm: 29.55,
   panelMaxWidth: 100,
   scrollPenalty: 1.3,
   stubShare: 0.2,
@@ -298,7 +311,7 @@ function arranged(
   const m = (ems: number) => ems * em;
   /* The panel's sizes, in its own text's: its least width and height, from characters and lines of it. */
   const ms = (ems: number) => ems * settingsEm;
-  const panelMinWidth = ms(metrics.panelMinChars * metrics.charEm);
+  const panelMinWidth = ms(Math.max(metrics.panelMinChars * metrics.charEm, metrics.tabsEm));
   const panelMinHeight = ms(metrics.panelMinLines * metrics.lineEm);
   const g = metrics.gaps;
   const barsWidth = bars * m(metrics.bar + g.besideBar);

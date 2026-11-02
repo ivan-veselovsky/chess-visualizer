@@ -280,6 +280,52 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       check(`${at}: the tabs in one row`, across.rows === 1, JSON.stringify(across));
       await page.close();
     }
+    /*
+      The tabs in one row in fonts other than this machine's own: the panel
+      is as wide as so many average characters of its text, and the tabs are
+      words of their own, which one font sets in fewer of its characters and
+      another in more — DejaVu and Liberation, which a Linux machine without
+      Noto draws `system-ui` in, set them wider than the 62 the panel asks
+      for. Its least width is the row's as well, measured; at 2150 × 1004 the
+      panel beside the boards is at that least width. A font the machine
+      does not have falls back to its own, and is a check of that instead.
+    */
+    for (const font of ["DejaVu Sans", "Liberation Sans"]) {
+      const page = await browser.newPage({ viewport: { width: 2150, height: 1004 } });
+      await page.route("**/*", async (route) => {
+        if (route.request().resourceType() !== "document") {
+          return route.continue();
+        }
+        const response = await route.fetch();
+        const body = (await response.text()).replace("<head>", `<head><style>:root { font-family: "${font}" !important; }</style>`);
+        return route.fulfill({ response, body });
+      });
+      await page.goto(`http://127.0.0.1:${PORT}/`);
+      await page.waitForTimeout(1500);
+      const seen = await page.evaluate(async () => {
+        const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+        const side = document.querySelector(".side-column");
+        const tabs = [...document.querySelectorAll('.tab-bar > [role="tab"]')];
+        const wider = [];
+        for (const tab of tabs) {
+          tab.click();
+          await sleep(150);
+          if (side.scrollWidth > side.clientWidth) {
+            wider.push(`${tab.id}: ${side.scrollWidth - side.clientWidth}px`);
+          }
+        }
+        return {
+          panel: document.querySelector(".app").classList.contains("app-panel-right") ? "right" : "below",
+          width: side.getBoundingClientRect().width,
+          rows: new Set(tabs.map((tab) => Math.round(tab.getBoundingClientRect().top))).size,
+          wider,
+        };
+      });
+      check(`2150 × 1004 in ${font}: the tabs in one row, and nothing in the panel wider than it`,
+        seen.rows === 1 && seen.wider.length === 0, JSON.stringify(seen));
+      await page.close();
+    }
+
     /* The page scrolling, two boards over the panel: the panel as tall as its
        tallest tab, whichever is open, and nothing in it scrolling of its own.
        At 1920 × 1080, where two boards make the page scroll: at 1400 × 950

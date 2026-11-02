@@ -68,7 +68,9 @@ const SAMPLE_TEXT =
  * measure's precision: a line's height is rounded to whole pixels, so a line
  * of 14px text is a larger share of an em than a line of 100px text is.
  */
-function measuredText(px: number): { charEm: number; lineEm: number } | null {
+type MeasuredText = { charEm: number; lineEm: number; tabsEm?: number };
+
+function measuredText(px: number): MeasuredText | null {
   const probe = document.createElement("div");
   probe.style.cssText = `position: absolute; visibility: hidden; left: 0; top: 0; white-space: nowrap; font-size: ${px}px; line-height: normal;`;
   probe.textContent = SAMPLE_TEXT;
@@ -78,7 +80,45 @@ function measuredText(px: number): { charEm: number; lineEm: number } | null {
   if (!(box.width > 0 && box.height > 0)) {
     return null;
   }
-  return { charEm: box.width / SAMPLE_TEXT.length / px, lineEm: box.height / px };
+  const tabs = measuredTabs(px);
+  return { charEm: box.width / SAMPLE_TEXT.length / px, lineEm: box.height / px, ...(tabs === null ? {} : { tabsEm: tabs }) };
+}
+
+/**
+ * The row of tabs, in ems of the panel's text, as it is set in a panel
+ * narrower than 39 of them — see `Metrics.tabsEm` — or nothing where there is
+ * no row to measure.
+ *
+ * A copy of the row as it is drawn, in a box that is a container of no width
+ * at all, so that its tabs are set as in the narrowest panel whatever the
+ * width of the one they are in now: measured in a panel wide enough for them
+ * at full size, the least width would be theirs at full size — a panel set
+ * beside the boards that much wider, where its tabs would have been narrower.
+ * The copy itself as wide as its tabs want, on one row — not the box's no
+ * width, in which they would wrap, and shrink to their words in plain type
+ * rather than the room they keep for them in bold (see `.tab-label`). And
+ * rounded up to the whole pixel, as the panel's width, set from a sum of
+ * fractions, may come out a sixty-fourth short of a sum of them.
+ */
+function measuredTabs(px: number): number | null {
+  const row = document.querySelector(".tab-bar");
+  if (row === null) {
+    return null;
+  }
+  const holder = document.createElement("div");
+  holder.style.cssText = `position: absolute; visibility: hidden; left: 0; top: 0; width: 0; container-type: inline-size; font-size: ${px}px;`;
+  const copy = row.cloneNode(true) as HTMLElement;
+  /* Not twice on the page, even for a moment: the ids are the tabs'. */
+  for (const named of copy.querySelectorAll("[id]")) {
+    named.removeAttribute("id");
+  }
+  copy.style.width = "max-content";
+  copy.style.flexWrap = "nowrap";
+  holder.append(copy);
+  document.body.append(holder);
+  const width = copy.getBoundingClientRect().width;
+  holder.remove();
+  return width > 0 ? Math.ceil(width) / px : null;
 }
 
 /** The class the document carries while the layout is computed: see `html.layout-computed`. */
@@ -147,7 +187,7 @@ export function usePageLayout(
   const computed = mode !== "css";
   /* The window: its whole width, a scrollbar's included; its height; and a scrollbar's width. */
   const [size, setSize] = useState<{ w: number; h: number; bar: number } | null>(null);
-  const [text, setText] = useState<{ charEm: number; lineEm: number } | null>(null);
+  const [text, setText] = useState<MeasuredText | null>(null);
 
 
   useEffect(() => {
@@ -208,8 +248,8 @@ export function usePageLayout(
     }
   }, [computed, scrolls]);
 
-  /* The font's character and line, measured at the size the panel's text is
-     drawn at — once the layout has said what that is, which does not depend
+  /* The font's character and line, and the row of tabs, measured at the
+     size the panel's text is drawn at — once the layout has said what that is, which does not depend
      on them, so one measure settles it — and again when the fonts have
      loaded, in case the first measure was of one standing in. */
   const panelTextPx = laid?.settingsEm;
@@ -223,7 +263,13 @@ export function usePageLayout(
       if (live) {
         const measured = measuredText(panelTextPx);
         setText((was) =>
-          was !== null && measured !== null && was.charEm === measured.charEm && was.lineEm === measured.lineEm ? was : measured
+          was !== null &&
+          measured !== null &&
+          was.charEm === measured.charEm &&
+          was.lineEm === measured.lineEm &&
+          was.tabsEm === measured.tabsEm
+            ? was
+            : measured
         );
       }
     };
