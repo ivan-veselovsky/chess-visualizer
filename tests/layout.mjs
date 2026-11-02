@@ -125,7 +125,10 @@ const measure = async (two) => {
   const sample = probe.getBoundingClientRect();
   probe.remove();
   const side = document.querySelector(".side-column");
+  /* The room the page has, as the app measured it: the window less its scrollbar's gutter. */
+  const room = document.querySelector(".layout-window").getBoundingClientRect();
   return {
+    room: { w: room.width, h: room.height },
     wide: document.scrollingElement.scrollWidth - document.documentElement.clientWidth,
     off,
     boards: document.querySelectorAll(".boards > .board-holder").length,
@@ -179,8 +182,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         them. Measured in the text the open tab draws, so a size the layout
         reckoned with and the stylesheet did not draw — a rem left unscaled, a
         tab with type of its own — is a panel too small for what it holds.
+
+        For the room the page has, which is the window less a scrollbar's
+        gutter where the browser keeps one.
       */
-      const sizes = inPixels(layout({ aspect: h / w, scrollable: true, boards, bars: 0, minEm: minEmFor(w), scale: scaleFor(w, h) }), w);
+      const { room } = seen;
+      const sizes = inPixels(layout({ aspect: room.h / room.w, scrollable: true, boards, bars: 0, minEm: minEmFor(room.w), scale: scaleFor(room.w, room.h) }), room.w);
       const text = { panelFont: seen.panelFont, tabFont: seen.tabFont, root: seen.font, charPx: seen.charPx, linePx: seen.linePx };
       check(`${at}: the panel's text at the size the layout gave it, ${sizes.settingsEm.toFixed(2)}px`,
         Math.abs(seen.panelFont - sizes.settingsEm) < 0.05 && Math.abs(seen.tabFont - sizes.settingsEm) < 0.05,
@@ -237,6 +244,40 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         check(`${at}: scrolling switched off, everything in the window and no stub`,
           fitted.toggle && fitted.over <= 0 && !fitted.stub && fitted.panelBottom <= fitted.height + 0.5, JSON.stringify(fitted));
       }
+      /*
+        Nothing in the panel wider than it, whichever tab is open: the
+        selected tab's fillet, drawn past the panel's side where the tab stood
+        at the end of a full strip, gave the panel a scrollbar of the few
+        pixels it reached beyond. And the last tab where that fillet takes it
+        to be: flush with the panel's side where the row is full, and the
+        fillet left out; a fillet's width or more short of it where it is not.
+      */
+      const across = await page.evaluate(async () => {
+        const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+        const side = document.querySelector(".side-column");
+        const tabs = [...document.querySelectorAll('.tab-bar > [role="tab"]')];
+        const wider = [];
+        for (const tab of tabs) {
+          tab.click();
+          await sleep(150);
+          if (side.scrollWidth > side.clientWidth) {
+            wider.push(`${tab.id}: ${side.scrollWidth - side.clientWidth}px`);
+          }
+        }
+        return {
+          wider,
+          full: document.querySelector(".tab-bar").classList.contains("tab-bar-full"),
+          lastShort: side.getBoundingClientRect().right - tabs.at(-1).getBoundingClientRect().right,
+          fillet: getComputedStyle(tabs.at(-1), "::after").display,
+          rows: new Set(tabs.map((tab) => Math.round(tab.getBoundingClientRect().top))).size,
+        };
+      });
+      check(`${at}: nothing in the panel wider than it, on any tab, and the last tab ${across.full ? "flush with its side, no fillet" : "a fillet's width or more short of it"}`,
+        across.wider.length === 0 &&
+          (across.full ? Math.abs(across.lastShort) < 0.5 && across.fillet === "none" : across.lastShort >= 6 && across.fillet !== "none"),
+        JSON.stringify(across));
+      /* And the strip on one line: wrapped, it costs the selected tab its join to the panel. */
+      check(`${at}: the tabs in one row`, across.rows === 1, JSON.stringify(across));
       await page.close();
     }
     /* The page scrolling, two boards over the panel: the panel as tall as its
@@ -278,18 +319,115 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.close();
     }
 
-    /* The text in proportion to the window: the same shape twice the size, twice the text. */
+    /* The text in proportion to the window: 16px at 1400 × 950, and in
+       proportion to the root of the area elsewhere — the same shape twice the
+       size, twice the text. Of the room the page has, the window less a
+       scrollbar's gutter where the browser keeps one: 1385 × 950 is a hair
+       under 16px. */
     const fontAt = async (w, h) => {
       const page = await browser.newPage({ viewport: { width: w, height: h } });
       await page.goto(`http://127.0.0.1:${PORT}/?layout=computed`);
       await page.waitForTimeout(1200);
-      const size = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+      const seen = await page.evaluate(() => {
+        const room = document.querySelector(".layout-window").getBoundingClientRect();
+        return { size: parseFloat(getComputedStyle(document.documentElement).fontSize), room: [room.width, room.height] };
+      });
       await page.close();
-      return size;
+      return { ...seen, asked: 16 * scaleFor(...seen.room) };
     };
     const [once, twice] = [await fontAt(1400, 950), await fontAt(2800, 1900)];
     check("the text in proportion to the window: 16px at 1400 × 950, twice that at twice the size",
-      Math.abs(once - 16) < 0.01 && Math.abs(twice - 32) < 0.01, `${once}px, ${twice}px`);
+      Math.abs(once.size - once.asked) < 0.01 && Math.abs(twice.size - twice.asked) < 0.01, JSON.stringify([once, twice]));
+  } finally {
+    await browser.close();
+  }
+}
+
+/*
+  A screen drawn at 1.25 device pixels to the CSS one — a desktop scaled to
+  125%, or a page zoomed to it — where a window is most often a fraction of a
+  CSS pixel off a whole number of them: the page that fits the window as tall
+  as it, exactly. Laid out for `innerHeight`, which rounds, it was a fifth of
+  a pixel taller where the rounding went up, and Chrome gave it a scrollbar
+  for that.
+
+  And with scrollbars that take room, as Chrome's on Linux and Windows do:
+  a page that fits as wide as the window, with no stripe kept down its edge
+  for a scrollbar it never has; and one that scrolls laid out beside its
+  scrollbar, and staying so — not narrowed by it into fitting, losing it, and
+  widening again.
+
+  Chromium alone: the one whose window can be sized here in device pixels,
+  rather than handed a viewport in whole CSS ones.
+*/
+{
+  console.log("\nAt 1.25 device pixels to the CSS one, in Chromium\n");
+  const browser = await chromium.launch({ args: ["--force-device-scale-factor=1.25"], ignoreDefaultArgs: ["--hide-scrollbars"] });
+  try {
+    const context = await browser.newContext({ viewport: null });
+    const page = await context.newPage();
+    const cdp = await context.newCDPSession(page);
+    const { windowId } = await cdp.send("Browser.getWindowForTarget");
+    const sized = async (w, h) => {
+      await cdp.send("Browser.setWindowBounds", { windowId, bounds: { width: w, height: h } });
+      await page.waitForTimeout(400);
+    };
+    const look = () => page.evaluate(() => {
+      const app = document.querySelector(".app").getBoundingClientRect();
+      const page = document.scrollingElement;
+      const at = [window.scrollX, window.scrollY];
+      window.scrollTo(1e6, 1e6);
+      const scrolled = [window.scrollX, window.scrollY];
+      window.scrollTo(...at);
+      return {
+        window: [visualViewport.width, visualViewport.height],
+        inner: [window.innerWidth, window.innerHeight],
+        page: [app.width, app.height],
+        fits: document.querySelector(".app").classList.contains("app-fits"),
+        scrollbar: window.innerWidth - visualViewport.width,
+        scrolled,
+        wide: page.scrollWidth - page.clientWidth,
+      };
+    });
+    /* Scrolling switched off, so that every one of these windows is one the page fits. */
+    const scrolling = (on) => page.evaluate((on) => window.localStorage.setItem("cv.allow-scrolling", on ? "on" : "off"), on);
+    await page.goto(`http://127.0.0.1:${PORT}/?layout=computed`);
+    await scrolling(false);
+    await page.reload();
+    await page.waitForTimeout(1500);
+    /* A laptop's 1920 × 1080 at 125%, give or take: heights through a whole five-pixel round of fractions, two widths. */
+    const windows = [1536, 1535].flatMap((w) => [755, 756, 757, 758, 759, 760, 761, 762, 763, 764].map((h) => [w, h]));
+    const seen = [];
+    for (const [w, h] of windows) {
+      await sized(w, h);
+      seen.push({ asked: [w, h], ...(await look()) });
+    }
+    const off = seen.filter((one) =>
+      !one.fits || one.scrolled[0] !== 0 || one.scrolled[1] !== 0 || one.wide > 0 ||
+      Math.abs(one.page[1] - one.window[1]) > 0.01);
+    check(`${windows.length} windows at 1.25: the page the window's height exactly, and not scrolling`,
+      off.length === 0, JSON.stringify(off.length === 0 ? seen : off));
+    check("among them windows whose `innerHeight` rounds up, as the page's height once did",
+      seen.some((one) => one.inner[1] > one.window[1] + 0.01), JSON.stringify(seen.map((one) => [one.window[1], one.inner[1]])));
+    /* The window's whole width, give or take the fifth of a pixel a window in device pixels is off its size in CSS ones. */
+    const striped = seen.filter((one) => one.scrollbar > 0.01 || Math.abs(one.page[0] - one.asked[0]) > 0.25);
+    check("and as wide as the window: no room kept for a scrollbar it does not have",
+      striped.length === 0, JSON.stringify(striped.length === 0 ? seen.map((one) => [one.asked[0], one.page[0]]) : striped));
+
+    /* Scrolling on, and a window two boards make the page run past the foot of: 1920 × 1080 at 125%. */
+    await scrolling(true);
+    await page.reload();
+    await sized(1536, 864);
+    await page.waitForTimeout(1100);
+    const first = await look();
+    await page.waitForTimeout(1500);
+    const then = await look();
+    check("1536 × 864 at 1.25, scrolling: the page scrolls, with a scrollbar, laid out beside it",
+      !first.fits && first.scrolled[1] > 0 && first.scrollbar > 1 && first.wide <= 0 &&
+        Math.abs(first.page[0] - first.window[0]) < 0.01,
+      JSON.stringify(first));
+    check("and stays so, rather than laid out over and over",
+      JSON.stringify(then.page) === JSON.stringify(first.page) && then.fits === first.fits, JSON.stringify([first, then]));
   } finally {
     await browser.close();
   }

@@ -84,16 +84,55 @@ function measuredText(px: number): { charEm: number; lineEm: number } | null {
 /** The class the document carries while the layout is computed: see `html.layout-computed`. */
 const COMPUTED_CLASS = "layout-computed";
 
+/** The box the window is measured by: see `.layout-window`. */
+const WINDOW_CLASS = "layout-window";
+
+/** The class the document carries while the page runs past the window's foot, and has a scrollbar for it: see `html.layout-scrolls`. */
+const SCROLLS_CLASS = "layout-scrolls";
+
+/**
+ * How wide a scrollbar is in this browser, to the fraction of a pixel — the
+ * device's pixels it is drawn in, in CSS ones — and none where scrollbars are
+ * drawn over what they scroll rather than beside it.
+ */
+function scrollbarWidth(): number {
+  const outer = document.createElement("div");
+  outer.style.cssText = "position: absolute; visibility: hidden; left: 0; top: 0; width: 100px; height: 50px; overflow-y: scroll;";
+  const inner = document.createElement("div");
+  outer.append(inner);
+  document.body.append(outer);
+  const width = outer.getBoundingClientRect().width - inner.getBoundingClientRect().width;
+  outer.remove();
+  return width;
+}
+
 /**
  * The page's regions for the window as it is now, in pixels — and the page's
  * text set to the size they were computed for — or nothing, where the layout
  * is the stylesheet's.
  *
- * Worked out again whenever the window changes size. The window's width is the
- * document's, without a scrollbar's: the document keeps the gutter for one
- * whether it scrolls or not (see `html.layout-computed`), so a page starting
- * or stopping scrolling does not change the width it was laid out for, which
- * would lay it out again, and again.
+ * Worked out again whenever the window changes size. The window's size is
+ * what a box fixed to all four of its edges measures: the room the page has,
+ * to the fraction of a pixel, less the scrollbar where there is one.
+ *
+ * Not `innerHeight` and the document's `clientWidth`, which are whole pixels:
+ * on a screen drawn at 1.25 device pixels to the CSS one — a desktop scaled to
+ * 125%, or a page zoomed to it — a window 971 device pixels tall is 776.8 CSS
+ * ones, `innerHeight` says 777, and a page that tall is a fifth of a pixel
+ * taller than the window, which Chrome gives a scrollbar to.
+ *
+ * Whether the page scrolls is settled for the window's whole width, the
+ * scrollbar's included, which a scrollbar coming or going does not change:
+ * a page that fits has no scrollbar and the whole width, and one that runs
+ * past the window's foot always has one, and is laid out for the width
+ * beside it. Settled for the width it is then laid out for, a scrollbar
+ * coming would narrow the page, which might then fit, and lose the scrollbar,
+ * and widen again — and so on, for as long as the window was left alone.
+ * The page used to keep a scrollbar's room at its side for that, scrolling or
+ * not, and a page that fitted had a stripe of nothing down its edge.
+ *
+ * Watched rather than asked on `resize`, which does not come when a page is
+ * zoomed.
  */
 export function usePageLayout(
   mode: LayoutMode,
@@ -106,7 +145,8 @@ export function usePageLayout(
   panelWantsPx: number | null
 ): Layout | null {
   const computed = mode !== "css";
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  /* The window: its whole width, a scrollbar's included; its height; and a scrollbar's width. */
+  const [size, setSize] = useState<{ w: number; h: number; bar: number } | null>(null);
   const [text, setText] = useState<{ charEm: number; lineEm: number } | null>(null);
 
 
@@ -116,34 +156,57 @@ export function usePageLayout(
     }
     const root = document.documentElement;
     root.classList.add(COMPUTED_CLASS);
-    const measure = () => setSize({ w: root.clientWidth, h: window.innerHeight });
+    const frame = document.createElement("div");
+    frame.className = WINDOW_CLASS;
+    frame.setAttribute("aria-hidden", "true");
+    document.body.append(frame);
+    const measure = () => {
+      const box = frame.getBoundingClientRect();
+      const bar = scrollbarWidth();
+      /* The box's width, and the scrollbar's beside it where the page has one. */
+      const w = box.width + (root.classList.contains(SCROLLS_CLASS) ? bar : 0);
+      setSize((was) => (was !== null && was.w === w && was.h === box.height && was.bar === bar ? was : { w, h: box.height, bar }));
+    };
     measure();
-    window.addEventListener("resize", measure);
-    window.visualViewport?.addEventListener("resize", measure);
+    const watching = new ResizeObserver(measure);
+    watching.observe(frame);
     return () => {
-      window.removeEventListener("resize", measure);
-      window.visualViewport?.removeEventListener("resize", measure);
-      root.classList.remove(COMPUTED_CLASS);
+      watching.disconnect();
+      frame.remove();
+      root.classList.remove(COMPUTED_CLASS, SCROLLS_CLASS);
       root.style.fontSize = "";
     };
   }, [computed]);
 
-  const laid =
-    !computed || size === null || size.w <= 0 || size.h <= 0
-      ? null
-      : inPixels(
-          layout({
-            aspect: size.h / size.w,
-            scrollable,
-            boards,
-            bars,
-            metrics: text === null ? metrics : { ...text, ...metrics },
-            minEm: minEmFor(size.w),
-            scale: scaleFor(size.w, size.h),
-            ...(panelWantsPx === null ? {} : { panelWants: panelWantsPx / size.w }),
-          }),
-          size.w
-        );
+  /* Laid out for a window this wide. */
+  const laidFor = (w: number, h: number): Layout =>
+    inPixels(
+      layout({
+        aspect: h / w,
+        scrollable,
+        boards,
+        bars,
+        metrics: text === null ? metrics : { ...text, ...metrics },
+        minEm: minEmFor(w),
+        scale: scaleFor(w, h),
+        ...(panelWantsPx === null ? {} : { panelWants: panelWantsPx / w }),
+      }),
+      w
+    );
+  /* For the whole width, which settles whether the page scrolls; and where
+     it does, for the width beside its scrollbar. Should that narrower page
+     fit after all, it keeps the scrollbar, with nothing to scroll: taking it
+     away would hand the page the whole width, which it does not fit. */
+  const whole = !computed || size === null || size.w <= 0 || size.h <= 0 ? null : laidFor(size.w, size.h);
+  const scrolls = whole?.scrolls ?? false;
+  const laid = whole !== null && size !== null && scrolls && size.bar > 0 ? laidFor(size.w - size.bar, size.h) : whole;
+
+  /* The scrollbar there or not as settled, before the page is painted. */
+  useLayoutEffect(() => {
+    if (computed) {
+      document.documentElement.classList.toggle(SCROLLS_CLASS, scrolls);
+    }
+  }, [computed, scrolls]);
 
   /* The font's character and line, measured at the size the panel's text is
      drawn at — once the layout has said what that is, which does not depend
@@ -171,8 +234,8 @@ export function usePageLayout(
     };
   }, [panelTextPx]);
 
-  /* A page that fits is the window's height to the pixel, as measured: the
-     height in units of the width, times the width, can miss it by a hair. */
+  /* A page that fits is the window's height exactly, as measured: the height
+     in units of the width, times the width, can miss it by a hair. */
   if (laid !== null && !laid.scrolls && size !== null) {
     laid.height = size.h;
   }

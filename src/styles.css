@@ -2693,8 +2693,33 @@ body {
     var(--app-bg);
 }
 
-.tab:first-child.tab-active::before {
+/*
+  No fillet where the tab stands at an end of the strip, flush with the
+  panel's side: the tab's own side runs on down into the panel's, and the
+  panel's corner is square under it (see `.tab-panel-flush`). The first tab
+  always; the last one where the row is full (see below).
+*/
+.tab:first-child.tab-active::before,
+.tab-bar-full > .tab:last-child.tab-active::after {
   display: none;
+}
+
+/*
+  A row full to within a fillet's width — less room after its last tab than
+  the fillet would reach past the tab's side (`TabBar` measures it). There
+  the fillet would have nothing to join: it would be drawn past the panel's
+  side, cut off by it, and give the panel, which scrolls what it holds, a
+  scrollbar of the few pixels it reached beyond. So the last tab is set the
+  last few pixels on, flush with the panel's side, as the first is with the
+  other; and the panel's corner is square under it while it is selected.
+  Where the row has room, the tab stays with the others, fillet and all.
+*/
+.tab-bar-full > .tab:last-child {
+  margin-left: auto;
+}
+
+.tabbed:has(> .tab-bar-full > .tab:last-child.tab-active) .tab-panel {
+  border-top-right-radius: 0;
 }
 
 .tab:focus-visible {
@@ -2764,6 +2789,7 @@ body {
 .tab-panel-flush {
   border-top-left-radius: 0;
 }
+
 
 /*
   Thin at the top where the first thing in the panel is a section's name. A
@@ -5868,11 +5894,31 @@ input[type="color"]::-moz-color-swatch {
   Last in the sheet, so that where these and the rules above say different
   things about one element, these are what it does.
 */
+/*
+  A scrollbar only where the layout says the page runs past the window's
+  foot, and there always: not one coming and going with what the page
+  measures, which would change the width it was laid out for, and lay it out
+  again. A page that fits has the window's whole width, with no room kept for
+  a scrollbar it never has. See `usePageLayout`.
+*/
 html.layout-computed {
-  /* The width the page is laid out for is the same whether it scrolls or
-     not: a scrollbar coming or going would otherwise change it, and lay the
-     page out again. */
-  scrollbar-gutter: stable;
+  overflow-y: hidden;
+}
+
+html.layout-computed.layout-scrolls {
+  overflow-y: scroll;
+}
+
+/*
+  The window, as the computed layout measures it: a box fixed to its four
+  edges is the room the page has, to the fraction of a pixel, less the
+  scrollbar where there is one. Seen by nothing and in nothing's way.
+*/
+.layout-window {
+  position: fixed;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .app.app-computed {

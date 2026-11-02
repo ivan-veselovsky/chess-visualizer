@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { focusFromKeyboard } from "./keyboardOn";
 
 export interface Tab<Id extends string> {
@@ -11,6 +11,9 @@ export interface Tab<Id extends string> {
    */
   name?: string;
 }
+
+/** How far past its side a selected tab's fillet reaches: see `.tab-active::after`. */
+const FILLET_PX = 6;
 
 interface TabBarProps<Id extends string> {
   tabs: readonly Tab<Id>[];
@@ -40,6 +43,39 @@ export default function TabBar<Id extends string>({
 }: TabBarProps<Id>) {
   const row = useRef<HTMLDivElement>(null);
 
+  /*
+    Whether the row is full: less room left after its last tab than the
+    fillet a selected tab draws at its side, which would reach past the
+    panel's. The last tab then stands at the end, flush with the panel's side,
+    and goes without that fillet when selected (see `.tab-bar-full`).
+
+    What is left is measured as the tab would stand of itself: where it has
+    been pushed to the end, the margin that pushed it is counted back in.
+  */
+  const [full, setFull] = useState(false);
+  useLayoutEffect(() => {
+    const strip = row.current;
+    if (strip === null) {
+      return;
+    }
+    const measure = () => {
+      const last = strip.lastElementChild;
+      if (last === null) {
+        return;
+      }
+      const left =
+        strip.getBoundingClientRect().right - last.getBoundingClientRect().right + parseFloat(getComputedStyle(last).marginLeft);
+      setFull(left < FILLET_PX);
+    };
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(strip);
+    for (const tab of strip.children) {
+      watching.observe(tab);
+    }
+    return () => watching.disconnect();
+  }, [tabs]);
+
   /** Moves selection and the focus together, so the keyboard shows its work. */
   function step(by: number, from: number) {
     const next = (from + by + tabs.length) % tabs.length;
@@ -48,7 +84,7 @@ export default function TabBar<Id extends string>({
   }
 
   return (
-    <div className="tab-bar" role="tablist" aria-label={label} ref={row} inert={inert}>
+    <div className={`tab-bar${full ? " tab-bar-full" : ""}`} role="tablist" aria-label={label} ref={row} inert={inert}>
       {tabs.map(({ id, label: text, name }, index) => (
         <button
           key={id}
