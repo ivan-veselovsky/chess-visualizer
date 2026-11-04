@@ -20,11 +20,15 @@
  * of the sources — and building it three times is three times the wait for the
  * same bytes.
  *
- * The worker's own suites are not here. They need a worker running to talk to,
- * which is a service to start rather than a file to run:
+ * The worker's own suites are not here, nor the game between two browsers
+ * played against it. They need a worker running to talk to, which is a
+ * service to start rather than a file to run:
  *
  *   npx wrangler dev --port 8787 &
  *   npm run test:ws
+ *   BASE=http://127.0.0.1:8787 npm run test:live
+ *
+ * or `./test-local.sh`, which starts and stops the worker itself.
  *
  * A machine running this needs Chrome on the path as `google-chrome`, and
  * Firefox as `firefox`; the browser suites say so themselves if either is not

@@ -134,6 +134,64 @@ export interface GameRecord {
    * shared pool would let either of them use up both allowances.
    */
   takebacksLeft: Tally;
+  /**
+   * The takeback under way, if one is: whose it is, and how many takebacks it
+   * has made and not undone — the last that many lines in `abandoned`,
+   * newest last.
+   *
+   * It starts with a player's takeback and lasts until their next move. A
+   * takeback hands the turn to whoever took it, so that move is theirs too:
+   * nothing else happens on the board in between, and the lines taken back
+   * are still the game's own last positions. Once the move is played the game
+   * has gone another way, and they are variations of it.
+   *
+   * One in a game at most, and one player's. While it lasts the other player
+   * cannot take back, so cannot begin one of their own: whoever began going
+   * back finishes, rather than the two of them unmaking each other's lines —
+   * which the lines put back would have to be put back onto. Each takeback
+   * after the first can be undone; the first cannot, so
+   * that going back always costs at least one. Missing in a record written
+   * before there was any such thing, which is the same as none.
+   */
+  takingBack?: TakingBack | null;
+  /**
+   * How many times the game has changed: one more with every write of this
+   * record, whatever the write was — a move, a takeback or its undoing, a
+   * draw offered or answered, the game answered, ended, or withdrawn.
+   *
+   * The rule, whole: every change to the game raises the revision by exactly
+   * one, in the one place every change is written (the object's `write`);
+   * every change is then told, with the revision it reached, to everyone at
+   * the game; and every request that acts on the game carries the revision
+   * it was made at. What is not the game does not count — which connection
+   * is whose, the probes between the two players, the lights saying who is
+   * there, the alarm that clears an old game away — since none of it is in
+   * this record, and none of it changes what either player may do.
+   *
+   * What a player sees is a revision of the game, and what they ask for is
+   * asked of it. Every message that says how the game stands or how it has
+   * changed carries the revision it leaves the game at; every request that
+   * acts on the game carries the revision the player was looking at, and is
+   * refused, as `staleMove`, unless that is still the game's.
+   *
+   * The ply did this job before, and could not do all of it: it counts moves,
+   * and two different games can have the same number of them. A reply sent
+   * to 3. d3, arriving after that was taken back and 3. d4 played instead,
+   * found the same ply and was played against a position its sender had
+   * never seen; so was an accepted draw arriving after the offer it answered
+   * had been withdrawn by a move and made again. A count of changes is never
+   * the same twice.
+   *
+   * It also says when a client has missed something. Every change is told to
+   * both players on their open connections, in order, so each message's
+   * revision is one more than the last one a connection was told; anything
+   * else means a message went missing, and the client asks for the whole
+   * game again rather than carry on from a game that is not there.
+   *
+   * Missing in a record written before there was any such thing, which is
+   * counted as nought.
+   */
+  revision?: number;
   /** Who has a draw on offer, when one is standing. */
   drawOfferedBy: Color | null;
   createdAt: number;
@@ -176,7 +234,7 @@ export function canMoveTo(from: GameStatus, to: GameStatus): boolean {
 export type FromClient =
   | {
       type: "create";
-      /** What revision this end speaks; see PROTOCOL_VERSION. */
+      /** What version of this protocol this end speaks; see PROTOCOL_VERSION. */
       v?: number;
       token: string;
       name: string;
@@ -249,18 +307,37 @@ export type FromClient =
    * wobbles, the second arrives at a ply already played and is answered with
    * what happened rather than played again.
    */
-  | { type: "move"; token: string; ply: number; san: string }
+  | {
+      type: "move";
+      token: string;
+      /** Which move of the game this is, counted from 0: the game's length as the player saw it. */
+      ply: number;
+      san: string;
+      /** The game's revision as the player saw it; see `GameRecord.revision`. */
+      revision: number;
+    }
   /**
    * Takes back the move just made — your own, and only while it is still the
    * last. Once the opponent has replied it is part of the game.
    */
   /**
-   * `ply` is how many moves the client sees played: the takeback is of the
-   * game as it saw it, and is refused if the game has moved on since — a
-   * second press, or a reply that arrived on the way, unmaking more than was
-   * asked. Missing from an older client, which is not checked.
+   * `revision` is the game's as the client saw it: the takeback is of that
+   * game, and is refused if the game has changed since — a second press, or a
+   * reply that arrived on the way, unmaking more than was asked.
    */
-  | { type: "takeBack"; token: string; ply?: number }
+  | { type: "takeBack"; token: string; revision: number }
+  /**
+   * Undoes your last takeback: puts back the moves it took — your move, and
+   * the reply to it where there was one — and gives you the takeback back.
+   * Only before your next move, and never the first of them; see the record's
+   * `takingBack`. `revision` is as for a takeback.
+   */
+  | { type: "undoTakeBack"; token: string; revision: number }
+  /**
+   * With no revision: giving up is not an answer to a position, and a game
+   * that has changed since the button was pressed is still a game its player
+   * no longer wants. Refusing it would only make them press again.
+   */
   | { type: "resign"; token: string }
   /**
    * Takes an invite back. The challenger's own, and only while it is still
@@ -268,12 +345,22 @@ export type FromClient =
    * given up by resigning.
    */
   | { type: "cancel"; token: string }
-  | { type: "offerDraw"; token: string }
-  | { type: "answerDraw"; token: string; accept: boolean };
+  /** Offered in the position the player saw: `revision` as for a move. */
+  | { type: "offerDraw"; token: string; revision: number }
+  /**
+   * The answer to the offer the player saw, and to no other: one withdrawn by
+   * a move and made again since is a different offer. `revision` as for a move.
+   */
+  | { type: "answerDraw"; token: string; accept: boolean; revision: number };
 
 /** What the object sends back. */
 export type FromServer =
-  | { type: "created"; you: ColorChoice; terms: Terms }
+  /*
+    Every message from here on that says how the game stands, or how it has
+    changed, carries `revision`: the game's, as the message leaves it. See
+    `GameRecord.revision`.
+  */
+  | { type: "created"; you: ColorChoice; terms: Terms; revision: number }
   /** `you` is `OPPONENT_CHOOSES` when the side is yours to pick. */
   | { type: "challenge"; challenger: string; you: ColorChoice; terms: Terms }
   | {
@@ -286,12 +373,15 @@ export type FromServer =
       /** Lines taken back; see the record's own field. */
       abandoned: string[][];
       takebacksLeft: Tally;
+      /** The takeback under way; see the record's own field. */
+      takingBack: TakingBack | null;
       startedAt: number | null;
       endedAt: number | null;
       /** When anything last happened to it; see the record's own field. */
       touchedAt: number;
+      revision: number;
     }
-  | { type: "declined" }
+  | { type: "declined"; revision: number }
   /**
    * The invite has been answered.
    *
@@ -315,6 +405,7 @@ export type FromServer =
        * they are being handed.
        */
       moves: string[];
+      revision: number;
     }
   | {
       type: "state";
@@ -328,10 +419,13 @@ export type FromServer =
       /** Lines taken back; see the record's own field. */
       abandoned: string[][];
       takebacksLeft: Tally;
+      /** The takeback under way; see the record's own field. */
+      takingBack: TakingBack | null;
       drawOfferedBy: Color | null;
       startedAt: number | null;
       endedAt: number | null;
       touchedAt: number;
+      revision: number;
     }
   /**
    * A move that has happened, told to both players by the one place that
@@ -347,6 +441,7 @@ export type FromServer =
       result: GameResult;
       reason: EndReason | null;
       takebacksLeft: Tally;
+      revision: number;
     }
   /**
    * Moves unmade, and what that left: who took them back, which moves they
@@ -361,11 +456,29 @@ export type FromServer =
       by: Color;
       undone: string[];
       abandoned: string[][];
+      takingBack: TakingBack | null;
+      revision: number;
+    }
+  /**
+   * A takeback undone: who undid it, the moves put back, and what that left —
+   * the line they were taken back from gone from `abandoned`, being the game
+   * itself again.
+   */
+  | {
+      type: "putBack";
+      ply: number;
+      fen: string;
+      takebacksLeft: Tally;
+      by: Color;
+      restored: string[];
+      abandoned: string[][];
+      takingBack: TakingBack | null;
+      revision: number;
     }
   /** The game is over by something other than a move. */
-  | { type: "ended"; result: GameResult; reason: EndReason; at: number }
-  | { type: "drawOffered"; by: Color }
-  | { type: "drawDeclined" }
+  | { type: "ended"; result: GameResult; reason: EndReason; at: number; revision: number }
+  | { type: "drawOffered"; by: Color; revision: number }
+  | { type: "drawDeclined"; revision: number }
   /**
    * Whether the other player has a connection open at this moment.
    *
@@ -399,7 +512,7 @@ export type ErrorCode =
   | "gameOver"
   | "ownInvite"
   | "unknownToken"
-  /** The two ends are not speaking the same revision of this conversation. */
+  /** The two ends are not speaking the same version of this conversation. */
   | "versionMismatch"
   | "badPosition"
   /** The moves carried in will not play from the position given. */
@@ -412,7 +525,11 @@ export type ErrorCode =
   | "notYourTurn"
   /** The move will not play from the position it was sent for. */
   | "illegalMove"
-  /** Sent for a ply that is not the one the game is waiting for. */
+  /**
+   * Asked of a game that has changed since: a move, a takeback or its
+   * undoing, or a draw offered or answered, carrying a revision that is no
+   * longer the game's — or a move for a ply that is not the one it waits for.
+   */
   | "staleMove"
   /** The game is over, or has not begun. */
   | "notPlaying"
@@ -420,6 +537,10 @@ export type ErrorCode =
   | "nothingToTakeBack"
   /** No takebacks left. */
   | "noTakebacksLeft"
+  /** No takeback of yours to undo, or a move has been played since. */
+  | "nothingToUndo"
+  /** The opponent is taking back, and has not made their move yet. */
+  | "opponentTakingBack"
   /** No draw is on offer, or the one on offer is your own. */
   | "noDrawOffered"
   /** The invite was taken back by whoever offered it. */
@@ -457,7 +578,7 @@ export interface Terms {
  * the app ever sees one.
  */
 /**
- * What revision of this conversation both ends are speaking.
+ * What version of this conversation both ends are speaking.
  *
  * Raised whenever a change would leave the two ends misunderstanding each
  * other — a message renamed, a field given a different meaning, a refusal
@@ -488,7 +609,12 @@ export interface Terms {
  */
 export const KEPT_FOR_MS = 7 * 24 * 60 * 60 * 1000;
 
-export const PROTOCOL_VERSION = 4;
+/* 5: a takeback can be undone, and locks the opponent's out until the move
+   after it — a page from before would not know what to do with the moves
+   coming back, and its board would be left without them. And the game has a
+   revision, which every request that acts on it must carry: see
+   `GameRecord.revision`. */
+export const PROTOCOL_VERSION = 5;
 
 /**
  * How often each player asks the other, and how long an unanswered question
@@ -530,6 +656,12 @@ export const STALE_AFTER = 6_000;
 export interface Tally {
   w: number;
   b: number;
+}
+
+/** The takeback under way: whose, and how many takebacks it stands at; see `GameRecord.takingBack`. */
+export interface TakingBack {
+  by: Color;
+  count: number;
 }
 
 export const other = (color: Color): Color => (color === "w" ? "b" : "w");

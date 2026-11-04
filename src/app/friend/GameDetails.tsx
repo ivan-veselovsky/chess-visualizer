@@ -4,6 +4,7 @@ import DrawIcon from "../DrawIcon";
 import FlagIcon from "../FlagIcon";
 import ShareIcon from "../ShareIcon";
 import TakebackIcon from "../TakebackIcon";
+import UndoTakebackIcon from "../UndoTakebackIcon";
 import { describeHandicap } from "../../chess/handicap";
 import { halfMoves } from "./counting";
 import { endingOf } from "./ending";
@@ -11,7 +12,8 @@ import { OPPONENT_CHOOSES } from "../../../worker/protocol";
 import { gameLink } from "./connection";
 import InviteDetails from "./InviteDetails";
 import { spellGameId } from "./storage";
-import type { Link, Phase } from "./useFriendGame";
+import { takingBackSaid } from "./takingBack";
+import type { Link, Notice, Phase } from "./useFriendGame";
 
 interface GameDetailsProps {
   phase: Phase;
@@ -26,6 +28,11 @@ interface GameDetailsProps {
   /** Why it can or cannot, for the button to say without being pressed. */
   takebackReason: string;
   /**
+   * Whether the last takeback can be undone, and why or why not — or null
+   * where this player is not taking back, and there is no button.
+   */
+  undoTakeBack: { can: boolean; why: string } | null;
+  /**
    * Whether there are games in the list below.
    *
    * It changes what an empty panel has to say: with games under it the reader
@@ -34,12 +41,13 @@ interface GameDetailsProps {
    */
   anyGames: boolean;
   onTakeBack: () => void;
+  onUndoTakeBack: () => void;
   onLeave: () => void;
   onResign: () => void;
   onOfferDraw: () => void;
   onAnswerDraw: (accept: boolean) => void;
   /** Something the object said no to, while the game goes on. */
-  notice: string | null;
+  notice: Notice | null;
   onDismissNotice: () => void;
 }
 
@@ -197,8 +205,10 @@ export default function GameDetails({
   movesPlayed,
   canTakeBack,
   takebackReason,
+  undoTakeBack,
   anyGames,
   onTakeBack,
+  onUndoTakeBack,
   onLeave,
   onResign,
   onOfferDraw,
@@ -215,6 +225,18 @@ export default function GameDetails({
     component may call them.
   */
   const [showingLink, setShowingLink] = useState(false);
+  /** Who is taking moves back, and how far they have got; see `takingBackSaid`. */
+  const takingBackNow =
+    phase.kind === "playing"
+      ? takingBackSaid({
+          you: phase.you,
+          opponent: phase.opponent,
+          takingBack: phase.takingBack,
+          abandoned: phase.abandoned,
+          initialFEN: phase.terms.initialFEN,
+          played: movesPlayed,
+        })
+      : null;
   /** The panel as it last stood, for the moment between one game and the next. */
   const kept = useRef<ReactNode>(null);
   const linkDialog = useRef<HTMLDialogElement>(null);
@@ -410,7 +432,7 @@ export default function GameDetails({
           */}
           {phase.drawOffered !== null && phase.drawOffered !== phase.you && (
             <div className="board-controls invite-question">
-              <span>{phase.opponent} offers a draw</span>
+              <span className="from-opponent">{phase.opponent} offers a draw</span>
               <div className="button-pair controls-end">
                 <button
                   type="button"
@@ -495,6 +517,22 @@ export default function GameDetails({
                   Takeback
                 </button>
               )}
+              {/* Beside the takeback it undoes, and only while there is one:
+                  from a takeback until the next move, which is as long as
+                  undoing one means anything. Greyed after the first, which
+                  is never undone. */}
+              {phase.terms.takebacks > 0 && undoTakeBack !== null && (
+                <button
+                  type="button"
+                  className="reset-button"
+                  disabled={!undoTakeBack.can}
+                  title={undoTakeBack.why}
+                  onClick={onUndoTakeBack}
+                >
+                  <UndoTakebackIcon />
+                  Undo takeback
+                </button>
+              )}
             </div>
           )}
 
@@ -518,15 +556,35 @@ export default function GameDetails({
             </p>
           )}
 
+          {/* While somebody is taking moves back, how far they have gone and
+              what is waited for — held for as long as it lasts, where the
+              notice under it says only the last step. Most of all for the
+              other player, whose board goes back and forward with nobody at
+              it having moved. */}
+          {phase.over === null && takingBackNow !== null && (
+            <p
+              className={
+                phase.takingBack?.by === phase.you
+                  ? "invite-note invite-taking-back"
+                  : "invite-note invite-taking-back from-opponent"
+              }
+              role="status"
+            >
+              {takingBackNow}
+            </p>
+          )}
+
           {/* Said and then let go of: the game is what matters, not the last
-              thing that could not be done. */}
+              thing that could not be done, nor the last thing the other
+              player did. Theirs in the title's colour, refusals in red: see
+              `Notice`. */}
           {notice !== null && (
             <p
-              className="invite-notice"
+              className={notice.from === "opponent" ? "invite-notice from-opponent" : "invite-notice"}
               role="status"
               onClick={onDismissNotice}
             >
-              {notice}
+              {notice.text}
             </p>
           )}
 

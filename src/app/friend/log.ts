@@ -75,6 +75,24 @@ export function note(what: string, detail?: unknown): void {
   }
 }
 
+/**
+ * Says something whether the log is on or not.
+ *
+ * For the few things a reader would come looking for afterwards, said at a
+ * moment that is already a visible one — the app has just put a question in
+ * front of them that they did not expect. One line then is not noise, and
+ * waiting to be asked for it would lose it: whatever made it happen is over
+ * by the time anybody turns the log on, and turning it on changes the timing
+ * that made it happen.
+ */
+export function say(what: string, detail?: unknown): void {
+  if (detail === undefined) {
+    console.info(`${MARK} ${at()}s  ${what}`);
+  } else {
+    console.info(`${MARK} ${at()}s  ${what}`, detail);
+  }
+}
+
 /** Whether anything is being written down, for code that would rather not
     build a detail nobody will read, and for the switch that sets it. */
 export function logging(): boolean {

@@ -164,7 +164,7 @@ export class Game extends DurableObject {
 
     /*
       Every conversation opens with one of four messages, and each of them says
-      what revision the far end speaks. Checked here rather than in each of
+      what version the far end speaks. Checked here rather than in each of
       them: the point is that nothing else is acted on until the two ends are
       known to mean the same thing by it.
     */
@@ -245,6 +245,8 @@ export class Game extends DurableObject {
         return this.play(ws, message);
       case "takeBack":
         return this.takeBack(ws, message);
+      case "undoTakeBack":
+        return this.undoTakeBack(ws, message);
       case "resign":
         return this.resign(ws, message);
       case "cancel":
@@ -278,6 +280,7 @@ export class Game extends DurableObject {
         type: "created",
         you: already.host.color,
         terms: termsOf(already),
+        revision: already.revision ?? 0,
       });
     }
 
@@ -364,18 +367,22 @@ export class Game extends DurableObject {
       moves: [...line],
       priorMoves: line.length,
       takebacksLeft: { w: takebacks, b: takebacks },
+      takingBack: null,
+      // Nothing yet: the write that makes it is its first change.
+      revision: 0,
       drawOfferedBy: null,
       createdAt: Date.now(),
       startedAt: null,
       endedAt: null,
       touchedAt: Date.now(),
     };
-    await this.write(record);
+    const made = await this.write(record);
     this.bind(ws, message.token);
     return this.tell(ws, {
       type: "created",
       you: record.host.color,
       terms: termsOf(record),
+      revision: made.revision ?? 0,
     });
   }
 
@@ -450,11 +457,13 @@ export class Game extends DurableObject {
                 moves: record.moves,
                 abandoned: record.abandoned ?? [],
                 takebacksLeft: record.takebacksLeft,
+                takingBack: record.takingBack ?? null,
                 startedAt: record.startedAt,
                 endedAt: record.endedAt,
                 touchedAt: record.touchedAt,
+                revision: record.revision ?? 0,
               }
-            : { type: "declined" }
+            : { type: "declined", revision: record.revision ?? 0 }
         );
         return this.saidPresence(record);
       }
@@ -539,7 +548,7 @@ export class Game extends DurableObject {
 
     this.bind(ws, message.token);
     if (!message.accept) {
-      this.tell(ws, { type: "declined" });
+      this.tell(ws, { type: "declined", revision: settledRecord.revision ?? 0 });
       return this.sendTo(record.host.token, {
         type: "answered",
         accepted: false,
@@ -550,6 +559,7 @@ export class Game extends DurableObject {
         startedAt: settledRecord.startedAt,
         endedAt: settledRecord.endedAt,
         touchedAt: settledRecord.touchedAt,
+        revision: settledRecord.revision ?? 0,
       });
     }
 
@@ -563,9 +573,11 @@ export class Game extends DurableObject {
       moves: record.moves,
       abandoned: record.abandoned ?? [],
       takebacksLeft: record.takebacksLeft,
+      takingBack: record.takingBack ?? null,
       startedAt: settledRecord.startedAt,
       endedAt: settledRecord.endedAt,
       touchedAt: settledRecord.touchedAt,
+      revision: settledRecord.revision ?? 0,
     });
     this.sendTo(record.host.token, {
       type: "answered",
@@ -577,6 +589,7 @@ export class Game extends DurableObject {
       startedAt: settledRecord.startedAt,
       endedAt: settledRecord.endedAt,
       touchedAt: settledRecord.touchedAt,
+      revision: settledRecord.revision ?? 0,
     });
     return this.saidPresence({ ...record, guest });
   }
@@ -653,10 +666,12 @@ export class Game extends DurableObject {
       moves: record.moves,
       abandoned: record.abandoned ?? [],
       takebacksLeft: record.takebacksLeft,
+      takingBack: record.takingBack ?? null,
       drawOfferedBy: record.drawOfferedBy,
       startedAt: record.startedAt,
       endedAt: record.endedAt,
       touchedAt: record.touchedAt,
+      revision: record.revision ?? 0,
     });
   }
 
@@ -697,10 +712,12 @@ export class Game extends DurableObject {
       moves: record.moves,
       abandoned: record.abandoned ?? [],
       takebacksLeft: record.takebacksLeft,
+      takingBack: record.takingBack ?? null,
       drawOfferedBy: record.drawOfferedBy,
       startedAt: record.startedAt,
       endedAt: record.endedAt,
       touchedAt: record.touchedAt,
+      revision: record.revision ?? 0,
     });
     // Both lights, now that there is one more connection to report.
     return this.saidPresence(record);
@@ -732,22 +749,25 @@ export class Game extends DurableObject {
     }
 
     /*
-      Sent again after a wobble: the ply is already behind us. If it is the move
-      we already have, say so again rather than play it twice; if it is not,
-      this client is somewhere else entirely and needs the game as it stands.
+      Of the game as the player saw it, and of no other — however few moves
+      apart the two are, and even where they have the same number of moves:
+      see `GameRecord.revision`.
+
+      A move sent again used to be answered with the move already made, by
+      its ply and its letters. Never sent again by this app, which asks for
+      the whole game after a dropped line rather than repeating itself; and
+      wrong where it would have mattered, since the same move at the same ply
+      can be in a different game — the one taken back and played again. A
+      client that has lost track asks for the game, and is told it.
     */
-    if (message.ply < record.moves.length) {
-      if (record.moves[message.ply] === message.san) {
-        return this.tell(ws, this.movedMessage(record, message.ply));
-      }
-      return this.deny(
-        ws,
-        "staleMove",
-        "That move was for an earlier position"
-      );
+    if (this.changedSince(record, message.revision)) {
+      return this.deny(ws, "staleMove", "That move was for an earlier position");
     }
-    if (message.ply > record.moves.length) {
-      return this.deny(ws, "staleMove", "That move is ahead of the game");
+    /* Which follows, for a client that tracks the revision — and is checked
+       all the same, as a move put at the wrong place in the line would be a
+       different game. */
+    if (message.ply !== record.moves.length) {
+      return this.deny(ws, "staleMove", "That move is not for the position the game is at");
     }
 
     const board = new Chess(record.initialFEN);
@@ -774,13 +794,15 @@ export class Game extends DurableObject {
       moves,
       // A move answers a draw offer as surely as declining it does.
       drawOfferedBy: null,
+      // And settles a takeback: the game has gone on from where it left it.
+      takingBack: null,
       status: ending === null ? record.status : "finished",
       result: ending?.result ?? record.result,
       reason: ending?.reason ?? record.reason,
     };
-    await this.write(played);
+    const stored = await this.write(played);
 
-    this.both(played, this.movedMessage(played, moves.length - 1));
+    this.both(stored, this.movedMessage(stored, moves.length - 1));
   }
 
   /** What a given ply came to, said the same way to both players. */
@@ -798,6 +820,7 @@ export class Game extends DurableObject {
       result: record.result,
       reason: record.reason,
       takebacksLeft: record.takebacksLeft,
+      revision: record.revision ?? 0,
     };
   }
 
@@ -809,7 +832,9 @@ export class Game extends DurableObject {
    * eight years old. Each side is given a number of them at the start, and
    * each takeback spends one of that player's own, whether it unmakes one move
    * or two. Taking back one move as much as allows another after it, as far as
-   * the takebacks go: playing a bot works the same way.
+   * the takebacks go: playing a bot works the same way. And whoever began
+   * going back has the game to themselves until they have made their move
+   * again — see the record's `takingBack`.
    *
    * The moves unmade are kept rather than lost — see `abandoned` — and a game
    * that is over is over: the move that finished it is not taken back.
@@ -834,12 +859,28 @@ export class Game extends DurableObject {
       return this.deny(ws, "nothingToTakeBack", "Nothing has been played yet");
     }
     /*
+      Whoever began going back finishes. The opponent's own last move is
+      among what they are unmaking, and is theirs to put back — so it is not
+      the other player's to take back in between. Said before the game having
+      moved on, which is what the two pressing at once looks like from the
+      second: what they need to hear is why they must wait.
+    */
+    const underWay = record.takingBack ?? null;
+    if (underWay !== null && underWay.by !== player.color) {
+      return this.deny(
+        ws,
+        "opponentTakingBack",
+        "Your opponent is taking moves back; wait for their move"
+      );
+    }
+    /*
       Of the game as the player saw it. A second press, or a reply that
       arrived while the first was on its way, would otherwise unmake more than
-      was asked for.
+      was asked for. Refused as a move for an old position is: there may well
+      be a move of theirs to take back, only not the one they saw.
     */
-    if (message.ply !== undefined && message.ply !== record.moves.length) {
-      return this.deny(ws, "nothingToTakeBack", "The game has moved on since; look again");
+    if (this.changedSince(record, message.revision)) {
+      return this.deny(ws, "staleMove", "The game has moved on since; look again");
     }
 
     /*
@@ -884,7 +925,12 @@ export class Game extends DurableObject {
       ...record.takebacksLeft,
       [colour]: record.takebacksLeft[colour] - 1,
     };
-    await this.write({ ...record, moves, abandoned, takebacksLeft, drawOfferedBy: null });
+    /* One more of the takeback under way, or the first of one. */
+    const takingBack = {
+      by: colour,
+      count: (underWay?.count ?? 0) + 1,
+    };
+    const stored = await this.write({ ...record, moves, abandoned, takebacksLeft, takingBack, drawOfferedBy: null });
 
     const back = new Chess(record.initialFEN);
     for (const san of moves) {
@@ -898,6 +944,93 @@ export class Game extends DurableObject {
       by: colour,
       undone,
       abandoned,
+      takingBack,
+      revision: stored.revision ?? 0,
+    });
+  }
+
+  /**
+   * Undoes your last takeback: the line it was taken back from is the game
+   * again, and the takeback is yours again to spend.
+   *
+   * So that taking back is not final the moment it is pressed. Several in a
+   * row are how far back a player goes, a press at a time, and one press too
+   * many — or a takeback thought better of — is put right with this rather
+   * than with a move and a takeback gone. Only before the next move, which
+   * is where the game goes on from, and never the first takeback of the
+   * run: going back at all costs one. See the record's `takingBack`.
+   *
+   * The line comes back out of `abandoned`, where the takeback put it, whole:
+   * it was the game as it stood, and with it back on the board it is no
+   * longer a line taken back from it.
+   */
+  private async undoTakeBack(
+    ws: WebSocket,
+    message: Extract<FromClient, { type: "undoTakeBack" }>
+  ): Promise<void> {
+    const record = await this.read();
+    const player = this.playerFor(record, message.token);
+    if (record === null || player === null) {
+      return this.refuse(
+        ws,
+        "unknownToken",
+        "That token belongs to no one here"
+      );
+    }
+    if (record.status !== "inProgress" || record.initialFEN === null) {
+      return this.deny(ws, "notPlaying", "That game is not being played");
+    }
+    const colour = player.color as Color;
+    const takingBack = record.takingBack ?? null;
+    if (takingBack === null || takingBack.by !== colour) {
+      return this.deny(ws, "nothingToUndo", "No takeback of yours to undo since the last move");
+    }
+    if (takingBack.count < 2) {
+      return this.deny(ws, "nothingToUndo", "The first takeback cannot be undone");
+    }
+    /* Of the game as the player saw it, as a takeback is. */
+    if (this.changedSince(record, message.revision)) {
+      return this.deny(ws, "staleMove", "The game has moved on since; look again");
+    }
+    /*
+      The line the last takeback left, which the game is the head of. Always
+      so while there is a takeback to undo; checked rather than trusted, as a
+      line put back that the game is not the head of would be a different game.
+    */
+    const kept = record.abandoned ?? [];
+    const line = kept[kept.length - 1];
+    if (
+      line === undefined ||
+      line.length <= record.moves.length ||
+      record.moves.some((san, index) => line[index] !== san)
+    ) {
+      return this.deny(ws, "nothingToUndo", "That takeback is not the game's to undo");
+    }
+
+    const restored = line.slice(record.moves.length);
+    const abandoned = kept.slice(0, -1);
+    const takebacksLeft = {
+      ...record.takebacksLeft,
+      [colour]: record.takebacksLeft[colour] + 1,
+    };
+    /* Still under way: the first takeback stays, and the move after it ends it. */
+    const left = { by: colour, count: takingBack.count - 1 };
+    const stored = await this.write({ ...record, moves: line, abandoned, takebacksLeft, takingBack: left, drawOfferedBy: null });
+
+    const board = new Chess(record.initialFEN);
+    for (const san of line) {
+      board.move(san);
+    }
+    this.both(record, {
+      type: "putBack",
+      ply: line.length,
+      fen: board.fen(),
+      takebacksLeft,
+      by: colour,
+      restored,
+      abandoned,
+      takingBack: left,
+      revision: stored.revision ?? 0,
     });
   }
 
@@ -938,6 +1071,7 @@ export class Game extends DurableObject {
       result: "*",
       reason: "challengeCancelled",
       at: withdrawn.endedAt ?? Date.now(),
+      revision: withdrawn.revision ?? 0,
     });
   }
 
@@ -971,6 +1105,7 @@ export class Game extends DurableObject {
       result,
       reason: "resignation",
       at: resigned.endedAt ?? Date.now(),
+      revision: resigned.revision ?? 0,
     });
   }
 
@@ -991,9 +1126,14 @@ export class Game extends DurableObject {
     if (record.status !== "inProgress") {
       return this.deny(ws, "notPlaying", "That game is not being played");
     }
+    /* In the position the player saw: one offered as a move arrives is an
+       offer about a game they have not looked at. */
+    if (this.changedSince(record, message.revision)) {
+      return this.deny(ws, "staleMove", "The game has moved on since; look again");
+    }
     const by = player.color as Color;
-    await this.write({ ...record, drawOfferedBy: by });
-    this.both(record, { type: "drawOffered", by });
+    const offered = await this.write({ ...record, drawOfferedBy: by });
+    this.both(record, { type: "drawOffered", by, revision: offered.revision ?? 0 });
   }
 
   /** Takes a draw, or turns it down. Only the other player may answer one. */
@@ -1017,9 +1157,18 @@ export class Game extends DurableObject {
     ) {
       return this.deny(ws, "noDrawOffered", "No draw is on offer to you");
     }
+    /*
+      The offer the player saw, and no other. One withdrawn by a move and
+      made again since is on offer as well, and is not the one that was
+      answered: accepting it would be agreeing to a draw in a position the
+      player has not seen.
+    */
+    if (this.changedSince(record, message.revision)) {
+      return this.deny(ws, "staleMove", "The game has moved on since; look again");
+    }
     if (!message.accept) {
-      await this.write({ ...record, drawOfferedBy: null });
-      this.both(record, { type: "drawDeclined" });
+      const declined = await this.write({ ...record, drawOfferedBy: null });
+      this.both(record, { type: "drawDeclined", revision: declined.revision ?? 0 });
       return;
     }
     const agreed = await this.write({
@@ -1034,7 +1183,16 @@ export class Game extends DurableObject {
       result: "1/2-1/2",
       reason: "agreement",
       at: agreed.endedAt ?? Date.now(),
+      revision: agreed.revision ?? 0,
     });
+  }
+
+  /**
+   * Whether a request was made of a game that has changed since its player
+   * last saw it. See `GameRecord.revision`.
+   */
+  private changedSince(record: GameRecord, revision: number): boolean {
+    return revision !== (record.revision ?? 0);
   }
 
   /** Says the same thing to both players, which is all this object ever does. */
@@ -1265,13 +1423,21 @@ export class Game extends DurableObject {
    * Every change passes through here, and a status only moves forward, so each
    * time is set the first time its status is written and kept from then on.
    *
+   * And the revision moved on by one, here for the same reason: every write
+   * is a change, and a change counted at each of the places that make one is
+   * a change left uncounted at the next. See `GameRecord.revision`. Each
+   * caller writes what it read with its changes made, so the count is of
+   * that — and nothing can come between the read and the write: an object
+   * takes no other message while it waits on its own storage.
+   *
    * Returns what was actually stored, since what is stored is what the players
-   * are then told.
+   * are then told — the revision with it.
    */
   private async write(record: GameRecord): Promise<GameRecord> {
     const now = Date.now();
     const stamped: GameRecord = {
       ...record,
+      revision: (record.revision ?? 0) + 1,
       startedAt:
         record.startedAt ?? (record.status === "inProgress" ? now : null),
       endedAt: record.endedAt ?? (record.status === "finished" ? now : null),
@@ -1279,7 +1445,7 @@ export class Game extends DurableObject {
     };
     await this.ctx.storage.put("game", stamped);
     this.say(
-      `now ${stamped.status}` +
+      `now ${stamped.status} at revision ${stamped.revision}` +
         (stamped.reason === null ? "" : ` — ${stamped.result} by ${stamped.reason}`) +
         `, ${stamped.moves.length} half-moves`
     );

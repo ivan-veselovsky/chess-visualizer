@@ -16,6 +16,7 @@ import { lineOf as lineFromHistory } from "../src/chess/history.ts";
 import { addressWithoutOpening, fromBase64Url, openingFromUrl, toBase64Url } from "../src/app/sharing.ts";
 import { reachSignature } from "../src/chess/attacks.ts";
 import { halfMoves } from "../src/app/friend/counting.ts";
+import { movesSaid, takenBackInAll, takingBackSaid } from "../src/app/friend/takingBack.ts";
 import { nextStashName } from "../src/chess/stash.ts";
 import { pinnedSquares } from "../src/chess/pins.ts";
 import { availableFor, materialOn } from "../src/chess/available.ts";
@@ -1666,6 +1667,47 @@ console.log("\nA piece in the air\n");
     halfMoves(11) === "11 half-moves" && halfMoves(12) === "12 half-moves",
     `${halfMoves(11)} / ${halfMoves(12)}`);
   check("a count below nothing is still nothing", halfMoves(-3) === "no moves yet");
+}
+
+{
+  /*
+    A takeback under way, as each player is told of it: worked out from the
+    game as the object keeps it, so it reads the same however much of it the
+    page saw happen. Here White has taken back three times from after
+    3. Bc4 Bc5, and undone the last.
+  */
+  const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  const six = ["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5"];
+  check("moves are said numbered", movesSaid(START, six, 0, 6) === "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5", movesSaid(START, six, 0, 6));
+  check("and from a move by Black, with its number too", movesSaid(START, six, 3, 5) === "2… Nc6 3. Bc4", movesSaid(START, six, 3, 5));
+  check("from a game that started with Black to move, numbered from there",
+    movesSaid("8/8/8/8/8/8/k7/K7 b - - 0 40", ["Kb3", "Kb1", "Kc3"], 0, 3) === "40… Kb3 41. Kb1 Kc3",
+    movesSaid("8/8/8/8/8/8/k7/K7 b - - 0 40", ["Kb3", "Kb1", "Kc3"], 0, 3));
+  const game = {
+    opponent: "Alice",
+    takingBack: { by: "w", count: 2 },
+    abandoned: [six, six.slice(0, 4)],
+    initialFEN: START,
+    played: 2,
+  };
+  const toBob = takingBackSaid({ ...game, you: "b" });
+  check("the other player is told who, how far, which moves, and what they wait for",
+    toBob === "Alice is taking moves back — 4 half-moves so far, in 2 takebacks: 2. Nf3 Nc6 3. Bc4 Bc5. Your Takeback waits until they have made their move.",
+    toBob);
+  const toAlice = takingBackSaid({ ...game, you: "w" });
+  check("and the player taking back, what is left to undo and what ends it",
+    toAlice === "You are taking moves back — 4 half-moves so far, in 2 takebacks: 2. Nf3 Nc6 3. Bc4 Bc5. Undo takeback puts the last of them back. Your next move ends it.",
+    toAlice);
+  const first = takingBackSaid({ ...game, you: "w", takingBack: { by: "w", count: 1 }, abandoned: [six], played: 4 });
+  check("with the first takeback only, that it stays", /2 half-moves so far, in 1 takeback: 3\. Bc4 Bc5\. The first takeback cannot be undone\./.test(first ?? ""), first);
+  check("and nothing at all with nobody taking back", takingBackSaid({ ...game, you: "b", takingBack: null }) === null);
+
+  const ended = takenBackInAll({ ...game, you: "b", ply: 2, san: "d4" });
+  check("the move that ends it says what it all came to",
+    ended === "Alice took back 4 half-moves (2. Nf3 Nc6 3. Bc4 Bc5) and played 2. d4 instead.", ended);
+  const same = takenBackInAll({ ...game, you: "b", ply: 2, san: "Nf3" });
+  check("even when it is the same move again", /and played 2\. Nf3 again\.$/.test(same ?? ""), same);
+  check("and is not said to the one who did it", takenBackInAll({ ...game, you: "w", ply: 2, san: "d4" }) === null);
 }
 
 {

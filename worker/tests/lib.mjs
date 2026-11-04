@@ -12,7 +12,16 @@ export async function connect(game, label = "client") {
   ws.heard = [];
   ws.closed = null;
   ws.label = label;
-  ws.onmessage = (e) => ws.heard.push(JSON.parse(e.data));
+  /* The game's revision as this socket was last told it, which is what the
+     app sends back with anything it asks of the game. */
+  ws.revision = 0;
+  ws.onmessage = (e) => {
+    const message = JSON.parse(e.data);
+    if (typeof message.revision === "number") {
+      ws.revision = message.revision;
+    }
+    ws.heard.push(message);
+  };
   ws.onclose = (e) => (ws.closed = { code: e.code, reason: e.reason });
   await new Promise((resolve, reject) => {
     ws.onopen = resolve;
@@ -25,7 +34,18 @@ export async function connect(game, label = "client") {
     and a suite should no more have to remember that at every call site than a
     client does. A test that means to send the wrong version, or none, says so
     explicitly and that is left alone.
+
+    And the game's revision on everything that acts on the game, the last one
+    this socket heard — as the app does, and for the same reason: the request
+    is of the game as this end last knew it. A test asking of a game it has
+    not caught up with, on purpose, gives its own.
   */
+  const acts = (type) =>
+    type === "move" ||
+    type === "takeBack" ||
+    type === "undoTakeBack" ||
+    type === "offerDraw" ||
+    type === "answerDraw";
   ws.say = (message) => {
     const opens =
       message.type === "create" ||
@@ -33,11 +53,12 @@ export async function connect(game, label = "client") {
       message.type === "peek" ||
       message.type === "standing" ||
       message.type === "resume";
+    const versioned = opens && !("v" in message) ? { ...message, v: PROTOCOL_VERSION } : message;
     ws.send(
       JSON.stringify(
-        opens && !("v" in message)
-          ? { ...message, v: PROTOCOL_VERSION }
-          : message
+        acts(message.type) && !("revision" in message)
+          ? { ...versioned, revision: ws.revision }
+          : versioned
       )
     );
   };

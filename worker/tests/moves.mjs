@@ -48,12 +48,14 @@ async function started(color = "w") {
   await until(host, "moved");
   check("the other player can", guest.heard.at(-1)?.san === "e5", JSON.stringify(guest.heard.at(-1)));
 
+  /* Sent again as it was first sent, at the revision before it was played:
+     the game has changed since, by that very move. */
   guest.heard.length = 0;
-  guest.say({ type: "move", token: guestToken, ply: 1, san: "e5" });
-  await until(guest, "moved");
-  check("a move sent twice is answered, not played twice",
-    guest.heard.at(-1)?.type === "moved" && guest.heard.at(-1).ply === 1,
-    JSON.stringify(guest.heard.at(-1)));
+  guest.say({ type: "move", token: guestToken, ply: 1, san: "e5", revision: guest.revision - 1 });
+  await until(guest, (m) => m.code === "staleMove");
+  check("a move sent twice is refused, not played twice",
+    guest.heard.at(-1)?.code === "staleMove" && !guest.heard.some((m) => m.type === "moved"),
+    JSON.stringify(guest.heard));
 
   host.say({ type: "move", token: hostToken, ply: 2, san: "Qh9" });
   await until(host, (m) => m.code === "illegalMove");

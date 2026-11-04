@@ -79,10 +79,16 @@ async function continued(line = LINE, takebacks = 2) {
     /came with the game/.test(host.heard.at(-1).reason),
     JSON.stringify(host.heard.at(-1)));
 
+  /* The host's move ends their takeback, which the other side waits for:
+     then theirs reaches back as far as the carried moves, and no further. */
+  guest.heard.length = 0;
+  host.say({ type: "move", token: hostToken, ply: 6, san: "Ba4" });
+  await until(guest, (m) => m.type === "moved" && m.ply === 6);
   guest.say({ type: "takeBack", token: guestToken });
   await until(guest, (m) => m.code === "nothingToTakeBack");
   check("and neither can the other side reach into them",
-    guest.heard.at(-1)?.code === "nothingToTakeBack",
+    guest.heard.at(-1)?.code === "nothingToTakeBack" &&
+    /came with the game/.test(guest.heard.at(-1).reason),
     JSON.stringify(guest.heard.at(-1)));
   host.close(); guest.close();
 }

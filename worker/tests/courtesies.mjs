@@ -66,7 +66,7 @@ async function started(takebacks = 0) {
   guest.say({ type: "move", token: guestToken, ply: 1, san: "d5" });
   await until(guest, "moved");
   await until(host, "moved");
-  host.say({ type: "takeBack", token: hostToken, ply: 2 });
+  host.say({ type: "takeBack", token: hostToken });
   await until(host, "tookBack");
   await until(guest, "tookBack");
   const pair = host.heard.at(-1);
@@ -91,10 +91,11 @@ async function started(takebacks = 0) {
   guest.say({ type: "move", token: guestToken, ply: 1, san: "e5" });
   await until(host, (m) => m.type === "moved" && m.ply === 1);
   host.heard.length = 0;
-  host.say({ type: "takeBack", token: hostToken, ply: 1 });
-  await until(host, (m) => m.code === "nothingToTakeBack");
+  /* Asked of the game before the reply: one revision back. */
+  host.say({ type: "takeBack", token: hostToken, revision: host.revision - 1 });
+  await until(host, (m) => m.code === "staleMove");
   check("a takeback of a game that has moved on since is refused",
-    host.heard.at(-1)?.code === "nothingToTakeBack" && /moved on/.test(host.heard.at(-1).reason),
+    host.heard.at(-1)?.code === "staleMove" && /moved on/.test(host.heard.at(-1).reason),
     JSON.stringify(host.heard.at(-1)));
 
   /* Several in a row, as far as the allowance goes. */
@@ -103,10 +104,10 @@ async function started(takebacks = 0) {
   guest.say({ type: "move", token: guestToken, ply: 3, san: "Nc6" });
   await until(host, (m) => m.type === "moved" && m.ply === 3);
   host.heard.length = 0;
-  host.say({ type: "takeBack", token: hostToken, ply: 4 });
+  host.say({ type: "takeBack", token: hostToken });
   await until(host, "tookBack");
   host.heard.length = 0;
-  host.say({ type: "takeBack", token: hostToken, ply: 2 });
+  host.say({ type: "takeBack", token: hostToken });
   await until(host, "tookBack");
   check("takebacks follow one another, a pair at a time, back to the start",
     host.heard.at(-1)?.ply === 0 && JSON.stringify(host.heard.at(-1).undone) === JSON.stringify(["e4", "e5"]) &&
@@ -136,7 +137,7 @@ async function started(takebacks = 0) {
   await play(host, hostToken, 2, "g4");
   await play(guest, guestToken, 3, "Qh4#");
   host.heard.length = 0;
-  host.say({ type: "takeBack", token: hostToken, ply: 4 });
+  host.say({ type: "takeBack", token: hostToken });
   await until(host, (m) => m.code === "notPlaying");
   check("the mate that ends a game is not taken back, nor the move it answered",
     host.heard.at(-1)?.code === "notPlaying", JSON.stringify(host.heard.at(-1)));
@@ -157,6 +158,156 @@ async function started(takebacks = 0) {
   check("the allowance runs out", host.heard.at(-1)?.code === "noTakebacksLeft",
     JSON.stringify(host.heard.at(-1)));
   guest.close(); host.close();
+}
+
+{
+  /* A takeback undone: the moves back, the takeback back, the line it was
+     taken back from no longer a line taken back. A press at a time, newest
+     first, never the first takeback, and only until the next move — which
+     the opponent waits for, with no takeback of their own in between. */
+  const { game, host, guest, hostToken, guestToken } = await started(3);
+  const play = async (who, token, ply, san) => {
+    who.say({ type: "move", token, ply, san });
+    await until(host, (m) => m.type === "moved" && m.ply === ply);
+    await until(guest, (m) => m.type === "moved" && m.ply === ply);
+  };
+  const refused = async (who, code) => {
+    await until(who, (m) => m.code === code);
+    return who.heard.at(-1);
+  };
+  await play(host, hostToken, 0, "e4");
+  await play(guest, guestToken, 1, "e5");
+  await play(host, hostToken, 2, "Nf3");
+  await play(guest, guestToken, 3, "Nc6");
+  await play(host, hostToken, 4, "Bc4");
+  await play(guest, guestToken, 5, "Bc5");
+  host.heard.length = 0;
+  guest.heard.length = 0;
+  host.say({ type: "undoTakeBack", token: hostToken });
+  let no = await refused(host, "nothingToUndo");
+  check("with no takeback there is nothing to undo", no?.code === "nothingToUndo", JSON.stringify(no));
+
+  host.say({ type: "takeBack", token: hostToken });
+  await until(host, (m) => m.type === "tookBack" && m.ply === 4);
+  check("a takeback starts one under way",
+    JSON.stringify(host.heard.at(-1)?.takingBack) === JSON.stringify({ by: "w", count: 1 }),
+    JSON.stringify(host.heard.at(-1)));
+  host.heard.length = 0;
+  host.say({ type: "undoTakeBack", token: hostToken });
+  no = await refused(host, "nothingToUndo");
+  check("the first takeback cannot be undone", /first/.test(no?.reason ?? ""), JSON.stringify(no));
+  guest.heard.length = 0;
+  guest.say({ type: "takeBack", token: guestToken });
+  no = await refused(guest, "opponentTakingBack");
+  check("nor can the opponent take back meanwhile", no?.code === "opponentTakingBack", JSON.stringify(no));
+  guest.heard.length = 0;
+  guest.say({ type: "takeBack", token: guestToken, revision: guest.revision - 1 });
+  no = await refused(guest, "opponentTakingBack");
+  check("and one pressed for the game before it is told to wait, not that the game moved on",
+    no?.code === "opponentTakingBack", JSON.stringify(no));
+
+  host.heard.length = 0;
+  host.say({ type: "takeBack", token: hostToken });
+  await until(host, (m) => m.type === "tookBack" && m.ply === 2);
+  host.say({ type: "takeBack", token: hostToken });
+  await until(host, (m) => m.type === "tookBack" && m.ply === 0);
+  check("three takebacks in a row stand at three",
+    JSON.stringify(host.heard.at(-1)?.takingBack) === JSON.stringify({ by: "w", count: 3 }),
+    JSON.stringify(host.heard.at(-1)));
+
+  guest.heard.length = 0;
+  guest.say({ type: "undoTakeBack", token: guestToken });
+  no = await refused(guest, "nothingToUndo");
+  check("the opponent cannot undo them", no?.code === "nothingToUndo", JSON.stringify(no));
+
+  host.heard.length = 0;
+  guest.heard.length = 0;
+  host.say({ type: "undoTakeBack", token: hostToken });
+  await until(host, "putBack");
+  await until(guest, "putBack");
+  const first = host.heard.find((m) => m.type === "putBack");
+  check("undoing one puts back the moves the last takeback took",
+    first?.ply === 2 && JSON.stringify(first.restored) === JSON.stringify(["e4", "e5"]) &&
+      first.fen.startsWith("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w"),
+    JSON.stringify(first));
+  check("and hands that takeback back",
+    JSON.stringify(first?.takebacksLeft) === JSON.stringify({ w: 1, b: 3 }), JSON.stringify(first?.takebacksLeft));
+  check("and the line it was taken back from is no longer one taken back",
+    JSON.stringify(first?.abandoned) ===
+      JSON.stringify([["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5"], ["e4", "e5", "Nf3", "Nc6"]]) &&
+      JSON.stringify(first?.takingBack) === JSON.stringify({ by: "w", count: 2 }),
+    JSON.stringify(first));
+  check("the opponent is told as well",
+    JSON.stringify(guest.heard.find((m) => m.type === "putBack")) === JSON.stringify(first),
+    JSON.stringify(guest.heard));
+
+  host.heard.length = 0;
+  host.say({ type: "undoTakeBack", token: hostToken, revision: host.revision - 1 });
+  no = await refused(host, "staleMove");
+  check("an undo of a game that has moved on since is refused", /moved on/.test(no?.reason ?? ""), JSON.stringify(no));
+
+  /* And the game come back to holds them. */
+  const again = await connect(game, "host again");
+  again.say({ type: "resume", token: hostToken });
+  await until(again, "state");
+  const state = again.heard.find((m) => m.type === "state");
+  check("a player coming back is told of the takeback under way",
+    JSON.stringify(state?.takingBack) === JSON.stringify({ by: "w", count: 2 }) && state?.moves.length === 2,
+    JSON.stringify(state));
+  again.close();
+
+  host.heard.length = 0;
+  host.say({ type: "undoTakeBack", token: hostToken });
+  await until(host, "putBack");
+  const second = host.heard.find((m) => m.type === "putBack");
+  check("undoing the next puts the game back as it was after the first",
+    second?.ply === 4 && JSON.stringify(second.restored) === JSON.stringify(["Nf3", "Nc6"]) &&
+      JSON.stringify(second.abandoned) === JSON.stringify([["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5"]]) &&
+      JSON.stringify(second.takingBack) === JSON.stringify({ by: "w", count: 1 }) &&
+      JSON.stringify(second.takebacksLeft) === JSON.stringify({ w: 2, b: 3 }),
+    JSON.stringify(second));
+  host.heard.length = 0;
+  host.say({ type: "undoTakeBack", token: hostToken });
+  no = await refused(host, "nothingToUndo");
+  check("and there it stops: the first one stays, and so does what it cost",
+    /first/.test(no?.reason ?? ""), JSON.stringify(no));
+  guest.heard.length = 0;
+  guest.say({ type: "takeBack", token: guestToken });
+  no = await refused(guest, "opponentTakingBack");
+  check("the opponent is still waiting", no?.code === "opponentTakingBack", JSON.stringify(no));
+
+  /* A move: the takeback is over, and the line taken back is one for good. */
+  await play(host, hostToken, 4, "d3");
+  host.heard.length = 0;
+  host.say({ type: "undoTakeBack", token: hostToken });
+  no = await refused(host, "nothingToUndo");
+  check("once a move has been played, a takeback is not undone", no?.code === "nothingToUndo", JSON.stringify(no));
+
+  /* Taken back with the opponent to move: they wait as well, though the
+     move they were to make was theirs. */
+  host.heard.length = 0;
+  host.say({ type: "takeBack", token: hostToken });
+  await until(host, (m) => m.type === "tookBack" && m.ply === 4);
+  guest.heard.length = 0;
+  guest.say({ type: "takeBack", token: guestToken });
+  no = await refused(guest, "opponentTakingBack");
+  check("a takeback before the reply locks the opponent out too", no?.code === "opponentTakingBack", JSON.stringify(no));
+
+  /* And once the move is made, the opponent may take back theirs — and has
+     the game to themselves in turn. */
+  await play(host, hostToken, 4, "d4");
+  await play(guest, guestToken, 5, "Nf6");
+  guest.heard.length = 0;
+  guest.say({ type: "takeBack", token: guestToken });
+  await until(guest, "tookBack");
+  check("after the move, the opponent's takeback is theirs",
+    JSON.stringify(guest.heard.at(-1)?.takingBack) === JSON.stringify({ by: "b", count: 1 }),
+    JSON.stringify(guest.heard.at(-1)));
+  host.heard.length = 0;
+  host.say({ type: "takeBack", token: hostToken });
+  no = await refused(host, "opponentTakingBack");
+  check("and the first player waits for them", no?.code === "opponentTakingBack", JSON.stringify(no));
+  host.close(); guest.close();
 }
 
 {

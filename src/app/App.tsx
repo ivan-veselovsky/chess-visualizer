@@ -3,6 +3,7 @@ import {
   lazy,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -134,6 +135,7 @@ import GameDetails from "./friend/GameDetails";
 import { gameHere } from "./friend/connection";
 import { loadGame, seatOf } from "./friend/storage";
 import JoinDialog from "./friend/JoinDialog";
+import { logging, note, say } from "./friend/log";
 import ForgetIcon from "./ForgetIcon";
 import RefreshIcon from "./RefreshIcon";
 import SavedGames from "./friend/SavedGames";
@@ -197,6 +199,20 @@ function trimTo(history: PositionHistory, ply: number): PositionHistory {
   return {
     entries: history.entries.slice(gone),
     current: Math.max(0, history.current - gone),
+  };
+}
+
+/**
+ * A history whose game is its first `ply` moves and then `played`, newest
+ * last — whatever it had after those `ply` let go of — and a place on it kept
+ * where it was: further back down the game, the same position; at its head,
+ * the new head.
+ */
+function grownTo(history: PositionHistory, ply: number, played: HistoryEntry[]): PositionHistory {
+  const kept = trimTo(history, ply);
+  return {
+    entries: [...[...played].reverse(), ...kept.entries],
+    current: kept.current === 0 ? 0 : kept.current + played.length,
   };
 }
 
@@ -1305,21 +1321,41 @@ export default function App() {
    * had again from where it came from.
    */
   function boardIsDirty(): boolean {
+    return dirtyBecause() !== null;
+  }
+
+  /**
+   * The same, said: why the board holds something of its own, or null where
+   * it does not. Kept as words rather than a yes or no so that whatever asks
+   * the reader to stash can say in the log what it was asked for — a dialog
+   * that comes up when nothing was changed is otherwise a question nobody can
+   * answer afterwards. See `noteStashAsked`.
+   */
+  function dirtyBecause(): string | null {
     if (history.entries.length === 1 && (read === null || read.lines.every((line) => line.moves.length === 0))) {
-      return false;
+      return null;
     }
     const here = lineOf(history);
     /* A game read in, while the board is on one of its lines; off them — a
        move of one's own with Keep variations off — it is a line of the
        reader's, as any other. */
     if (read !== null && lineIndex(read.lines, here.initialFEN, here.moves) >= 0) {
-      return read.recorded === true || read.changed === true;
+      return read.recorded === true
+        ? "a game read in, recorded here"
+        : read.changed === true
+          ? "a game read in, with lines changed here"
+          : null;
     }
-    return !(
-      handed.current !== null &&
-      handed.current.initialFEN === here.initialFEN &&
-      handed.current.moves.join(" ") === here.moves.join(" ")
-    );
+    if (handed.current === null) {
+      return "moves on the board, and no game handed to it";
+    }
+    if (handed.current.initialFEN !== here.initialFEN) {
+      return "the board starts from another position than the game handed to it";
+    }
+    if (handed.current.moves.join(" ") !== here.moves.join(" ")) {
+      return "the board's line is not the game handed to it";
+    }
+    return null;
   }
 
   /**
@@ -1346,14 +1382,46 @@ export default function App() {
    * position and nothing else is never unsaved, whatever it came from.
    */
   function unsaved(): boolean {
+    return unsavedBecause() !== null;
+  }
+
+  /** The same, said: why, or null where nothing would be lost. See `dirtyBecause`. */
+  function unsavedBecause(): string | null {
     if (savedAs === boardSignature()) {
-      return false;
+      return null;
     }
-    if (boardIsDirty()) {
-      return true;
+    const dirty = dirtyBecause();
+    if (dirty !== null) {
+      return dirty;
     }
     const moves = history.entries.length > 1 || (read !== null && read.lines.some((line) => line.moves.length > 0));
-    return unkept && moves;
+    return unkept && moves ? "moves on the board, kept nowhere yet" : null;
+  }
+
+  /**
+   * Says in the log that the reader is being asked to stash, by what, and
+   * why: everything that went into the answer, as it stood when it was
+   * given. The board's line and the game it was handed are the two things
+   * compared, and they are kept differently — one is state, which arrives
+   * with a render, and the other a ref that the game's messages change as
+   * they are read — so a question asked between the two is a mismatch of
+   * timing rather than of games, and this is what tells the two apart.
+   *
+   * Said whether the log is on or not: see `say`. The reader is looking at
+   * the question as it is said, and is the one who will want to know.
+   */
+  function noteStashAsked(by: string, why: string | null) {
+    say(`asking to stash first, from ${by}: ${why ?? "nothing to lose (not asked)"}`, {
+      board: lineOf(history),
+      atMove: history.entries.length - 1 - history.current,
+      handed: handed.current,
+      read: read === null ? null : { lines: read.lines.length, recorded: read.recorded, changed: read.changed },
+      savedAs,
+      unkept,
+      replaying: stepping.current === null ? null : { toPly: stepping.current.ply },
+      phase: friend.phase.kind,
+      takingBack: friend.phase.kind === "playing" ? friend.phase.takingBack : null,
+    });
   }
 
   /**
@@ -1377,6 +1445,7 @@ export default function App() {
       then();
       return;
     }
+    noteStashAsked("something about to replace the board", unsavedBecause());
     afterStashing.current = then;
     setStashingFirst(true);
   }
@@ -1895,28 +1964,38 @@ export default function App() {
   }
 
   /*
-    A takeback of two moves being played backwards: the first has gone, and
-    this is where the second is to take the board, and when. Anything that
-    arrives before then — a move, another takeback — finishes it first, so it
-    is always played on the position the takeback left.
+    A takeback of two moves being played backwards, or put back forwards: the
+    first has been played, and this is the second, to be played when the
+    first has landed — and how many moves the game will have played then,
+    and the board's history once it has. Anything that arrives before then —
+    a move, another takeback — finishes it first, so it is always played on
+    the position the two of them leave.
   */
-  const rewinding = useRef<{ ply: number; fen: string; timer: number } | null>(null);
+  const stepping = useRef<{ ply: number; settled: PositionHistory; finish: () => void; timer: number } | null>(null);
   /** The game as handed, cut back to its first `ply` moves with the board. */
   function handedTo(ply: number) {
     if (handed.current !== null) {
       handed.current = { ...handed.current, moves: handed.current.moves.slice(0, ply) };
     }
   }
-  function finishRewind() {
-    const pending = rewinding.current;
+  /**
+   * Plays the second move of one still being shown, at once; says what the
+   * board's history is then, or nothing where there was none to play.
+   *
+   * Said because it is not yet what `history` is. What arrives next is to be
+   * played from the board as the two moves leave it, and this render's
+   * history is the board between them — two takebacks pressed in a row are
+   * answered well within the first one's flight.
+   */
+  function finishStep(): PositionHistory | null {
+    const pending = stepping.current;
     if (pending === null) {
-      return;
+      return null;
     }
-    rewinding.current = null;
+    stepping.current = null;
     window.clearTimeout(pending.timer);
-    handedTo(pending.ply);
-    setHistory((current) => trimTo(current, pending.ply));
-    showPosition(pending.fen);
+    pending.finish();
+    return pending.settled;
   }
 
   /** Puts `next` on the board, flying the piece where one move apart; says how long the flight takes, nought where there is none. */
@@ -2001,7 +2080,7 @@ export default function App() {
     onMoved: ({ san, fen: after }) => {
       /* A takeback still being played backwards is finished first: the move
          is played on the position the takeback left. */
-      finishRewind();
+      finishStep();
       setHistory((current) => pushPosition(current, after, san));
       showPosition(after);
       if (handed.current !== null) {
@@ -2028,10 +2107,10 @@ export default function App() {
         rather than the board jump — the second when the first has landed.
         A board being looked at somewhere further back keeps its place on it.
       */
-      finishRewind();
-      const count = Math.max(0, history.entries.length - 1 - ply);
-      if (history.current >= count || count <= 1) {
-        const watching = history.current;
+      const now = finishStep() ?? history;
+      const count = Math.max(0, now.entries.length - 1 - ply);
+      if (now.current >= count || count <= 1) {
+        const watching = now.current;
         handedTo(ply);
         setHistory((current) => trimTo(current, ply));
         if (watching === 0) {
@@ -2040,25 +2119,92 @@ export default function App() {
         return;
       }
       /* The first move back now; the rest when it has landed — or at once,
-         should anything else arrive first: see `finishRewind`. The game as
+         should anything else arrive first: see `finishStep`. The game as
          handed goes back with the board, a move at a time, or the board and
          the game would differ in between and the board be taken for another
          game arriving. */
       handedTo(ply + count - 1);
       setHistory((current) => trimTo(current, ply + count - 1));
-      const took = showPosition(history.entries[1].fen);
-      rewinding.current = {
+      const took = showPosition(now.entries[1].fen);
+      stepping.current = {
         ply,
-        fen: back,
-        timer: window.setTimeout(finishRewind, took + 150),
+        settled: trimTo(now, ply),
+        finish: () => {
+          handedTo(ply);
+          setHistory((current) => trimTo(current, ply));
+          showPosition(back);
+        },
+        timer: window.setTimeout(finishStep, took + 150),
+      };
+    },
+    /*
+      A takeback undone: the moves it took, back on the board. Played forwards
+      a move at a time, as a takeback is played backwards, so that both
+      players see them come back rather than the board jump. Their positions
+      worked out here from the moves, as the whole line is on joining: the
+      object says where they end, and they are played from where the board's
+      game is now.
+    */
+    onPutBack: ({ ply, restored, line }) => {
+      const now = finishStep() ?? history;
+      const base = now.entries.length - 1;
+      const board = new Chess(now.entries[0].fen);
+      const played: HistoryEntry[] = [];
+      for (const san of restored) {
+        try {
+          board.move(san);
+        } catch {
+          break;
+        }
+        played.push({ fen: board.fen(), move: san });
+      }
+      /* Not the moves of this board's game, which has come apart from the
+         object's somehow: the whole line instead, as on joining. */
+      if (played.length !== restored.length || base + played.length !== ply) {
+        if (line.initialFEN !== "" && line.moves.length === ply) {
+          putUp(line);
+        }
+        return;
+      }
+      /* The first `count` of them on the board's game, and on the game as
+         handed with it, for the reason a takeback is: see above. */
+      const put = (count: number) => {
+        if (handed.current !== null) {
+          handed.current = {
+            ...handed.current,
+            moves: [...handed.current.moves.slice(0, base), ...played.slice(0, count).map((entry) => entry.move!)],
+          };
+        }
+        setHistory((current) => grownTo(current, base, played.slice(0, count)));
+      };
+      /* A board being looked at further back keeps its place, the moves
+         coming back beyond it; one at the head goes with them. */
+      const watching = now.current;
+      if (watching !== 0 || played.length === 1) {
+        put(played.length);
+        if (watching === 0) {
+          showPosition(played[played.length - 1].fen);
+        }
+        return;
+      }
+      put(1);
+      const took = showPosition(played[0].fen);
+      stepping.current = {
+        ply,
+        settled: grownTo(now, base, played),
+        finish: () => {
+          put(played.length);
+          showPosition(played[played.length - 1].fen);
+        },
+        timer: window.setTimeout(finishStep, took + 150),
       };
     },
     onLine: ({ initialFEN, moves }) => {
       /* The whole line again, from the object: a takeback still being played
          backwards has nothing left to finish. */
-      if (rewinding.current !== null) {
-        window.clearTimeout(rewinding.current.timer);
-        rewinding.current = null;
+      if (stepping.current !== null) {
+        window.clearTimeout(stepping.current.timer);
+        stepping.current = null;
       }
       if (initialFEN === "") {
         return;
@@ -2095,6 +2241,7 @@ export default function App() {
         return;
       }
       if (!asHanded && unsaved()) {
+        noteStashAsked("a game's whole line arriving", unsavedBecause());
         setWaitingToStart({ initialFEN, moves });
         return;
       }
@@ -2366,8 +2513,18 @@ export default function App() {
     played out by hand on the other tab — that is asked about before the game
     goes back up, in the same words as anywhere else something made here is
     about to be replaced.
+
+    A layout effect, run as the render is put on the page, rather than an
+    ordinary one run some time after. What it compares are two things kept
+    in step — the board's history, which is state and arrives with a render,
+    and the game as handed, which is a ref the game's messages change as
+    they are read. An ordinary effect could run with a render's history
+    after the next message had already moved the ref on: a takeback answered
+    while the last was still being played out was seen as the board holding
+    some other game, and the reader asked whether to stash it. Run with the
+    render, nothing can come between the two.
   */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (
       tab !== "match" ||
       friend.phase.kind !== "playing" ||
@@ -2388,8 +2545,14 @@ export default function App() {
       return;
     }
     if (unsaved()) {
+      noteStashAsked("the Live tab catching the board up", unsavedBecause());
       setWaitingToStart(game);
       return;
+    }
+    /* Not a question, but the same mismatch: worth a line, as the board is
+       about to be rebuilt from the game rather than moved along it. */
+    if (logging()) {
+      note("the board is not the game on the Live tab; putting the game back up", { board: here, handed: game });
     }
     putUp(game);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the board and the
@@ -2748,12 +2911,21 @@ export default function App() {
     player's own and still the last one, the board must be showing the game
     rather than a position back down the line, and there must be an allowance
     left. A game taken up from another one has a floor as well — the moves it
-    was handed cannot be unmade by people who did not play them.
+    was handed cannot be unmade by people who did not play them. And the
+    opponent must not be in the middle of taking back themselves: whoever
+    began going back has the game until their move — see the object's
+    `takingBack`.
   */
   const takeback: { can: boolean; why: string } = (() => {
     const phase = friend.phase;
     if (phase.kind !== "playing" || phase.over !== null) {
       return { can: false, why: "" };
+    }
+    if (phase.takingBack !== null && phase.takingBack.by !== phase.you) {
+      return {
+        can: false,
+        why: `${phase.opponent} is taking moves back; wait for their move`,
+      };
     }
     const left = phase.takebacksLeft?.[phase.you] ?? 0;
     // Whose move it is in the game, which is the head of the line — not the
@@ -2786,6 +2958,37 @@ export default function App() {
       why: answered
         ? `Take back your last move and the reply to it (${left} left)`
         : `Take your last move back (${left} left)`,
+    };
+  })();
+
+  /*
+    And whether the last takeback can be undone: nothing at all — no button —
+    unless this player is taking back, which they are from their first
+    takeback until their next move. The first is never undone, so that going
+    back always costs one: the button is there from it, but greyed, saying
+    so — which is the moment it is worth saying. Pressed from the game's
+    latest position, as a takeback is, the board showing what it puts back
+    onto.
+  */
+  const undoTakeback: { can: boolean; why: string } | null = (() => {
+    const phase = friend.phase;
+    if (phase.kind !== "playing" || phase.over !== null || phase.takingBack?.by !== phase.you) {
+      return null;
+    }
+    if (phase.takingBack.count < 2) {
+      return { can: false, why: "The first takeback cannot be undone — going back costs at least one" };
+    }
+    if (history.current !== 0) {
+      return { can: false, why: "Go back to the latest position to undo the takeback" };
+    }
+    /* What the press puts back: the moves the newest line taken back has
+       beyond the game — the last takeback's. */
+    const line = phase.abandoned[phase.abandoned.length - 1] ?? [];
+    const back = line.length - (history.entries.length - 1);
+    const more = phase.takingBack.count > 2 ? ` (${phase.takingBack.count - 1} takebacks to undo)` : "";
+    return {
+      can: true,
+      why: `${back === 2 ? "Put back your move and the reply to it" : "Put your move back"}, and have the takeback again${more}`,
     };
   })();
 
@@ -4375,7 +4578,9 @@ export default function App() {
                 movesPlayed={Math.max(history.entries.length - 1, 0)}
                 canTakeBack={takeback.can}
                 takebackReason={takeback.why}
-                onTakeBack={() => friend.takeBack(history.entries.length - 1)}
+                onTakeBack={friend.takeBack}
+                undoTakeBack={undoTakeback}
+                onUndoTakeBack={friend.undoTakeBack}
                 onLeave={friend.leave}
                 onResign={friend.resign}
                 onOfferDraw={friend.offerDraw}

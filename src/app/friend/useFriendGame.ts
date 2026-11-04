@@ -9,6 +9,7 @@ import type {
   GameStatus,
   Tally,
   Terms,
+  TakingBack,
 } from "../../../worker/protocol";
 import {
   answerTo,
@@ -17,7 +18,8 @@ import {
   PROBE_SILENT,
   PROTOCOL_VERSION,
 } from "../../../worker/protocol";
-import { note } from "./log";
+import { note, say as sayAloud } from "./log";
+import { moveSaid, takenBackInAll } from "./takingBack";
 import {
   noLongerAtGame,
   gameHere,
@@ -91,6 +93,10 @@ function explain(code: ErrorCode): string {
       return "There is no move of yours to take back.";
     case "noTakebacksLeft":
       return "You have no takebacks left.";
+    case "nothingToUndo":
+      return "There is no takeback of yours to undo.";
+    case "opponentTakingBack":
+      return "Your opponent is taking moves back — wait for their move.";
     case "noDrawOffered":
       return "There is no draw on offer to you.";
     case "challengeCancelled":
@@ -134,12 +140,33 @@ function newProbe(): string {
  */
 const NO_TAKEBACKS: Tally = { w: 0, b: 0 };
 
+/**
+ * Something said under the game's buttons, and let go of as soon as anything
+ * else happens: what the other player has just done, or why something this
+ * player asked for was refused.
+ *
+ * Told apart because they are read differently. A refusal is about the
+ * reader's own press and wants a second look; what the other player did is
+ * news from across the board, and is shown as theirs — in the colour the
+ * page's title wears — so that it reads as the other side speaking rather
+ * than as something having gone wrong.
+ */
+export interface Notice {
+  text: string;
+  from: "opponent" | "refusal";
+}
+
+/** What a player may ask of the object about takebacks; see `courtesies`. */
+type Courtesy = "takeBack" | "undoTakeBack";
+
 const DURING_PLAY = new Set<ErrorCode>([
   "notYourTurn",
   "illegalMove",
   "staleMove",
   "nothingToTakeBack",
   "noTakebacksLeft",
+  "nothingToUndo",
+  "opponentTakingBack",
   "noDrawOffered",
 ]);
 
@@ -235,6 +262,8 @@ export type Phase =
       terms: Terms;
       /** Takebacks each side has left. */
       takebacksLeft: Tally;
+      /** The takeback under way, and whose; see the object's `takingBack`. */
+      takingBack: TakingBack | null;
       /**
        * Every line taken back so far, whole and oldest first, as the object
        * keeps them: what the game is written out and replayed with, as
@@ -243,6 +272,12 @@ export type Phase =
       abandoned: string[][];
       /** Who has a draw on offer, when one is standing. */
       drawOffered: Color | null;
+      /**
+       * The game's revision as this phase shows it — what the player is
+       * looking at, and so what anything they ask of the game is asked of.
+       * See the object's `revision`.
+       */
+      revision: number;
       /** How it ended, once it has; the game stays on screen either way. */
       over: { result: GameResult; reason: EndReason } | null;
       /**
@@ -297,6 +332,12 @@ export interface FriendListeners {
   onMoved: (move: { ply: number; san: string; fen: string }) => void;
   /** A move unmade, and the position it went back to. */
   onTookBack: (back: { ply: number; fen: string }) => void;
+  /**
+   * A takeback undone: the moves put back, to be played from the position it
+   * left — and the whole line they make, for a board that has come apart from
+   * the game and has to be given all of it.
+   */
+  onPutBack: (back: { ply: number; fen: string; restored: string[]; line: { initialFEN: string; moves: string[] } }) => void;
   /** The whole line, on joining or coming back to a game. */
   onLine: (line: { initialFEN: string; moves: string[] }) => void;
 }
@@ -310,7 +351,7 @@ export function useFriendGame(listeners: FriendListeners) {
    * a game falling over — and telling them so must not cost them the game they
    * are in the middle of.
    */
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [name, setName] = useState(savedName);
   const [link, setLink] = useState<Link>(OFFLINE);
   /**
@@ -388,6 +429,75 @@ export function useFriendGame(listeners: FriendListeners) {
   const told = useRef(listeners);
   told.current = listeners;
   const token = useRef<string | null>(null);
+  /* The phase as of the last render, for the same handler: whose takeback an
+     answer is about is told by which side this is. */
+  const phaseNow = useRef(phase);
+  phaseNow.current = phase;
+  /*
+    The takeback under way and the lines taken back, as last heard rather
+    than as last drawn: set as each message carrying them is read. What the
+    end of a takeback says is worked out from these, and the page may not
+    have been drawn between the message that changed them and the move that
+    ends it.
+  */
+  const heard = useRef<{ takingBack: TakingBack | null; abandoned: string[][] }>({ takingBack: null, abandoned: [] });
+  /**
+   * The game's revision as last heard on this connection, and whether the
+   * whole game has been asked for again and is on its way.
+   *
+   * Every change is told in order, each one revision on from the last — see
+   * the object's `revision` — so a change that is not is either old news,
+   * and ignored, or the sign that one went missing. Then nothing that arrives
+   * is acted on until the whole game does: what was missed is in it, and so
+   * is anything after. Null until the connection has said how the game
+   * stands.
+   */
+  const heardRevision = useRef<number | null>(null);
+  const catchingUp = useRef(false);
+  /**
+   * Takebacks, and the undoing of them, asked of the object one at a time.
+   *
+   * Takeback pressed three times goes three moves back. But each is of the
+   * game as the player saw it (see `takeBack`), and a second press sent
+   * before the first is answered would be of a game the first is about to
+   * change, and refused for it. So a press made while one is on its way
+   * waits its turn, and goes when the answer comes, of the game that answer
+   * left. Anything else the object says — a move, a refusal, the whole game
+   * again — drops what is waiting: it was asked of a game that is not there.
+   * So does an undo the answer has left nothing for — pressed once more than
+   * there were takebacks to undo, which the button had no time to show.
+   */
+  const courtesies = useRef<{ waiting: boolean; queued: Courtesy[] }>({ waiting: false, queued: [] });
+  const ask = useCallback((kind: Courtesy, revision: number) => {
+    const asked = courtesies.current;
+    if (asked.waiting) {
+      asked.queued.push(kind);
+      return;
+    }
+    if (token.current !== null && connection.current !== null) {
+      asked.waiting = true;
+      connection.current.send({ type: kind, revision, token: token.current });
+    }
+  }, []);
+  /** The one on its way answered, at `revision`: the next waiting goes, of the game as that left it. */
+  const askedAnswered = useCallback(
+    (revision: number, takingBack: TakingBack | null) => {
+      const asked = courtesies.current;
+      asked.waiting = false;
+      const next = asked.queued.shift();
+      if (next === "undoTakeBack" && (takingBack?.count ?? 0) < 2) {
+        asked.queued = [];
+        return;
+      }
+      if (next !== undefined) {
+        ask(next, revision);
+      }
+    },
+    [ask]
+  );
+  const askedNoMore = () => {
+    courtesies.current = { waiting: false, queued: [] };
+  };
   /**
    * Which seat this tab is at — the game's id, with a minus in front of it for
    * the side that offered the game. It is what the address says and what the
@@ -456,6 +566,20 @@ export function useFriendGame(listeners: FriendListeners) {
   const connect = useCallback(
     (gameId: string, onMessage: (message: FromServer) => void) => {
       disconnect();
+      /* A new line knows nothing yet: what it is told first is the game. */
+      heardRevision.current = null;
+      catchingUp.current = false;
+      /*
+        Everything heard from here on is about this game, and nothing from
+        the line put down above can arrive after it to be taken for news of
+        this one. Not by anything checked here, but by how a WebSocket is
+        defined: a message is handed to the page only if the socket is still
+        open when its turn comes, and `disconnect` has already closed that
+        one — so even a message read off the wire before it closed is
+        dropped. A line that went down by itself is closed before anything
+        reconnects, and the list's readings have sockets of their own. So
+        messages carry no game id, and none is needed.
+      */
       connection.current = openGame(
         gameId,
         onMessage,
@@ -478,6 +602,9 @@ export function useFriendGame(listeners: FriendListeners) {
   /** Everything the object can say, and what this browser does about it. */
   const handle = useCallback(
     (gameId: string, message: FromServer) => {
+      if (!inOrder(message)) {
+        return;
+      }
       switch (message.type) {
         case "created":
           offering.current = null;
@@ -544,7 +671,9 @@ export function useFriendGame(listeners: FriendListeners) {
                     status: message.status,
                     result: message.result,
                     reason: message.reason,
-                    moves: message.ply,
+                    /* The move's own ply, counted from 0: one more have
+                       been played with it. */
+                    moves: message.ply + 1,
                     touchedAt: Date.now(),
                   }
             );
@@ -556,12 +685,42 @@ export function useFriendGame(listeners: FriendListeners) {
               reason: message.reason,
             });
           }
+          askedNoMore();
+          /* The move that ends the opponent's takeback, and with it the
+             whole of what it took back: the steps were said one at a time,
+             and this is what they came to. */
+          {
+            const was = phaseNow.current;
+            if (was.kind === "playing") {
+              const inAll = takenBackInAll({
+                you: was.you,
+                opponent: was.opponent,
+                takingBack: heard.current.takingBack,
+                abandoned: heard.current.abandoned,
+                initialFEN: was.terms.initialFEN,
+                ply: message.ply,
+                san: message.san,
+              });
+              if (inAll !== null) {
+                setNotice({ from: "opponent", text: inAll });
+              } else if (was.drawOffered === was.you && message.fen.split(" ")[1] === was.you) {
+                /* A move answers a draw offer as surely as declining it does
+                   — the object takes the offer down — and the one who made
+                   it is owed the answer in words, not only a button come
+                   back to life. */
+                setNotice({ from: "opponent", text: `${was.opponent} played on rather than take your draw offer.` });
+              }
+            }
+            heard.current = { ...heard.current, takingBack: null };
+          }
           told.current.onMoved(message);
           setPhase((current) =>
             current.kind === "playing"
               ? {
                   ...current,
                   takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
+                  // Takebacks are undone only until the game goes on.
+                  takingBack: null,
                   drawOffered: null,
                   over:
                     message.status === "finished" && message.reason !== null
@@ -581,25 +740,102 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
         case "tookBack":
           setNotice(null);
+          heard.current = { takingBack: message.takingBack ?? null, abandoned: message.abandoned ?? heard.current.abandoned };
+          if (phaseNow.current.kind === "playing" && message.by === phaseNow.current.you) {
+            askedAnswered(message.revision, message.takingBack ?? null);
+          }
+          /* The list says how far the game has got, and it has got less far. */
+          if (seat.current !== null) {
+            noteStanding(seat.current, (was) => (was === null ? was : { ...was, moves: message.ply, touchedAt: Date.now() }));
+          }
           told.current.onTookBack(message);
+          {
+            /*
+              Said to the player whose moves went, since nothing else tells
+              them why their board stepped back. Numbered: "Bc5" alone does
+              not say which Bc5, in a run of takebacks.
+
+              Said here, as the message is read, and not from inside the
+              update below. An update is run when React gets to it, and two
+              messages read before it does — a takeback, and the refusal of
+              a press that crossed it — would have this said after the
+              refusal, which came later and is the one that should stand.
+              Who the opponent is and where the game started are the same
+              in every phase of one game, so the phase as last drawn will do.
+            */
+            const was = phaseNow.current;
+            const undone = message.undone ?? [];
+            if (was.kind === "playing" && message.by !== undefined && message.by !== was.you && undone.length > 0) {
+              const said = (at: number) => moveSaid(was.terms.initialFEN, message.ply + at, undone[at]);
+              setNotice({
+                from: "opponent",
+                text:
+                  undone.length === 2
+                    ? `${was.opponent} took back their move ${said(0)} and your reply ${said(1)}.`
+                    : `${was.opponent} took back their move ${said(0)}.`,
+              });
+            }
+          }
           setPhase((current) => {
             if (current.kind !== "playing") {
               return current;
-            }
-            /* Said to the player whose moves went, since nothing else tells
-               them why their board stepped back. */
-            if (message.by !== undefined && message.by !== current.you && (message.undone?.length ?? 0) > 0) {
-              const undone = message.undone ?? [];
-              setNotice(
-                undone.length === 2
-                  ? `${current.opponent} took back their move ${undone[0]} and your reply ${undone[1]}.`
-                  : `${current.opponent} took back their move ${undone[0]}.`
-              );
             }
             return {
               ...current,
               takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
               abandoned: message.abandoned ?? current.abandoned,
+              takingBack: message.takingBack ?? null,
+              drawOffered: null,
+            };
+          });
+          break;
+        case "putBack":
+          setNotice(null);
+          heard.current = { takingBack: message.takingBack, abandoned: message.abandoned };
+          if (phaseNow.current.kind === "playing" && message.by === phaseNow.current.you) {
+            askedAnswered(message.revision, message.takingBack ?? null);
+          }
+          if (seat.current !== null) {
+            noteStanding(seat.current, (was) => (was === null ? was : { ...was, moves: message.ply, touchedAt: Date.now() }));
+          }
+          {
+            /* The line put back, as this end was last told of it: the newest
+               line taken back, before the answer takes it off the list. */
+            const was = phaseNow.current;
+            told.current.onPutBack({
+              ...message,
+              line: {
+                initialFEN: was.kind === "playing" ? (was.terms.initialFEN ?? "") : "",
+                moves: was.kind === "playing" ? (was.abandoned[was.abandoned.length - 1] ?? []) : [],
+              },
+            });
+          }
+          {
+            /* Said to the other player, as a takeback is, and as the message
+               is read for the same reason: their board has stepped forward
+               with nobody there having moved. */
+            const was = phaseNow.current;
+            const restored = message.restored;
+            if (was.kind === "playing" && message.by !== was.you && restored.length > 0) {
+              const said = (at: number) => moveSaid(was.terms.initialFEN, message.ply - restored.length + at, restored[at]);
+              setNotice({
+                from: "opponent",
+                text:
+                  restored.length === 2
+                    ? `${was.opponent} undid their takeback: their move ${said(0)} and your reply ${said(1)} are back.`
+                    : `${was.opponent} undid their takeback: their move ${said(0)} is back.`,
+              });
+            }
+          }
+          setPhase((current) => {
+            if (current.kind !== "playing") {
+              return current;
+            }
+            return {
+              ...current,
+              takebacksLeft: message.takebacksLeft,
+              abandoned: message.abandoned,
+              takingBack: message.takingBack,
               drawOffered: null,
             };
           });
@@ -645,6 +881,14 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
         case "drawDeclined":
           setNotice(null);
+          {
+            /* Declined by the other player when the offer was this one's:
+               said, as the offer was. */
+            const was = phaseNow.current;
+            if (was.kind === "playing" && was.drawOffered === was.you) {
+              setNotice({ from: "opponent", text: `${was.opponent} declined your draw offer.` });
+            }
+          }
           setPhase((current) =>
             current.kind === "playing"
               ? { ...current, drawOffered: null }
@@ -653,6 +897,8 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
         case "joined":
           nowAtGame(seat.current ?? gameId);
+          askedNoMore();
+          heard.current = { takingBack: message.takingBack ?? null, abandoned: message.abandoned ?? [] };
           told.current.onLine({
             initialFEN: message.terms.initialFEN ?? "",
             moves: message.moves,
@@ -681,11 +927,13 @@ export function useFriendGame(listeners: FriendListeners) {
           setPhase({
             kind: "playing",
             gameId,
+            revision: message.revision,
             you: message.you,
             opponent: message.opponent,
             terms: message.terms,
             takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
             abandoned: message.abandoned ?? [],
+            takingBack: message.takingBack ?? null,
             drawOffered: null,
             over: null,
             startedAt: message.startedAt,
@@ -694,6 +942,7 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
         case "answered":
           setNotice(null);
+          heard.current = { takingBack: null, abandoned: [] };
           /*
             The record was written when the invite went out, when there was
             nobody to name. Now there is, and the list of games to come back to
@@ -743,6 +992,7 @@ export function useFriendGame(listeners: FriendListeners) {
               ? {
                   kind: "playing",
                   gameId,
+                  revision: message.revision,
                   // Whatever the challenger asked for, what they have now is
                   // whatever the answer left them.
                   you: message.you,
@@ -753,6 +1003,7 @@ export function useFriendGame(listeners: FriendListeners) {
                     b: message.terms.takebacks,
                   },
                   abandoned: [],
+                  takingBack: null,
                   drawOffered: null,
                   over: null,
                   startedAt: message.startedAt,
@@ -766,6 +1017,8 @@ export function useFriendGame(listeners: FriendListeners) {
           break;
         case "state":
           nowAtGame(seat.current ?? gameId);
+          askedNoMore();
+          heard.current = { takingBack: message.takingBack ?? null, abandoned: message.abandoned ?? [] };
           /*
             The record is rewritten before it is marked, not after. Writing it
             is writing the whole of it, so a rewrite that knows nothing about
@@ -858,11 +1111,13 @@ export function useFriendGame(listeners: FriendListeners) {
               : {
                   kind: "playing",
                   gameId,
+                  revision: message.revision,
                   you: message.you,
                   opponent: message.opponent,
                   terms: message.terms,
                   takebacksLeft: message.takebacksLeft ?? NO_TAKEBACKS,
                   abandoned: message.abandoned ?? [],
+                  takingBack: message.takingBack ?? null,
                   drawOffered: message.drawOfferedBy,
                   over:
                     message.status === "finished" && message.reason !== null
@@ -910,6 +1165,7 @@ export function useFriendGame(listeners: FriendListeners) {
           }
           break;
         case "error":
+          askedNoMore();
           /*
             Nine digits are short enough to say down a telephone and short
             enough to collide, once in a very long while. The object is the
@@ -935,7 +1191,7 @@ export function useFriendGame(listeners: FriendListeners) {
           }
           offering.current = null;
           if (DURING_PLAY.has(message.code)) {
-            setNotice(explain(message.code));
+            setNotice({ from: "refusal", text: explain(message.code) });
             break;
           }
           /*
@@ -971,9 +1227,66 @@ export function useFriendGame(listeners: FriendListeners) {
           setPhase({ kind: "error", reason: explain(message.code) });
           break;
       }
+      /* The phase shows the game at the revision just heard, whatever the
+         message was: one place, after whatever the case above made of it. */
+      if ("revision" in message) {
+        const revision = message.revision;
+        setPhase((current) => (current.kind === "playing" ? { ...current, revision } : current));
+      }
     },
     [name, noteStanding]
   );
+
+  /**
+   * Whether a message is the next thing to happen to the game, as this
+   * connection has heard it; see `heardRevision`.
+   *
+   * A whole account of the game — made, answered, joined, declined, come
+   * back to — is
+   * where the count starts, whatever it was before. A change is one on from
+   * the last; anything else is said in the console whether the log is on or
+   * not, since neither should ever happen, and either is the first thing to
+   * know when two boards disagree.
+   */
+  function inOrder(message: FromServer): boolean {
+    if (!("revision" in message)) {
+      return true;
+    }
+    const revision = message.revision;
+    if (
+      message.type === "created" ||
+      message.type === "answered" ||
+      message.type === "joined" ||
+      message.type === "declined" ||
+      message.type === "state"
+    ) {
+      heardRevision.current = revision;
+      catchingUp.current = false;
+      return true;
+    }
+    if (catchingUp.current) {
+      return false;
+    }
+    const last = heardRevision.current;
+    if (last === null || revision === last + 1) {
+      heardRevision.current = revision;
+      return true;
+    }
+    if (revision <= last) {
+      sayAloud(`told of ${message.type} at revision ${revision}, already past it at ${last}; ignored`, message);
+      return false;
+    }
+    sayAloud(
+      `told of ${message.type} at revision ${revision} after ${last}: ` +
+        `${revision - last - 1} change${revision - last - 1 === 1 ? "" : "s"} missed; asking for the whole game again`,
+      message
+    );
+    catchingUp.current = true;
+    if (token.current !== null) {
+      connection.current?.send({ type: "resume", v: PROTOCOL_VERSION, token: token.current });
+    }
+    return false;
+  }
 
   /** Offers a game, and holds the invite open until it is answered. */
   const offer = useCallback(
@@ -1118,6 +1431,18 @@ export function useFriendGame(listeners: FriendListeners) {
    * what comes back is what happened — which is also what the opponent is told,
    * so the two boards cannot come to differ.
    */
+  /**
+   * The game's revision as the player sees it: the phase as last drawn,
+   * which is what was on the screen when they pressed. Not as last heard —
+   * a reply read a moment ago and not yet drawn is not something they have
+   * seen, and what they asked for was not asked of it. See the object's
+   * `revision`.
+   */
+  const seenRevision = () => {
+    const now = phaseNow.current;
+    return now.kind === "playing" ? now.revision : (heardRevision.current ?? 0);
+  };
+
   const move = useCallback((ply: number, san: string) => {
     if (token.current === null) {
       return;
@@ -1127,6 +1452,7 @@ export function useFriendGame(listeners: FriendListeners) {
       token: token.current,
       ply,
       san,
+      revision: seenRevision(),
     });
   }, []);
 
@@ -1140,15 +1466,18 @@ export function useFriendGame(listeners: FriendListeners) {
     }
   }, []);
 
-  /** `ply`: how many moves the board shows played, so the object can refuse a takeback of a game that has moved on. */
-  const takeBack = useCallback((ply: number) => say({ type: "takeBack", ply } as never), [say]);
+  /** Of the game as the player sees it. Pressed again before it is answered, it waits: see `courtesies`. */
+  const takeBack = useCallback(() => ask("takeBack", seenRevision()), [ask]);
+  /** The last takeback undone; as for a takeback. */
+  const undoTakeBack = useCallback(() => ask("undoTakeBack", seenRevision()), [ask]);
+  /* Giving up is not asked of a revision: see the protocol's `resign`. */
   const resign = useCallback(() => say({ type: "resign" } as never), [say]);
   const offerDraw = useCallback(
-    () => say({ type: "offerDraw" } as never),
+    () => say({ type: "offerDraw", revision: seenRevision() } as never),
     [say]
   );
   const answerDraw = useCallback(
-    (accept: boolean) => say({ type: "answerDraw", accept } as never),
+    (accept: boolean) => say({ type: "answerDraw", accept, revision: seenRevision() } as never),
     [say]
   );
 
@@ -1687,6 +2016,7 @@ export function useFriendGame(listeners: FriendListeners) {
     answer,
     move,
     takeBack,
+    undoTakeBack,
     resign,
     offerDraw,
     answerDraw,

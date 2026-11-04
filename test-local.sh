@@ -76,4 +76,8 @@ fi
 
 STATUS=0
 WS_BASE="ws://127.0.0.1:$PORT" npm run test:ws || STATUS=$?
+# And a game played in two browsers against the same worker, which serves the
+# app it has just built as well as the game: what the two pages make of what
+# the object decides, in whatever order its answers arrive.
+BASE="http://127.0.0.1:$PORT" npm run test:live || STATUS=$?
 exit "$STATUS"
