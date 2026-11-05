@@ -5551,6 +5551,35 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /*
+  The lock before each name while nothing can be played from what the board
+  shows: LockIcon as it is, an outline with nothing inside it, as the one
+  that stood by the counter in the top line was — in the name's own colour,
+  the lock being part of the name's row.
+*/
+.player-turn-lock {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-right: 0.3em;
+}
+
+/*
+  A tenth taller than a capital of the name beside it, which reads as level
+  with the letters. The padlock is drawn over 17.5 of its box's 24 units,
+  from the top of the shackle's line to the foot of the body's, so the box
+  is 24 / 17.5 times that. In `cap`, the font's own capital height, as the font is
+  whatever the system's is; in em where `cap` is not known, at about what it
+  comes to in most. Centred in the row as the name is, which keeps it level
+  with the capitals, a little over them at either end: see `.player-who`.
+*/
+.player-turn-lock .button-icon {
+  width: 1.06em;
+  height: 1.06em;
+  width: calc(1.1cap * 24 / 17.5);
+  height: calc(1.1cap * 24 / 17.5);
+}
+
+/*
   A petal: the page's own ground with a line round it, so the flower reads the
   same whichever side it opens on — the colour is the disc's business.
 

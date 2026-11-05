@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { Color } from "chess.js";
+import LockIcon from "../LockIcon";
 
 interface PlayerNameProps {
   name: string;
@@ -10,6 +11,8 @@ interface PlayerNameProps {
   toMove?: boolean;
   /** Whose move it is on the board, for the flower's tooltip; nothing where no board says. */
   turn?: Color | null;
+  /** Whether nothing can be played from what the board shows, said with a lock before the name. */
+  locked?: boolean;
   /**
    * What the board is showing, said across the top of it: how the game came
    * out, in the middle, and where in the game the board is standing, at the
@@ -49,6 +52,7 @@ export default function PlayerName({
   mine,
   toMove = false,
   turn = null,
+  locked = false,
   result = null,
   position = null,
   lined = false,
@@ -71,6 +75,17 @@ export default function PlayerName({
         move played does not shift the board under the reader.
       */}
       <Flower color={color} open={toMove} turn={turn} />
+      {/* A lock between the flower and the name, on both names at once, while
+          nothing can be played from what the board shows: an earlier position
+          of a game being played, whose turn the flowers then say is the
+          game's rather than the board's, or a challenge with no game in it
+          yet. Filled in the page's own ink, black or white, so that it reads
+          at the size of the text: see `.player-turn-lock`. */}
+      {locked && (
+        <span className="player-turn-lock" title="Nothing can be played from here">
+          <LockIcon />
+        </span>
+      )}
       {/* The name in a box of its own, so that a long one is cut short rather
           than wrapped: the row is one line high whatever it holds, and the
           board below it does not move because somebody is called something

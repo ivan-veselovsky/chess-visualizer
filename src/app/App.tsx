@@ -149,7 +149,6 @@ import type { ColorChoice, Terms } from "../../worker/protocol";
 import { PRESETS, STARTING_PRESET } from "./presets";
 import { boardSide, setBoardSide } from "./boardSide";
 import { actionFor, ariaCombo, describeCombo, loadBindings, saveBindings, type KeyBindings } from "./keyBindings";
-import LockIcon from "./LockIcon";
 import ExitIcon from "./ExitIcon";
 import { settingsSide, type Orientation } from "../visualization/geometry";
 import { loadSettings } from "./settingsStore";
@@ -2080,9 +2079,20 @@ export default function App() {
     onMoved: ({ san, fen: after }) => {
       /* A takeback still being played backwards is finished first: the move
          is played on the position the takeback left. */
-      finishStep();
-      setHistory((current) => pushPosition(current, after, san));
-      showPosition(after);
+      const now = finishStep() ?? history;
+      /*
+        Onto the head of the game, wherever the board is being looked at — and
+        a board being looked at further back keeps its place, as it does for a
+        takeback. Not `pushPosition`, which plays a move from the position on
+        the board: from further back that cut the game there, and the moves
+        after it went from the board while the game still had them — which the
+        Live tab then saw as another game, and asked whether to stash.
+      */
+      const watching = now.current;
+      setHistory((current) => grownTo(current, current.entries.length - 1, [{ fen: after, move: san }]));
+      if (watching === 0) {
+        showPosition(after);
+      }
       if (handed.current !== null) {
         handed.current = {
           ...handed.current,
@@ -2360,9 +2370,10 @@ export default function App() {
 
     Nothing can be played from here — the board is frozen off the head, since a
     move from an earlier position would fork a game that is not this browser's
-    to fork — so the side whose move it is gets an empty flower and a note
-    saying which position of the game is on the screen. Both go when the reader
-    comes back to the last move, and the move can be made again.
+    to fork — and the counter says which position of the game is on the
+    screen. The flowers go on saying whose move it is in the game, not in the
+    position looked at: see `turnNow`. A move arriving meanwhile goes onto the
+    line and passes the turn, and leaves the board where it is.
   */
   const steppedBack =
     friend.phase.kind === "playing" && friend.phase.over === null && history.current !== 0;
@@ -2514,15 +2525,23 @@ export default function App() {
     goes back up, in the same words as anywhere else something made here is
     about to be replaced.
 
+    Asked on coming here, and when a game begins or ends — not every time the
+    board changes, which it used to be. While the game is played on this tab
+    nothing can take the board off it: a move of the reader's goes to the
+    object and comes back as the game's, the game's messages move the board
+    and the game as handed together, and the rest of what this tab offers is
+    stepping through the moves. So asked on every change it could find nothing
+    to catch up but where the reader stood — and every step back was taken
+    back at once, the move played again.
+
     A layout effect, run as the render is put on the page, rather than an
     ordinary one run some time after. What it compares are two things kept
     in step — the board's history, which is state and arrives with a render,
     and the game as handed, which is a ref the game's messages change as
     they are read. An ordinary effect could run with a render's history
-    after the next message had already moved the ref on: a takeback answered
-    while the last was still being played out was seen as the board holding
-    some other game, and the reader asked whether to stash it. Run with the
-    render, nothing can come between the two.
+    after the next message had already moved the ref on, and take the board
+    for some other game. Run with the render, nothing can come between the
+    two.
   */
   useLayoutEffect(() => {
     if (
@@ -2555,15 +2574,14 @@ export default function App() {
       note("the board is not the game on the Live tab; putting the game back up", { board: here, handed: game });
     }
     putUp(game);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the board and the
-    // game it is showing are what this watches; the helpers it calls are the
-    // component's own and are the same on every render.
-    // and whether it is over, which decides whether the board is caught up.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- arriving here,
+    // and the game beginning or ending, are what this watches; the board is
+    // read as it stands then, and not watched (see above). The helpers it
+    // calls are the component's own and are the same on every render.
   }, [
     tab,
     friend.phase.kind,
     friend.phase.kind === "playing" ? friend.phase.over : null,
-    history,
     stashName,
   ]);
 
@@ -3137,6 +3155,20 @@ export default function App() {
     lastValid.current = position;
   }
   const shown = position ?? lastValid.current;
+  /*
+    Whose move it is, as the flowers by the names say it: in a game being
+    played, the game's — its last position's — wherever the board is being
+    looked at, since that is who is being waited on. Anywhere else, the
+    position on the board's.
+  */
+  const turnNow = steppedBack ? turnOf(history.entries[0].fen) : (shown?.turn() ?? null);
+  /*
+    Nothing can be played from what is showing: an earlier position of a game
+    still going on, or a challenge with no game in it yet. Said with a lock
+    before each name, between it and its flower: see `PlayerName`. Not a game
+    that is over, which is shown as any game read in is.
+  */
+  const turnLocked = steppedBack || friend.phase.kind === "waiting";
   /*
     Which of a game's lines is on the board, and the whole way it goes, said
     the same way over a board with names and over one without — in the middle
@@ -3746,8 +3778,9 @@ export default function App() {
                   name={named?.names[farSide] ?? ""}
                   color={farSide}
                   mine={named?.mine === farSide}
-                  toMove={atAGame && shown?.turn() === farSide}
-                  turn={atAGame ? (shown?.turn() ?? null) : null}
+                  toMove={atAGame && turnNow === farSide}
+                  turn={atAGame ? turnNow : null}
+                  locked={atAGame && turnLocked}
                   lined={named !== null && friend.phase.kind !== "waiting" && branch !== null}
                   result={
                     named === null ? null : friend.phase.kind === "playing" && friend.phase.over === null ? (
@@ -3791,23 +3824,7 @@ export default function App() {
                       </>
                     )
                   }
-                  position={
-                    named === null ? null : (
-                      <>
-                        {/* Nothing can be played from what is showing: an
-                            earlier position of a game still going on, or a
-                            challenge with no game in it yet. Not a game that
-                            is over, which is shown as any game read in is —
-                            its line, how it came out, and where the board is
-                            on it, with nothing more said. */}
-                        {((friend.phase.kind === "playing" &&
-                          friend.phase.over === null &&
-                          history.current !== 0) ||
-                          friend.phase.kind === "waiting") && <LockIcon />}
-                        {counted}
-                      </>
-                    )
-                  }
+                  position={named === null ? null : counted}
                 />
               )}
               <div className="board-with-bars">
@@ -3950,8 +3967,9 @@ export default function App() {
                   name={named?.names[nearSide] ?? ""}
                   color={nearSide}
                   mine={named?.mine === nearSide}
-                  toMove={atAGame && shown?.turn() === nearSide}
-                  turn={atAGame ? (shown?.turn() ?? null) : null}
+                  toMove={atAGame && turnNow === nearSide}
+                  turn={atAGame ? turnNow : null}
+                  locked={atAGame && turnLocked}
                 />
               )}
             </div>

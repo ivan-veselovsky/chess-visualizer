@@ -402,6 +402,66 @@ const declined = await until(async () => ({ said: await notice(alice), ok: /Bob 
 check("and when it is declined, she is told", declined.ok, String(declined.said));
 
 
+/* ---- Looking back through the game while it is played ---- */
+
+/* Whose move the flowers by the names say it is, and the line over the board. */
+const flowerOpen = (page) =>
+  page.evaluate(() => [...document.querySelectorAll(".player-name .player-color-turn")].map((f) => (f.matches(".player-color-w") ? "w" : "b")).join(""));
+/* The locks: before each name, and none by the counter, where there was one. */
+const locks = (page) =>
+  page.evaluate(() => ({
+    names: document.querySelectorAll(".player-name .player-who .player-turn-lock").length,
+    counter: document.querySelectorAll(".player-name .player-position svg").length,
+  }));
+const topLine = (page) => page.evaluate(() => [...document.querySelectorAll(".player-name")].map((p) => p.textContent).join(" "));
+const key = async (page, name) => {
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press(name);
+};
+const AFTER_E4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b";
+
+/* On the other tab, a move arriving while Bob looks back: the game's moves
+   stay on his board, and coming back here asks nothing. */
+await bob.locator("#tab-game").click();
+await key(bob, "ArrowLeft");
+await pause(300);
+await move(alice, "g1", "f3");
+await until(async () => ({ ok: /3 of 3/.test(await counter(bob)) }));
+check("a move arriving while Bob looks back on the other tab is added to his game",
+  /half-move 1 of 3/.test(await counter(bob)) && (await fen(bob)).startsWith(AFTER_E4), `${await counter(bob)} / ${await fen(bob)}`);
+await bob.locator("#tab-match").click();
+seen = await agreed("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b");
+check("and back on this tab he is caught up to it, with nothing asked", seen.ok, JSON.stringify(seen));
+
+/* On this tab: a step back stays a step back. */
+await move(bob, "b8", "c6");
+await agreed("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w");
+await key(bob, "ArrowLeft");
+await key(bob, "ArrowLeft");
+await pause(800);
+check("Bob steps back on the Live tab, and stays there",
+  /half-move 2 of 4/.test(await counter(bob)) && (await fen(bob)).startsWith("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w"),
+  `${await counter(bob)} / ${await fen(bob)}`);
+check("the flowers say it is still Alice's move", (await flowerOpen(bob)) === "w", await flowerOpen(bob));
+let locked = await locks(bob);
+check("a lock before each name, and none by the counter", locked.names === 2 && locked.counter === 0, JSON.stringify(locked));
+
+/* And a move arriving meanwhile: on the line, and the turn passed, with the
+   board where he left it. */
+await move(alice, "f1", "c4");
+const passed = await until(async () => ({ open: await flowerOpen(bob), ok: (await flowerOpen(bob)) === "b" }));
+check("Alice's move passes the turn to Bob's flower", passed.ok, String(passed.open));
+check("and is on the line over his board", /3\. \S?c4/.test(await topLine(bob)), await topLine(bob));
+check("while his board stays where he is looking",
+  /half-move 2 of 5/.test(await counter(bob)) && (await fen(bob)).startsWith("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w"),
+  `${await counter(bob)} / ${await fen(bob)}`);
+await key(bob, "Control+ArrowRight");
+seen = await agreed("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b");
+check("and stepping on brings him to it", seen.ok, JSON.stringify(seen));
+locked = await locks(bob);
+check("where both locks go, together", locked.names === 0 && locked.counter === 0, JSON.stringify(locked));
+
+
 /* ---- The list of games counts what the game has ---- */
 
 for (const page of [alice, bob]) {
