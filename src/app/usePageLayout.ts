@@ -1,5 +1,8 @@
 import { useEffect, useLayoutEffect, useState } from "react";
-import { inPixels, layout, minEmFor, scaleFor, type Layout, type MetricsAsked } from "./layout";
+import { inPixels, layout, minBoardFor, minEmFor, panelRooms, scaleFor, type Layout, type LayoutInput, type MetricsAsked } from "./layout";
+import { CANVAS_SIZE, SQUARE_SIZE } from "../visualization/geometry";
+import { note } from "./friend/log";
+import type { PanelLeastPx, PanelRoomsPx } from "./usePanelLeast";
 
 /**
  * How the page is laid out: by `layout`, the regions computed from the
@@ -46,79 +49,6 @@ export function setAllowScrolling(on: boolean): void {
     /* A browser refusing storage still runs the app; it just opens as a new
        browser does next time, the page allowed to scroll. */
   }
-}
-
-/**
- * Text of the sort the panel holds, to measure an average character of it by:
- * words of the lengths its labels and its explanations have, with the spaces
- * between them — a character being any of them, as a reader counts.
- */
-const SAMPLE_TEXT =
-  "Pieces that attack the square are drawn with rays; the heat map shows how often each square is attacked, by whom.";
-
-/**
- * A character of the page's text, on the average, and a line of it, in ems, as
- * this browser draws them in the font it has: see `Metrics.charEm`. Measured
- * rather than assumed, as the font is the machine's own — `system-ui` is one
- * font on a Mac and another on Linux, the one a few hundredths of an em wider
- * a character than the other — and the panel asks for its room in characters
- * of it, which is only room for so many where they are the ones drawn.
- *
- * At the size the panel's text is drawn at, not at a larger one for the
- * measure's precision: a line's height is rounded to whole pixels, so a line
- * of 14px text is a larger share of an em than a line of 100px text is.
- */
-type MeasuredText = { charEm: number; lineEm: number; tabsEm?: number };
-
-function measuredText(px: number): MeasuredText | null {
-  const probe = document.createElement("div");
-  probe.style.cssText = `position: absolute; visibility: hidden; left: 0; top: 0; white-space: nowrap; font-size: ${px}px; line-height: normal;`;
-  probe.textContent = SAMPLE_TEXT;
-  document.body.append(probe);
-  const box = probe.getBoundingClientRect();
-  probe.remove();
-  if (!(box.width > 0 && box.height > 0)) {
-    return null;
-  }
-  const tabs = measuredTabs(px);
-  return { charEm: box.width / SAMPLE_TEXT.length / px, lineEm: box.height / px, ...(tabs === null ? {} : { tabsEm: tabs }) };
-}
-
-/**
- * The row of tabs, in ems of the panel's text, as it is set in a panel
- * narrower than 39 of them — see `Metrics.tabsEm` — or nothing where there is
- * no row to measure.
- *
- * A copy of the row as it is drawn, in a box that is a container of no width
- * at all, so that its tabs are set as in the narrowest panel whatever the
- * width of the one they are in now: measured in a panel wide enough for them
- * at full size, the least width would be theirs at full size — a panel set
- * beside the boards that much wider, where its tabs would have been narrower.
- * The copy itself as wide as its tabs want, on one row — not the box's no
- * width, in which they would wrap, and shrink to their words in plain type
- * rather than the room they keep for them in bold (see `.tab-label`). And
- * rounded up to the whole pixel, as the panel's width, set from a sum of
- * fractions, may come out a sixty-fourth short of a sum of them.
- */
-function measuredTabs(px: number): number | null {
-  const row = document.querySelector(".tab-bar");
-  if (row === null) {
-    return null;
-  }
-  const holder = document.createElement("div");
-  holder.style.cssText = `position: absolute; visibility: hidden; left: 0; top: 0; width: 0; container-type: inline-size; font-size: ${px}px;`;
-  const copy = row.cloneNode(true) as HTMLElement;
-  /* Not twice on the page, even for a moment: the ids are the tabs'. */
-  for (const named of copy.querySelectorAll("[id]")) {
-    named.removeAttribute("id");
-  }
-  copy.style.width = "max-content";
-  copy.style.flexWrap = "nowrap";
-  holder.append(copy);
-  document.body.append(holder);
-  const width = copy.getBoundingClientRect().width;
-  holder.remove();
-  return width > 0 ? Math.ceil(width) / px : null;
 }
 
 /** The class the document carries while the layout is computed: see `html.layout-computed`. */
@@ -181,14 +111,12 @@ export function usePageLayout(
   bars: number,
   /* The sizes that are the page's to say rather than the layout's: a bar's width, the row under the boards. */
   metrics: MetricsAsked,
-  /* How tall the panel's tabs are, in pixels, at the width they have under the boards; see `LayoutInput.panelWants`. */
-  panelWantsPx: number | null
-): Layout | null {
+  /* The least room the panel's tabs need, in pixels, as measured; see `LayoutInput.panelLeast`. */
+  panelLeastPx: PanelLeastPx | null
+): { laid: Layout | null; rooms: PanelRoomsPx | null } {
   const computed = mode !== "css";
   /* The window: its whole width, a scrollbar's included; its height; and a scrollbar's width. */
   const [size, setSize] = useState<{ w: number; h: number; bar: number } | null>(null);
-  const [text, setText] = useState<MeasuredText | null>(null);
-
 
   useEffect(() => {
     if (!computed) {
@@ -218,21 +146,21 @@ export function usePageLayout(
     };
   }, [computed]);
 
-  /* Laid out for a window this wide. */
-  const laidFor = (w: number, h: number): Layout =>
-    inPixels(
-      layout({
-        aspect: h / w,
-        scrollable,
-        boards,
-        bars,
-        metrics: text === null ? metrics : { ...text, ...metrics },
-        minEm: minEmFor(w),
-        scale: scaleFor(w, h),
-        ...(panelWantsPx === null ? {} : { panelWants: panelWantsPx / w }),
-      }),
-      w
-    );
+  /* What is asked of the layout for a window this wide; and laid out for it. */
+  const inputFor = (w: number, h: number): LayoutInput => ({
+    aspect: h / w,
+    scrollable,
+    boards,
+    bars,
+    metrics,
+    minEm: minEmFor(w),
+    scale: scaleFor(w, h),
+    minBoard: minBoardFor(w, CANVAS_SIZE / SQUARE_SIZE),
+    ...(panelLeastPx === null
+      ? {}
+      : { panelLeast: { below: panelLeastPx.below / w, right: panelLeastPx.right === null ? null : panelLeastPx.right / w } }),
+  });
+  const laidFor = (w: number, h: number): Layout => inPixels(layout(inputFor(w, h)), w);
   /* For the whole width, which settles whether the page scrolls; and where
      it does, for the width beside its scrollbar. Should that narrower page
      fit after all, it keeps the scrollbar, with nothing to scroll: taking it
@@ -248,37 +176,42 @@ export function usePageLayout(
     }
   }, [computed, scrolls]);
 
-  /* The font's character and line, and the row of tabs, measured at the
-     size the panel's text is drawn at — once the layout has said what that is, which does not depend
-     on them, so one measure settles it — and again when the fonts have
-     loaded, in case the first measure was of one standing in. */
-  const panelTextPx = laid?.settingsEm;
-  /* Before the page is painted, so it is never seen laid out for a font it does not have. */
-  useLayoutEffect(() => {
-    if (panelTextPx === undefined) {
+  /*
+    The room the panel would have, for the tabs to be measured in: see
+    `panelRooms`. Under the boards, for the width beside a scrollbar where
+    there is one to be had — narrower by it, and the tabs as tall or taller,
+    so what they need there they have on a page without one too, and whether
+    the page scrolls never changes what was measured. Beside the boards, for
+    the window's whole width: a page with the panel there never scrolls.
+  */
+  const rooms: PanelRoomsPx | null = (() => {
+    if (!computed || size === null || size.w <= 0 || size.h <= 0) {
+      return null;
+    }
+    const whole = panelRooms(inputFor(size.w, size.h));
+    const narrow = size.w - size.bar;
+    const under = panelRooms(inputFor(narrow, size.h));
+    return { belowWidth: under.belowWidth * narrow, rightHeight: whole.rightHeight * size.w, rightMost: whole.rightMost * size.w };
+  })();
+
+  /* What was chosen, in the log, as the page changes: see `note`. */
+  const chosen =
+    laid === null
+      ? null
+      : `${laid.panelPlace} ${laid.flow} ${laid.scrolls} ${Math.round(laid.boards[0].w)} ${Math.round(laid.panel.w)} ${Math.round(laid.panel.h)}`;
+  useEffect(() => {
+    if (laid === null || chosen === null) {
       return;
     }
-    let live = true;
-    const measure = () => {
-      if (live) {
-        const measured = measuredText(panelTextPx);
-        setText((was) =>
-          was !== null &&
-          measured !== null &&
-          was.charEm === measured.charEm &&
-          was.lineEm === measured.lineEm &&
-          was.tabsEm === measured.tabsEm
-            ? was
-            : measured
-        );
-      }
-    };
-    measure();
-    void document.fonts?.ready.then(measure);
-    return () => {
-      live = false;
-    };
-  }, [panelTextPx]);
+    note("the page laid out", {
+      window: size === null ? null : `${size.w} × ${size.h}`,
+      panel: `${laid.panelPlace} the boards, ${Math.round(laid.panel.w)} × ${Math.round(laid.panel.h)}px${laid.stub === null ? "" : ", past the foot"}`,
+      boards: `${laid.boards.length}, ${laid.flow === "row" ? "side by side" : "one over the other"}, ${Math.round(laid.boards[0].w)}px each`,
+      scrolls: laid.scrolls,
+      "the panel needs": panelLeastPx === null ? "not measured yet" : panelLeastPx,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- said once for each layout chosen, which `chosen` names.
+  }, [chosen]);
 
   /* A page that fits is the window's height exactly, as measured: the height
      in units of the width, times the width, can miss it by a hair. */
@@ -294,5 +227,5 @@ export function usePageLayout(
     }
   }, [laid?.em]);
 
-  return laid;
+  return { laid, rooms };
 }

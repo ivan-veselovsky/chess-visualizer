@@ -78,11 +78,13 @@
   --men-bar-gap: 0.4rem;
   /* How large the numbers in a bar of men are — how many of a kind, and how
      far one army is ahead: see `.men-bar-count` and `.men-bar-lead`. A third
-     larger than the page's own 0.9rem text. */
-  --men-bar-number: calc(1.3 * 0.9rem);
+     larger than the page's own 0.9rem text. In ems of the bar's own text,
+     like everything in it, which the computed layout sets to the boards'
+     scale: see `.app.app-computed .men-bar`. */
+  --men-bar-number: calc(1.3 * 0.9em);
   /* And how far apart its kinds are — and the last of them from the count of
      who is ahead, which reads as one more thing in the same row. */
-  --men-bar-spacing: 0.6rem;
+  --men-bar-spacing: 0.6em;
   /*
     How many such bars are up — none, one, or both — which App publishes on the
     board's pane from the two switches that raise them.
@@ -153,6 +155,10 @@ body {
     type: its line, and the part of its margins written in ems.
   */
   --top-row-scale: 1.2;
+  /* The rem the rows over and under the boards are set in: the page's own,
+     where the stylesheet lays the page out, and to the boards' scale where
+     the layout is computed — see `.app.app-computed .board-and-players`. */
+  --row-rem: 1rem;
   --top-row-extra: calc((var(--top-row-scale) - 1) * (1.32 + 0.5) * 0.95rem);
   /* The name under the board, in a game with names, at the same size: its line
      the extra it takes, its margins being in rems. */
@@ -389,7 +395,7 @@ body {
   their place, being names.
 */
 .board-and-players > .player-name.board-near {
-  margin-top: calc(0.25rem - var(--near-row-lift));
+  margin-top: calc(0.25 * var(--row-rem) - var(--near-row-lift));
   /*
     And over the board, where it lies over it: the board is positioned, and
     is drawn above what is not, so the strip of file letters — the board's own
@@ -612,8 +618,17 @@ body {
   content: ":";
 }
 
+/*
+  Never narrower than four fifths of the starting position's FEN, which is 56
+  characters of the field's monospace: what a narrower panel cannot give the
+  field beside its label and its button, the row goes round onto a line of
+  its own, and the label and the button with it. Four fifths rather than all
+  of it because most positions are shorter — a task's handful of men, a game
+  well on — and the rest of a long one scrolls in the field. The panel is
+  measured against the same share: see `FEN_SHOWN` in `usePanelLeast`.
+*/
 .fen-row > .fen-input {
-  flex: 1 1 0;
+  flex: 1 1 calc(45ch + 2 * 0.5rem * var(--set-scale) + 2px);
   min-width: calc(8rem * var(--set-scale));
 }
 
@@ -840,7 +855,6 @@ body {
   heading: each shares its row with the buttons it belongs to, and a heading
   above would put a line of its own between them.
 */
-.game-library,
 .stashed-games {
   display: flex;
   align-items: center;
@@ -849,32 +863,14 @@ body {
   min-width: 0;
 }
 
-.game-library > label,
 .stashed-games > label {
   flex: 0 0 auto;
   font-size: calc(0.9rem * var(--set-scale));
 }
 
 /* The colon belongs to the layout, not to the label. */
-.game-library > label::after,
 .stashed-games > label::after {
   content: ":";
-}
-
-/* Why a game would not load, on a line under the list that would not load it. */
-.game-list-error {
-  flex: 1 0 100%;
-  margin: 0;
-}
-
-/* Takes its row, so the list can sit beside its name rather than under it. */
-.board-controls > .game-library {
-  flex: 1 1 auto;
-}
-
-/* Wide enough for a game's whole title, and no wider. */
-.game-library > .game-select {
-  flex: 0 1 calc(26rem * var(--set-scale));
 }
 
 /*
@@ -3891,10 +3887,21 @@ input[type="color"]::-moz-color-swatch {
 }
 
 /* Black at bottom as it is in the Lab, but on the row's one line: none of the
-   gap a field keeps under itself in a panel. */
+   gap a field keeps under itself in a panel. And in the row's rem rather than
+   the page's, so it goes with the board as the rest of the row does. */
 .board-editor-far > .toggle-field {
   margin-bottom: 0;
   white-space: nowrap;
+  gap: calc(0.5 * var(--row-rem) * var(--set-scale));
+}
+
+.board-editor-far > .toggle-field input[type="checkbox"] {
+  width: calc(var(--row-rem) * var(--set-scale));
+  height: calc(var(--row-rem) * var(--set-scale));
+}
+
+.board-editor-far > .toggle-field label {
+  font-size: calc(0.9 * var(--row-rem) * var(--set-scale));
 }
 
 .board-editor-row > .board-editor-done {
@@ -3926,8 +3933,8 @@ input[type="color"]::-moz-color-swatch {
 
 .board-editor-signal {
   display: inline-flex;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: calc(1.15 * var(--row-rem));
+  height: calc(1.15 * var(--row-rem));
   cursor: help;
 }
 
@@ -4685,12 +4692,17 @@ input[type="color"]::-moz-color-swatch {
   wearing the panel's ground. What differs is what a row holds — a lock instead
   of a status light, and a word about the row rather than about a game.
 */
-/* A column, so the list inside it can be the part that gives way. Nothing
-   under it: what follows says how far it stands off — see `.settings-two-up`. */
+/*
+  No box of its own: its heading, its list and the buttons under it stand in
+  the tab's column one by one, as the blocks after them do. The list is then
+  the one thing in the column that gives way, and gives way only down to its
+  floor — past it, the tab scrolls. As a column of its own, given way as a
+  whole, it went past its list's floor to nothing, and what was in it was
+  drawn over the blocks under it. Nothing under it: what follows says how far
+  it stands off — see `.settings-two-up`.
+*/
 .preset-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+  display: contents;
 }
 
 /*
@@ -5111,7 +5123,7 @@ input[type="color"]::-moz-color-swatch {
   and would win against either alone.
 */
 .player-name.board-counter {
-  margin-top: calc(0.25rem - 0.7em);
+  margin-top: calc(0.25 * var(--row-rem) - 0.7em);
 }
 
 /* Which line of a game is up, where a name would stand: on one line, fitted
@@ -5288,13 +5300,13 @@ input[type="color"]::-moz-color-swatch {
     game is standing to be read whole.
   */
   grid-template-columns:
-    minmax(min(10rem, 30%), 1fr)
+    minmax(min(10 * var(--row-rem), 30%), 1fr)
     minmax(0, max-content)
-    minmax(min(10rem, 30%), 1fr);
+    minmax(min(10 * var(--row-rem), 30%), 1fr);
   /* So a name cut short and a middle cut short never run into each other. */
   column-gap: 1em;
   align-items: center;
-  margin: 0.25rem 0;
+  margin: calc(0.25 * var(--row-rem)) 0;
   /*
     One line high, whatever the name is — or whether there is one yet.
 
@@ -5313,7 +5325,7 @@ input[type="color"]::-moz-color-swatch {
   /* Room under the upper name, which sits straight on the board's edge. The
      lower one needs none: the file letters run between it and the board and
      are gap enough. */
-  margin-bottom: calc(0.25rem + 0.5em);
+  margin-bottom: calc(0.25 * var(--row-rem) + 0.5em);
   padding-left: calc((100% - var(--men-bars-extent)) * 24 / 536);
   /*
     And set in on the right by the bar the column also holds, so what is left
@@ -5324,7 +5336,7 @@ input[type="color"]::-moz-color-swatch {
     over the bar and carried the score half its width to the right.
   */
   padding-right: var(--men-bars-extent);
-  font-size: 0.95rem;
+  font-size: calc(0.95 * var(--row-rem));
 }
 
 /*
@@ -5334,19 +5346,19 @@ input[type="color"]::-moz-color-swatch {
   the row's height with them.
 */
 .board-and-players > .player-name:first-child {
-  font-size: calc(var(--top-row-scale) * 0.95rem);
+  font-size: calc(var(--top-row-scale) * 0.95 * var(--row-rem));
 }
 
 /* And the near player's name under the board, the same size as the far one's
    over it. Not the row under a board without names, which holds a flower and
    nothing to read. */
 .board-and-players > .player-name:last-child:not(.board-near) {
-  font-size: calc(var(--top-row-scale) * 0.95rem);
+  font-size: calc(var(--top-row-scale) * 0.95 * var(--row-rem));
 }
 
 /* The lower name is under the coordinates, and takes the plain gap. */
 .board-and-players > .player-name:last-child {
-  margin-bottom: 0.25rem;
+  margin-bottom: calc(0.25 * var(--row-rem));
 }
 
 /*
@@ -5367,7 +5379,7 @@ input[type="color"]::-moz-color-swatch {
 .player-who {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: calc(0.7 * var(--row-rem));
   min-width: 0;
 }
 
@@ -5507,11 +5519,11 @@ input[type="color"]::-moz-color-swatch {
 */
 .player-color {
   flex: 0 0 auto;
-  width: 0.8rem;
-  height: 0.8rem;
+  width: calc(0.8 * var(--row-rem));
+  height: calc(0.8 * var(--row-rem));
   /* The petals are drawn outside this box; without the extra room they came
      within a hair of the first letter of the name. */
-  margin-right: 0.35rem;
+  margin-right: calc(0.35 * var(--row-rem));
   overflow: visible;
 }
 
@@ -6079,7 +6091,7 @@ html.layout-computed.layout-scrolls {
 */
 .app.app-computed .board-and-players > .player-name.board-near > * {
   position: relative;
-  top: calc(0.25rem + 0.5 * 1.32 * 0.95rem - var(--lay-near-lift) - 0.5 * var(--lay-bottom-h));
+  top: calc((0.25 + 0.5 * 1.32 * 0.95) * var(--row-rem) - var(--lay-near-lift) - 0.5 * var(--lay-bottom-h));
 }
 
 /* The boards, each its computed side, side by side or one over the other, the
@@ -6111,11 +6123,23 @@ html.layout-computed.layout-scrolls {
   --men-bar-gap: var(--lay-gap-beside-bar);
 }
 
+/* A bar of men drawn to the boards' scale rather than the text's: its men,
+   its counts and the room between them all in ems of its own text, which
+   goes with the boards' side — so a larger board has larger men beside it.
+   Its width, in the same ems, is set with it: see `Metrics.barEmPerBoard`. */
+.app.app-computed .men-bar {
+  font-size: var(--lay-bar-em);
+}
+
 /* What the rows measure themselves by, with two boards: the boards' width and
    one board's side, as computed rather than worked out from the window. */
 .app.app-computed .board-and-players {
   --two-up-boards: var(--lay-boards-w);
   --two-up-size: var(--lay-side);
+  /* The rows over and under the boards to the boards' scale: their text,
+     the flowers and the names in it, and the room between them. See
+     `Metrics.rowEmPerBoard`. */
+  --row-rem: var(--lay-row-em);
 }
 
 /* The regions outlined, in the layout's debug mode: in pixels of their own,
@@ -6195,45 +6219,14 @@ html.layout-computed.layout-scrolls {
 }
 
 /*
-  The page scrolling, the panel as tall as its tallest tab — see
-  `usePanelWants` — and nothing in it scrolling of its own: a scroller inside
-  a scroller fights it over every turn of the wheel, and a page scrolling a
-  little further costs next to nothing.
-
-  Every part that gave way to the window's height is its own height again. The
-  two lists the most: as tall as their rows, up to a dozen or so of them,
-  beyond which a list is a list and scrolls as one — the panel is as tall as
-  its tallest tab whichever is open, and a stash of a hundred games would make
-  every tab that tall.
+  The panel is the same box whether the page scrolls or not: as large as the
+  layout says, which is room for its tallest tab at least — see
+  `usePanelLeast` — and its lists stretching into whatever more it has. So
+  nothing in it scrolls but the lists, which do by design: on a page that
+  scrolls, a scroller inside a scroller fights it over every turn of the
+  wheel. It used to be grown to its tabs where the page scrolled, the lists
+  with it, and fitted to the window where it did not, with nothing measured.
 */
-.app.app-computed.app-panel-natural .side-column {
-  /* Down as far as the tabs go; across, no further than the panel, whatever
-     in a tab is wider than a phone's screen. */
-  overflow-x: clip;
-  overflow-y: visible;
-}
-
-.app.app-computed.app-panel-natural .tabbed {
-  position: relative;
-  flex: none;
-  max-height: none;
-}
-
-.app.app-computed.app-panel-natural .tab-panel {
-  flex: none;
-  min-height: auto;
-  overflow-y: visible;
-}
-
-.app.app-computed.app-panel-natural .preset-panel {
-  min-height: auto;
-}
-
-.app.app-computed.app-panel-natural .presets-scroll,
-.app.app-computed.app-panel-natural .games-scroll {
-  flex: none;
-  max-height: 24em;
-}
 
 /* A tab drawn only to be measured: across the panel, as it would be open, but
    out of the flow and unseen, and gone again before anything is painted. */

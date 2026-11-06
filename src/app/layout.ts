@@ -63,15 +63,40 @@ export interface LayoutInput {
    */
   scale?: number;
   /**
-   * How tall the panel's contents are — the tallest of its tabs, not only the
-   * one open — at the width the panel has under the boards, in units of the
-   * window's width. On a page that scrolls the panel is given all of it, so
-   * that nothing in it scrolls as well: the page scrolling a little further
-   * costs next to nothing, a scroller inside a scroller a good deal. Whoever
-   * can measure the tabs says what it is; nothing, where nothing is said, and
-   * the panel has its least height.
+   * The least room the panel can show every tab in without scrolling — the
+   * tab row and the tallest of the tabs, the lists in them at their floors —
+   * as measured in the page, in units of the window's width: see
+   * `usePanelLeast`. Under the boards, where its width is the page's and
+   * known before the layout is, a height: the tabs measured at that width.
+   * Beside them, where its height is known — the window's, less the header
+   * and the gaps; see `panelRooms` — a width: the narrowest the tabs fit that
+   * height at, and show the longest lines of the Lab tab whole in; null where
+   * no width does.
+   *
+   * Every layout gives the panel this much at least: on a page that may
+   * scroll, always, so that nothing in it scrolls as well — a scroller inside
+   * a scroller fights the page over every turn of the wheel; on one that may
+   * not, wherever the boards keep their least size with it — see `minBoard`
+   * — and only there does a tab scroll of its own. Nothing, where nothing has
+   * been measured yet, and the panel has `panelMinChars` and `panelMinLines`.
    */
-  panelWants?: number;
+  panelLeast?: PanelLeast;
+  /**
+   * The least side a board may have, in units of the window's width: the
+   * board with squares of `MIN_SQUARE_PX`, under which a piece is a smudge.
+   * A layout leaving less is taken only where no other can be had, and on a
+   * page that may not scroll the panel then gives up room to the boards
+   * rather than the boards to the panel. None, where nothing is said.
+   */
+  minBoard?: number;
+}
+
+/** The least room the panel needs: see `LayoutInput.panelLeast`. */
+export interface PanelLeast {
+  /** Under the boards, its least height. */
+  below: number;
+  /** Beside them, its least width; null where the tabs fit no width there. */
+  right: number | null;
 }
 
 /**
@@ -142,11 +167,38 @@ export interface Metrics {
   gaps: Gaps;
   /** The header's own line. */
   header: number;
-  /** The row over the boards — the line of moves, or a name — and the row under them. */
+  /**
+   * The row over the boards — the line of moves, or a name — and the row
+   * under them, in ems of their own text rather than the page's: see
+   * `rowEmPerBoard`.
+   */
   topRow: number;
   bottomRow: number;
-  /** One bar of men. */
+  /**
+   * The rows' text against a board's side, so that the line of moves, the
+   * flowers and the names grow and shrink with the boards they are about:
+   * a sixth of a square, which is the page's own 16px beside a board of
+   * 811px, as 1400 × 950 has. Never under the least the page's text may be
+   * — see `LayoutInput.minEm` — the rows being read, not looked at; which
+   * they can be held at, unlike the bars, as their height is laid out from
+   * it. Not in ems: a ratio.
+   */
+  rowEmPerBoard: number;
+  /**
+   * One bar of men, in ems of its own text rather than the page's: the bar
+   * is drawn to the board's scale, not the text's — see `barEmPerBoard`.
+   */
   bar: number;
+  /**
+   * A bar's text against the side of the board it stands beside, so that the
+   * men in it and the counts by them grow and shrink with the men on the
+   * board: a bar of men is a third of a square across, and its text is
+   * `bar` of that. With no floor of its own, as the board's coordinates have
+   * none: everything in a bar is in its ems, so what fits beside a large
+   * board fits beside a small one — and text held at a size the board had
+   * gone under ran past the board's foot. Not in ems: a ratio.
+   */
+  barEmPerBoard: number;
   /**
    * How many times taller than wide a window has to be for two boards to stand
    * one over the other: under it they stand side by side, whatever that costs
@@ -161,19 +213,18 @@ export interface Metrics {
   columnFromAspect: number;
   /**
    * The panel's least width beside the boards, in characters of its text, and
-   * its least height under them, in lines of it: room for the text, in the
-   * text's own size, `settingsEm` — which grows more slowly than the boards
-   * past the window the text is calibrated at, so that the larger the screen,
-   * the smaller the share of it the panel asks for. Where the window is not
-   * wide enough for the panel beside the boards, the boards give up width to
-   * it — and the panel goes under them instead, where that leaves them larger.
+   * its least height under them, in lines of it — until the tabs have been
+   * measured, and in a test that measures nothing: then what was measured is
+   * the least, `LayoutInput.panelLeast`. A guess, these, and a poor one: the
+   * tabs want twice the lines at most widths. In the text's own size,
+   * `settingsEm`, which grows more slowly than the boards past the window the
+   * text is calibrated at.
    */
   panelMinChars: number;
   panelMinLines: number;
   /**
-   * A character of the panel's text, on the average, and a line of it, in ems.
-   * The page measures them in the font it has — see `usePageLayout` — and
-   * these are what `system-ui` measures on Linux, for wherever nothing is.
+   * A character of the panel's text, on the average, and a line of it, in ems:
+   * what `system-ui` measures on Linux, for the guess above.
    */
   charEm: number;
   lineEm: number;
@@ -185,8 +236,7 @@ export interface Metrics {
    * average sort: a font may set them in fewer of its characters or in more —
    * 61.4 in Noto Sans, 63.9 in Liberation Sans — and the last of them, with
    * the panel no wider than the characters asked, would go round onto a
-   * second row. Measured, like the characters; this is what `system-ui`
-   * measures on Linux, for wherever nothing is.
+   * second row. What `system-ui` measures on Linux, for the guess above.
    */
   tabsEm: number;
   /** The panel's most width beside the boards, in ems of its text. */
@@ -201,9 +251,7 @@ export interface Metrics {
    * page that scrolls: under it, what would show is a strip of the tabs too
    * thin to use, and the strip is left blank — the stub, with an arrow on it
    * to say there is more below — and the panel starts at the foot, to be
-   * scrolled to whole. Not in ems: a share of the tallest tab's height, where
-   * the tabs have been measured — see `LayoutInput.panelWants` — and of the
-   * panel's where they have not.
+   * scrolled to whole. Not in ems: a share of the panel's least height.
    */
   stubShare: number;
 }
@@ -211,12 +259,14 @@ export interface Metrics {
 export const DEFAULT_METRICS: Metrics = {
   emPerRootArea: 16 / Math.sqrt(1400 * 950),
   settingsGrowth: 0.5,
-  settingsSize: 14 / 16,
+  settingsSize: 0.75,
   gaps: DEFAULT_GAPS,
   header: 2.06,
   topRow: 1.75,
   bottomRow: 1.55,
   bar: 1.7,
+  barEmPerBoard: 64 / 536 / 3 / 1.7,
+  rowEmPerBoard: 64 / 536 / 6,
   columnFromAspect: 1.75,
   panelMinChars: 62,
   panelMinLines: 15,
@@ -251,6 +301,10 @@ export interface Layout {
   em: number;
   /** And the panel's: see `Metrics.settingsGrowth`. */
   settingsEm: number;
+  /** And the bars of men's, which goes with the boards: see `Metrics.barEmPerBoard`. */
+  barEm: number;
+  /** And the rows' over and under the boards, which does as well: see `Metrics.rowEmPerBoard`. */
+  rowEm: number;
   /** The window's height over its width, as asked. */
   aspect: number;
   header: Box;
@@ -294,9 +348,78 @@ function emsOf(input: LayoutInput, metrics: Metrics): { em: number; settingsEm: 
 }
 
 /**
+ * A board's side, where `count` of them share `room` across with the bars of
+ * men — the gaps between the boards already taken off it. The bars go with
+ * the boards, so the side is what the two together come to: see
+ * `barEmPerBoard`.
+ */
+function sideAcross(input: LayoutInput, metrics: Metrics, em: number, room: number, count: number): number {
+  const free = room - input.bars * metrics.gaps.besideBar * em;
+  return free / (count + input.bars * metrics.bar * metrics.barEmPerBoard);
+}
+
+/** The rows' text over and under boards of this side: see `Metrics.rowEmPerBoard`. */
+function rowEmFor(input: LayoutInput, metrics: Metrics, side: number): number {
+  return Math.max(metrics.rowEmPerBoard * side, input.minEm ?? 0);
+}
+
+/**
+ * A board's side, where `count` of them, one over the other, share `room`
+ * down with the rows over and under them — the gaps between the boards
+ * already taken off it. The rows go with the boards, so the side is what the
+ * two together come to; and where that would set the rows' text under the
+ * least, it is held there, and the boards have what the rows then leave.
+ */
+function sideDown(input: LayoutInput, metrics: Metrics, room: number, count: number): number {
+  const rows = metrics.topRow + metrics.bottomRow;
+  const minEm = input.minEm ?? 0;
+  const scaled = room / (count + rows * metrics.rowEmPerBoard);
+  if (metrics.rowEmPerBoard * scaled >= minEm) {
+    return scaled;
+  }
+  return (room - rows * minEm) / count;
+}
+
+/**
+ * The panel's least room: as measured, where it has been, and otherwise so
+ * many characters of its text across and lines of it down — see
+ * `panelMinChars` — the row of tabs on one line at least.
+ */
+function leastOf(input: LayoutInput, metrics: Metrics, settingsEm: number): PanelLeast {
+  if (input.panelLeast !== undefined) {
+    return input.panelLeast;
+  }
+  return {
+    below: metrics.panelMinLines * metrics.lineEm * settingsEm,
+    right: Math.max(metrics.panelMinChars * metrics.charEm, metrics.tabsEm) * settingsEm,
+  };
+}
+
+/**
+ * The room the panel would have, in each place, before any layout is chosen —
+ * what the page measures the tabs in to say how much of it they need: see
+ * `LayoutInput.panelLeast`. Under the boards, its width: the page's, less its
+ * sides. Beside them, its height: the window's, less the header and the gaps
+ * over and under. And the most it could be across there, with nothing left
+ * of the boards, for a measure to stop at.
+ */
+export function panelRooms(input: LayoutInput): { belowWidth: number; rightHeight: number; rightMost: number } {
+  const metrics = metricsOf(input.metrics);
+  const { em, settingsEm } = emsOf(input, metrics);
+  const g = metrics.gaps;
+  const inside = 1 - 2 * g.pageSide * em;
+  return {
+    belowWidth: inside,
+    rightHeight: input.aspect - (g.pageTop + metrics.header + g.underHeader + g.pageBottom) * em,
+    rightMost: Math.min(inside - g.panel * em, metrics.panelMaxWidth * settingsEm),
+  };
+}
+
+/**
  * One way of laying the page out — the boards side by side or one over the
  * other, the panel to their right or under them, the page scrolling or not —
  * with the boards as large as it lets them be; null where it cannot be had.
+ * The panel is given `least` at least: see `LayoutInput.panelLeast`.
  */
 function arranged(
   input: LayoutInput,
@@ -305,18 +428,20 @@ function arranged(
   settingsEm: number,
   flow: Flow,
   panelPlace: PanelPlace,
-  scroll: boolean
+  scroll: boolean,
+  least: PanelLeast
 ): Layout | null {
   const { aspect, boards, bars } = input;
   const m = (ems: number) => ems * em;
-  /* The panel's sizes, in its own text's: its least width and height, from characters and lines of it. */
+  /* The panel's text's sizes: how wide it may be at most. */
   const ms = (ems: number) => ems * settingsEm;
-  const panelMinWidth = ms(Math.max(metrics.panelMinChars * metrics.charEm, metrics.tabsEm));
-  const panelMinHeight = ms(metrics.panelMinLines * metrics.lineEm);
+  if (panelPlace === "right" && least.right === null) {
+    return null;
+  }
+  const panelMinWidth = least.right ?? 0;
+  const panelMinHeight = least.below;
   const g = metrics.gaps;
-  const barsWidth = bars * m(metrics.bar + g.besideBar);
   const gap = m(g.betweenBoards);
-  const rows = m(metrics.topRow + g.overBoards + metrics.bottomRow);
   const left = m(g.pageSide);
   const above = m(g.pageTop + metrics.header + g.underHeader);
   const inside = 1 - 2 * left;
@@ -339,21 +464,27 @@ function arranged(
       : scroll
         ? m(g.panel)
         : m(g.panel + g.pageBottom) + panelMinHeight;
-  const down = aspect - above - rows - under;
-  /* And a board's side in that room: so many boards across it, or down it. */
-  const many = (room: number) => (room - (boards - 1) * gap) / boards;
+  const down = aspect - above - m(g.overBoards) - under;
+  /* And a board's side in that room: so many boards across it, or down it,
+     the bars beside them across it and the rows over and under them down. */
   const side =
-    flow === "row" ? Math.min(many(across - barsWidth), down) : Math.min(across - barsWidth, many(down));
+    flow === "row"
+      ? Math.min(sideAcross(input, metrics, em, across - (boards - 1) * gap, boards), sideDown(input, metrics, down, 1))
+      : Math.min(sideAcross(input, metrics, em, across, 1), sideDown(input, metrics, down - (boards - 1) * gap, boards));
   if (!(side > 0)) {
     return null;
   }
+  const rowEm = rowEmFor(input, metrics, side);
+  const barEm = metrics.barEmPerBoard * side;
+  const barWidth = metrics.bar * barEm;
+  const barsWidth = bars * (barWidth + m(g.besideBar));
 
   /* The group, from the page's top left: the boards in a row or a column, the
      bars to the right of them all, the rows across the whole. */
   const boardsWidth = flow === "row" ? boards * side + (boards - 1) * gap : side;
   const boardsHeight = flow === "row" ? side : boards * side + (boards - 1) * gap;
   const groupWidth = boardsWidth + barsWidth;
-  const top: Box = { x: left, y: above, w: groupWidth, h: m(metrics.topRow) };
+  const top: Box = { x: left, y: above, w: groupWidth, h: metrics.topRow * rowEm };
   const boardsTop = top.y + top.h + m(g.overBoards);
   const boardBoxes: Box[] = Array.from({ length: boards }, (_, index) => ({
     x: left + (flow === "row" ? index * (side + gap) : 0),
@@ -362,12 +493,12 @@ function arranged(
     h: side,
   }));
   const barBoxes: Box[] = Array.from({ length: bars }, (_, bar) => ({
-    x: left + boardsWidth + m(g.besideBar) + bar * m(metrics.bar + g.besideBar),
+    x: left + boardsWidth + m(g.besideBar) + bar * (barWidth + m(g.besideBar)),
     y: boardsTop,
-    w: m(metrics.bar),
+    w: barWidth,
     h: boardsHeight,
   }));
-  const bottom: Box = { x: left, y: boardsTop + boardsHeight, w: groupWidth, h: m(metrics.bottomRow) };
+  const bottom: Box = { x: left, y: boardsTop + boardsHeight, w: groupWidth, h: metrics.bottomRow * rowEm };
   const group: Box = { x: left, y: top.y, w: groupWidth, h: bottom.y + bottom.h - top.y };
 
   /* And the panel in what is left: beside the boards, as wide as it may be,
@@ -382,11 +513,11 @@ function arranged(
   } else {
     const y = group.y + group.h + m(g.panel);
     const room = aspect - m(g.pageBottom) - y;
-    panel = { x: left, y, w: inside, h: scroll ? Math.max(room, panelMinHeight, input.panelWants ?? 0) : room };
-    /* Only a sliver of it on the screen — a sliver of the tallest tab, where
-       the tabs have been measured — the sliver left blank, and the panel moved
-       down to start where the window ends. */
-    if (scroll && room > 0 && room < metrics.stubShare * (input.panelWants ?? panel.h)) {
+    panel = { x: left, y, w: inside, h: scroll ? Math.max(room, panelMinHeight) : room };
+    /* Only a sliver of it on the screen — a sliver of what its tabs need —
+       the sliver left blank, and the panel moved down to start where the
+       window ends. */
+    if (scroll && room > 0 && room < metrics.stubShare * panelMinHeight) {
       stub = { x: left, y, w: inside, h: room };
       panel = { ...panel, y: aspect };
     }
@@ -404,6 +535,8 @@ function arranged(
     scrolls,
     em,
     settingsEm,
+    barEm,
+    rowEm,
     aspect,
     header: { x: left, y: m(g.pageTop), w: inside, h: m(metrics.header) },
     group,
@@ -431,30 +564,107 @@ function arranged(
  * is had only where it buys a good deal. Where two come out the same, the
  * first in the order tried: the panel to the right before under, the boards
  * side by side before one over the other.
+ *
+ * Every one of them gives the panel its least room — see `panelLeast` — and
+ * only those whose boards keep their least size are weighed, where any do:
+ * see `minBoard`. On a page that may not scroll and where none do, the
+ * panel gives way instead: the boards at their least, and the panel what
+ * that leaves it — its tabs then the only part of the page that scrolls.
  */
 export function layout(input: LayoutInput): Layout {
   const metrics = metricsOf(input.metrics);
   const { em, settingsEm } = emsOf(input, metrics);
+  const least = leastOf(input, metrics, settingsEm);
+  const stacking = input.boards === 2 && input.aspect >= metrics.columnFromAspect;
+  const flows = stacking ? (["row", "column"] as const) : (["row"] as const);
   const candidates: Layout[] = [];
   for (const scroll of input.scrollable ? [false, true] : [false]) {
     for (const panelPlace of ["right", "below"] as const) {
       if (scroll && panelPlace === "right") {
         continue;
       }
-      const stacking = input.boards === 2 && input.aspect >= metrics.columnFromAspect;
-      for (const flow of stacking ? (["row", "column"] as const) : (["row"] as const)) {
-        const candidate = arranged(input, metrics, em, settingsEm, flow, panelPlace, scroll);
+      for (const flow of flows) {
+        const candidate = arranged(input, metrics, em, settingsEm, flow, panelPlace, scroll, least);
         if (candidate !== null) {
           candidates.push(candidate);
         }
       }
     }
   }
-  if (candidates.length === 0) {
+  const minBoard = input.minBoard ?? 0;
+  const large = (candidate: Layout) => candidate.boards[0].w >= minBoard - 1e-9;
+  let pool = candidates.filter(large);
+  if (pool.length === 0 && !input.scrollable) {
+    pool = givingWay(input, metrics, em, settingsEm, flows, least, minBoard);
+  }
+  if (pool.length === 0) {
+    pool = candidates;
+  }
+  if (pool.length === 0) {
     throw new Error(`No layout fits a window of aspect ${input.aspect}`);
   }
   const worth = (candidate: Layout) => candidate.boards[0].w / (candidate.scrolls ? metrics.scrollPenalty : 1);
-  return candidates.reduce((best, candidate) => (worth(candidate) > worth(best) + 1e-9 ? candidate : best));
+  return pool.reduce((best, candidate) => (worth(candidate) > worth(best) + 1e-9 ? candidate : best));
+}
+
+/**
+ * A page that may not scroll, in a window too small for the panel's least
+ * room and boards of their least size both: the boards at their least — or
+ * as large as the window allows, where that is less — and the panel the
+ * rest. Under the boards, and beside them where the tabs fit beside them at
+ * all; of the two, the one that leaves the panel the larger share of what
+ * it needs, which is the one whose tabs scroll the least. One or none.
+ */
+function givingWay(
+  input: LayoutInput,
+  metrics: Metrics,
+  em: number,
+  settingsEm: number,
+  flows: readonly Flow[],
+  least: PanelLeast,
+  minBoard: number
+): Layout[] {
+  const g = metrics.gaps;
+  const gap = g.betweenBoards * em;
+  const rows = (metrics.topRow + metrics.bottomRow) * rowEmFor(input, metrics, minBoard) + g.overBoards * em;
+  const above = (g.pageTop + metrics.header + g.underHeader) * em;
+  const inside = 1 - 2 * g.pageSide * em;
+  const barsWidth = input.bars * (metrics.bar * metrics.barEmPerBoard * minBoard + g.besideBar * em);
+  const shares: { laid: Layout; share: number }[] = [];
+  for (const flow of flows) {
+    /* Under them: whatever the boards at their least leave down the window. */
+    const boardsDown = flow === "row" ? minBoard : input.boards * minBoard + (input.boards - 1) * gap;
+    const below = Math.max(0, input.aspect - above - rows - (g.panel + g.pageBottom) * em - boardsDown);
+    const under = arranged(input, metrics, em, settingsEm, flow, "below", false, { ...least, below });
+    if (under !== null) {
+      shares.push({ laid: under, share: under.panel.h / least.below });
+    }
+    /* Beside them: whatever the boards at their least leave across it. */
+    if (least.right !== null && flow === "row") {
+      const boardsAcross = input.boards * minBoard + (input.boards - 1) * gap;
+      const right = inside - g.panel * em - barsWidth - boardsAcross;
+      const beside = right > 0 ? arranged(input, metrics, em, settingsEm, flow, "right", false, { ...least, right }) : null;
+      if (beside !== null) {
+        shares.push({ laid: beside, share: beside.panel.w / least.right });
+      }
+    }
+  }
+  if (shares.length === 0) {
+    return [];
+  }
+  return [shares.reduce((best, next) => (next.share > best.share + 1e-9 ? next : best)).laid];
+}
+
+/**
+ * The least a board's square may be, in pixels: under it a piece's glyph is a
+ * blot, and what is drawn over it — a ray, an arrow — nothing at all. A
+ * floor, like `MIN_TEXT_PX`, not a size the page is laid out to.
+ */
+export const MIN_SQUARE_PX = 10;
+
+/** `minBoard` for a window so many pixels wide, a board being `canvasPerSquare` of its squares across, its coordinates and all. */
+export function minBoardFor(widthPx: number, canvasPerSquare: number, minSquarePx = MIN_SQUARE_PX): number {
+  return (minSquarePx * canvasPerSquare) / widthPx;
 }
 
 /** The least text size, in pixels, that is still read: the page's and the panel's, on a small screen. */
@@ -482,6 +692,8 @@ export function inPixels(laid: Layout, widthPx: number): Layout {
     ...laid,
     em: laid.em * widthPx,
     settingsEm: laid.settingsEm * widthPx,
+    barEm: laid.barEm * widthPx,
+    rowEm: laid.rowEm * widthPx,
     header: px(laid.header),
     group: px(laid.group),
     top: px(laid.top),

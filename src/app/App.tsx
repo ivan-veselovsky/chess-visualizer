@@ -67,7 +67,7 @@ import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
 import { gameNameOfPgn, titleOfPgn } from "../chess/gameTitle";
 import { DEFAULT_METRICS, regionsOf } from "./layout";
 import { allowScrolling, layoutModeFromLocation, setAllowScrolling, usePageLayout } from "./usePageLayout";
-import { usePanelWants } from "./usePanelWants";
+import { usePanelLeast, type PanelLeastPx } from "./usePanelLeast";
 import {
   isStashed,
   nextStashName,
@@ -3501,14 +3501,34 @@ export default function App() {
     see `usePageLayout`.
   */
   const menBars = editor ? 1 : (settings.pieces.showCaptured ? 1 : 0) + (settings.pieces.showAvailable ? 1 : 0);
-  /* How tall the panel's tabs want to be, where the page scrolls: see `usePanelWants`. */
-  const [panelWantsPx, setPanelWantsPx] = useState<number | null>(null);
+  /* The least room the panel's tabs need, as measured: see `usePanelLeast`. */
+  const [panelLeastPx, setPanelLeastPx] = useState<PanelLeastPx | null>(null);
+  /*
+    Moved on when a tab arrives that was not there to be measured: the GIF
+    tab's code, fetched apart from the page, which until then is a line
+    saying it is loading. Once, soon after the page opens, and before it is
+    likely to have been looked at.
+  */
+  const [tabsArrived, setTabsArrived] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void loadGifPanel()
+      .then(() => {
+        if (live) {
+          setTabsArrived((count) => count + 1);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
   /*
     The row under a board without names — the near side's flower and nothing
     to read — drawn up by this much into the strip of file letters, as
     `--near-row-lift` draws it where the stylesheet lays the page out: 15px of
-    16px text, here in ems of the page's text, which the computed layout
-    measures everything in.
+    16px text, here in ems of the rows' own text, which the computed layout
+    sets to the boards' scale: see `Metrics.rowEmPerBoard`.
 
     The strip it is given then reaches as far down as the flower does, and a
     little further, rather than a line's height less the lift: the flower is
@@ -3520,19 +3540,20 @@ export default function App() {
   */
   const nearLiftEm = atAGame ? 0 : 15 / 16;
   const nearFlowerReachEm = 0.25 + (1.32 * 0.95) / 2 - 15 / 16 + ((23.6 + 0.45) / 24) * 0.8 + 0.1;
-  const laid = usePageLayout(
+  /* A bar's width in ems of its own text: see `Metrics.bar`. The editor's
+     palette a little wider than the men in a bar, these being taken hold of
+     rather than counted. */
+  const barEms = editor ? 2.3 : DEFAULT_METRICS.bar;
+  const { laid, rooms: panelRooms } = usePageLayout(
     layoutMode,
     scrolling,
     twoBoard ? 2 : 1,
     menBars,
-    { bar: editor ? 2.3 : 1.7, bottomRow: atAGame ? DEFAULT_METRICS.bottomRow : nearFlowerReachEm },
-    panelWantsPx
+    { bar: barEms, bottomRow: atAGame ? DEFAULT_METRICS.bottomRow : nearFlowerReachEm },
+    panelLeastPx
   );
-  const { tabbed, measuring } = usePanelWants(
-    laid !== null && laid.scrolls,
-    laid === null ? "" : `${Math.round(laid.panel.w)} ${laid.em} ${laid.settingsEm}`,
-    tab,
-    (px) => setPanelWantsPx((was) => (was !== null && Math.abs(was - px) < 1 ? was : px))
+  const { tabbed, measuring } = usePanelLeast(panelRooms, laid?.settingsEm ?? null, tabsArrived, (least) =>
+    setPanelLeastPx((was) => (was !== null && was.below === least.below && was.right === least.right ? was : least))
   );
   /* A tab drawn only to be measured, in that pass: out of the flow, unseen, and out of reach. */
   const measuredOnly = (id: PanelTab) =>
@@ -3553,10 +3574,15 @@ export default function App() {
           "--lay-group-h": px(laid.group.h),
           "--lay-top-h": px(laid.top.h),
           "--lay-bottom-h": px(laid.bottom.h),
-          "--lay-near-lift": px(nearLiftEm * laid.em),
+          "--lay-near-lift": px(nearLiftEm * laid.rowEm),
+          /* The rows over and under the boards, to the boards' scale: see `Metrics.rowEmPerBoard`. */
+          "--lay-row-em": px(laid.rowEm),
           /* The panel's text against the page's: see `--set-scale` in the stylesheet. */
           "--lay-settings-scale": String(laid.settingsEm / laid.em),
           "--lay-side": px(laid.boards[0].w),
+          /* A bar of men, to the boards' scale: its text, and its width in that. See `Metrics.barEmPerBoard`. */
+          "--lay-bar-em": px(laid.barEm),
+          "--men-bar-width": px(barEms * laid.barEm),
           /* The boards alone, without the bars: in a row, as far as the last one's right edge; in a column, one board's width. */
           "--lay-boards-w": px(Math.max(...laid.boards.map((board) => board.x + board.w)) - laid.group.x),
           "--lay-boards-h": px(laid.bottom.y - laid.boards[0].y),
@@ -3593,8 +3619,6 @@ export default function App() {
         exporting ? "app-exporting" : "",
         /* The regions computed and placed: see `usePageLayout`. */
         laid !== null ? `app-computed app-flow-${laid.flow} app-panel-${laid.panelPlace}` : "",
-        /* The page scrolls, and the panel is as tall as its tabs: nothing in it scrolls of its own. */
-        laid !== null && laid.scrolls ? "app-panel-natural" : "",
         /* Or it fits the window, and nothing in it may lengthen the page: see `.app-fits`. */
         laid !== null && !laid.scrolls ? "app-fits" : "",
       ]
@@ -3981,7 +4005,14 @@ export default function App() {
           {/* Strip and panel are one thing, so they are wrapped as one: as
               separate children of the column the flex gap would put a space
               between the selected tab and what it opens. */}
-          <div className="tabbed" ref={tabbed}>
+          <div
+            className="tabbed"
+            ref={tabbed}
+            /* What the tabs were measured to need, for whoever checks that
+               they were given it: see `usePanelLeast`. */
+            data-least-below={panelLeastPx?.below}
+            data-least-right={panelLeastPx === null ? undefined : (panelLeastPx.right ?? "none")}
+          >
           {/*
             One column, six tabs. The panel was a single column of everything
             at once, which made the setting being looked for a question of how
