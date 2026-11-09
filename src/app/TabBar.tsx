@@ -15,6 +15,28 @@ export interface Tab<Id extends string> {
 /** How far past its side a selected tab's fillet reaches: see `.tab-active::after`. */
 const FILLET_PX = 6;
 
+/**
+ * The tabs a little smaller where at full size they would take two rows:
+ * `data-compact` on the strip, see `.tab-bar[data-compact]`. Decided by
+ * trying, rather than at a width: where full-size tabs stop fitting depends
+ * on the font — 41.5 of the panel's ems in Noto Sans, 44.7 in DejaVu Sans —
+ * and a width fixed for one font left a band of widths where, in the other,
+ * the strip wrapped.
+ *
+ * Exported for the panel's measuring pass, which sets the column to width
+ * after width and must see the tabs as they would be drawn there: see
+ * `measureTabs`. Tried and put back within the one call, so that where the
+ * answer is the same nothing has changed by the time the browser looks, and
+ * the watching here is not woken again by its own trying.
+ */
+export function fitStrip(strip: HTMLElement): void {
+  strip.removeAttribute("data-compact");
+  const tops = [...strip.children].map((tab) => (tab as HTMLElement).offsetTop);
+  if (tops.some((top) => top !== tops[0])) {
+    strip.setAttribute("data-compact", "");
+  }
+}
+
 interface TabBarProps<Id extends string> {
   tabs: readonly Tab<Id>[];
   active: Id;
@@ -59,6 +81,7 @@ export default function TabBar<Id extends string>({
       return;
     }
     const measure = () => {
+      fitStrip(strip);
       const last = strip.lastElementChild;
       if (last === null) {
         return;

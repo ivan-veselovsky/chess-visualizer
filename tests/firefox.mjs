@@ -209,10 +209,18 @@ const lengthOf = (gif) => delaysOf(gif).reduce((sum, delay) => sum + delay, 0);
   panel's least height decides how large the boards are — two of them over the
   panel at 1400 × 950 — the two browsers' boards come out different sizes, and
   their exports, the board's lettering against the board, different pictures.
-  Here two boards are as wide as the window lets them be, the panel under them
-  running on past its foot.
+  Here the boards are as tall as the window lets them be, the panel beside
+  them with room to spare: 751px each in Noto Sans, DejaVu Sans and
+  Liberation Sans alike, where DejaVu, the widest of them, starts to take
+  room from the boards only at some 2100px across.
+
+  It was 1920 × 1080, two boards over a panel that ran on past the window's
+  foot — until the layout came to weigh the costs, and put that panel beside
+  the boards instead, as wide as its tabs need: some 5px of each board then
+  came and went with the font, and Chrome's and Firefox's exports on a
+  runner were 15px apart.
 */
-const WINDOW = { width: 1920, height: 1080 };
+const WINDOW = { width: 2400, height: 900 };
 
 let chrome = null;
 let firefox = null;

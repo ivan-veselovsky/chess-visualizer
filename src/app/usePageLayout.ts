@@ -299,7 +299,7 @@ export function usePageLayout(
     if (!computed || size === null || size.w <= 0 || size.h <= 0 || table === null) {
       return null;
     }
-    const found = panelLeastOf(inputFor(size.w, size.h));
+    const found = panelLeastOf(inputFor(size.w, size.h), axis === "across");
     return { below: found.below * size.w, right: found.right === null ? null : found.right * size.w };
   })();
 

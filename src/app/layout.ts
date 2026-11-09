@@ -232,7 +232,7 @@ export interface Metrics {
   lineEm: number;
   /**
    * The row of tabs over the panel, in ems of the panel's text, as it is set
-   * in a panel narrower than 39 of them (see `@container (max-width: 39em)`):
+   * where full-size tabs would wrap (see `fitStrip`):
    * the panel beside the boards is never narrower than this, whatever its
    * characters come to. The tabs are words of their own, not text of the
    * average sort: a font may set them in fewer of its characters or in more —
@@ -796,11 +796,16 @@ function roomAt(needs: PanelNeeds, rooms: ReturnType<typeof panelRooms>, f: numb
  * wide at the window's height, null where no width the panel may have there
  * shows them whole. What the page says it measured, for whoever checks that
  * a panel was given it.
+ *
+ * `across` where the page scrolls across: the panel may then run past the
+ * window's right edge, as wide as a panel may be at all, as the layout lets
+ * it — see `roomFor` in `layout`. Without it, a phone's panel beside its
+ * boards, past the window's edge, was said to have no width that would do.
  */
-export function panelLeastOf(input: LayoutInput): { below: number; right: number | null } {
+export function panelLeastOf(input: LayoutInput, across = false): { below: number; right: number | null } {
   const metrics = metricsOf(input.metrics);
   const rooms = panelRooms(input);
-  return roomAt(needsOf(input, metrics), rooms, rooms.ownText);
+  return roomAt(needsOf(input, metrics), rooms, rooms.ownText, across ? metrics.panelMaxWidth * rooms.ownText : rooms.rightMost);
 }
 
 /**

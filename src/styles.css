@@ -454,9 +454,10 @@ body {
   min-width: calc(27rem * var(--set-scale));
   /* No wider than a hundred ems: see `.app`. */
   max-width: var(--panel-room);
-  /* So the tabs can size themselves to this column rather than to the window:
-     between about 1400 and 1440 pixels the board squeezes it to its minimum,
-     which is narrower than it is at either side of that band. */
+  /* Once so the tabs could size themselves to this column by a container
+     query; they now try instead, see `fitStrip`. Kept for what containment
+     does besides: the column's width is sized as though it were empty, the
+     flex and the layout's say, never what its widest content would like. */
   container-type: inline-size;
   display: flex;
   flex-direction: column;
@@ -2795,31 +2796,25 @@ body {
   row: wrapping costs the selected tab its join to the panel, which is worth
   more than a point of type.
 
-  The width is where eleven tabs at full size stop fitting: 42.1 to 42.6 of
-  the panel's ems, measured at 8 to 10 pixels of its text, gaps counted. It
-  was 35rem when there were nine, which left a band of widths just above it
-  where the strip wrapped: a game with a friend narrows the board and widens
-  this column into exactly that band, so starting a game broke the strip in
-  two. And it was 39em for ten, which left the same band for eleven, a phone
-  in it: at 9px its panel was 42em across, the strip on two lines, and the
-  panel moved off beside the boards, past the window's right edge.
-
-  In ems of the column's own text rather than rems, as the tabs' are: where the
-  panel's text is smaller than the page's, the tabs fit a narrower column.
+  Where full-size tabs would wrap, tried rather than set at a width: see
+  `fitStrip`. A width was tried first — 35rem for nine tabs, 39em for ten,
+  43em for eleven — and each left a band of widths above it where the strip
+  wrapped: a game with a friend narrowed the board into one, a phone at 9px
+  into another, and DejaVu Sans, wider than the font it was measured in, put
+  a 1400 × 950 window's panel in a third. Where full size fits is a matter of
+  the font as much as of the width.
 */
-@container (max-width: 43em) {
-  .tab {
-    font-size: 0.8em;
-    /* Narrower than the 0.4em they had: each tab now keeps the room its word
-       takes in bold (see `.tab-label`), and those few pixels a tab, eleven
-       times over, are what the strip did not have. */
-    padding-left: 0.3em;
-    padding-right: 0.3em;
-  }
+.tab-bar[data-compact] {
+  column-gap: 0;
+}
 
-  .tab-bar {
-    column-gap: 0;
-  }
+.tab-bar[data-compact] > .tab {
+  font-size: 0.8em;
+  /* Narrower than the 0.4em they had: each tab now keeps the room its word
+     takes in bold (see `.tab-label`), and those few pixels a tab, eleven
+     times over, are what the strip did not have. */
+  padding-left: 0.3em;
+  padding-right: 0.3em;
 }
 
 .tab-panel {

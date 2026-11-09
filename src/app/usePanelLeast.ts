@@ -3,6 +3,7 @@ import { DEFAULT_POSITION } from "chess.js";
 import { BUILD_INFO } from "./buildInfo";
 import { note } from "./friend/log";
 import { Lru, needsAt, POINT_REACH, pointNear, ROW_WIDTHS, rowSizesFor, withPoint, withWidth, type NeedsRow, type NeedsTable } from "./panelNeeds";
+import { fitStrip } from "./TabBar";
 
 /**
  * How tall a tab has to come, against the tallest, for a pass that adds to a
@@ -479,6 +480,10 @@ function measureTabs(
     const read = widthsNow();
     measures += 1;
     column.style.width = `${width}px`;
+    /* The tabs as they would be drawn at this width, full size or not. */
+    if (bar !== null) {
+      fitStrip(bar);
+    }
     let tallest = 0;
     let wide: string | null = null;
     const heights: [string, number][] = [];
@@ -663,6 +668,12 @@ function measureTabs(
   open.forEach((panel) => panel.classList.remove("tab-panel-measure"));
   for (const [element, top] of scrolled) {
     element.scrollTop = top;
+  }
+  /* And the tabs as they are at the column's own width: put back where it
+     was, the strip may be the size it was at the last width tried, and
+     nothing then wakes `TabBar` to try again. */
+  if (bar !== null) {
+    fitStrip(bar);
   }
 
   return {
