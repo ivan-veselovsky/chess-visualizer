@@ -5,7 +5,9 @@ import {
   defaultBindings,
   describeCombo,
   KEY_ACTIONS,
+  LIVE_ACTIONS,
   sameCombo,
+  WALK_ACTIONS,
   type KeyAction,
   type KeyBindings,
 } from "./keyBindings";
@@ -19,6 +21,10 @@ const NAMES: Record<KeyAction, string> = {
   tourBack: "Every line, a move back",
   tourForward: "Every line, a move on",
   play: "Play / stop",
+  resign: "Resign",
+  offerDraw: "Suggest draw",
+  takeback: "Takeback",
+  undoTakeback: "Undo takeback",
 };
 
 interface KeyBindingsFieldProps {
@@ -27,7 +33,8 @@ interface KeyBindingsFieldProps {
 }
 
 /**
- * The keys that walk a game, each to be set by pressing it: a button showing
+ * The keys that walk a game, and those that play one with a friend under
+ * them, each to be set by pressing it: a button showing
  * what the action is on now, which, pressed, listens for the next key and the
  * modifiers held with it. Escape, or the button pressed again, leaves it as it
  * was. A combination another action has changes places with it: see `bind`.
@@ -66,24 +73,33 @@ export default function KeyBindingsField({ bindings, onChange }: KeyBindingsFiel
     <div className="key-bindings">
       <LabelWithInfo
         label={<span className="key-bindings-title">Keys</span>}
-        hint="The keys that step through a game and play it, on whichever tab is open. To change one, press its button and then the key, with whatever is held with it — Ctrl, Alt (⌥), Shift, ⌘. Escape leaves it as it was. A key another action has changes places with it. Kept in this browser."
+        hint="The keys that step through a game and play it, and, while a game with a friend is on, the ones that resign it, offer a draw and take moves back — on whichever tab is open. To change one, press its button and then the key, with whatever is held with it — Ctrl, Alt (⌥), Shift, ⌘. Escape leaves it as it was. A key another action has changes places with it. Kept in this browser."
       />
       <div className="key-bindings-grid">
-        {KEY_ACTIONS.map((action) => (
-          <div className="key-binding" key={action}>
-            <span className="key-binding-name">{NAMES[action]}</span>
-            <button
-              type="button"
-              className={`reset-button key-capture${listening === action ? " key-capture-listening" : ""}`}
-              aria-pressed={listening === action}
-              aria-label={`${NAMES[action]}: ${describeCombo(bindings[action])}. Press to change.`}
-              onClick={() => setListening(listening === action ? null : action)}
-              onBlur={() => setListening((now) => (now === action ? null : now))}
-            >
-              {listening === action ? "Press a key…" : describeCombo(bindings[action])}
-            </button>
-          </div>
-        ))}
+        {[...WALK_ACTIONS, null, ...LIVE_ACTIONS].map((action) =>
+          action === null ? (
+            /* The live game's under a heading of their own: they do nothing
+               but in a game with a friend, and a reader looking for how to
+               step back should not have to read past them. */
+            <span className="key-bindings-group" key="live">
+              In a live game
+            </span>
+          ) : (
+            <div className="key-binding" key={action}>
+              <span className="key-binding-name">{NAMES[action]}</span>
+              <button
+                type="button"
+                className={`reset-button key-capture${listening === action ? " key-capture-listening" : ""}`}
+                aria-pressed={listening === action}
+                aria-label={`${NAMES[action]}: ${describeCombo(bindings[action])}. Press to change.`}
+                onClick={() => setListening(listening === action ? null : action)}
+                onBlur={() => setListening((now) => (now === action ? null : now))}
+              >
+                {listening === action ? "Press a key…" : describeCombo(bindings[action])}
+              </button>
+            </div>
+          )
+        )}
       </div>
       <button type="button" className="reset-button key-bindings-reset" disabled={asDefault} onClick={() => onChange(defaults)}>
         Reset keys

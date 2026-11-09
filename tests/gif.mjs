@@ -10,8 +10,12 @@
  * What the exporter writes is handled, and a little more: global and local
  * colour tables, transparency, the three disposals a viewer honours. Not
  * interlacing, which it never writes; that says so rather than guessing.
+ *
+ * With `pixels` false, the frames' timings and nothing of what they show: a
+ * long GIF's every frame, whole, is gigabytes, and a test that counts frames
+ * and adds up their delays has no use for them.
  */
-export function readGif(bytes) {
+export function readGif(bytes, { pixels = true } = {}) {
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   let at = 0;
   const byte = () => data[at++];
@@ -40,7 +44,7 @@ export function readGif(bytes) {
   byte(); // aspect ratio
   const global = packed & 0x80 ? table(1 << ((packed & 7) + 1)) : null;
 
-  const screen = new Uint8ClampedArray(width * height * 4);
+  const screen = new Uint8ClampedArray(pixels ? width * height * 4 : 0);
   const frames = [];
   let control = { delayMs: 0, transparent: null, disposal: 0 };
   let loops = null;
@@ -86,6 +90,11 @@ export function readGif(bytes) {
     for (let size = byte(); size > 0; size = byte()) {
       chunks.push(data.subarray(at, at + size));
       at += size;
+    }
+    if (!pixels) {
+      frames.push({ delayMs: control.delayMs, disposal: control.disposal, transparent: control.transparent !== null });
+      control = { delayMs: 0, transparent: null, disposal: 0 };
+      continue;
     }
     const indices = decompress(concat(chunks), minimum, w * h);
 

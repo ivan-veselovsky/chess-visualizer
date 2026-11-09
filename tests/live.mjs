@@ -84,6 +84,11 @@ const buttons = (page) =>
    report, and the dialog in front of it, where there is one, is in it. */
 const press = (page, label) =>
   page.locator(".invite-actions button", { hasText: new RegExp(`^${label}$`) }).first().click({ timeout: 5000 });
+/* A key, with nothing focused that would take it for itself: see `keyboardIsOn`. */
+const key = async (page, name) => {
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press(name);
+};
 
 /* Until something holds, or a few seconds have gone; what it last was either way. */
 const until = async (what, seconds = 8) => {
@@ -255,12 +260,20 @@ check("and Bob may take back again", b.Takeback?.disabled === false, JSON.string
 
 await move(bob, "g8", "f6");
 await agreed();
+/* Each of the game's buttons says its key, greyed or not. */
+/* By their words: an icon is drawn in text before some of them, the draw's a "1" and a "2". */
+const titles = await bob.evaluate(() =>
+  Object.fromEntries([...document.querySelectorAll(".invite-actions button")].map((b) => [b.textContent.replace(/^\d+/, "").trim(), b.title])));
+check("the game's buttons say their keys in their tooltips",
+  / \(Shift\+R\)$/.test(titles.Resign ?? "") && / \(2\)$/.test(titles["Suggest draw"] ?? "") && / \(Backspace\)$/.test(titles.Takeback ?? ""),
+  JSON.stringify(titles));
+/* The second by its key, Backspace, and the undo by Delete. */
 await press(bob, "Takeback");
 await pause(50);
-await press(bob, "Takeback");
+await key(bob, "Backspace");
 seen = await agreed("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b");
-check("Bob's two takebacks reach Alice's board, one on the heels of the other", seen.ok, JSON.stringify(seen));
-await press(bob, "Undo takeback");
+check("Bob's two takebacks reach Alice's board, one on the heels of the other, the second by Backspace", seen.ok, JSON.stringify(seen));
+await key(bob, "Delete");
 seen = await agreed("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/3P1N2/PPP2PPP/RNBQKB1R b");
 check("and his undo puts Nc6 and d3 back on hers", seen.ok, JSON.stringify(seen));
 check("Alice is told", /undid their takeback: their move 2… Nc6 and your reply 3\. d3 are back/.test((await notice(alice)) ?? ""), await notice(alice));
@@ -394,8 +407,8 @@ check("Alice is told her offer was played past, in the title's colour",
   /Bob played on rather than take your draw offer/.test((await notice(alice)) ?? "") && (await colourOf(alice, ".invite-notice")) === blue,
   `${await notice(alice)} / ${await colourOf(alice, ".invite-notice")}`);
 
-/* Offered again, and declined: said to her as well. */
-await alice.locator("button", { hasText: "Suggest draw" }).click({ timeout: 5000 });
+/* Offered again — by its key, 2 — and declined: said to her as well. */
+await key(alice, "2");
 await until(async () => ({ ok: await bob.evaluate(() => [...document.querySelectorAll("button")].some((b) => b.textContent.includes("Decline"))) }));
 await bob.locator(".invite-question button", { hasText: "Decline" }).click({ timeout: 5000 });
 const declined = await until(async () => ({ said: await notice(alice), ok: /Bob declined your draw offer/.test((await notice(alice)) ?? "") }));
@@ -414,10 +427,6 @@ const locks = (page) =>
     counter: document.querySelectorAll(".player-name .player-position svg").length,
   }));
 const topLine = (page) => page.evaluate(() => [...document.querySelectorAll(".player-name")].map((p) => p.textContent).join(" "));
-const key = async (page, name) => {
-  await page.evaluate(() => document.activeElement?.blur());
-  await page.keyboard.press(name);
-};
 const AFTER_E4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b";
 
 /* On the other tab, a move arriving while Bob looks back: the game's moves
@@ -469,6 +478,29 @@ for (const page of [alice, bob]) {
   const shown = (await counter(page)).match(/of (\d+)/)?.[1];
   check(`${page.name}'s list counts what the board has`, shown !== undefined && row.includes(`${shown} half-moves`), `${row} / ${shown}`);
 }
+/* ---- Resigned by its key, Shift+R ---- */
+
+await key(bob, "Shift+R");
+const resigned = await until(async () => ({
+  ok: await alice.evaluate(() => /resign/i.test(document.querySelector("#panel-match")?.textContent ?? "")) &&
+    (await alice.locator(".invite-actions button", { hasText: /^Resign$/ }).count()) === 0,
+}));
+check("Bob resigns by Shift+R, and Alice's game is over", resigned.ok, JSON.stringify(resigned));
+
+/* ---- A game read in, then a game from the list: asked to stash first ---- */
+
+/* The game read in is handed to the board as a live game is, but kept
+   nowhere: going to another game is not to take it away without a word. */
+await alice.locator("#tab-game").click();
+await alice.locator("#panel-game button", { hasText: /^Import game/ }).click();
+await alice.locator("dialog[open] textarea").fill("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
+await alice.locator("dialog[open] .pgn-dialog-actions button").last().click();
+await until(async () => ({ ok: (await dialog(alice)) === null && /^r1bqkbnr\/1ppp1ppp\/p1n5/.test(await fen(alice)) }));
+await alice.locator("#tab-match").click();
+await alice.locator(".saved-game-row .saved-game").first().click();
+const askedToStash = await until(async () => ({ ok: /stash it first/.test((await dialog(alice)) ?? ""), asked: await dialog(alice) }));
+check("a game read in, and a game opened from the list: asked to stash it first", askedToStash.ok, JSON.stringify(askedToStash));
+
 check("no errors on either page", alice.errors.length + bob.errors.length === 0, [...alice.errors, ...bob.errors].join("\n"));
 
 await browser.close();

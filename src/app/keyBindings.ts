@@ -1,5 +1,6 @@
 /**
- * The keys that walk a game: which key, with which modifiers, does what.
+ * The keys that walk a game, and that play one with a friend: which key,
+ * with which modifiers, does what.
  *
  * Kept in this browser rather than in the settings, as which way round the
  * board faces is: they are about the keyboard in front of the reader and the
@@ -8,10 +9,19 @@
  * them along.
  */
 
-/** What a key can be asked to do. */
-export type KeyAction = "previous" | "next" | "first" | "last" | "tourBack" | "tourForward" | "play";
+/** What a key can be asked to do: walk the game on the board, or do something about the live game. */
+export type WalkAction = "previous" | "next" | "first" | "last" | "tourBack" | "tourForward" | "play";
+export type LiveAction = "resign" | "offerDraw" | "takeback" | "undoTakeback";
+export type KeyAction = WalkAction | LiveAction;
 
-export const KEY_ACTIONS: readonly KeyAction[] = ["previous", "next", "first", "last", "tourBack", "tourForward", "play"];
+export const WALK_ACTIONS: readonly WalkAction[] = ["previous", "next", "first", "last", "tourBack", "tourForward", "play"];
+export const LIVE_ACTIONS: readonly LiveAction[] = ["resign", "offerDraw", "takeback", "undoTakeback"];
+/** Every one of them, in one list: no two share a key, whichever list they are in. */
+export const KEY_ACTIONS: readonly KeyAction[] = [...WALK_ACTIONS, ...LIVE_ACTIONS];
+
+export function isLiveAction(action: KeyAction): action is LiveAction {
+  return (LIVE_ACTIONS as readonly KeyAction[]).includes(action);
+}
 
 /** A key and the modifiers held with it. `key` as the browser names it, a letter in lower case. */
 export interface KeyCombo {
@@ -47,6 +57,11 @@ export function onMac(): boolean {
  * every line, Space plays. The first and last positions are Ctrl and an arrow
  * — except on a Mac, which takes those for moving between desktops, where
  * they are Home and End: Fn and an arrow on a Mac's own keyboard.
+ *
+ * In a live game: Shift+R resigns — with Shift, as a game given up is not
+ * taken back, and a key brushed on the way to another should not end it — 2
+ * offers a draw, the game shared between the two; Backspace takes a move
+ * back, as it takes back a character, and Delete undoes the takeback.
  */
 export function defaultBindings(mac = onMac()): KeyBindings {
   return {
@@ -57,6 +72,10 @@ export function defaultBindings(mac = onMac()): KeyBindings {
     tourBack: combo("ArrowLeft", { shift: true }),
     tourForward: combo("ArrowRight", { shift: true }),
     play: combo(" "),
+    resign: combo("r", { shift: true }),
+    offerDraw: combo("2"),
+    takeback: combo("Backspace"),
+    undoTakeback: combo("Delete"),
   };
 }
 

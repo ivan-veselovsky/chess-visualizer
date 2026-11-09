@@ -57,7 +57,8 @@ import { asBoardEditorPosition, flipped, place, boardEditorProblems, boardEditor
 import { lineLabel, pageAround, pageLine } from "../src/chess/linePath.ts";
 import { figurine, isPieceGlyph, lettered } from "../src/chess/figurine.ts";
 import { titleOfPgn } from "../src/chess/gameTitle.ts";
-import { DEFAULT_METRICS, inPixels, layout, MIN_TEXT_PX, minBoardFor, minEmFor, regionsOf, scaleFor } from "../src/app/layout.ts";
+import { EXACT_POINTS, Lru, needsAt, ROW_EXTRA_WIDTHS, rowSizesFor, withPoint, withWidth } from "../src/app/panelNeeds.ts";
+import { DEFAULT_LAYOUT_PARAMS, DEFAULT_METRICS, flatNeeds, inPixels, layout, MIN_TEXT_PX, minBoardFor, minEmFor, panelRooms, regionsOf, scaleFor } from "../src/app/layout.ts";
 import { actionFor, bind, comboOf, defaultBindings, describeCombo, readBindings } from "../src/app/keyBindings.ts";
 import { DEFAULT_GLYPH_SET, glyphSetNamed, glyphSetsFrom, readGlyph, readShift } from "../src/visualization/glyphs.ts";
 import { readdirSync, readFileSync } from "node:fs";
@@ -2496,6 +2497,13 @@ console.log("\nThe keys that walk a game\n");
       JSON.stringify(readBindings("not json", linux)) === JSON.stringify(linux));
   check("and all of them at their defaults if two came back sharing a key",
     JSON.stringify(readBindings(JSON.stringify({ ...linux, next: linux.previous }), linux)) === JSON.stringify(linux));
+  check("in a live game, Shift+R resigns, 2 offers a draw, Backspace takes back and Delete undoes it",
+    actionFor(linux, press("R", { shiftKey: true })) === "resign" && actionFor(linux, press("r")) === null &&
+      actionFor(linux, press("2")) === "offerDraw" && actionFor(linux, press("Backspace")) === "takeback" &&
+      actionFor(mac, press("Delete")) === "undoTakeback");
+  const before = Object.fromEntries(["previous", "next", "first", "last", "tourBack", "tourForward", "play"].map((action) => [action, homeFirst[action]]));
+  check("keys written down before the live game had any read back with those at their defaults",
+    JSON.stringify(readBindings(JSON.stringify(before), linux)) === JSON.stringify(homeFirst));
 }
 
 console.log("\nA game of no moves, written out\n");
@@ -2598,37 +2606,46 @@ console.log("\nThe page's regions, from the window's shape\n");
     }
     for (const { name, box } of all) {
       if (box.w <= 0 || box.h <= 0) trouble.push(`${JSON.stringify(shape)}: ${name} empty`);
-      if (box.x < -EPS || box.x + box.w > 1 + EPS) trouble.push(`${JSON.stringify(shape)}: ${name} past the window's side`);
+      const side = shape.scrollable && name === "panel" ? laid.width : 1;
+      if (box.x < -EPS || box.x + box.w > side + EPS) trouble.push(`${JSON.stringify(shape)}: ${name} past the window's side`);
       const limit = shape.scrollable && name === "panel" ? laid.height : shape.aspect;
       if (box.y < -EPS || box.y + box.h > limit + EPS) trouble.push(`${JSON.stringify(shape)}: ${name} past the window's foot`);
     }
+    /* F: one way at most. */
+    if (laid.height > shape.aspect + EPS && laid.width > 1 + EPS) trouble.push(`${JSON.stringify(shape)}: F, the page scrolls both ways`);
     for (let i = 0; i < all.length; i += 1) {
       for (let j = i + 1; j < all.length; j += 1) {
         if (overlap(all[i].box, all[j].box)) trouble.push(`${JSON.stringify(shape)}: ${all[i].name} over ${all[j].name}`);
       }
     }
     if (!shape.scrollable && (laid.scrolls || laid.height > shape.aspect + EPS)) trouble.push(`${JSON.stringify(shape)}: a page that may not scroll is taller than the window`);
-    if (!laid.scrolls && laid.height !== shape.aspect) trouble.push(`${JSON.stringify(shape)}: a page that fits not exactly the window's height`);
-    if (laid.scrolls !== laid.height > shape.aspect + EPS) trouble.push(`${JSON.stringify(shape)}: says it scrolls when it does not, or the other way`);
+    if (!laid.scrolls && (laid.height !== shape.aspect || laid.width !== 1)) trouble.push(`${JSON.stringify(shape)}: a page that fits not exactly the window`);
+    if (laid.scrolls !== (laid.height > shape.aspect + EPS || laid.width > 1 + EPS) ||
+      (laid.scrollAxis === "down") !== laid.height > shape.aspect + EPS) trouble.push(`${JSON.stringify(shape)}: says it scrolls when it does not, or the other way`);
     const M = DEFAULT_METRICS;
-    if (laid.panelPlace === "below" && laid.panel.h < M.panelMinLines * M.lineEm * laid.settingsEm - EPS) {
+    /* The panel its least room at the size its text is set at — the least going with the text's size — or its tabs scrolling. */
+    if (laid.panelPlace === "below" && !laid.panelScrolls && laid.panel.h < M.panelMinLines * M.lineEm * laid.settingsEm * laid.panelScale - EPS) {
       trouble.push(`${JSON.stringify(shape)}: the panel under the boards under its least height`);
     }
     if (shape.boards === 1 && laid.flow !== "row") trouble.push(`${JSON.stringify(shape)}: one board in a column`);
     /* Beside the boards, the panel at least its least number of characters wide. */
-    if (laid.panelPlace === "right" && laid.panel.w < M.panelMinChars * M.charEm * laid.settingsEm - EPS) trouble.push(`${JSON.stringify(shape)}: the panel beside the boards narrower than its least`);
+    if (laid.panelPlace === "right" && !laid.panelScrolls && laid.panel.w < M.panelMinChars * M.charEm * laid.settingsEm * laid.panelScale - EPS) trouble.push(`${JSON.stringify(shape)}: the panel beside the boards narrower than its least`);
     /* The panel under the boards and the page scrolling: the gap over the panel is on the screen, so the row under the boards is never on its edge. */
     if (laid.panelPlace === "below" && laid.scrolls && laid.group.y + laid.group.h + laid.em * DEFAULT_METRICS.gaps.panel > shape.aspect + EPS) {
       trouble.push(`${JSON.stringify(shape)}: the gap under the boards past the window's foot`);
     }
-    if (laid.flow === "column" && shape.aspect < DEFAULT_METRICS.columnFromAspect) trouble.push(`${JSON.stringify(shape)}: boards stacked in a window not tall enough for it`);
+    if (laid.flow === "column" && shape.aspect < 1) trouble.push(`${JSON.stringify(shape)}: boards stacked in a window wider than tall`);
     /* A sliver of the panel never shows above the window's foot: a stub in its
        place, the panel past the foot — or the panel shows by its share at least. */
-    if (laid.stub !== null) {
+    if (laid.stub !== null && laid.scrollAxis === "across") {
+      if (laid.panelPlace !== "right" || laid.panel.x < 1 - EPS || laid.stub.w >= DEFAULT_METRICS.stubShare * laid.panel.w) {
+        trouble.push(`${JSON.stringify(shape)}: a stub where there should be none`);
+      }
+    } else if (laid.stub !== null) {
       if (!laid.scrolls || laid.panelPlace !== "below" || laid.panel.y < shape.aspect - EPS || laid.stub.h >= DEFAULT_METRICS.stubShare * laid.panel.h) {
         trouble.push(`${JSON.stringify(shape)}: a stub where there should be none`);
       }
-    } else if (laid.scrolls) {
+    } else if (laid.scrollAxis === "down") {
       /* What of it is on the screen, down to the page's padding at the foot. */
       const shown = shape.aspect - laid.em * DEFAULT_METRICS.gaps.pageBottom - laid.panel.y;
       if (shown > EPS && shown < DEFAULT_METRICS.stubShare * laid.panel.h - EPS) trouble.push(`${JSON.stringify(shape)}: a sliver of the panel showing, and no stub`);
@@ -2688,16 +2705,48 @@ console.log("\nThe page's regions, from the window's shape\n");
     Math.abs(tinyBars.rowEm - MIN_TEXT_PX) < 1e-9 && tinyBars.rowEm > (tinyBars.boards[0].w * 64) / 536 / 6 &&
       tinyBars.bottom.y + tinyBars.bottom.h <= tinyBars.panel.y + 1e-6,
     `${tinyBars.rowEm}px beside ${tinyBars.boards[0].w}px`);
-  /* Scrolling a nuisance: had only where it buys boards larger by the penalty. */
+  /* Scrolling a nuisance: had only where it buys boards larger by enough to pay its costs. */
   const wide = layout({ aspect: 1080 / 2560, scrollable: true, boards: 2, bars: 2 });
   check("a wide screen fits two boards and the panel beside them, with nothing to scroll",
     wide.flow === "row" && wide.panelPlace === "right" && !wide.scrolls, `${wide.flow} ${wide.panelPlace} ${wide.scrolls}`);
+  /* E's floor, for a layout: half the square on the shorter side of the room under the header. */
+  const floorOf = (laid) => {
+    const g = laid.gaps;
+    const wide = laid.header.w;
+    const tall = laid.aspect - g.pageTop - laid.header.h - g.underHeader - g.pageBottom;
+    return DEFAULT_METRICS.boardsShare * Math.min(wide, tall) ** 2;
+  };
+  const areaOf = (laid) => laid.group.w * laid.group.h;
+  /* Tabs of a test, at the panel's own text size: so many pixels tall whatever the width, and so many across at the least for
+     nothing in them to be cut — 30 ems of their text where nothing is said, as the real ones about — in a window `widthPx`
+     wide: see `flatNeeds`. */
+  const tabs = (shape, widthPx, tallPx, widePx = null) => {
+    const own = panelRooms(shape).ownText;
+    return flatNeeds(tallPx / widthPx / own, widePx === null ? 30 : widePx / widthPx / own);
+  };
+  /* What a layout is worth, written out again here rather than taken from the code: B, held to E's floor, over the costs. */
+  const worth = (laid, asked = {}) => {
+    const params = { ...DEFAULT_LAYOUT_PARAMS, ...asked };
+    const down = laid.scrollAxis === "down" ? (laid.height - laid.aspect) / laid.aspect : 0;
+    const across = laid.scrollAxis === "across" ? laid.width - 1 : 0;
+    const stacked = laid.flow === "column" && laid.boards.length === 2 ? 1 : 0;
+    const kept = 1 + Math.tanh(params.steepness * Math.min(0, areaOf(laid) / floorOf(laid) - 1));
+    return (laid.boards.length * laid.boards[0].w ** 2 * kept) /
+      ((1 + params.scroll * (laid.scrolls || laid.panelScrolls ? 1 : 0)) * (1 + params.down * down) * (1 + params.across * across) *
+        (1 + params.panelDown * laid.panelDown) * (1 + params.panelAcross * laid.panelAcross) *
+        (1 + params.stack * stacked) * (1 + params.text * (1 / laid.panelScale ** 2 - 1)));
+  };
+  const FREE = { scroll: 0, down: 0, across: 0, stack: 0 };
   const fitting = layout({ aspect: 950 / 1400, scrollable: false, boards: 2, bars: 2 });
-  const scrolling = layout({ aspect: 950 / 1400, scrollable: true, boards: 2, bars: 2, metrics: { scrollPenalty: 1 } });
-  check("a page that scrolls is taken only where its boards are larger by the penalty than the best that fits",
-    scrolling.scrolls && scrolling.boards[0].w > fitting.boards[0].w &&
-      twoDesk.scrolls === scrolling.boards[0].w > DEFAULT_METRICS.scrollPenalty * fitting.boards[0].w,
-    `${fitting.boards[0].w} fitting, ${scrolling.boards[0].w} scrolling; taken: ${twoDesk.scrolls}`);
+  const scrolling = layout({ aspect: 950 / 1400, scrollable: true, boards: 2, bars: 2, metrics: { params: FREE } });
+  check("scrolling costing nothing, the page scrolls for its larger boards",
+    scrolling.scrolls && scrolling.boards[0].w > fitting.boards[0].w, `${fitting.boards[0].w} fitting, ${scrolling.boards[0].w} scrolling`);
+  check("at the costs it has, it is taken only where its boards pay for them: worth more than the best that fits",
+    twoDesk.scrolls === worth(scrolling) > worth(fitting) && worth(twoDesk) >= Math.max(worth(scrolling), worth(fitting)) * (1 - 1e-6),
+    `${worth(fitting)} fitting, ${worth(scrolling)} scrolling, ${worth(twoDesk)} taken; it scrolls: ${twoDesk.scrolls}`);
+  const dear = layout({ aspect: 950 / 1400, scrollable: true, boards: 2, bars: 2, metrics: { params: { scroll: 0, down: 100, across: 100 } } });
+  check("and the dearer the scrolling, the less of it: no farther past the window than where it costs nothing",
+    !dear.scrolls || dear.height <= scrolling.height + 1e-9, `${dear.height} at a high cost, ${scrolling.height} at none`);
 
   /* A phone held upright, 3:1, with the page fixed: one board across it, or two one over the other, the panel under them in what is left. */
   const phone = (boards) => inPixels(layout({ aspect: 3, scrollable: false, boards, bars: 1, minEm: minEmFor(390) }), 390);
@@ -2732,37 +2781,80 @@ console.log("\nThe page's regions, from the window's shape\n");
   check("so the panel's least width is a smaller share of 2560 × 1440 than of 1400 × 950",
     monitor.settingsEm / 2560 < calibrated.settingsEm / 1400, `${monitor.settingsEm / 2560} vs ${calibrated.settingsEm / 1400}`);
 
-  /* Side by side wherever the window is not much taller than wide, though stacked would be larger there. */
+  /* Side by side wherever the window is not much taller than wide, though stacked would be larger there: stacking costs more than it gains. */
   const squarish = layout({ aspect: 569 / 641, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(641) });
   const upright = layout({ aspect: 1180 / 820, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(820) });
   check("641 × 569 and a tablet upright, two boards: side by side, not one over the other",
     squarish.flow === "row" && upright.flow === "row", `${squarish.flow}, ${upright.flow}`);
+  const uprightFree = layout({ aspect: 1180 / 820, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(820), metrics: { params: { stack: 0 } } });
+  check("but stacking costing nothing, the tablet has them one over the other, the larger",
+    uprightFree.flow === "column" && uprightFree.boards[0].w > upright.boards[0].w, `${uprightFree.flow} ${uprightFree.boards[0].w} vs ${upright.boards[0].w}`);
 
   /* The page scrolling, the panel given all its tabs need, which takes it on past the window's foot. */
-  const needing = layout({ aspect: 950 / 1400, scrollable: true, boards: 2, bars: 2, panelLeast: { below: 1.2, right: null }, metrics: { scrollPenalty: 1 } });
+  const needingShape = { aspect: 950 / 1400, scrollable: true, boards: 2, bars: 2, metrics: { params: FREE } };
+  const needing = layout({ ...needingShape, needs: tabs(needingShape, 1, 1.2) });
   check("where the page scrolls, the panel as tall as its tabs need, however far past the window's foot that runs",
     needing.scrolls && Math.abs(needing.panel.h - 1.2) < 1e-9 &&
       Math.abs(needing.height - (needing.panel.y + 1.2 + needing.em * DEFAULT_METRICS.gaps.pageBottom)) < 1e-9,
     JSON.stringify({ panel: needing.panel, height: needing.height }));
   check("and where the tabs fit no width beside the boards, never beside them",
-    layout({ aspect: 1080 / 2560, scrollable: true, boards: 2, bars: 2, panelLeast: { below: 0.2, right: null } }).panelPlace === "below");
+    (() => {
+      /* 512px tall, and 2000px wide at the least: wider than the panel may be beside the boards. */
+      const shape = { aspect: 1080 / 2560, scrollable: true, boards: 2, bars: 2 };
+      return layout({ ...shape, needs: tabs(shape, 2560, 512, 2000) }).panelPlace === "below";
+    })());
+  /* But a window too short for the tabs either way, not scrolling: beside the boards, which leaves them the larger, the
+     tabs scrolling there as they would under them — rather than the boards held at E's floor over a strip of a panel. */
+  const shortShape = { aspect: 445 / 1656, scrollable: false, boards: 2, bars: 2, minEm: minEmFor(1656), scale: scaleFor(1656, 445), minBoard: minBoardFor(1656, 536 / 64) };
+  const short = inPixels(layout({ ...shortShape, needs: tabs(shortShape, 1656, 454, 400) }), 1656);
+  check("a window too short for the tabs, not scrolling: the panel beside the boards, the boards over 300px",
+    short.panelPlace === "right" && short.flow === "row" && short.boards[0].w > 300 && short.panelScrolls,
+    JSON.stringify({ place: short.panelPlace, flow: short.flow, board: short.boards[0].w, panel: short.panel }));
 
   /* A page that may not scroll, in a window too small for the panel's least
-     room and the boards' least size both: the boards at their least, the
-     panel the rest — and the page still the window's height. */
+     room and the boards' floor both: the panel's text set smaller to fit
+     what it has, and the page still the window's height — the boards no
+     smaller than E's floor, where a smaller text costs less than boards
+     under it. */
   const floor = minBoardFor(360, 536 / 64);
-  const cramped = inPixels(layout({ aspect: 640 / 360, scrollable: false, boards: 2, bars: 2, minEm: minEmFor(360), minBoard: floor, panelLeast: { below: 560 / 360, right: null } }), 360);
-  check("too small a window for both, not scrolling: the boards at their least, squares of 10px, and the panel what that leaves",
-    !cramped.scrolls && Math.abs(cramped.boards[0].w - 10 * 536 / 64) < 1e-6 && cramped.panel.h < 560 &&
-      Math.abs(cramped.panel.y + cramped.panel.h - (640 - cramped.em * DEFAULT_METRICS.gaps.pageBottom)) < 1e-6,
-    JSON.stringify({ board: cramped.boards[0].w, panel: cramped.panel }));
-  const roomy = inPixels(layout({ aspect: 640 / 360, scrollable: false, boards: 1, bars: 0, minEm: minEmFor(360), minBoard: floor, panelLeast: { below: 300 / 360, right: null } }), 360);
+  /* A tablet upright, its panel's text 15px: room for it to be set smaller before it reaches the least — and set smaller,
+     not its tabs scrolling, where that costs less: at the default costs, a fifth short, they scroll. */
+  const crampedShape = { aspect: 1920 / 1080, scrollable: false, boards: 2, bars: 2, minEm: minEmFor(1080), scale: scaleFor(1080, 1920),
+    minBoard: minBoardFor(1080, 536 / 64) };
+  /* 1000px across at the least: too wide to stand beside the boards. */
+  const crampedNeeds = tabs(crampedShape, 1080, 1500, 1000);
+  const crampedUnits = layout({ ...crampedShape, needs: crampedNeeds, metrics: { params: { text: 0.5 } } });
+  const cramped = inPixels(crampedUnits, 1080);
+  check("too small a window for both, not scrolling: the panel's text set smaller to fit the room it has, the boards over E's floor",
+    !cramped.scrolls && cramped.panel.h < 1500 && areaOf(crampedUnits) >= floorOf(crampedUnits) * (1 - 1e-6) &&
+      Math.abs(cramped.panel.y + cramped.panel.h - (1920 - cramped.em * DEFAULT_METRICS.gaps.pageBottom)) < 1e-6 &&
+      crampedUnits.panelScale < 1 && Math.abs(crampedUnits.panelScale - (crampedUnits.panel.h * 1080) / 1500) < 1e-3 && !crampedUnits.panelScrolls,
+    JSON.stringify({ area: areaOf(crampedUnits), floor: floorOf(crampedUnits), panel: cramped.panel, scale: crampedUnits.panelScale }));
+  /* 1400 × 950, not scrolling, the tabs wanting 600px either way: a smaller text made cheap, two boards side by side and the
+     panel's text set smaller beside them; the tabs scrolling made cheap instead — half what they cost by default, what the
+     page's scrolling costs — the boards larger, the panel under them at its own size of text, and its tabs scrolling there. */
+  const laptopShape = { aspect: 950 / 1400, scrollable: false, boards: 2, bars: 2, minEm: minEmFor(1400), scale: scaleFor(1400, 950),
+    minBoard: minBoardFor(1400, 536 / 64) };
+  const laptopNeeds = tabs(laptopShape, 1400, 600, 600);
+  const smallerText = layout({ ...laptopShape, needs: laptopNeeds, metrics: { params: { text: 0.5 } } });
+  const dearText = layout({ ...laptopShape, needs: laptopNeeds, metrics: { params: { panelDown: 1, panelAcross: 2 } } });
+  check("a smaller text weighed against the tabs scrolling: the text made cheap, set smaller; the scrolling made cheap, the text whole and the tabs scrolling, the boards larger",
+    smallerText.panelScale < 1 && !smallerText.panelScrolls && dearText.panelScale === 1 && dearText.panelScrolls && dearText.panelDown > 0 &&
+      dearText.boards[0].w > smallerText.boards[0].w,
+    `${smallerText.flow} ${smallerText.panelPlace} at ${smallerText.panelScale}, ${dearText.flow} ${dearText.panelPlace} at ${dearText.panelScale}, scrolling ${dearText.panelDown}`);
+  const phoneShape = { ...crampedShape, aspect: 640 / 360, minEm: minEmFor(360), scale: scaleFor(360, 640), minBoard: floor };
+  const atLeast = layout({ ...phoneShape, needs: tabs(phoneShape, 360, 560) });
+  check("a phone, its panel's text at the least already: not set smaller, and the tabs scroll inside the panel",
+    atLeast.panelScale === 1 && atLeast.panelScrolls && !atLeast.scrolls, JSON.stringify({ scale: atLeast.panelScale, scrolls: atLeast.panelScrolls }));
+  const roomyShape = { aspect: 640 / 360, scrollable: false, boards: 1, bars: 0, minEm: minEmFor(360), minBoard: floor };
+  const roomy = inPixels(layout({ ...roomyShape, needs: tabs(roomyShape, 360, 300) }), 360);
   check("and where both fit, the panel its least room, the board as large as that leaves it",
     !roomy.scrolls && roomy.panel.h >= 300 - 1e-6 && roomy.boards[0].w > 10 * 536 / 64, JSON.stringify({ board: roomy.boards[0].w, panel: roomy.panel }));
 
   /* A small phone, two boards: what the window leaves of the panel is a sliver of what its tabs need — 600px, as
      the tabs measure at that width — and a stub instead. */
-  const sliver = inPixels(layout({ aspect: 760 / 360, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(360), panelLeast: { below: 600 / 360, right: null } }), 360);
+  const sliverShape = { aspect: 760 / 360, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(360) };
+  const sliver = inPixels(layout({ ...sliverShape, needs: tabs(sliverShape, 360, 600) }), 360);
   check("a sliver of the panel over the window's foot: left blank, a stub, and the panel starting at the foot",
     sliver.stub !== null && sliver.stub.h < DEFAULT_METRICS.stubShare * sliver.panel.h &&
       Math.abs(sliver.stub.y + sliver.stub.h - (760 - sliver.em * DEFAULT_METRICS.gaps.pageBottom)) < 1e-6 && Math.abs(sliver.panel.y - 760) < 1e-6 &&
@@ -2770,39 +2862,143 @@ console.log("\nThe page's regions, from the window's shape\n");
     JSON.stringify({ stub: sliver.stub, panel: sliver.panel, height: sliver.height }));
 
   /*
-    The two invariants, in every shape of window, the panel's least room
-    measured — a range of what it might be — and the boards' least size a
-    10px square at the window's width:
+    The invariants, in every shape of window, the panel's least room measured
+    — a range of what it might be — and the boards' least size a 10px square
+    at the window's width:
 
-    A, the page may not scroll: it never does; and the panel has its least
-    room, unless the boards are at their least and it has given way to them.
+    A, the page may not scroll: it never does; and the panel shows its tabs
+    whole at the size its text is set at, that never under the least text
+    there is — or its tabs scroll inside it, as far as the layout says.
 
-    B, the page may scroll: the panel always has its least room, and nothing
-    in it scrolls.
+    B, the page may scroll: the panel always shows its tabs whole at the
+    size its text is set at, and nothing in it scrolls.
+
+    E, the boards, bars and rows cover half the square on the shorter side of
+    the room under the header — weighed, not kept: under it only so far as
+    a layout keeping it would be worth no more, see `shortOfE` below.
+
+    F, the page scrolls one way at most.
   */
   const invariants = [];
+  /* How far under E's floor the groups taken come, at the most. */
+  let shortOfE = 0;
   for (let aspect = 0.3; aspect <= 3.2; aspect += 0.1) {
     for (const widthPx of [360, 820, 1400, 2560]) {
       for (const boards of [1, 2]) {
-        for (const [below, right] of [[400, 450], [650, 730], [900, null]]) {
+        for (const [tall, wide] of [[400, 450], [650, 730], [900, 1400]]) {
           for (const scrollable of [true, false]) {
             const shape = { aspect, boards, bars: 1, scrollable, minEm: minEmFor(widthPx), scale: scaleFor(widthPx, widthPx * aspect),
-              minBoard: minBoardFor(widthPx, 536 / 64), panelLeast: { below: below / widthPx, right: right === null ? null : right / widthPx } };
-            const laid = layout(shape);
-            const given = laid.panelPlace === "below" ? laid.panel.h >= shape.panelLeast.below - EPS : laid.panel.w >= shape.panelLeast.right - EPS;
-            const name = `${widthPx} × ${Math.round(widthPx * aspect)}, ${boards} board(s), least ${below}/${right}, ${scrollable ? "scrolling" : "fitted"}`;
+              minBoard: minBoardFor(widthPx, 536 / 64) };
+            const needs = tabs(shape, widthPx, tall, wide);
+            const laid = layout({ ...shape, needs });
+            /* What the tabs need at the size the panel's text is set at, at its width — or at the width nothing is cut at, scrolling across. */
+            const f = laid.settingsEm * laid.panelScale;
+            const need = needs(laid.panel.w, f);
+            const whole = need.width <= laid.panel.w + EPS && need.height <= laid.panel.h + EPS;
+            const name = `${widthPx} × ${Math.round(widthPx * aspect)}, ${boards} board(s), tabs ${tall}/${wide}, ${scrollable ? "scrolling" : "fitted"}`;
             if (!scrollable && laid.scrolls) invariants.push(`${name}: A, the page scrolls`);
-            if (!scrollable && !given && laid.boards[0].w > shape.minBoard + EPS) invariants.push(`${name}: A, the panel short of its least though the boards are over theirs`);
-            if (scrollable && !given) invariants.push(`${name}: B, the panel short of its least`);
-            if (laid.panelPlace === "right" && right === null) invariants.push(`${name}: beside the boards, where the tabs fit no width`);
+            if (!whole && !laid.panelScrolls) invariants.push(`${name}: the tabs not whole in the panel at the size its text is, and not scrolling`);
+            if (whole && laid.panelScrolls) invariants.push(`${name}: the tabs whole in the panel, and scrolling`);
+            if (f < Math.min(shape.minEm, laid.settingsEm) - EPS) invariants.push(`${name}: the panel's text under the least there is`);
+            /* B, where any panel can show the tabs whole: under the boards, the page's width, as tall as they are, the page
+               scrolling down; or beside them the window's height, as wide as they are, scrolling across. */
+            const least = Math.min(shape.minEm, laid.settingsEm);
+            const widest = DEFAULT_METRICS.panelMaxWidth * laid.settingsEm;
+            const possible = needs(0, least).width <= laid.header.w + EPS ||
+              (needs(0, least).width <= widest + EPS && needs(widest, least).height <= panelRooms(shape).rightHeight + EPS);
+            if (scrollable && laid.panelScrolls && possible) invariants.push(`${name}: B, the tabs scroll`);
+            if (laid.boards[0].w > shape.minBoard + EPS) shortOfE = Math.max(shortOfE, 1 - areaOf(laid) / floorOf(laid));
+            if (laid.height > aspect + EPS && laid.width > 1 + EPS) invariants.push(`${name}: F, the page scrolls both ways`);
           }
         }
       }
     }
   }
-  check("the panel's least room kept in every shape of window: never short where the page scrolls, short only for boards at their least where it does not",
+  /* A wide window whose tabs fit neither beside the boards nor under them —
+     the page scrolling across where that costs the less, and down where
+     that does. */
+  const wideShape = { aspect: 1080 / 2560, scrollable: true, boards: 2, bars: 2, minEm: minEmFor(2560), scale: scaleFor(2560, 1080) };
+  const across = inPixels(layout({ ...wideShape, needs: tabs(wideShape, 2560, 900, 1400) }), 2560);
+  const downward = inPixels(layout({ ...wideShape, needs: tabs(wideShape, 2560, 300, 1400) }), 2560);
+  check("the page scrolling across where that costs the less, the panel beside the boards",
+    across.scrollAxis === "across" && across.panelPlace === "right" && across.height === 1080 && across.width > 2560 &&
+      across.width - 2560 < 900, JSON.stringify({ axis: across.scrollAxis, width: across.width, height: across.height }));
+  check("and down where that costs the less, the panel under them",
+    downward.scrollAxis === "down" && downward.panelPlace === "below" && downward.width === 2560,
+    JSON.stringify({ axis: downward.scrollAxis, width: downward.width, height: downward.height }));
+  /* E: a phone upright, two boards, the panel needing most of it: the boards
+     side by side across the top, at the floor or over it, not crushed under
+     the panel. */
+  const upright2Shape = { aspect: 844 / 390, scrollable: false, boards: 2, bars: 2, minEm: minEmFor(390), scale: scaleFor(390, 844), minBoard: minBoardFor(390, 536 / 64) };
+  const upright2 = layout({ ...upright2Shape, needs: tabs(upright2Shape, 390, 700) });
+  check("E: a phone upright whose tabs want most of it, two boards side by side across the top, covering half the square on its width",
+    upright2.flow === "row" && areaOf(upright2) >= floorOf(upright2) * (1 - 1e-9) && !upright2.scrolls,
+    JSON.stringify({ flow: upright2.flow, area: areaOf(upright2), floor: floorOf(upright2) }));
+
+  check("the invariants in every shape of window: A, B and F",
     invariants.length === 0, invariants.slice(0, 5).join(" | "));
+  check("and E, weighed: never a tenth short of its floor, where a tenth short halves a layout's worth",
+    shortOfE < 0.1, `${(shortOfE * 100).toFixed(1)}% short at the most`);
   check("and none where the panel shows as it is", desk.stub === null && one.stub === null && two.stub === null);
+}
+
+/* ---- What the panel needs, read off a table: see `panelNeeds` ---- */
+{
+  /* Two sizes of text, the tabs a little taller in ems at the smaller — a pixel's border is more of a small em — and
+     nothing cut from 30 ems across at either. */
+  const table = {
+    rows: [
+      { f: 10, uncut: 30, widths: [20, 40, 60], heights: [70, 50, 45] },
+      { f: 20, uncut: 30, widths: [20, 40, 60], heights: [66, 48, 44] },
+    ],
+    points: [],
+  };
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  check("needs at a size measured and a width measured: as measured, in pixels",
+    near(needsAt(table, 400, 10).height, 500) && near(needsAt(table, 400, 10).width, 300), JSON.stringify(needsAt(table, 400, 10)));
+  check("between two widths, between their heights",
+    near(needsAt(table, 500, 10).height, 475), String(needsAt(table, 500, 10).height));
+  check("between two sizes, between the two in ems, and in pixels at the size asked",
+    near(needsAt(table, 600, 15).height, 15 * 49), String(needsAt(table, 600, 15).height));
+  check("narrower than nothing is cut at: the tabs at that width, the panel to scroll across to them",
+    near(needsAt(table, 100, 10).height, needsAt(table, 300, 10).height) && near(needsAt(table, 100, 10).width, 300), JSON.stringify(needsAt(table, 100, 10)));
+  check("wider than the widest measured, and larger than the largest size: the nearest, in ems",
+    near(needsAt(table, 2000, 10).height, 450) && near(needsAt(table, 4000, 40).height, 40 * 44), `${needsAt(table, 2000, 10).height} ${needsAt(table, 4000, 40).height}`);
+  check("the sizes a table needs rows at: either side of the least and of the own, and all between",
+    JSON.stringify(rowSizesFor(8, 12)) === "[8,10,13]" && JSON.stringify(rowSizesFor(9, 9)) === "[8,10]" && JSON.stringify(rowSizesFor(8, 50)) === "[8,10,13,17,22,28,36]",
+    `${JSON.stringify(rowSizesFor(8, 12))} ${JSON.stringify(rowSizesFor(9, 9))} ${JSON.stringify(rowSizesFor(8, 50))}`);
+  /* A row taking widths of windows: in their places, and never more than so many past its own. */
+  let row = table.rows[0];
+  let added = [];
+  for (let index = 0; index < ROW_EXTRA_WIDTHS + 5; index += 1) {
+    ({ row, added } = withWidth(row, added, 61 + index, 44));
+  }
+  check("a row keeps at most so many widths of windows past its own, the oldest dropped",
+    row.widths.length === 3 + ROW_EXTRA_WIDTHS && !row.widths.includes(61) && row.widths.includes(61 + ROW_EXTRA_WIDTHS + 4) &&
+      row.widths.every((width, index) => index === 0 || width > row.widths[index - 1]),
+    JSON.stringify(row.widths));
+  ({ row, added } = withWidth(row, added, 40, 52));
+  check("and a width measured again is measured over, not twice", row.widths.filter((width) => width === 40).length === 1 && row.heights[row.widths.indexOf(40)] === 52);
+  /* Measured exactly at a width and a size: read as measured there, to the whole pixel; the rows put right by as much near
+     it, a few hundredths either way; and read between rows as they are farther off. */
+  let pointed = withPoint(table, 1376, 12, 547);
+  const between = needsAt(table, 1376, 12).height;
+  check("a point measured exactly is read as it was, at that width to the pixel and that size",
+    needsAt(pointed, 1376.7, 12).height === 547, String(needsAt(pointed, 1376.7, 12).height));
+  check("near it, the rows put right by as much as they were out there; farther off, as they are",
+    near(needsAt(pointed, 1400, 12.5).height, (needsAt(table, 1400, 12.5).height * 547) / between) &&
+      near(needsAt(pointed, 1500, 12).height, needsAt(table, 1500, 12).height),
+    `${needsAt(pointed, 1400, 12.5).height} ${needsAt(pointed, 1500, 12).height}`);
+  for (let index = 0; index < EXACT_POINTS + 3; index += 1) {
+    pointed = withPoint(pointed, 1000 + index, 12, 500);
+  }
+  check("and at most so many points kept, the oldest dropped", pointed.points.length === EXACT_POINTS && needsAt(pointed, 1376, 12).height !== 547);
+  const kept = new Lru(2);
+  kept.set("a", 1);
+  kept.set("b", 2);
+  kept.get("a");
+  kept.set("c", 3);
+  check("the cache keeps so many, the one used longest ago dropped", kept.size === 2 && kept.get("b") === undefined && kept.get("a") === 1 && kept.get("c") === 3);
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed${failures.length === 0 ? "" : `: ${failures.join(", ")}`}\n`);

@@ -44,7 +44,10 @@ const CASES = [
   { w: 820, h: 1180, boards: 1, expect: "below", stub: false },
   { w: 390, h: 844, boards: 1, expect: "below" },
   { w: 390, h: 1170, boards: 2, expect: "below", column: true },
-  { w: 360, h: 800, boards: 2, expect: "below" },
+  /* A phone, two boards, the page scrolling: one over the other, and the
+     panel under them past the window's foot — scrolling down costs less
+     than across, see `LayoutParams`. */
+  { w: 360, h: 800, boards: 2, expect: "below", column: true },
   /*
     Too little of the panel left over the window's foot: a stub in its place.
     Sought rather than said: a phone's height where it comes is a band some
@@ -130,6 +133,8 @@ const measure = async (two) => {
   return {
     room: { w: room.width, h: room.height },
     wide: document.scrollingElement.scrollWidth - document.documentElement.clientWidth,
+    across: document.documentElement.classList.contains("layout-scrolls-across"),
+    panelLeft: document.querySelector(".side-column").getBoundingClientRect().left,
     off,
     boards: document.querySelectorAll(".boards > .board-holder").length,
     panel: app.classList.contains("app-panel-right") ? "right" : app.classList.contains("app-panel-below") ? "below" : "none",
@@ -170,8 +175,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         }
       }
       const at = `${w} × ${seek === undefined ? h : `${h}${seen.stub ? "" : `, the tallest of ${seek[0]} to ${seek.at(-1)}`}`}, ${boards === 2 ? "two boards" : "one board"}`;
-      check(`${at}: no wider than the window, and every region where it was computed`,
-        seen.wide <= 0 && seen.off.length === 0 && seen.boards === boards,
+      check(`${at}: no wider than the window, unless the layout runs it on across, and every region where it was computed`,
+        (seen.wide <= 0 || seen.across) && seen.off.length === 0 && seen.boards === boards,
         JSON.stringify(seen));
       if (expect !== null) {
         check(`${at}: the panel ${expect === "right" ? "beside the boards" : "under them"}${column ? ", the boards one over the other" : ""}`,
@@ -202,8 +207,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       }
       /* Where the case says: elsewhere a stub comes and goes with how tall the tabs are. */
       if (stub !== undefined) {
-        check(`${at}: ${stub ? "a stub over the window's foot, the panel under it" : "no stub"}`,
-          seen.stub === stub && (!stub || Math.abs(seen.panelTop - h) < 1.5), JSON.stringify(seen));
+        check(`${at}: ${stub ? "a stub at the window's edge, the panel past it" : "no stub"}`,
+          seen.stub === stub && (!stub || (seen.across ? Math.abs(seen.panelLeft - w) < 1.5 : Math.abs(seen.panelTop - h) < 1.5)), JSON.stringify(seen));
       }
       if (stub && seen.stub) {
         /* The stub's arrow taken hold of: the page scrolled to its foot, the
@@ -214,10 +219,19 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         const panel = await page.evaluate(() => {
           const box = document.querySelector(".side-column").getBoundingClientRect();
           const page = document.scrollingElement;
-          return { top: box.top, bottom: box.bottom, height: window.innerHeight, left: page.scrollHeight - page.scrollTop - page.clientHeight };
+          return {
+            across: document.documentElement.classList.contains("layout-scrolls-across"),
+            top: box.top, bottom: box.bottom, height: window.innerHeight,
+            right: box.right, width: window.innerWidth,
+            left: page.scrollHeight - page.scrollTop - page.clientHeight,
+            leftAcross: page.scrollWidth - page.scrollLeft - page.clientWidth,
+          };
         });
-        check(`${at}: the stub's arrow scrolls down to the panel`,
-          panel.left < 1.5 && panel.bottom <= panel.height && panel.top < panel.height / 2, JSON.stringify(panel));
+        check(`${at}: the stub's arrow scrolls to the panel`,
+          panel.across
+            ? panel.leftAcross < 1.5 && panel.right <= panel.width + 0.5
+            : panel.left < 1.5 && panel.bottom <= panel.height && panel.top < panel.height / 2,
+          JSON.stringify(panel));
         /* And scrolling switched off, in the Manage tab: everything in the window, the stub gone. */
         const fitted = await page.evaluate(async () => {
           const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -232,7 +246,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           const panel = document.querySelector(".side-column").getBoundingClientRect();
           return {
             toggle: true,
-            over: document.scrollingElement.scrollHeight - window.innerHeight,
+            over: Math.max(document.scrollingElement.scrollHeight - window.innerHeight, document.scrollingElement.scrollWidth - window.innerWidth),
             stub: document.querySelector(".layout-stub") !== null,
             panelBottom: panel.bottom + window.scrollY,
             height: window.innerHeight,
@@ -322,11 +336,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.close();
     }
 
-    /* The page scrolling, two boards over the panel: the panel as tall as its
-       tabs were measured to need, whichever is open, and nothing in it
-       scrolling of its own but the lists, which do by design. */
+    /* The page scrolling, two boards and the panel beside them past the
+       window's right edge — scrolling across made free and down dear in this
+       browser, see `layoutParams`; at the costs it comes with, the page fits:
+       the panel as wide as its tabs were measured to need, whichever is
+       open, and nothing in it scrolling of its own but the lists, which do
+       by design. */
     {
       const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+      await page.addInitScript(() => localStorage.setItem("cv.layout-params", JSON.stringify({ scroll: 0, down: 10, across: 0 })));
       await page.goto(`http://127.0.0.1:${PORT}/?layout=debug`);
       await page.waitForTimeout(1500);
       const seen = [];
@@ -342,19 +360,19 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           });
           return {
             tab,
-            scrolls: document.scrollingElement.scrollHeight > window.innerHeight,
+            scrolls: document.scrollingElement.scrollWidth > window.innerWidth && document.scrollingElement.scrollHeight <= window.innerHeight,
             scrolling: inner.map((element) => element.className),
-            page: document.scrollingElement.scrollHeight,
-            least: Number(document.querySelector(".tabbed").dataset.leastBelow),
-            panel: Math.round(side.getBoundingClientRect().height),
+            page: document.scrollingElement.scrollWidth,
+            least: Number(document.querySelector(".tabbed").dataset.leastRight),
+            panel: Math.round(side.getBoundingClientRect().width),
           };
         }, tab));
       }
-      check("1920 × 1080, two boards: the page scrolls",
+      check("1920 × 1080, two boards: the page scrolls across, and only across",
         seen.every((tab) => tab.scrolls), JSON.stringify(seen.map(({ tab, scrolls, page }) => ({ tab, scrolls, page }))));
       check("and nothing in the panel scrolls, on any tab",
         seen.every((tab) => tab.scrolling.length === 0), JSON.stringify(seen));
-      check("and the page as long whichever tab is open, the panel as tall as its tabs were measured to need",
+      check("and the page as wide whichever tab is open, the panel as wide as its tabs were measured to need",
         seen.every((tab) => tab.page === seen[0].page && tab.panel === seen[0].panel) && Math.abs(seen[0].panel - seen[0].least) <= 1,
         JSON.stringify(seen));
       await page.close();
@@ -367,15 +385,18 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       height once left the presets' block a box of no height, its rows drawn
       over the blocks under it.
 
-      A, scrolling off: the page never scrolls, and a tab scrolls of its own
-      only where the panel was given less than its tabs were measured to need
-      — which it is only for boards at their least.
+      A, scrolling off: the page never scrolls, either way, and a tab scrolls
+      of its own only where the layout set it to — its text at the least
+      there is, and the tabs fitting at nothing down to it.
       B, scrolling on: no tab scrolls of its own.
-      In both, nothing in a tab drawn over what follows it, and nothing wider
+      E: the boards, their bars and their rows cover half the square on the
+      shorter side of the room under the header, at least.
+      F: the page scrolls one way at most.
+      In all, nothing in a tab drawn over what follows it, and nothing wider
       than the panel. The Live tab's list of games scrolls by design, and is
       left out. And the bars of men beside the boards drawn to their scale.
     */
-    for (const [w, h] of [[1450, 995], [1280, 800], [1400, 950], [1920, 1080], [820, 1180], [360, 640]]) {
+    for (const [w, h] of [[1450, 995], [1280, 800], [1400, 950], [1920, 1080], [820, 1180], [360, 640], [390, 844], [2560, 1080]]) {
       for (const boards of [1, 2]) {
         for (const scroll of [true, false]) {
           const context = await browser.newContext({ viewport: { width: w, height: h } });
@@ -426,10 +447,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             const seen = await page.evaluate(() => {
               const tabbed = document.querySelector(".tabbed");
               const panel = document.querySelector(".tab-panel:not(.tab-panel-measure):not([hidden])");
-              const right = document.querySelector(".app").classList.contains("app-panel-right");
-              const box = tabbed.getBoundingClientRect();
-              const leastRight = tabbed.dataset.leastRight === "none" ? null : Number(tabbed.dataset.leastRight);
-              const given = right ? leastRight !== null && box.width >= leastRight - 1 : box.height >= Number(tabbed.dataset.leastBelow) - 1;
+              /* Whether the layout set the panel's tabs to scroll: on a page that
+                 may not, at the least text there is, where they fit at nothing. */
+              const given = tabbed.dataset.panelScrolls !== "true";
+              /* E: the boards, bars and rows against half the square on the
+                 shorter side of the room under the header. */
+              const group = document.querySelector(".board-pane").getBoundingClientRect();
+              const header = document.querySelector(".app-header").getBoundingClientRect();
+              const gap = (name) => parseFloat(getComputedStyle(document.querySelector(".app")).getPropertyValue(`--lay-gap-${name}`));
+              const room = Math.min(header.width, window.innerHeight - header.bottom - gap("under-header") - gap("page-bottom"));
               /* A block whose content runs into the next, in any column of the tab. */
               let over = null;
               for (const column of [panel, ...panel.querySelectorAll(".settings-panel, .games-panel")]) {
@@ -445,7 +471,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               return {
                 tab: panel.id.replace("panel-", ""),
                 given,
-                pageScrolls: document.scrollingElement.scrollHeight > window.innerHeight + 1,
+                pageScrolls: document.scrollingElement.scrollHeight > window.innerHeight + 1 || document.scrollingElement.scrollWidth > window.innerWidth + 1,
+                bothWays: document.scrollingElement.scrollHeight > window.innerHeight + 1 && document.scrollingElement.scrollWidth > window.innerWidth + 1,
+                groupArea: group.width * group.height,
+                floor: 0.5 * room * room,
                 tabScrolls: panel.scrollHeight > panel.clientHeight + 1 ? `${panel.clientHeight} of ${panel.scrollHeight}px shown` : null,
                 wider: panel.scrollWidth > panel.clientWidth + 1 ? `${panel.scrollWidth - panel.clientWidth}px` : null,
                 over,
@@ -454,6 +483,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             if (seen.over !== null) broken.push(`${seen.tab}: ${seen.over}`);
             if (seen.wider !== null) broken.push(`${seen.tab}: ${seen.wider} wider than the panel`);
             if (!scroll && seen.pageScrolls) broken.push(`${seen.tab}: A, the page scrolls`);
+            if (seen.bothWays) broken.push(`${seen.tab}: F, the page scrolls both ways`);
+            if (seen.groupArea < seen.floor * 0.995) broken.push(`${seen.tab}: E, the boards' group ${Math.round(seen.groupArea)}px² under ${Math.round(seen.floor)}`);
             if (seen.tab !== "match" && seen.tabScrolls !== null && (scroll || seen.given)) {
               broken.push(`${seen.tab}: ${scroll ? "B" : "A"}, the tab scrolls, ${seen.tabScrolls}`);
             }
@@ -505,8 +536,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         board: Math.round(document.querySelector(".boards > .board-holder").getBoundingClientRect().width),
         least: document.querySelector(".tabbed").dataset.leastRight,
       }));
-      check("a game with a variation loaded under the boards, the window then widened to 1918 × 1077: the panel back beside them",
-        !before && after.right && after.board > 600, JSON.stringify({ before, ...after }));
+      check("a game with a variation loaded, the window then widened to 1918 × 1077: the panel beside the boards, and they large",
+        after.right && after.board > 600, JSON.stringify({ before, ...after }));
       await context.close();
     }
 
@@ -605,17 +636,24 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     check("and as wide as the window: no room kept for a scrollbar it does not have",
       striped.length === 0, JSON.stringify(striped.length === 0 ? seen.map((one) => [one.asked[0], one.page[0]]) : striped));
 
-    /* Scrolling on, and a window two boards make the page run past the foot of: 1920 × 1080 at 125%. */
+    /* Scrolling on, and a window two boards make the page run past the foot of: 1920 × 1080 at 125%, scrolling made free in this browser. */
     await scrolling(true);
+    await page.evaluate(() => window.localStorage.setItem("cv.layout-params", JSON.stringify({ scroll: 0, down: 0, across: 0 })));
     await page.reload();
     await sized(1536, 864);
     await page.waitForTimeout(1100);
     const first = await look();
     await page.waitForTimeout(1500);
     const then = await look();
-    check("1536 × 864 at 1.25, scrolling: the page scrolls, with a scrollbar, laid out beside it",
-      !first.fits && first.scrolled[1] > 0 && first.scrollbar > 1 && first.wide <= 0 &&
-        Math.abs(first.page[0] - first.window[0]) < 0.01,
+    /* Down, with the scrollbar beside it and the page laid out for the width
+       left; or across, with the scrollbar along its foot and the page laid
+       out for the height over it — whichever is worth the more. */
+    const down = first.scrolled[1] > 0;
+    check("1536 × 864 at 1.25, scrolling: the page scrolls one way, with a scrollbar, laid out beside it or over it",
+      !first.fits && down !== first.scrolled[0] > 0 &&
+        (down
+          ? first.scrollbar > 1 && first.wide <= 0 && Math.abs(first.page[0] - first.window[0]) < 0.01
+          : first.inner[1] - first.window[1] > 1 && first.wide > 0 && Math.abs(first.page[1] - first.window[1]) < 0.01),
       JSON.stringify(first));
     check("and stays so, rather than laid out over and over",
       JSON.stringify(then.page) === JSON.stringify(first.page) && then.fits === first.fits, JSON.stringify([first, then]));

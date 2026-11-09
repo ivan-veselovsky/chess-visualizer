@@ -66,8 +66,9 @@ import {
 import { GAME_LIBRARY, type LibraryGame } from "../chess/gameLibrary";
 import { gameNameOfPgn, titleOfPgn } from "../chess/gameTitle";
 import { DEFAULT_METRICS, regionsOf } from "./layout";
-import { allowScrolling, layoutModeFromLocation, setAllowScrolling, usePageLayout } from "./usePageLayout";
-import { usePanelLeast, type PanelLeastPx } from "./usePanelLeast";
+import { allowScrolling, layoutModeFromLocation, layoutParams, setAllowScrolling, setLayoutParams, usePageLayout } from "./usePageLayout";
+import LayoutParamsDialog from "./LayoutParamsDialog";
+import { checkStats, usePanelLeast, type PanelMeasuredPx } from "./usePanelLeast";
 import {
   isStashed,
   nextStashName,
@@ -148,7 +149,7 @@ import { OPPONENT_CHOOSES } from "../../worker/protocol";
 import type { ColorChoice, Terms } from "../../worker/protocol";
 import { PRESETS, STARTING_PRESET } from "./presets";
 import { boardSide, setBoardSide } from "./boardSide";
-import { actionFor, ariaCombo, describeCombo, loadBindings, saveBindings, type KeyBindings } from "./keyBindings";
+import { actionFor, ariaCombo, describeCombo, isLiveAction, loadBindings, saveBindings, type KeyBindings } from "./keyBindings";
 import ExitIcon from "./ExitIcon";
 import { settingsSide, type Orientation } from "../visualization/geometry";
 import { loadSettings } from "./settingsStore";
@@ -396,6 +397,9 @@ export default function App() {
   const [layoutMode] = useState(layoutModeFromLocation);
   /* Whether that layout may run the page on past the window's foot; kept in this browser. */
   const [scrolling, setScrolling] = useState(allowScrolling);
+  /* What the layout is weighed by, and whether the dialog they are set in is open: see `LayoutParams`. */
+  const [params, setParams] = useState(layoutParams);
+  const [paramsOpen, setParamsOpen] = useState(false);
   /*
     The Lab's "Keep variations": moves played on the board are kept as a tree
     rather than as one line. A move from an earlier position does not throw away
@@ -2235,8 +2239,11 @@ export default function App() {
         here.moves.join(" ") === moves.join(" ");
       /* Still what it was handed, so it is a game that is kept elsewhere and
          there is nothing here to lose. Moving between games in the list is this
-         case every time, and it was stopping to ask on every one of them. */
+         case every time, and it was stopping to ask on every one of them.
+         Unless what handed it keeps it nowhere: a game read in from a file
+         or pasted is handed too, and was going without a word. */
       const asHanded =
+        !unkept &&
         handed.current !== null &&
         handed.current.initialFEN === here.initialFEN &&
         handed.current.moves.join(" ") === here.moves.join(" ");
@@ -2880,7 +2887,8 @@ export default function App() {
          `keyBindings.ts`. A combination none of them has is somebody else's —
          Alt+← is the browser's Back — and is left alone. */
       const action = actionFor(keys, event);
-      if (action === null) {
+      /* The live game's keys are the live game's: see below. */
+      if (action === null || isLiveAction(action)) {
         return;
       }
       if (document.querySelector("dialog[open]") !== null) {
@@ -3009,6 +3017,57 @@ export default function App() {
       why: `${back === 2 ? "Put back your move and the reply to it" : "Put your move back"}, and have the takeback again${more}`,
     };
   })();
+
+  /*
+    The live game's keys, on whichever tab is open, while a game is on: each
+    does what its button on the Live tab does, and only when that button
+    would — a takeback the game has none left of, or a draw already on the
+    table, is a key that does nothing. Not held down: a key that repeats
+    would offer a draw thirty times, or take back every move there is. And
+    not for a field being typed in, where Backspace and Delete are the
+    field's, nor under a dialog.
+  */
+  const liveKeys = useRef({ friend, takeback, undoTakeback });
+  liveKeys.current = { friend, takeback, undoTakeback };
+  const liveGameOn = friend.phase.kind === "playing" && friend.phase.over === null;
+  useEffect(() => {
+    if (!liveGameOn) {
+      return;
+    }
+    const listen = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.repeat) {
+        return;
+      }
+      const action = actionFor(keys, event);
+      if (action === null || !isLiveAction(action)) {
+        return;
+      }
+      if (document.querySelector("dialog[open]") !== null || keyboardIsOn(event.target)) {
+        return;
+      }
+      const { friend: game, takeback: back, undoTakeback: undo } = liveKeys.current;
+      const phase = game.phase;
+      if (phase.kind !== "playing" || phase.over !== null) {
+        return;
+      }
+      event.preventDefault();
+      if (action === "resign") {
+        game.resign();
+      } else if (action === "offerDraw") {
+        if (phase.drawOffered === null) {
+          game.offerDraw();
+        }
+      } else if (action === "takeback") {
+        if (phase.terms.takebacks > 0 && back.can) {
+          game.takeBack();
+        }
+      } else if (undo?.can === true) {
+        game.undoTakeBack();
+      }
+    };
+    window.addEventListener("keydown", listen);
+    return () => window.removeEventListener("keydown", listen);
+  }, [liveGameOn, keys]);
 
   /*
     Which army is at which end of the board as it stands. The names follow the
@@ -3502,7 +3561,7 @@ export default function App() {
   */
   const menBars = editor ? 1 : (settings.pieces.showCaptured ? 1 : 0) + (settings.pieces.showAvailable ? 1 : 0);
   /* The least room the panel's tabs need, as measured: see `usePanelLeast`. */
-  const [panelLeastPx, setPanelLeastPx] = useState<PanelLeastPx | null>(null);
+  const [panelMeasured, setPanelMeasured] = useState<PanelMeasuredPx | null>(null);
   /*
     Moved on when a tab arrives that was not there to be measured: the GIF
     tab's code, fetched apart from the page, which until then is a line
@@ -3544,26 +3603,31 @@ export default function App() {
      palette a little wider than the men in a bar, these being taken hold of
      rather than counted. */
   const barEms = editor ? 2.3 : DEFAULT_METRICS.bar;
-  const { laid, rooms: panelRooms } = usePageLayout(
+  const { laid, rooms: panelRooms, least: panelLeast } = usePageLayout(
     layoutMode,
     scrolling,
     twoBoard ? 2 : 1,
     menBars,
-    { bar: barEms, bottomRow: atAGame ? DEFAULT_METRICS.bottomRow : nearFlowerReachEm },
-    panelLeastPx
+    { bar: barEms, bottomRow: atAGame ? DEFAULT_METRICS.bottomRow : nearFlowerReachEm, params },
+    panelMeasured
   );
-  const { tabbed, measuring } = usePanelLeast(panelRooms, laid?.settingsEm ?? null, tabsArrived, (least) =>
-    setPanelLeastPx((was) => (was !== null && was.below === least.below && was.right === least.right ? was : least))
+  const { tabbed, drawn } = usePanelLeast(panelRooms, tabsArrived, (measured) =>
+    setPanelMeasured((was) =>
+      was !== null && was.table === measured.table && JSON.stringify(was.checks) === JSON.stringify(measured.checks) ? was : measured
+    )
   );
+  /* Whether a tab is drawn to be measured, in a pass that measures it: not every pass draws every tab — see `TALL_SHARE`. */
+  const drawnToMeasure = (id: PanelTab) => drawn(`panel-${id}`);
   /* A tab drawn only to be measured, in that pass: out of the flow, unseen, and out of reach. */
   const measuredOnly = (id: PanelTab) =>
-    measuring && tab !== id ? { className: " tab-panel-measure", inert: true, "aria-hidden": true as const } : { className: "" };
+    drawnToMeasure(id) && tab !== id ? { className: " tab-panel-measure", inert: true, "aria-hidden": true as const } : { className: "" };
   const px = (value: number) => `${value}px`;
   const laidVars: Record<string, string> =
     laid === null
       ? {}
       : {
           "--lay-height": px(laid.height),
+          "--lay-width": px(laid.width),
           "--lay-header-x": px(laid.header.x),
           "--lay-header-y": px(laid.header.y),
           "--lay-header-w": px(laid.header.w),
@@ -3579,6 +3643,8 @@ export default function App() {
           "--lay-row-em": px(laid.rowEm),
           /* The panel's text against the page's: see `--set-scale` in the stylesheet. */
           "--lay-settings-scale": String(laid.settingsEm / laid.em),
+          /* And the panel's own, set smaller than that where it has to be to fit: see `Layout.panelScale`. */
+          "--lay-panel-scale": String((laid.settingsEm * laid.panelScale) / laid.em),
           "--lay-side": px(laid.boards[0].w),
           /* A bar of men, to the boards' scale: its text, and its width in that. See `Metrics.barEmPerBoard`. */
           "--lay-bar-em": px(laid.barEm),
@@ -3650,25 +3716,26 @@ export default function App() {
           ))}
         </div>
       )}
-      {/* Where too little of the panel would show above the window's foot to
-          be of use: that much left blank, and an arrow on it to say the tabs
-          are below — and, taken hold of, to scroll down to them. */}
+      {/* Where too little of the panel would show above the window's foot, or
+          before its right edge, to be of use: that much left blank, and an
+          arrow on it to say where the tabs are — and, taken hold of, to
+          scroll to them. */}
       {laid !== null && laid.stub !== null && (
         <button
           type="button"
-          className="layout-stub"
+          className={`layout-stub${laid.scrollAxis === "across" ? " layout-stub-across" : ""}`}
           style={{ left: px(laid.stub.x), top: px(laid.stub.y), width: px(laid.stub.w), height: px(laid.stub.h) }}
-          title="The tabs are below"
-          aria-label="Scroll down to the tabs"
+          title={laid.scrollAxis === "across" ? "The tabs are to the right" : "The tabs are below"}
+          aria-label={laid.scrollAxis === "across" ? "Scroll across to the tabs" : "Scroll down to the tabs"}
           onClick={() =>
             window.scrollTo({
-              top: document.documentElement.scrollHeight,
+              ...(laid.scrollAxis === "across" ? { left: document.documentElement.scrollWidth } : { top: document.documentElement.scrollHeight }),
               behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
             })
           }
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 9l7 7 7-7" />
+            <path d={laid.scrollAxis === "across" ? "M9 5l7 7-7 7" : "M5 9l7 7 7-7"} />
           </svg>
         </button>
       )}
@@ -4010,8 +4077,14 @@ export default function App() {
             ref={tabbed}
             /* What the tabs were measured to need, for whoever checks that
                they were given it: see `usePanelLeast`. */
-            data-least-below={panelLeastPx?.below}
-            data-least-right={panelLeastPx === null ? undefined : (panelLeastPx.right ?? "none")}
+            data-least-below={panelLeast?.below}
+            data-least-right={panelLeast === null ? undefined : (panelLeast.right ?? "none")}
+            /* And how the panels the layout chose were measured this session: see `MOST_CHECKS`. */
+            data-checks={JSON.stringify(checkStats)}
+            /* And what the layout made of it: the share of its size the
+               panel's text is set at, and whether the tabs scroll at that. */
+            data-panel-scale={laid?.panelScale}
+            data-panel-scrolls={laid === null ? undefined : String(laid.panelScrolls)}
           >
           {/*
             One column, six tabs. The panel was a single column of everything
@@ -4038,7 +4111,7 @@ export default function App() {
             role="tabpanel"
             id="panel-game"
             aria-labelledby="tab-game"
-            hidden={tab !== "game" && !measuring}
+            hidden={tab !== "game" && !drawnToMeasure("game")}
           >
             {/* Which way round the board is, and the way back to the start: the
                 two that set a board up rather than move through one. */}
@@ -4538,7 +4611,7 @@ export default function App() {
             role="tabpanel"
             id="panel-match"
             aria-labelledby="tab-match"
-            hidden={tab !== "match" && !measuring}
+            hidden={tab !== "match" && !drawnToMeasure("match")}
           >
                 {/* Offering a game, and taking one up. */}
               <div className="board-controls match-actions">
@@ -4632,6 +4705,7 @@ export default function App() {
                 onUndoTakeBack={friend.undoTakeBack}
                 onLeave={friend.leave}
                 onResign={friend.resign}
+                keys={keys}
                 onOfferDraw={friend.offerDraw}
                 onAnswerDraw={friend.answerDraw}
                 notice={friend.notice}
@@ -4774,7 +4848,7 @@ export default function App() {
 
           </div>
 
-          {(tab === "balance" || measuring) && (
+          {(tab === "balance" || drawnToMeasure("balance")) && (
             <div
               {...measuredOnly("balance")}
               className={`tab-panel${measuredOnly("balance").className}`}
@@ -4859,7 +4933,7 @@ export default function App() {
             </div>
           )}
 
-          {(tab === "gif" || measuring) && (
+          {(tab === "gif" || drawnToMeasure("gif")) && (
             <div
               {...measuredOnly("gif")}
               className={`tab-panel${measuredOnly("gif").className}`}
@@ -4897,7 +4971,7 @@ export default function App() {
           {/* The settings group open — or every one of them, in a pass that
               measures them. The open one keeps its key whichever group it is,
               so changing tabs does not draw the panel afresh. */}
-          {SETTINGS_TABS.filter((group) => group === tab || measuring).map((group) => (
+          {SETTINGS_TABS.filter((group) => group === tab || drawnToMeasure(group)).map((group) => (
             <div
               key={group === tab ? "settings" : `measure-${group}`}
               {...measuredOnly(group)}
@@ -4935,6 +5009,7 @@ export default function App() {
                   setScrolling(on);
                   setAllowScrolling(on);
                 }}
+                onLayoutParams={() => setParamsOpen(true)}
                 rightPreset={rightNamed}
                 rightPresetChoices={rightChoices}
                 keyBindings={keys}
@@ -5131,6 +5206,16 @@ export default function App() {
             friend.leave();
           }
         }}
+      />
+
+      <LayoutParamsDialog
+        open={paramsOpen}
+        params={params}
+        onChange={(next) => {
+          setParams(next);
+          setLayoutParams(next);
+        }}
+        onClose={() => setParamsOpen(false)}
       />
 
       <PgnDialog

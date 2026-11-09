@@ -465,13 +465,20 @@ try {
       const r = box.getBoundingClientRect();
       return [Math.round(r.width), Math.round(r.height)];
     });
+    const below = document.querySelector(".app").classList.contains("app-panel-below");
+    const panel = document.querySelector(".side-column").getBoundingClientRect().width;
     document.querySelector("#tab-manage").click(); await sleep(400);
     if (two.checked) two.click(); await sleep(700);
-    return JSON.stringify({ squares });`));
+    return JSON.stringify({ squares, below, panel });`));
+  /* Under the boards, where the frame's height is given from outside; or,
+     where the window is a little shorter, beside them, the page scrolling
+     across — two choosers to the panel's width there, each a quarter of it
+     at least. */
   check(
-    "the colour balance choosers keep their size under two boards",
-    balance.squares.length === 2 && balance.squares.every(([w, h]) => w >= 150 && w === h),
-    JSON.stringify(balance.squares)
+    `the colour balance choosers keep their size under two boards${balance.below ? "" : ", or beside them"}`,
+    balance.squares.length === 2 &&
+      balance.squares.every(([w, h]) => w === h && (balance.below ? w >= 150 : w >= balance.panel / 4)),
+    JSON.stringify(balance)
   );
 
   console.log("\nA mated king\n");

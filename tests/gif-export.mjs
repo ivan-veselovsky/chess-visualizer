@@ -151,7 +151,7 @@ async function exportOnce(scrolling = false, button = "Export animated GIF") {
     throw new Error(result.error);
   }
   const file = Buffer.from(result.bytes, "base64");
-  return { ...result, gif: /\.gif$/.test(result.name) ? readGif(file) : null, mp4: /\.mp4$/.test(result.name) ? readMp4(file) : null };
+  return { ...result, gif: /\.gif$/.test(result.name) ? readGif(file, { pixels: false }) : null, mp4: /\.mp4$/.test(result.name) ? readMp4(file) : null };
 }
 
 try {

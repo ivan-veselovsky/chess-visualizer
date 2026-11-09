@@ -20,7 +20,12 @@ export type { FromClient, FromServer };
 const ASK_EVERY = 3_000;
 const SILENT_FOR = 6_000;
 
-
+/**
+ * What is said every three seconds whatever else happens — the probe to the
+ * other player and its answer — and so not written down: a line for each
+ * would bury everything the log is read for.
+ */
+const UNNOTED = new Set<string>(["probe", "probed"]);
 
 /**
  * A connection to one game.
@@ -112,7 +117,9 @@ export function openGame(
     }
     try {
       const said = JSON.parse(String(event.data)) as FromServer;
-      note(`heard ${said.type} from ${gameOf(gameId)}`, said);
+      if (!UNNOTED.has(said.type)) {
+        note(`heard ${said.type} from ${gameOf(gameId)}`, said);
+      }
       onMessage(said);
     } catch {
       // A message that will not parse says nothing worth acting on.
@@ -153,10 +160,12 @@ export function openGame(
     send(message) {
       /* The token is not written down: it is the whole of a player's identity,
          and a console is a place things get copied out of. */
-      note(
-        `said ${message.type} to ${gameOf(gameId)}` +
-          (socket.readyState === WebSocket.OPEN ? "" : " (held until the line opens)")
-      );
+      if (!UNNOTED.has(message.type)) {
+        note(
+          `said ${message.type} to ${gameOf(gameId)}` +
+            (socket.readyState === WebSocket.OPEN ? "" : " (held until the line opens)")
+        );
+      }
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify(message));
       } else {

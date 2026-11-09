@@ -81,6 +81,8 @@ interface SettingsPanelProps {
    */
   allowScrolling: boolean | null;
   onAllowScrolling: (on: boolean) => void;
+  /** Opens the dialog the layout's parameters are set in, kept in this browser too: see `LayoutParamsDialog`. Shown with the switch above. */
+  onLayoutParams: () => void;
   /** Which preset that board is drawn with, and every preset it could be. */
   rightPreset: string;
   rightPresetChoices: readonly string[];
@@ -105,6 +107,7 @@ export default function SettingsPanel({
   onTwoBoard,
   allowScrolling,
   onAllowScrolling,
+  onLayoutParams,
   rightPreset,
   rightPresetChoices,
   onRightPreset,
@@ -816,6 +819,12 @@ export default function SettingsPanel({
               browser as they are. */}
           {allowScrolling !== null && (
             <div className="board-controls settings-logging settings-ask">
+              {/* At the other end of the line from the switch, as the logging
+                  line has its button: what the layout weighs scrolling
+                  against, beside whether it may scroll at all. */}
+              <button type="button" className="reset-button" onClick={onLayoutParams}>
+                Advanced layout parameters…
+              </button>
               <ToggleField
                 id="allow-scrolling"
                 label="Allow scrolling"

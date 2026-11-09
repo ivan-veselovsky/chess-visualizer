@@ -1315,6 +1315,16 @@ body {
   font-size: calc(0.9rem * var(--set-scale));
 }
 
+/* The live game's keys, under a line of their own across both columns. */
+.key-bindings-group {
+  grid-column: 1 / -1;
+  margin-top: calc(0.4rem * var(--set-scale));
+  font-size: calc(0.75rem * var(--set-scale));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
 .key-capture {
   font-variant-numeric: tabular-nums;
 }
@@ -1461,6 +1471,63 @@ body {
 
 .stash-dialog {
   width: min(24rem * var(--set-scale), 90vw);
+}
+
+/*
+  The layout's parameters: the rule written out, the costs, E's steepness,
+  what every layout keeps. Read more than it is filled in, so as wide as running text likes, and
+  scrolling inside itself on a short window — it is the one dialog with this
+  much to say.
+*/
+.layout-params-dialog {
+  width: min(57rem * var(--set-scale), 92vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  font-size: calc(0.9rem * var(--set-scale));
+}
+
+.layout-params-title,
+.layout-params-subtitle {
+  margin: 0;
+  font-size: calc(1.05rem * var(--set-scale));
+}
+
+.layout-params-subtitle {
+  margin-top: calc(1rem * var(--set-scale));
+  font-size: calc(0.95rem * var(--set-scale));
+}
+
+/* The rule itself: set off on its own, a factor to a piece — the line breaks between them where the dialog is narrow, never inside one. */
+.layout-formula {
+  margin: calc(0.5rem * var(--set-scale)) 0;
+  padding: calc(0.5rem * var(--set-scale)) calc(0.7rem * var(--set-scale));
+  font-family: ui-monospace, monospace;
+  font-size: calc(0.85rem * var(--set-scale));
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.layout-formula > span {
+  white-space: nowrap;
+}
+
+.layout-terms {
+  margin: calc(0.4rem * var(--set-scale)) 0;
+  padding-left: calc(1.2rem * var(--set-scale));
+  display: grid;
+  gap: calc(0.3rem * var(--set-scale));
+}
+
+.layout-params-fields {
+  display: grid;
+  gap: calc(0.4rem * var(--set-scale));
+  margin: calc(0.6rem * var(--set-scale)) 0;
+}
+
+/* A field's label beside its box, as on the tabs: not the block over a text box the other dialogs have. */
+.layout-params-dialog .number-field label {
+  display: inline;
+  margin: 0;
 }
 
 .pgn-dialog::backdrop {
@@ -2728,16 +2795,19 @@ body {
   row: wrapping costs the selected tab its join to the panel, which is worth
   more than a point of type.
 
-  The width is where ten tabs at full size stop fitting — measured at some
-  617px, gaps counted. It was 35rem when there were nine, which left a band of
-  widths just above it where the strip wrapped: a game with a friend narrows
-  the board and widens this column into exactly that band, so starting a game
-  broke the strip in two.
+  The width is where eleven tabs at full size stop fitting: 42.1 to 42.6 of
+  the panel's ems, measured at 8 to 10 pixels of its text, gaps counted. It
+  was 35rem when there were nine, which left a band of widths just above it
+  where the strip wrapped: a game with a friend narrows the board and widens
+  this column into exactly that band, so starting a game broke the strip in
+  two. And it was 39em for ten, which left the same band for eleven, a phone
+  in it: at 9px its panel was 42em across, the strip on two lines, and the
+  panel moved off beside the boards, past the window's right edge.
 
   In ems of the column's own text rather than rems, as the tabs' are: where the
-  panel's text is smaller than the page's, ten tabs fit a narrower column.
+  panel's text is smaller than the page's, the tabs fit a narrower column.
 */
-@container (max-width: 39em) {
+@container (max-width: 43em) {
   .tab {
     font-size: 0.8em;
     /* Narrower than the 0.4em they had: each tab now keeps the room its word
@@ -2879,8 +2949,12 @@ body {
   flex: 0 0 auto;
 }
 
+/* Room for a value such as 0.125 whole, beside the spinner a browser draws
+   inside the box — Firefox's takes as much as two of its digits, and at 5em
+   the box showed one digit and a dot. In the box's own characters, so it
+   grows and shrinks with its text. */
 .field-narrow .number-input {
-  width: 5em;
+  width: calc(6ch + 3.5em);
 }
 
 .color-field {
@@ -5958,17 +6032,22 @@ input[type="color"]::-moz-color-swatch {
 */
 /*
   A scrollbar only where the layout says the page runs past the window's
-  foot, and there always: not one coming and going with what the page
-  measures, which would change the width it was laid out for, and lay it out
-  again. A page that fits has the window's whole width, with no room kept for
-  a scrollbar it never has. See `usePageLayout`.
+  foot, or past its right edge, and there always: not one coming and going
+  with what the page measures, which would change the room it was laid out
+  for, and lay it out again. A page that fits has the whole window, with no
+  room kept for a scrollbar it never has. One way at most, never both. See
+  `usePageLayout`.
 */
 html.layout-computed {
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 html.layout-computed.layout-scrolls {
   overflow-y: scroll;
+}
+
+html.layout-computed.layout-scrolls-across {
+  overflow-x: scroll;
 }
 
 /*
@@ -5988,6 +6067,7 @@ html.layout-computed.layout-scrolls {
   max-width: none;
   margin: 0;
   padding: 0;
+  width: var(--lay-width);
   height: var(--lay-height);
 }
 
@@ -6030,9 +6110,15 @@ html.layout-computed.layout-scrolls {
   --set-scale: 1;
 }
 
-.app.app-computed .side-column,
 .app.app-computed dialog {
   --set-scale: var(--lay-settings-scale, 1);
+}
+
+/* The panel's own, which on a page that may not scroll is set smaller where
+   that is what it takes for its tabs to fit: see `Layout.panelScale`. The
+   dialogs it opens stand over the page, and keep the size above. */
+.app.app-computed .side-column {
+  --set-scale: var(--lay-panel-scale, var(--lay-settings-scale, 1));
 }
 
 :where(.app.app-computed .side-column, .app.app-computed dialog) {
@@ -6216,6 +6302,25 @@ html.layout-computed.layout-scrolls {
   50% {
     transform: translateY(15%);
   }
+}
+
+/* The arrow at the right edge, bobbing towards it: the tabs past it. */
+@media (prefers-reduced-motion: no-preference) {
+  .layout-stub-across svg {
+    animation-name: layout-stub-bob-across;
+  }
+}
+
+@keyframes layout-stub-bob-across {
+  50% {
+    transform: translateX(15%);
+  }
+}
+
+/* As wide as the stub lets it be, up to two lines of text. */
+.layout-stub-across svg {
+  height: auto;
+  width: min(100%, 2em);
 }
 
 /*

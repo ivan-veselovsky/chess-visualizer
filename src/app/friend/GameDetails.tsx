@@ -5,6 +5,7 @@ import FlagIcon from "../FlagIcon";
 import ShareIcon from "../ShareIcon";
 import TakebackIcon from "../TakebackIcon";
 import UndoTakebackIcon from "../UndoTakebackIcon";
+import { ariaCombo, describeCombo, type KeyBindings } from "../keyBindings";
 import { describeHandicap } from "../../chess/handicap";
 import { halfMoves } from "./counting";
 import { endingOf } from "./ending";
@@ -44,6 +45,8 @@ interface GameDetailsProps {
   onUndoTakeBack: () => void;
   onLeave: () => void;
   onResign: () => void;
+  /** The keys the game's buttons have as well, said on them: see `LIVE_ACTIONS`. */
+  keys: KeyBindings;
   onOfferDraw: () => void;
   onAnswerDraw: (accept: boolean) => void;
   /** Something the object said no to, while the game goes on. */
@@ -211,11 +214,16 @@ export default function GameDetails({
   onUndoTakeBack,
   onLeave,
   onResign,
+  keys,
   onOfferDraw,
   onAnswerDraw,
   notice,
   onDismissNotice,
 }: GameDetailsProps) {
+  /* A button's title with its key after it — on a greyed one as well, after
+     why it is greyed: the key is learnt from the button, whether or not it
+     would do anything just now. */
+  const withKey = (title: string, action: keyof KeyBindings) => `${title} (${describeCombo(keys[action])})`;
   /*
     Whether the game's link and number are being shown again. Held here rather
     than in the app: nothing outside this panel opens it, and the button that
@@ -479,7 +487,8 @@ export default function GameDetails({
               <button
                 type="button"
                 className="reset-button"
-                title="Give the game up"
+                title={withKey("Give the game up", "resign")}
+                aria-keyshortcuts={ariaCombo(keys.resign)}
                 onClick={onResign}
               >
                 <FlagIcon />
@@ -493,13 +502,15 @@ export default function GameDetails({
                    theirs is a question, and the answer to a question is not to
                    ask it back. The two answers are on the row below. */
                 disabled={phase.drawOffered !== null}
-                title={
+                aria-keyshortcuts={ariaCombo(keys.offerDraw)}
+                title={withKey(
                   phase.drawOffered === null
                     ? "Offer to end the game evenly"
                     : phase.drawOffered === phase.you
                       ? "Already offered — it is with your opponent"
-                      : `${phase.opponent} has offered one — answer it above`
-                }
+                      : `${phase.opponent} has offered one — answer it above`,
+                  "offerDraw"
+                )}
                 onClick={onOfferDraw}
               >
                 <DrawIcon />
@@ -510,7 +521,8 @@ export default function GameDetails({
                   type="button"
                   className="reset-button controls-end"
                   disabled={!canTakeBack}
-                  title={takebackReason}
+                  title={withKey(takebackReason, "takeback")}
+                  aria-keyshortcuts={ariaCombo(keys.takeback)}
                   onClick={onTakeBack}
                 >
                   <TakebackIcon />
@@ -526,7 +538,8 @@ export default function GameDetails({
                   type="button"
                   className="reset-button"
                   disabled={!undoTakeBack.can}
-                  title={undoTakeBack.why}
+                  title={withKey(undoTakeBack.why, "undoTakeback")}
+                  aria-keyshortcuts={ariaCombo(keys.undoTakeback)}
                   onClick={onUndoTakeBack}
                 >
                   <UndoTakebackIcon />
