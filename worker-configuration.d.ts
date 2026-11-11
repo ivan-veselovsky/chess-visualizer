@@ -5,6 +5,7 @@ declare namespace Cloudflare {
 	interface Env {
 		GAME_LOG: string;
 		GAME: DurableObjectNamespace<import("./worker/index").Game>;
+		REGISTRY: DurableObjectNamespace<import("./worker/index").Registry>;
 		ASSETS: Fetcher;
 	}
 }

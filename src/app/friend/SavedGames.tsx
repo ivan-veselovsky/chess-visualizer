@@ -11,8 +11,8 @@ import { OPPONENT_CHOOSES } from "../../../worker/protocol";
 interface SavedGamesProps {
   games: SavedGame[];
   /** What the object last said about each of them, by seat. Null where it
-      answered that there is no such game: kept for a week after the last thing
-      that happened to it, and then swept away. */
+      answered that there is no such game: kept for a while after the last
+      thing that happened to it, and then swept away. */
   standings: Map<string, Standing | null>;
   /** The seat the panel above is showing, which the list marks as this one. */
   showingSeat: string | null;

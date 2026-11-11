@@ -8,7 +8,6 @@ import {
 } from "./protocol";
 import {
   canMoveTo,
-  KEPT_FOR_MS,
   OPPONENT_CHOOSES,
   PING,
   PONG,
@@ -20,6 +19,8 @@ import {
 import { positionWithHandicap, type Handicap } from "../src/chess/handicap";
 import { note } from "./log";
 import type { Color } from "./protocol";
+import { pastKeeping, type Asked, type Cutoffs } from "./keeping";
+import { REGISTRY, type Registry } from "./registry";
 
 /**
  * Where a game begins: worked out from the odds, or taken as given for a game
@@ -61,6 +62,23 @@ function endOf(board: Chess): { result: GameResult; reason: EndReason } | null {
   return null;
 }
 
+/**
+ * How often a game being played tells the registry it was touched, at most.
+ *
+ * Not on every move: that would be a request to one object for every move
+ * of every game. The keep is days long, and an hour of it unheard of costs
+ * nothing — the registry asks a game before sweeping it away, and the game,
+ * knowing better, stays (see `evict`). Beginning and finishing are told at
+ * once: the one is what counts a game, the other what changes its keep.
+ */
+export const REPORT_EVERY_MS = 60 * 60 * 1000;
+
+/** What the registry was last told, so as not to tell it the same again. */
+interface Reported {
+  touched: number;
+  finished: boolean;
+}
+
 /** What a socket has proved about itself, kept where hibernation cannot lose it. */
 interface Bound {
   token: string;
@@ -87,11 +105,11 @@ interface Bound {
  */
 export class Game extends DurableObject {
   /**
-   * How long this deployment keeps a game after the last thing that happened
-   * to it. A week unless a variable says otherwise, which is how a test gives
-   * itself a few seconds instead.
+   * The registry a test asked this game to be counted in, from the line it
+   * was opened on, until the game is created and it is written down: see
+   * `registryFor` in `./index.ts`. Every other game is counted in `REGISTRY`.
    */
-  private readonly keptFor: number;
+  private registryAsked: string | null = null;
 
   /** Whether this deployment keeps a log at all; see `./log`. */
   private readonly logging: boolean;
@@ -112,8 +130,6 @@ export class Game extends DurableObject {
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never);
-    const asked = Number((env as { GAME_TTL_MS?: string })?.GAME_TTL_MS);
-    this.keptFor = Number.isFinite(asked) && asked > 0 ? asked : KEPT_FOR_MS;
     /* Anything but "off" keeps a log, so a deployment that has never heard of
        the variable still says what it did. */
     this.logging =
@@ -134,6 +150,11 @@ export class Game extends DurableObject {
       return new Response("Expected a WebSocket upgrade", { status: 426 });
     }
     this.say("a line was opened");
+    /* Only ever there where the deployment is a test one: `./index.ts` passes it on no other. */
+    const registry = request.headers.get("X-Keeping-Registry");
+    if (registry !== null && registry !== "") {
+      this.registryAsked = registry;
+    }
     const { 0: client, 1: server } = new WebSocketPair();
     // Hibernating: the object may leave memory between messages while the
     // socket stays open, and comes back when one arrives.
@@ -303,6 +324,25 @@ export class Game extends DurableObject {
       );
     }
     const takebacks = Math.max(0, Math.trunc(message.takebacks ?? 0));
+
+    /*
+      Let in by the registry, which counts the games and says no once there
+      are as many as the server keeps: see `admits` in `./keeping.ts`. Asked
+      only for a game that is new, and after what can be refused without
+      asking has been.
+
+      The one place this object waits on another while a message is being
+      handled, and so the one place another message can come in between: a
+      second create for the same id, say. So the game is read again after,
+      and where one has appeared meanwhile this create is answered as though
+      it had arrived second — which it now has.
+    */
+    if (!(await this.admitted())) {
+      return this.refuse(ws, "serverFull", "The server keeps as many games as it can; try again later");
+    }
+    if ((await this.read()) !== null) {
+      return this.create(ws, message);
+    }
     /*
       Odds are given by a person, so which board they make cannot be known
       until it is known which side that person is playing — a challenge that
@@ -1348,33 +1388,109 @@ export class Game extends DurableObject {
   /**
    * The game, if there still is one.
    *
-   * An alarm below is what actually clears an old game away, and this is the
-   * same question asked the other way round: a game that has outlived its keep
-   * is gone from the moment it did, whether or not the alarm that removes it
-   * has run yet. Without this, an object woken a moment before its alarm would
-   * hand out a game that is about to stop existing — and a client would have
-   * been told two different things a second apart.
+   * Whether it is kept is the registry's to say, not this object's: the keep
+   * depends on how many games there are, which only the registry knows. A
+   * game here is a game, until the registry's sweep asks it to go and it
+   * agrees (see `evict`).
+   *
+   * And a game the registry has never heard of is told to it now: one from
+   * before there was a registry, woken by a player.
    */
   private async read(): Promise<GameRecord | null> {
     const record = (await this.ctx.storage.get<GameRecord>("game")) ?? null;
-    if (record === null) {
-      return null;
-    }
-    if (this.pastKeeping(record)) {
-      await this.forget();
-      return null;
+    if (record !== null) {
+      await this.reportIfDue(record);
     }
     return record;
   }
 
-  /** Whether nothing has happened to a game for longer than it is kept. */
-  private pastKeeping(record: GameRecord, now = Date.now()): boolean {
-    /* Records written before games were stamped have no last-touched time.
-       Rather than treat them as infinitely old — which would sweep away games
-       being played the moment this went out — they are counted from when they
-       were made. */
-    const last = record.touchedAt ?? record.createdAt ?? now;
-    return now - last > this.keptFor;
+  /** When a game was last touched: for a record from before games were stamped, when it was made. */
+  private touchedOf(record: GameRecord): number {
+    return record.touchedAt ?? record.createdAt ?? Date.now();
+  }
+
+  /** The registry this game is counted in. */
+  private async registry(): Promise<DurableObjectStub<Registry>> {
+    const name = (await this.ctx.storage.get<string>("registry")) ?? this.registryAsked ?? REGISTRY;
+    const registries = (this.env as { REGISTRY: DurableObjectNamespace<Registry> }).REGISTRY;
+    return registries.get(registries.idFromName(name));
+  }
+
+  /**
+   * Whether the registry lets this game in, a new one: and counted, if so.
+   *
+   * Where the registry cannot be reached the game is let in. A server too
+   * full for one more is a server some way short of failing, and a registry
+   * that does not answer must not be what stops anybody playing.
+   */
+  private async admitted(): Promise<boolean> {
+    const now = Date.now();
+    try {
+      const { admitted } = await (await this.registry()).admit(this.ctx.id.toString(), now);
+      /* Written down only for a game let in: one turned away leaves nothing behind. */
+      if (admitted) {
+        await this.ctx.storage.put("reported", { touched: now, finished: false } satisfies Reported);
+        if (this.registryAsked !== null) {
+          await this.ctx.storage.put("registry", this.registryAsked);
+        }
+      }
+      return admitted;
+    } catch (thrown) {
+      console.error("the registry could not be asked to let a game in:", thrown instanceof Error ? thrown.message : thrown);
+      return true;
+    }
+  }
+
+  /**
+   * Tells the registry how the game stands, where it has not been told
+   * lately: the first time, when the game has finished, or an hour since it
+   * was last told — see `REPORT_EVERY_MS`.
+   *
+   * Without waiting for an answer, so that no move waits on it, and nothing
+   * else comes in between a move being written and its being told. Written
+   * down as told only once the registry has heard it: one that went astray is
+   * told again at the next write.
+   */
+  private async reportIfDue(record: GameRecord): Promise<void> {
+    const last = await this.ctx.storage.get<Reported>("reported");
+    const now: Reported = { touched: this.touchedOf(record), finished: record.status === "finished" };
+    if (last !== undefined && last.finished === now.finished && now.touched - last.touched < REPORT_EVERY_MS) {
+      return;
+    }
+    const id = this.ctx.id.toString();
+    const telling = (async () => {
+      await (await this.registry()).touched(id, now.touched, now.finished);
+      await this.ctx.storage.put("reported", now);
+    })().catch((thrown) => {
+      console.error("the registry could not be told about a game:", thrown instanceof Error ? thrown.message : thrown);
+    });
+    this.ctx.waitUntil(telling);
+  }
+
+  /**
+   * Asked by the registry's sweep to go, the game past its keep by what the
+   * registry knew: gone, if it is past it by what the game knows too —
+   * otherwise kept, and the registry told how it actually stands.
+   *
+   * The game has the last word because it alone knows when it was last
+   * touched: the registry hears of a game being played once an hour at most,
+   * and a move made since it last heard is a game nobody should lose. An
+   * object takes one thing at a time while it waits on its own storage, so a
+   * move and this cannot cross.
+   */
+  async evict(cutoffs: Cutoffs): Promise<Asked> {
+    const record = (await this.ctx.storage.get<GameRecord>("game")) ?? null;
+    if (record === null) {
+      await this.ctx.storage.deleteAll();
+      return { gone: true };
+    }
+    const touched = this.touchedOf(record);
+    const finished = record.status === "finished";
+    if (!pastKeeping(touched, finished, cutoffs)) {
+      return { gone: false, touched, finished };
+    }
+    await this.forget();
+    return { gone: true };
   }
 
   /**
@@ -1383,7 +1499,7 @@ export class Game extends DurableObject {
    * A Durable Object is its storage: emptied, it stops being anything, and the
    * next request for that game finds nothing and says so — which is exactly
    * what should be said about a game that is no longer kept. No one is told;
-   * there is nobody to tell, a week having passed.
+   * there is nobody to tell, the game having gone untouched for its keep.
    */
   private async forget(): Promise<void> {
     this.say("swept away: nothing has happened to it for its whole keep");
@@ -1392,26 +1508,18 @@ export class Game extends DurableObject {
   }
 
   /**
-   * The clock running out on a game.
-   *
-   * Set forward on every write, so it only ever fires for a game nothing has
-   * happened to since. If something has — a move landed while the alarm was
-   * pending — it is put off again rather than acted on, since the alarm is a
-   * statement about the game at the time it was set.
+   * An alarm set before there was a registry, when each game kept its own
+   * clock: the game told to the registry, which keeps it from now on, and
+   * the clock not set again. The only way a game nobody opens comes to be
+   * counted: there is no listing the objects that exist.
    */
   async alarm(): Promise<void> {
     const record = (await this.ctx.storage.get<GameRecord>("game")) ?? null;
     if (record === null) {
-      await this.forget();
+      await this.ctx.storage.deleteAll();
       return;
     }
-    if (this.pastKeeping(record)) {
-      await this.forget();
-      return;
-    }
-    await this.ctx.storage.setAlarm(
-      (record.touchedAt ?? record.createdAt ?? Date.now()) + this.keptFor
-    );
+    await this.reportIfDue(record);
   }
 
   /**
@@ -1449,8 +1557,8 @@ export class Game extends DurableObject {
         (stamped.reason === null ? "" : ` — ${stamped.result} by ${stamped.reason}`) +
         `, ${stamped.moves.length} half-moves`
     );
-    /* And the clock on it back to the start. */
-    await this.ctx.storage.setAlarm(now + this.keptFor);
+    /* And the registry told, where it is due: see `reportIfDue`. */
+    await this.reportIfDue(stamped);
     return stamped;
   }
 

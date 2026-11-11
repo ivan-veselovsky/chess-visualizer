@@ -165,7 +165,7 @@ export interface GameRecord {
    * the game; and every request that acts on the game carries the revision
    * it was made at. What is not the game does not count — which connection
    * is whose, the probes between the two players, the lights saying who is
-   * there, the alarm that clears an old game away — since none of it is in
+   * there, the registry's sweep that clears an old game away — since none of it is in
    * this record, and none of it changes what either player may do.
    *
    * What a player sees is a revision of the game, and what they ask for is
@@ -546,7 +546,12 @@ export type ErrorCode =
   /** The invite was taken back by whoever offered it. */
   | "challengeCancelled"
   /** Only the challenger may take their own invite back. */
-  | "notYourInvite";
+  | "notYourInvite"
+  /**
+   * No new game: the server keeps as many as it can — see `admits` in
+   * `./keeping.ts`. A game already begun is never refused for it.
+   */
+  | "serverFull";
 
 /**
  * What both players were told they were playing. Sent as one thing: a client
@@ -593,21 +598,11 @@ export interface Terms {
  * A client that sends nothing here is older than the version that started
  * sending it, and is treated as a mismatch on those grounds.
  */
-/**
- * How long a game is kept after nothing more happens to it.
- *
- * Untouched for this long, not created this long ago: a game being played is
- * written to on every move, so the clock on it keeps going back to the start,
- * and only a game nobody has come near for a week is one nobody is coming back
- * to. A finished game is untouched from the moment it ends, which is the same
- * thing said the other way.
- *
- * A week is a guess, and the only one that matters is that it be longer than a
- * game left overnight and shorter than forever. It can be overridden per
- * deployment with a `GAME_TTL_MS` variable, which is also how the tests give
- * themselves a few seconds instead of a week.
- */
-export const KEPT_FOR_MS = 7 * 24 * 60 * 60 * 1000;
+/*
+  How long a game is kept after nothing more happens to it is not a constant
+  any more: it depends on how many games the server keeps. See
+  `./keeping.ts`, and the registry that counts them, `./registry.ts`.
+*/
 
 /* 5: a takeback can be undone, and locks the opponent's out until the move
    after it — a page from before would not know what to do with the moves

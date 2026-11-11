@@ -65,6 +65,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import CLASSIC_BROWN_JSON from "../src/app/presets/settings-classic-brown.json" with { type: "json" };
 import CLASSIC_GREEN_JSON from "../src/app/presets/settings-classic-green.json" with { type: "json" };
 import { Chess } from "chess.js";
+import { admits, cutoffsAt, DEFAULT_KEEPING, healthOf, keptFor, lastSweepOf, nextSweep, pastKeeping, policyFrom, sweep } from "../worker/keeping.ts";
 
 /* Each check numbered, as the browser suites number theirs: see `check` in `browser.mjs`. */
 let passed = 0;
@@ -2999,6 +3000,191 @@ console.log("\nThe page's regions, from the window's shape\n");
   kept.get("a");
   kept.set("c", 3);
   check("the cache keeps so many, the one used longest ago dropped", kept.size === 2 && kept.get("b") === undefined && kept.get("a") === 1 && kept.get("c") === 3);
+}
+
+console.log("\nHow long an idle game is kept, by how many there are\n");
+{
+  /* Small numbers, so that what the curve does can be read off them: N1 10, N2 20, T0 100, T1 1000. */
+  const policy = { ...DEFAULT_KEEPING, n1: 10, n2: 20, t0: 100, t1: 1000, finishedShare: 0.5, batch: 3 };
+  check("at N1 games or fewer, an idle game is kept for ever",
+    keptFor(0, policy) === Infinity && keptFor(10, policy) === Infinity, String(keptFor(10, policy)));
+  check("just past N1, very long — the curve comes down from for ever, with no step",
+    keptFor(10.001, policy) > 1e6, String(keptFor(10.001, policy)));
+  check("half-way, T0 + T1", keptFor(15, policy) === 1100, String(keptFor(15, policy)));
+  check("at N2, and past it, T0", keptFor(20, policy) === 100 && keptFor(25, policy) === 100);
+  const curve = [11, 12, 14, 16, 18, 19, 20].map((n) => keptFor(n, policy));
+  check("and shorter the more games there are, all the way",
+    curve.every((keep, index) => index === 0 || keep < curve[index - 1]), JSON.stringify(curve));
+  check("the user's numbers: 32 days half-way, at 27,500 games; the least, two days, at 50,000",
+    keptFor(27_500, DEFAULT_KEEPING) === 32 * 86_400_000 && keptFor(50_000, DEFAULT_KEEPING) === 2 * 86_400_000,
+    String(keptFor(27_500, DEFAULT_KEEPING) / 86_400_000));
+  const cuts = cutoffsAt(10_000, 15, policy);
+  check("a finished game is kept half as long: its cut is later",
+    cuts.unfinished === 10_000 - 1100 && cuts.finished === 10_000 - 550, JSON.stringify(cuts));
+  check("and nothing is past a cut of for ever",
+    !pastKeeping(-1e15, false, cutoffsAt(10_000, 5, policy)) && !pastKeeping(-1e15, true, cutoffsAt(10_000, 5, policy)));
+  check("a game touched before its kind's cut is past its keep, one touched at it is not",
+    pastKeeping(8_899, false, cuts) && !pastKeeping(8_900, false, cuts) && pastKeeping(9_449, true, cuts) && !pastKeeping(9_449, false, cuts));
+  check("a new game let in short of N2, and not at it", admits(19, policy) && !admits(20, policy) && !admits(21, policy));
+
+  check("the policy from a deployment's variables, strings as they come",
+    JSON.stringify(policyFrom({ KEEP_N1: "3", KEEP_N2: "7", KEEP_T0_MS: "1000", KEEP_T1_MS: "5000", KEEP_FINISHED_SHARE: "0.25", KEEP_BATCH: "4" })) ===
+      JSON.stringify({ n1: 3, n2: 7, t0: 1000, t1: 5000, finishedShare: 0.25, sweepEvery: DEFAULT_KEEPING.sweepEvery, batch: 4 }),
+    JSON.stringify(policyFrom({ KEEP_N1: "3", KEEP_N2: "7" })));
+  check("none given, the defaults", JSON.stringify(policyFrom(undefined)) === JSON.stringify(DEFAULT_KEEPING));
+  const odd = policyFrom({ KEEP_N1: "lots", KEEP_T0_MS: "-5", KEEP_BATCH: "2.5", KEEP_FINISHED_SHARE: "3" });
+  check("what makes no sense falls back to the default, and a share is one at most",
+    odd.n1 === DEFAULT_KEEPING.n1 && odd.t0 === DEFAULT_KEEPING.t0 && odd.batch === DEFAULT_KEEPING.batch && odd.finishedShare === 1,
+    JSON.stringify(odd));
+  const backwards = policyFrom({ KEEP_N1: "50", KEEP_N2: "40" });
+  check("an N2 not past N1 keeps both at the defaults, rather than half of what was asked",
+    backwards.n1 === DEFAULT_KEEPING.n1 && backwards.n2 === DEFAULT_KEEPING.n2, JSON.stringify(backwards));
+
+  /* The registry's table as a map, standing for SQLite: see `KeepingStore`. */
+  const storeOf = (games) => {
+    const rows = new Map(games.map((game) => [game.id, { ...game }]));
+    return {
+      rows,
+      count: () => rows.size,
+      oldest: (finished, before, limit) =>
+        [...rows.values()].filter((game) => game.finished === finished && game.touched < before).sort((a, b) => a.touched - b.touched).slice(0, limit),
+      put: (game) => rows.set(game.id, { ...game }),
+      remove: (id, before) => {
+        if ((rows.get(id)?.touched ?? Infinity) < before) rows.delete(id);
+      },
+    };
+  };
+  /* Fifteen games: u1..u10 in progress, touched at 1000..10000; f1..f5 finished, at 1000..5000. Half-way: a keep of 1100. */
+  const games = () => [
+    ...Array.from({ length: 10 }, (_, index) => ({ id: `u${index + 1}`, touched: (index + 1) * 1000, finished: false })),
+    ...Array.from({ length: 5 }, (_, index) => ({ id: `f${index + 1}`, touched: (index + 1) * 1000, finished: true })),
+  ];
+  const wide = { ...policy, batch: 100 };
+  let asked = [];
+  const goes = async (id) => {
+    asked.push(id);
+    return { gone: true };
+  };
+  let store = storeOf(games());
+  let swept = await sweep(store, goes, 4_000, wide);
+  /* At 4000: unfinished cut 2900, finished 3450 — u1, u2 and f1..f3. */
+  check("a sweep asks exactly the games past their kind's cut, oldest first, and they go",
+    JSON.stringify(asked) === JSON.stringify(["u1", "u2", "f1", "f2", "f3"]) && store.rows.size === 10 && JSON.stringify(swept.evicted) === JSON.stringify(asked),
+    JSON.stringify({ asked, evicted: swept.evicted }));
+  check("the cut worked out from the count before any went", swept.n === 15 && swept.keep === 1100, JSON.stringify(swept));
+
+  asked = [];
+  store = storeOf(games());
+  swept = await sweep(store, goes, 4_000, policy);
+  check("no more than a batch of each kind at a time, and another sweep called for",
+    JSON.stringify(asked) === JSON.stringify(["u1", "u2", "f1", "f2", "f3"]) && swept.more,
+    JSON.stringify({ asked, more: swept.more }));
+  asked = [];
+  store = storeOf(games());
+  swept = await sweep(store, goes, 4_000, { ...policy, batch: 2 });
+  check("and the rest left for that one", JSON.stringify(asked) === JSON.stringify(["u1", "u2", "f1", "f2"]) && swept.more && store.rows.has("f3"),
+    JSON.stringify(asked));
+
+  /* A game touched since the registry last heard: it says so, and stays. */
+  store = storeOf(games());
+  swept = await sweep(store, async (id) => (id === "u1" ? { gone: false, touched: 3_990, finished: false } : { gone: true }), 4_000, wide);
+  check("a game touched since the registry last heard stays, and the registry is told when",
+    swept.kept.includes("u1") && store.rows.get("u1")?.touched === 3_990 && !swept.evicted.includes("u1"),
+    JSON.stringify({ kept: swept.kept, u1: store.rows.get("u1") }));
+  check("so the next sweep does not ask it again", (await sweep(store, goes, 4_000, wide)).evicted.length === 0);
+
+  /* A game that does not answer: kept in the table, to be asked next time. */
+  store = storeOf(games());
+  swept = await sweep(store, async (id) => {
+    if (id === "u2") throw new Error("no answer");
+    return { gone: true };
+  }, 4_000, wide);
+  check("a game that does not answer is left for the next sweep",
+    swept.failed.includes("u2") && store.rows.has("u2") && !store.rows.has("u1"), JSON.stringify(swept));
+  check("and why it did not is kept, for the log", swept.problem === "u2: no answer", String(swept.problem));
+
+  /* The same id let in again while the sweep waited on the old game's answer. */
+  store = storeOf(games());
+  swept = await sweep(store, async (id) => {
+    if (id === "u1") store.put({ id: "u1", touched: 4_000, finished: false });
+    return { gone: true };
+  }, 4_000, wide);
+  check("a new game under an id being swept is not taken out of the table with the old one",
+    store.rows.get("u1")?.touched === 4_000, JSON.stringify(store.rows.get("u1")));
+
+  /* Few enough games: none asked at all. */
+  asked = [];
+  store = storeOf(games().slice(0, 10));
+  swept = await sweep(store, goes, 1e12, wide);
+  check("at N1 games or fewer, a sweep asks nothing, however old they are",
+    asked.length === 0 && swept.keep === Infinity && store.rows.size === 10);
+
+  /* All of them old: all go, though the count ends under N1. The cuts are the ones the count gave as the
+     sweep began — a game past the keep of a server this full is not kept because others went with it. */
+  store = storeOf(games());
+  swept = await sweep(store, goes, 12_000, wide);
+  check("every game past the keep the count gave goes in the one sweep, though the count then ends under N1",
+    swept.evicted.length === 15 && store.rows.size === 0, JSON.stringify(swept.evicted));
+}
+
+{
+  /* When the registry sweeps next: an interval on, whatever the sweep did, short of there being nothing left. */
+  const policy = { ...DEFAULT_KEEPING, sweepEvery: 3_600_000 };
+  const done = { n: 7, keep: 1, cutoffs: { unfinished: 0, finished: 0 }, evicted: [], kept: [], failed: [], problem: null, more: false };
+  check("after a sweep, the next an interval on", nextSweep(1_000, 7, policy, done) === 3_601_000);
+  check("after a sweep that failed, the next an interval on just the same: the schedule does not end with it",
+    nextSweep(1_000, 7, policy, null) === 3_601_000, String(nextSweep(1_000, 7, policy, null)));
+  check("after a sweep that filled its batch, the next in a second, to clear what is left",
+    nextSweep(1_000, 7, policy, { ...done, more: true }) === 2_000);
+  check("and never later than the interval, however short",
+    nextSweep(1_000, 7, { ...policy, sweepEvery: 300 }, { ...done, more: true }) === 1_300);
+  check("with no game left, no sweep at all — failed or not: the next game sets it going",
+    nextSweep(1_000, 0, policy, done) === null && nextSweep(1_000, 0, policy, null) === null);
+}
+
+console.log("\nWhether the keeping of games is healthy\n");
+{
+  /* N1 10, N2 100, T0 1000, T1 0: past N1 a keep of a second. Sweeps an hour apart. */
+  const policy = { ...DEFAULT_KEEPING, n1: 10, n2: 100, t0: 1_000, t1: 0, finishedShare: 0.5, sweepEvery: 3_600_000 };
+  const now = 1e12;
+  const well = {
+    n: 20, counted: null, sweepAt: now + 60_000, oldestUnfinished: now - 500, oldestFinished: now - 200,
+    last: lastSweepOf(now - 60_000, { evicted: ["a"], kept: [], failed: [], problem: null }, null),
+  };
+  const of = (health, name) => health.checks.find((each) => each.name === name);
+  const health = healthOf(well, policy, now);
+  check("a registry as it should be is healthy, every check ok but the tally not asked for",
+    health.status === "ok" && health.checks.every((each) => each.status === (each.name === "tally" ? "skipped" : "ok")),
+    JSON.stringify(health.checks));
+  check("the tally, asked for: ok where it is the rows, a failure where it is not",
+    of(healthOf({ ...well, counted: 20 }, policy, now), "tally").status === "ok" &&
+      healthOf({ ...well, counted: 19 }, policy, now).status === "fail");
+  check("nearly full warns, and full fails — new games are refused",
+    of(healthOf({ ...well, n: 90 }, policy, now), "count").status === "warn" &&
+      of(healthOf({ ...well, n: 100 }, policy, now), "count").status === "fail" && !healthOf({ ...well, n: 100 }, policy, now).admits);
+  const lost = healthOf({ ...well, sweepAt: null }, policy, now);
+  check("no sweep set while there are games fails", lost.status === "fail" && of(lost, "schedule").status === "fail");
+  check("but with no games, none is needed",
+    of(healthOf({ ...well, n: 0, sweepAt: null, oldestUnfinished: null, oldestFinished: null }, policy, now), "schedule").status === "ok");
+  check("a sweep overdue by more than a few minutes warns",
+    of(healthOf({ ...well, sweepAt: now - 10 * 60_000 }, policy, now), "schedule").status === "warn" &&
+      of(healthOf({ ...well, sweepAt: now - 60_000 }, policy, now), "schedule").status === "ok");
+  const behind = healthOf({ ...well, oldestFinished: now - 2 * 3_600_000 }, policy, now);
+  check("a game past its keep by more than a sweep's interval warns: sweeps are not keeping up",
+    of(behind, "backlog").status === "warn" && of(behind, "backlog").says.includes("finished"), of(behind, "backlog").says);
+  check("one past its keep by less is only waiting for the next sweep",
+    of(healthOf({ ...well, oldestUnfinished: now - 30 * 60_000 }, policy, now), "backlog").status === "ok");
+  check("below N1 nothing is past its keep, however old",
+    of(healthOf({ ...well, n: 5, oldestUnfinished: 0 }, policy, now), "backlog").status === "ok");
+  const threw = healthOf({ ...well, last: lastSweepOf(now - 1_000, null, "disk on fire") }, policy, now);
+  check("the last sweep having thrown fails, and says why",
+    of(threw, "last sweep").status === "fail" && of(threw, "last sweep").says.includes("disk on fire"), of(threw, "last sweep").says);
+  const unanswered = healthOf(
+    { ...well, last: lastSweepOf(now - 1_000, { evicted: [], kept: [], failed: ["x", "y"], problem: "x: timed out" }, null) }, policy, now);
+  check("games not answering it warns, with the first one's reason",
+    unanswered.status === "warn" && of(unanswered, "last sweep").says.includes("x: timed out"), of(unanswered, "last sweep").says);
+  check("the worst check is the whole: a failure over a warning",
+    healthOf({ ...well, n: 95, sweepAt: null }, policy, now).status === "fail");
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed${failures.length === 0 ? "" : `: ${failures.join(", ")}`}\n`);

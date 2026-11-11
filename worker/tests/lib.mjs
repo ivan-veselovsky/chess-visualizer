@@ -7,8 +7,13 @@ export const gameId = () => crypto.randomUUID();
 /** Where to test: local by default, or wherever WS_BASE points. */
 export const base = process.env.WS_BASE ?? "ws://127.0.0.1:8787";
 
-export async function connect(game, label = "client") {
-  const ws = new WebSocket(`${base}/ws?game=${game}`);
+/**
+ * `registry`, where given, is a registry of the test's own to count the game
+ * in, so that its games are not counted with any other test's — honoured by
+ * a worker started for tests only: see `registryFor` in `../index.ts`.
+ */
+export async function connect(game, label = "client", registry = null) {
+  const ws = new WebSocket(`${base}/ws?game=${game}${registry === null ? "" : `&registry=${registry}`}`);
   ws.heard = [];
   ws.closed = null;
   ws.label = label;

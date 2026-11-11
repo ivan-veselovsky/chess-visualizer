@@ -105,6 +105,8 @@ function explain(code: ErrorCode): string {
       return "That challenge is not yours to take back.";
     case "badMessage":
       return "Something went wrong talking to the server.";
+    case "serverFull":
+      return "The server has as many games as it can keep. Try again later.";
   }
 }
 
@@ -378,7 +380,7 @@ export function useFriendGame(listeners: FriendListeners) {
     the truth.
   */
   /* Null against a seat means the object was asked and said there is no such
-     game: a game swept away after its week, rather than one nobody could ask
+     game: a game swept away after its keep, rather than one nobody could ask
      about. */
   const [standings, setStandings] = useState<Map<string, Standing | null>>(
     new Map()
@@ -1552,8 +1554,9 @@ export function useFriendGame(listeners: FriendListeners) {
           );
           if (said !== null && said.type === "error") {
             /* The object answered, so the line is up; what it said was that
-               this game is not there. A game is kept for a week after the last
-               thing that happened to it and then swept away, so a seat can
+               this game is not there. A game is kept for a while after the
+               last thing that happened to it — days, or months, by how many
+               games the server keeps — and then swept away, so a seat can
                outlive the game it is at. */
             answers += 1;
             if (said.code === "noSuchGame" || said.code === "unknownToken") {

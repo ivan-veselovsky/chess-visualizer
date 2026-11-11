@@ -23,13 +23,44 @@
       npx wrangler deploy --var GAME_LOG:on
   */
   "vars": { "GAME_LOG": "off" },
+  /*
+    How long idle games are kept goes by how many there are, and the numbers
+    of that are variables too, each with a default in worker/keeping.ts:
 
-  // One object per game, addressed by the game's id.
+      KEEP_N1 5000          never evicted at this many games or fewer
+      KEEP_N2 50000         no new game at this many
+      KEEP_T0_MS 2 days     the least a game is kept, at N2
+      KEEP_T1_MS 30 days    what it gets beyond that at half-way
+      KEEP_FINISHED_SHARE 0.5   a finished game's keep, as a share
+
+    Set like GAME_LOG, with --var on a deploy. KEEPING_TEST, which opens the
+    registry to questions from tests, is for `wrangler dev` only: see
+    .dev.vars.
+
+    ADMIN_TOKEN, what GET /admin/api/health asks for, is a secret rather than a
+    variable, so that it is in no file and no command line's history:
+
+      npx wrangler secret put ADMIN_TOKEN
+
+    Without it the admin routes are not there at all. Asked with
+    `Authorization: Bearer <token>`; see worker/index.ts.
+  */
+
+  // One object per game, addressed by the game's id; and one registry
+  // counting them, which decides how long an idle game is kept — see
+  // worker/keeping.ts.
   "durable_objects": {
-    "bindings": [{ "name": "GAME", "class_name": "Game" }]
+    "bindings": [
+      { "name": "GAME", "class_name": "Game" },
+      { "name": "REGISTRY", "class_name": "Registry" }
+    ]
   },
-  // SQLite-backed, which is the storage the free plan offers.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Game"] }],
+  // SQLite-backed, which is the storage the free plan offers. The registry
+  // came later, so it is a migration of its own.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Game"] },
+    { "tag": "v2", "new_sqlite_classes": ["Registry"] }
+  ],
   /*
     Keep what the Worker says, rather than only showing it to whoever happens
     to be watching. `wrangler tail` is a live stream and nothing more: a run
