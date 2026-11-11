@@ -66,6 +66,7 @@ import CLASSIC_BROWN_JSON from "../src/app/presets/settings-classic-brown.json" 
 import CLASSIC_GREEN_JSON from "../src/app/presets/settings-classic-green.json" with { type: "json" };
 import { Chess } from "chess.js";
 import { admits, cutoffsAt, DEFAULT_KEEPING, healthOf, keptFor, lastSweepOf, nextSweep, pastKeeping, policyFrom, sweep } from "../worker/keeping.ts";
+import { pgnOf, withoutTokens } from "../worker/admin.ts";
 
 /* Each check numbered, as the browser suites number theirs: see `check` in `browser.mjs`. */
 let passed = 0;
@@ -3185,6 +3186,41 @@ console.log("\nWhether the keeping of games is healthy\n");
     unanswered.status === "warn" && of(unanswered, "last sweep").says.includes("x: timed out"), of(unanswered, "last sweep").says);
   check("the worst check is the whole: a failure over a warning",
     healthOf({ ...well, n: 95, sweepAt: null }, policy, now).status === "fail");
+}
+
+console.log("\nWhat the admin is shown of a game\n");
+{
+  const record = {
+    host: { token: "host-secret", name: "Bob", color: "w" },
+    guest: { token: "guest-secret", name: "Alice", color: "b" },
+    status: "finished", result: "0-1", reason: "resignation", handicap: null, takebacks: 0,
+    initialFEN: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    moves: ["e4", "e5", "Nf3"], priorMoves: 0, abandoned: [["e4", "c5"]], takebacksLeft: { w: 0, b: 0 },
+    revision: 5, createdAt: Date.UTC(2026, 10, 9, 23, 0), startedAt: Date.UTC(2026, 10, 10, 8, 30), endedAt: null, touchedAt: 0,
+  };
+  const shown = withoutTokens({ ...record, deeper: [{ token: "x", kept: 1 }] });
+  check("no token is shown, at any depth, and everything else is",
+    !JSON.stringify(shown).includes("secret") && !JSON.stringify(shown).includes('"token"') &&
+      shown.host.name === "Bob" && shown.deeper[0].kept === 1 && shown.abandoned[0][1] === "c5",
+    JSON.stringify(shown));
+  const pgn = pgnOf(record, "123456789", "chess.example");
+  check("the PGN has the moves, the players by their colors, the result, the day it began and how it ended",
+    pgn.includes("1. e4 e5 2. Nf3") && pgn.includes('[White "Bob"]') && pgn.includes('[Black "Alice"]') &&
+      pgn.includes('[Result "0-1"]') && pgn.includes('[Date "2026.11.10"]') && pgn.includes('[Event "Game 123456789"]') &&
+      pgn.includes('[Site "chess.example"]') && pgn.includes("{Resignation}") && pgn.trim().endsWith("0-1"),
+    pgn);
+  check("and leaves out the tags it has nothing for", !pgn.includes('"?"'), pgn);
+  const back = new Chess();
+  back.loadPgn(pgn);
+  check("it reads back as the same game", back.history().join(" ") === "e4 e5 Nf3", back.history().join(" "));
+  const odds = pgnOf({ ...record, initialFEN: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1", moves: ["e4"], reason: null, result: "*" }, null, "x");
+  check("a game from another position says where it began", odds.includes("[SetUp \"1\"]") && odds.includes("RNB1KBNR"), odds);
+  const open = pgnOf({ ...record, host: { token: "t", name: "Bob", color: "opponentChooses" }, guest: null, initialFEN: null,
+    moves: [], status: "planning", result: "*", reason: null, startedAt: null }, "1", "x");
+  check("an invite not yet answered: no moves, nobody at either color, dated when it was made",
+    open !== null && !open.includes("Bob") && open.includes('[Date "2026.11.09"]'), open);
+  check("a record whose moves do not play is said to be so, not half shown",
+    pgnOf({ ...record, moves: ["e4", "e4"] }, null, "x") === null);
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed${failures.length === 0 ? "" : `: ${failures.join(", ")}`}\n`);

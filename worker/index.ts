@@ -24,11 +24,13 @@ function healthSaid(health: Health): Response {
  * and its routes are not there.
  */
 function adminAsks(request: Request, env: Env): boolean | null {
-  const token = (env as { ADMIN_TOKEN?: string }).ADMIN_TOKEN;
-  if (token === undefined || token === "") {
+  /* Trimmed, as a secret piped in from `echo` carries the line's end with it. */
+  const token = ((env as { ADMIN_TOKEN?: string }).ADMIN_TOKEN ?? "").trim();
+  if (token === "") {
     return null;
   }
-  const given = (request.headers.get("Authorization") ?? "").replace(/^Bearer /, "");
+  /* "Bearer" in any case, as the scheme's name is; and the bare token as well, which is no less the token. */
+  const given = (request.headers.get("Authorization") ?? "").trim().replace(/^bearer\s+/i, "");
   const encoder = new TextEncoder();
   const [a, b] = [encoder.encode(given), encoder.encode(token)];
   return a.byteLength === b.byteLength && crypto.subtle.timingSafeEqual(a, b);
@@ -39,8 +41,17 @@ function adminAsks(request: Request, env: Env): boolean | null {
  * time — never a time of the asker's choosing, as a sweep at a time ahead
  * would take games before their keep is out.
  *
- *   GET /admin/api/health?deep=1   how the keeping of games is: see `healthOf`
+ *   GET  /admin/api/health?deep=1  how the keeping of games is: see `healthOf`
  *                                  (deep=1 checks the tally against every row)
+ *   POST /admin/api/sweep          a sweep now, and the schedule put right:
+ *                                  what it did, and the health after it
+ *   GET    /admin/api/games/<id>   a game: its record without tokens, its PGN
+ *   DELETE /admin/api/games/<id>   a game deleted, and its registry row
+ *
+ * A game by its number — what an invite link carries — or by the object's
+ * own id, the 64 hex digits the registry lists it under.
+ *
+ * One path to an action, so that more go beside these as they are wanted.
  *
  * Under /admin/api/ and nothing wider, so that /admin/ itself is left for a
  * page of the admin's, served as any other file.
@@ -51,11 +62,41 @@ async function adminAsked(request: Request, env: Env, url: URL): Promise<Respons
     return new Response("Not found", { status: 404 });
   }
   if (!allowed) {
-    return new Response("Who is asking?", { status: 401, headers: { "WWW-Authenticate": "Bearer" } });
+    return new Response("Missing or wrong admin token: send Authorization: Bearer <ADMIN_TOKEN>\n", {
+      status: 401,
+      headers: { "WWW-Authenticate": "Bearer" },
+    });
   }
   const registry = env.REGISTRY.get(env.REGISTRY.idFromName(REGISTRY));
   if (url.pathname === "/admin/api/health" && request.method === "GET") {
     return healthSaid(await registry.health(Date.now(), url.searchParams.get("deep") === "1"));
+  }
+  const games = url.pathname.match(/^\/admin\/api\/games\/([^/]+)$/);
+  if (games !== null) {
+    const asked = decodeURIComponent(games[1]);
+    let id: DurableObjectId;
+    try {
+      id = /^[0-9a-f]{64}$/.test(asked) ? env.GAME.idFromString(asked) : env.GAME.idFromName(asked);
+    } catch {
+      /* Hex of the right length that this namespace never issued. */
+      return new Response("No game has that id\n", { status: 400 });
+    }
+    const game = env.GAME.get(id);
+    const fresh = { headers: { "Cache-Control": "no-store" } };
+    if (request.method === "GET") {
+      const seen = await game.inspect(url.host);
+      return seen === null ? Response.json({ error: "No such game" }, { status: 404, ...fresh }) : Response.json(seen, fresh);
+    }
+    if (request.method === "DELETE") {
+      const done = await game.erase();
+      /* Nothing there and no row either: there was no such game to delete. */
+      return Response.json(done, { status: done.existed || done.rowRemoved === true ? 200 : 404, ...fresh });
+    }
+    return new Response("A game is read with GET and deleted with DELETE\n", { status: 405, headers: { Allow: "GET, DELETE" } });
+  }
+  if (url.pathname === "/admin/api/sweep" && request.method === "POST") {
+    const done = await registry.sweepByHand();
+    return Response.json(done, { status: done.error === null ? 200 : 500, headers: { "Cache-Control": "no-store" } });
   }
   return new Response("Not a question the admin can ask", { status: 404 });
 }

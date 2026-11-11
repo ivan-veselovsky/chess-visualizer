@@ -316,6 +316,60 @@ export class Registry extends DurableObject {
     );
   }
 
+  /**
+   * A sweep the admin asked for, at the real time: what it did, and how the
+   * registry is after it.
+   *
+   * And the schedule put right on the way: where no sweep is set, or the
+   * next is later than it should be (see `nextSweep`), it is set as the
+   * alarm's own sweep would have set it — so that "sweep now" is also how a
+   * lost schedule is mended without waiting for a game to arrive.
+   *
+   * Never at a time the asker names, as the tests' sweep is: a time ahead
+   * would take games before their keep is out.
+   *
+   * A sweep of one batch, as any sweep is; where there is more, the next is
+   * set a second on and goes on with it. It may meet the alarm's own sweep
+   * half-way, each waiting on games it asked: harmless, as a game asked twice
+   * answers twice the same, and a removal of a row already gone removes
+   * nothing.
+   */
+  async sweepByHand(): Promise<{ swept: Swept | null; error: string | null; health: Health }> {
+    const now = Date.now();
+    let swept: Swept | null = null;
+    let error: string | null = null;
+    try {
+      swept = await this.sweepAt(now);
+    } catch (thrown) {
+      error = thrown instanceof Error ? thrown.message : String(thrown);
+      console.error(`registry ${this.name}: a sweep asked for by the admin failed:`, error);
+    }
+    const policy = await this.policy().catch(() => this.deployed);
+    const next = nextSweep(Date.now(), this.store.count(), policy, swept);
+    const set = await this.ctx.storage.getAlarm();
+    if (next !== null && (set === null || set > next)) {
+      await this.ctx.storage.setAlarm(next);
+    }
+    return {
+      /* JSON has no infinity: a keep for ever, said as null. */
+      swept: swept === null ? null : { ...swept, keep: swept.keep === Infinity ? (null as unknown as number) : swept.keep },
+      error,
+      health: await this.health(),
+    };
+  }
+
+  /**
+   * A game's row taken out, whatever its age: the game deleted by the admin
+   * (see `Game.erase`). Whether there was a row to take.
+   */
+  async drop(id: string): Promise<boolean> {
+    const there = this.ctx.storage.sql.exec("SELECT 1 FROM games WHERE id = ?", id).toArray().length > 0;
+    if (there) {
+      this.ctx.storage.sql.exec("DELETE FROM games WHERE id = ?", id);
+    }
+    return there;
+  }
+
   /* What follows is for tests, and reached only through `./index.ts` where the
      deployment says it is a test one (`KEEPING_TEST`). */
 

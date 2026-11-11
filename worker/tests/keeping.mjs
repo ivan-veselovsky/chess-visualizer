@@ -306,6 +306,8 @@ const sockets = [];
     const wrong = await asking(`Bearer ${token}x`);
     check("the admin's health is not for anyone without the token, nor with a wrong one",
       nobody.status === 401 && wrong.status === 401, `${nobody.status} ${wrong.status}`);
+    check("and a refusal says what is missing", (await nobody.text()).includes("Authorization: Bearer"));
+    check("the scheme's name in any case, as HTTP has it", (await asking(`bearer ${token}`)).status !== 401);
     const right = await asking(`Bearer ${token}`);
     const said = await right.json().catch(() => null);
     /* The shared registry's state is whatever the machine has been doing: only that it answers in full. */
@@ -313,6 +315,25 @@ const sockets = [];
       (right.status === 200 || right.status === 503) &&
         ["count", "tally", "schedule", "backlog", "last sweep"].every((name) => said?.checks?.some((each) => each.name === name)),
       JSON.stringify(said));
+
+    /* A sweep by hand: of the deployment's registry, and at the real time, so it takes nothing before its keep. */
+    const sweeping = (auth, method = "POST") =>
+      fetch(`${http}/admin/api/sweep`, { method, headers: auth === undefined ? {} : { Authorization: auth } });
+    check("a sweep by hand is not for anyone without the token either", (await sweeping()).status === 401);
+    check("and only asked for with a POST", (await sweeping(`Bearer ${token}`, "GET")).status === 404);
+    /* The schedule lost first — through the tests' own door to the same registry — to see the sweep mend it. */
+    const shared = registry("games");
+    await shared.unschedule();
+    const lost = (await shared.stats()).sweepAt;
+    const swept = await sweeping(`Bearer ${token}`);
+    const done = await swept.json().catch(() => null);
+    check("the admin can sweep now: what it did, and the health after it",
+      swept.status === 200 && done?.error === null && typeof done?.swept?.n === "number" && Array.isArray(done?.health?.checks),
+      JSON.stringify(done));
+    const after = await shared.stats();
+    check("and a lost schedule is set again by it, where there are games to sweep",
+      lost === null && (after.n === 0 ? after.sweepAt === null : after.sweepAt !== null),
+      JSON.stringify({ lost, n: after.n, sweepAt: after.sweepAt }));
   }
 }
 

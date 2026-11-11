@@ -21,6 +21,7 @@ import { note } from "./log";
 import type { Color } from "./protocol";
 import { pastKeeping, type Asked, type Cutoffs } from "./keeping";
 import { REGISTRY, type Registry } from "./registry";
+import { pgnOf, withoutTokens } from "./admin";
 
 /**
  * Where a game begins: worked out from the odds, or taken as given for a game
@@ -73,8 +74,22 @@ function endOf(board: Chess): { result: GameResult; reason: EndReason } | null {
  */
 export const REPORT_EVERY_MS = 60 * 60 * 1000;
 
+/** A game as the admin is shown it: see `inspect`. */
+export interface AdminGame {
+  /** The object's own id — what the registry lists games by. */
+  id: string;
+  /** The game's number, as its invite has it, where the object was asked for by it. */
+  name: string | null;
+  registry: string;
+  reported: Reported | null;
+  /** Null where the moves do not play: see `pgnOf`. */
+  pgn: string | null;
+  /** Without the players' tokens: see `withoutTokens`. */
+  record: GameRecord;
+}
+
 /** What the registry was last told, so as not to tell it the same again. */
-interface Reported {
+export interface Reported {
   touched: number;
   finished: boolean;
 }
@@ -1491,6 +1506,65 @@ export class Game extends DurableObject {
     }
     await this.forget();
     return { gone: true };
+  }
+
+  /**
+   * The game as the admin sees it: its record without the players' tokens,
+   * its PGN, the registry it is counted in and what that registry was last
+   * told. Null where there is no game here.
+   *
+   * `site` is the address the admin asked at, for the PGN's Site tag.
+   */
+  async inspect(site: string): Promise<AdminGame | null> {
+    const record = (await this.ctx.storage.get<GameRecord>("game")) ?? null;
+    if (record === null) {
+      return null;
+    }
+    return {
+      id: this.ctx.id.toString(),
+      name: this.ctx.id.name ?? null,
+      registry: (await this.ctx.storage.get<string>("registry")) ?? REGISTRY,
+      reported: (await this.ctx.storage.get<Reported>("reported")) ?? null,
+      pgn: pgnOf(record, this.ctx.id.name ?? null, site),
+      record: withoutTokens(record),
+    };
+  }
+
+  /**
+   * The game deleted by the admin, whatever its keep: everything here
+   * dropped, anyone on the line let go, and its row taken out of the
+   * registry.
+   *
+   * The game first and the row after, so that a registry not answering
+   * leaves a row with no game behind it rather than a game with no row: the
+   * next sweep to reach that row asks, hears there is nothing, and takes it
+   * out (see `evict`). The other way round would leave a game no sweep ever
+   * finds.
+   *
+   * Said in the log whether or not the deployment keeps one: a game gone at
+   * somebody's hand is a thing to be able to account for.
+   */
+  async erase(): Promise<{ existed: boolean; rowRemoved: boolean | null }> {
+    const existed = (await this.ctx.storage.get<GameRecord>("game")) !== undefined;
+    /* Read before everything goes, as which registry it is is part of what goes. */
+    const registry = await this.registry();
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+    for (const socket of this.ctx.getWebSockets()) {
+      try {
+        socket.close(1000, "The game was deleted");
+      } catch {
+        /* Already closing: nothing to let go of. */
+      }
+    }
+    let rowRemoved: boolean | null = null;
+    try {
+      rowRemoved = await registry.drop(this.ctx.id.toString());
+    } catch (thrown) {
+      console.error(`game ${this.named}: deleted, but the registry could not be told:`, thrown instanceof Error ? thrown.message : thrown);
+    }
+    console.warn(`game ${this.named}: deleted by the admin${existed ? "" : " (there was no game)"}`);
+    return { existed, rowRemoved };
   }
 
   /**
